@@ -37,13 +37,17 @@ class TestValidateFinemappingDf:
     def test_missing_pos_col(self, finemapping_df):
         """Should raise for missing position column."""
         df = finemapping_df.drop(columns=["pos"])
-        with pytest.raises(FinemappingValidationError, match="missing required columns"):
+        with pytest.raises(
+            FinemappingValidationError, match="missing required columns"
+        ):
             validate_finemapping_df(df)
 
     def test_missing_pip_col(self, finemapping_df):
         """Should raise for missing PIP column."""
         df = finemapping_df.drop(columns=["pip"])
-        with pytest.raises(FinemappingValidationError, match="missing required columns"):
+        with pytest.raises(
+            FinemappingValidationError, match="missing required columns"
+        ):
             validate_finemapping_df(df)
 
     def test_invalid_pip_values(self, finemapping_df):

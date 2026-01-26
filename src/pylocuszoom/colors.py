@@ -236,4 +236,6 @@ def get_credible_set_color_palette(n_sets: int = 10) -> dict[int, str]:
         >>> palette[1]
         '#FF7F00'
     """
-    return {i + 1: CREDIBLE_SET_COLORS[i % len(CREDIBLE_SET_COLORS)] for i in range(n_sets)}
+    return {
+        i + 1: CREDIBLE_SET_COLORS[i % len(CREDIBLE_SET_COLORS)] for i in range(n_sets)
+    }

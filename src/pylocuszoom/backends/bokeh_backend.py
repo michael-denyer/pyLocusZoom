@@ -115,7 +115,11 @@ class BokehBackend:
             for col in hover_data.columns:
                 data[col] = hover_data[col].values
                 col_lower = col.lower()
-                if col_lower == "p-value" or col_lower == "pval" or col_lower == "p_value":
+                if (
+                    col_lower == "p-value"
+                    or col_lower == "pval"
+                    or col_lower == "p_value"
+                ):
                     tooltips.append((col, "@{" + col + "}{0.2e}"))
                 elif "r2" in col_lower or "r²" in col_lower or "ld" in col_lower:
                     tooltips.append((col, "@{" + col + "}{0.3f}"))
@@ -465,7 +469,10 @@ class BokehBackend:
         label = self._convert_label(label)
         # Find the secondary axis and update its label
         for renderer in ax.right:
-            if hasattr(renderer, "y_range_name") and renderer.y_range_name == yaxis_name:
+            if (
+                hasattr(renderer, "y_range_name")
+                and renderer.y_range_name == yaxis_name
+            ):
                 renderer.axis_label = label
                 renderer.axis_label_text_font_size = f"{fontsize}pt"
                 renderer.axis_label_text_color = color

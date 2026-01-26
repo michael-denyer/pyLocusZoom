@@ -968,7 +968,9 @@ class LocusZoomPlotter:
                         panel_ld_col = "R2"
 
             # Plot association
-            self._plot_association(ax, df, pos_col, panel_ld_col, lead_pos, rs_col, p_col)
+            self._plot_association(
+                ax, df, pos_col, panel_ld_col, lead_pos, rs_col, p_col
+            )
 
             # Add significance line
             self._backend.axhline(

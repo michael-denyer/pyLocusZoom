@@ -112,7 +112,11 @@ class PlotlyBackend:
             hovertemplate = "<b>%{customdata[0]}</b><br>"
             for i, col in enumerate(hover_cols[1:], 1):
                 col_lower = col.lower()
-                if col_lower == "p-value" or col_lower == "pval" or col_lower == "p_value":
+                if (
+                    col_lower == "p-value"
+                    or col_lower == "pval"
+                    or col_lower == "p_value"
+                ):
                     hovertemplate += f"{col}: %{{customdata[{i}]:.2e}}<br>"
                 elif "r2" in col_lower or "r²" in col_lower or "ld" in col_lower:
                     hovertemplate += f"{col}: %{{customdata[{i}]:.3f}}<br>"
@@ -487,7 +491,9 @@ class PlotlyBackend:
     ) -> None:
         """Set secondary y-axis limits."""
         fig, row = ax
-        yaxis_key = "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        yaxis_key = (
+            "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        )
         fig.update_layout(**{yaxis_key: dict(range=[bottom, top])})
 
     def set_secondary_ylabel(
@@ -501,7 +507,9 @@ class PlotlyBackend:
         """Set secondary y-axis label."""
         fig, row = ax
         label = self._convert_label(label)
-        yaxis_key = "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        yaxis_key = (
+            "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        )
         fig.update_layout(
             **{
                 yaxis_key: dict(
@@ -700,7 +708,9 @@ class PlotlyBackend:
 
                     # Generate ticks
                     first_tick = np.ceil(x_min_mb / tick_step) * tick_step
-                    tickvals_mb = np.arange(first_tick, x_max_mb + tick_step / 2, tick_step)
+                    tickvals_mb = np.arange(
+                        first_tick, x_max_mb + tick_step / 2, tick_step
+                    )
                     tickvals_bp = [v * 1e6 for v in tickvals_mb]
                     ticktext = [f"{v:.2f}" for v in tickvals_mb]
 
