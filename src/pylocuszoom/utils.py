@@ -1,16 +1,87 @@
-"""Utility functions for snp-scope-plot.
+"""Utility functions for pyLocusZoom.
 
 Shared helpers used across multiple modules.
 """
 
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from pyspark.sql import DataFrame as SparkDataFrame
+
+# Type alias for DataFrames (pandas or PySpark)
+DataFrameLike = Union[pd.DataFrame, "SparkDataFrame", Any]
 
 
 class ValidationError(ValueError):
     """Raised when input validation fails."""
+
+
+def is_spark_dataframe(df: Any) -> bool:
+    """Check if object is a PySpark DataFrame.
+
+    Args:
+        df: Object to check.
+
+    Returns:
+        True if PySpark DataFrame, False otherwise.
+    """
+    # Check class name to avoid importing pyspark
+    return type(df).__name__ == "DataFrame" and type(df).__module__.startswith("pyspark")
+
+
+def to_pandas(
+    df: DataFrameLike,
+    sample_size: Optional[int] = None,
+) -> pd.DataFrame:
+    """Convert DataFrame-like object to pandas DataFrame.
+
+    Supports pandas DataFrames (returned as-is) and PySpark DataFrames
+    (converted to pandas). For large PySpark DataFrames, use sample_size
+    to limit the data transferred.
+
+    Args:
+        df: pandas DataFrame or PySpark DataFrame.
+        sample_size: For PySpark, limit to this many rows. If None,
+            converts entire DataFrame (may be slow for large data).
+
+    Returns:
+        pandas DataFrame.
+
+    Raises:
+        TypeError: If df is not a supported DataFrame type.
+
+    Example:
+        >>> # PySpark DataFrame
+        >>> pdf = to_pandas(spark_df, sample_size=100000)
+        >>>
+        >>> # pandas DataFrame (passthrough)
+        >>> pdf = to_pandas(pandas_df)
+    """
+    if isinstance(df, pd.DataFrame):
+        return df
+
+    if is_spark_dataframe(df):
+        if sample_size is not None:
+            # Sample to limit data transfer
+            total = df.count()
+            if total > sample_size:
+                fraction = sample_size / total
+                df = df.sample(fraction=fraction, seed=42)
+        return df.toPandas()
+
+    # Try pandas conversion as fallback
+    if hasattr(df, "to_pandas"):
+        return df.to_pandas()
+    if hasattr(df, "toPandas"):
+        return df.toPandas()
+
+    raise TypeError(
+        f"Unsupported DataFrame type: {type(df).__name__}. "
+        f"Expected pandas.DataFrame or pyspark.sql.DataFrame"
+    )
 
 
 def normalize_chrom(chrom: Union[int, str]) -> str:

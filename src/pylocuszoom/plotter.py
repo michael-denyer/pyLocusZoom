@@ -2,10 +2,15 @@
 
 Orchestrates all components (LD coloring, gene track, recombination overlay,
 SNP labels) into a unified plotting interface.
+
+Supports multiple backends:
+- matplotlib (default): Static publication-quality plots
+- plotly: Interactive HTML with hover tooltips
+- bokeh: Interactive HTML for dashboards
 """
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +20,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.ticker import FuncFormatter, MaxNLocator
+
+from .backends import BackendType, PlotBackend, get_backend
 
 from .colors import (
     LD_BINS,
@@ -48,12 +55,19 @@ class LocusZoomPlotter:
     - Recombination rate overlays (dog built-in, or user-provided)
     - Automatic SNP labeling
 
+    Supports multiple rendering backends:
+    - matplotlib (default): Static publication-quality plots
+    - plotly: Interactive HTML with hover tooltips
+    - bokeh: Interactive HTML for dashboards
+
     Args:
         species: Species name ('dog', 'cat', or None for custom).
             Dog has built-in recombination maps.
         genome_build: Genome build for coordinate system. For dog:
             "canfam3.1" (default) or "canfam4". If "canfam4", recombination
             maps are automatically lifted over from CanFam3.1.
+        backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
+            Defaults to 'matplotlib' for static plots.
         plink_path: Path to PLINK executable for LD calculation.
             Auto-detects if None.
         recomb_data_dir: Directory containing recombination maps.
@@ -63,11 +77,11 @@ class LocusZoomPlotter:
             to disable). Defaults to "INFO".
 
     Example:
-        >>> # CanFam3.1 (default)
+        >>> # Static plot (default)
         >>> plotter = LocusZoomPlotter(species="dog")
         >>>
-        >>> # CanFam4
-        >>> plotter = LocusZoomPlotter(species="dog", genome_build="canfam4")
+        >>> # Interactive plot with plotly
+        >>> plotter = LocusZoomPlotter(species="dog", backend="plotly")
         >>>
         >>> fig = plotter.plot(
         ...     gwas_df,
@@ -76,13 +90,15 @@ class LocusZoomPlotter:
         ...     end=2000000,
         ...     lead_pos=1500000,
         ... )
-        >>> fig.savefig("regional_plot.png", dpi=150)
+        >>> fig.savefig("regional_plot.png", dpi=150)  # matplotlib
+        >>> # or fig.save("plot.html")  # plotly/bokeh
     """
 
     def __init__(
         self,
         species: str = "dog",
         genome_build: Optional[str] = None,
+        backend: BackendType = "matplotlib",
         plink_path: Optional[str] = None,
         recomb_data_dir: Optional[str] = None,
         genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
@@ -97,6 +113,8 @@ class LocusZoomPlotter:
         self.genome_build = (
             genome_build if genome_build else self._default_build(species)
         )
+        self.backend_name = backend
+        self._backend = get_backend(backend)
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
@@ -449,3 +467,267 @@ class LocusZoomPlotter:
             handleheight=1.0,
             labelspacing=0.4,
         )
+
+    def plot_stacked(
+        self,
+        gwas_dfs: List[pd.DataFrame],
+        chrom: int,
+        start: int,
+        end: int,
+        lead_positions: Optional[List[int]] = None,
+        panel_labels: Optional[List[str]] = None,
+        ld_reference_file: Optional[str] = None,
+        ld_reference_files: Optional[List[str]] = None,
+        genes_df: Optional[pd.DataFrame] = None,
+        exons_df: Optional[pd.DataFrame] = None,
+        eqtl_df: Optional[pd.DataFrame] = None,
+        eqtl_gene: Optional[str] = None,
+        recomb_df: Optional[pd.DataFrame] = None,
+        show_recombination: bool = True,
+        snp_labels: bool = True,
+        label_top_n: int = 3,
+        pos_col: str = "ps",
+        p_col: str = "p_wald",
+        rs_col: str = "rs",
+        figsize: Tuple[float, Optional[float]] = (12, None),
+    ) -> Any:
+        """Create stacked regional association plots for multiple GWAS.
+
+        Vertically stacks multiple GWAS results for comparison, with shared
+        x-axis and optional gene track at the bottom.
+
+        Args:
+            gwas_dfs: List of GWAS results DataFrames to stack.
+            chrom: Chromosome number.
+            start: Start position of the region.
+            end: End position of the region.
+            lead_positions: List of lead SNP positions (one per GWAS).
+                If None, auto-detects from lowest p-value.
+            panel_labels: Labels for each panel (e.g., phenotype names).
+            ld_reference_file: Single PLINK fileset for all panels.
+            ld_reference_files: List of PLINK filesets (one per panel).
+            genes_df: Gene annotations for bottom track.
+            exons_df: Exon annotations for gene track.
+            eqtl_df: eQTL data to display as additional panel.
+            eqtl_gene: Filter eQTL data to this target gene.
+            recomb_df: Pre-loaded recombination rate data.
+            show_recombination: Whether to show recombination overlay.
+            snp_labels: Whether to label top SNPs.
+            label_top_n: Number of top SNPs to label per panel.
+            pos_col: Column name for position.
+            p_col: Column name for p-value.
+            rs_col: Column name for SNP ID.
+            figsize: Figure size (width, height). If height is None, auto-calculates.
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Example:
+            >>> fig = plotter.plot_stacked(
+            ...     [gwas_height, gwas_bmi, gwas_whr],
+            ...     chrom=1, start=1000000, end=2000000,
+            ...     panel_labels=["Height", "BMI", "WHR"],
+            ...     genes_df=genes_df,
+            ... )
+        """
+        n_gwas = len(gwas_dfs)
+        if n_gwas == 0:
+            raise ValueError("At least one GWAS DataFrame required")
+
+        # Validate inputs
+        for i, df in enumerate(gwas_dfs):
+            validate_gwas_df(df, pos_col=pos_col, p_col=p_col)
+        if genes_df is not None:
+            validate_genes_df(genes_df)
+
+        # Handle lead positions
+        if lead_positions is None:
+            lead_positions = []
+            for df in gwas_dfs:
+                region_df = df[(df[pos_col] >= start) & (df[pos_col] <= end)]
+                if not region_df.empty:
+                    lead_idx = region_df[p_col].idxmin()
+                    lead_positions.append(int(region_df.loc[lead_idx, pos_col]))
+                else:
+                    lead_positions.append(None)
+
+        # Handle LD reference files
+        if ld_reference_files is None and ld_reference_file is not None:
+            ld_reference_files = [ld_reference_file] * n_gwas
+
+        # Calculate panel layout
+        panel_height = 2.5  # inches per GWAS panel
+        eqtl_height = 2.0 if eqtl_df is not None else 0
+
+        # Gene track height
+        if genes_df is not None:
+            chrom_str = normalize_chrom(chrom)
+            region_genes = genes_df[
+                (genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
+                & (genes_df["end"] >= start)
+                & (genes_df["start"] <= end)
+            ]
+            if not region_genes.empty:
+                temp_positions = assign_gene_positions(
+                    region_genes.sort_values("start"), start, end
+                )
+                n_gene_rows = max(temp_positions) + 1 if temp_positions else 1
+            else:
+                n_gene_rows = 1
+            gene_track_height = 1.0 + (n_gene_rows - 1) * 0.5
+        else:
+            gene_track_height = 0
+
+        # Calculate total panels and heights
+        n_panels = n_gwas + (1 if eqtl_df is not None else 0) + (1 if genes_df is not None else 0)
+        height_ratios = [panel_height] * n_gwas
+        if eqtl_df is not None:
+            height_ratios.append(eqtl_height)
+        if genes_df is not None:
+            height_ratios.append(gene_track_height)
+
+        # Calculate figure height
+        total_height = figsize[1] if figsize[1] else sum(height_ratios)
+        actual_figsize = (figsize[0], total_height)
+
+        logger.debug(f"Creating stacked plot with {n_panels} panels for chr{chrom}:{start}-{end}")
+
+        # Prevent auto-display in interactive environments
+        plt.ioff()
+
+        # Load recombination data if needed
+        if show_recombination and recomb_df is None:
+            recomb_df = self._get_recomb_for_region(chrom, start, end)
+
+        # Create figure
+        fig, axes = plt.subplots(
+            n_panels,
+            1,
+            figsize=actual_figsize,
+            height_ratios=height_ratios,
+            sharex=True,
+            gridspec_kw={"hspace": 0.05},
+        )
+        if n_panels == 1:
+            axes = [axes]
+
+        # Plot each GWAS panel
+        for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
+            ax = axes[i]
+            df = gwas_df.copy()
+            df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
+
+            # Calculate LD if reference provided
+            ld_col = None
+            if ld_reference_files and ld_reference_files[i] and lead_pos:
+                lead_snp_row = df[df[pos_col] == lead_pos]
+                if not lead_snp_row.empty and rs_col in df.columns:
+                    lead_snp_id = lead_snp_row[rs_col].iloc[0]
+                    ld_df = calculate_ld(
+                        bfile_path=ld_reference_files[i],
+                        lead_snp=lead_snp_id,
+                        window_kb=max((end - start) // 1000, 500),
+                        plink_path=self.plink_path,
+                        species=self.species,
+                    )
+                    if not ld_df.empty:
+                        df = df.merge(ld_df, left_on=rs_col, right_on="SNP", how="left")
+                        ld_col = "R2"
+
+            # Plot association
+            self._plot_association(ax, df, pos_col, ld_col, lead_pos)
+
+            # Add significance line
+            ax.axhline(y=self._genomewide_line, color="grey", linestyle="--", linewidth=1, zorder=1)
+
+            # Add SNP labels
+            if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
+                add_snp_labels(
+                    ax, df, pos_col=pos_col, neglog10p_col="neglog10p",
+                    rs_col=rs_col, label_top_n=label_top_n, genes_df=genes_df, chrom=chrom,
+                )
+
+            # Add recombination overlay (only on first panel)
+            if i == 0 and recomb_df is not None and not recomb_df.empty:
+                add_recombination_overlay(ax, recomb_df, start, end)
+
+            # Format axes
+            ax.set_ylabel(r"$-\log_{10}$ P")
+            ax.set_xlim(start, end)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+            # Add panel label
+            if panel_labels and i < len(panel_labels):
+                ax.annotate(
+                    panel_labels[i],
+                    xy=(0.02, 0.95),
+                    xycoords="axes fraction",
+                    fontsize=11,
+                    fontweight="bold",
+                    va="top",
+                    ha="left",
+                )
+
+            # Add LD legend (only on first panel)
+            if i == 0 and ld_col is not None and ld_col in df.columns:
+                self._add_ld_legend(ax)
+
+        # Plot eQTL panel if provided
+        panel_idx = n_gwas
+        if eqtl_df is not None:
+            ax = axes[panel_idx]
+            eqtl_data = eqtl_df.copy()
+
+            # Filter by gene if specified
+            if eqtl_gene and "gene" in eqtl_data.columns:
+                eqtl_data = eqtl_data[eqtl_data["gene"] == eqtl_gene]
+
+            # Filter by region
+            if "pos" in eqtl_data.columns:
+                eqtl_data = eqtl_data[(eqtl_data["pos"] >= start) & (eqtl_data["pos"] <= end)]
+
+            if not eqtl_data.empty:
+                eqtl_data["neglog10p"] = -np.log10(eqtl_data["p_value"].clip(lower=1e-300))
+
+                # Plot as diamonds (different from GWAS circles)
+                ax.scatter(
+                    eqtl_data["pos"],
+                    eqtl_data["neglog10p"],
+                    c="#FF6B6B",
+                    s=60,
+                    marker="D",
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=2,
+                    label=f"eQTL ({eqtl_gene})" if eqtl_gene else "eQTL",
+                )
+                ax.legend(loc="upper left", fontsize=9)
+
+            ax.set_ylabel(r"$-\log_{10}$ P (eQTL)")
+            ax.axhline(y=self._genomewide_line, color="grey", linestyle="--", linewidth=1)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            panel_idx += 1
+
+        # Plot gene track
+        if genes_df is not None:
+            gene_ax = axes[panel_idx]
+            plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
+            gene_ax.set_xlabel(f"Chromosome {chrom} (Mb)")
+            gene_ax.spines["top"].set_visible(False)
+            gene_ax.spines["right"].set_visible(False)
+            gene_ax.spines["left"].set_visible(False)
+        else:
+            # Set x-label on bottom panel
+            axes[-1].set_xlabel(f"Chromosome {chrom} (Mb)")
+
+        # Format x-axis
+        axes[0].xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1e6:.2f}"))
+        axes[0].xaxis.set_major_locator(MaxNLocator(nbins=6))
+
+        # Adjust layout
+        fig.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.08, hspace=0.05)
+        plt.ion()
+
+        return fig

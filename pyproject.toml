@@ -7,7 +7,7 @@ name = "pylocuszoom"
 version = "0.1.0"
 description = "Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.9"
 authors = [
     { name = "Michael Denyer" },
@@ -16,7 +16,7 @@ keywords = ["gwas", "genetics", "visualization", "locus-zoom", "regional-plot", 
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -31,18 +31,26 @@ dependencies = [
     "numpy>=1.21.0",
     "loguru>=0.7.0",
     "pyliftover>=0.4",
+    "plotly>=5.0.0",
+    "bokeh>=3.0.0",
+    "kaleido>=0.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
 ]
 labels = [
     "adjustText>=0.8",
 ]
+spark = [
+    "pyspark>=3.0.0",
+]
 all = [
     "adjustText>=0.8",
+    "pyspark>=3.0.0",
 ]
 
 [project.urls]

@@ -1,0 +1,288 @@
+"""Matplotlib backend for pyLocusZoom.
+
+Default backend providing static publication-quality plots.
+"""
+
+from typing import Any, List, Optional, Tuple, Union
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
+from matplotlib.ticker import FuncFormatter, MaxNLocator
+
+
+class MatplotlibBackend:
+    """Matplotlib backend for static plot generation.
+
+    This is the default backend, producing publication-quality static plots
+    suitable for papers and presentations.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the matplotlib backend."""
+        pass
+
+    def create_figure(
+        self,
+        n_panels: int,
+        height_ratios: List[float],
+        figsize: Tuple[float, float],
+        sharex: bool = True,
+    ) -> Tuple[Figure, List[Axes]]:
+        """Create a figure with multiple panels.
+
+        Args:
+            n_panels: Number of vertical panels.
+            height_ratios: Relative heights for each panel.
+            figsize: Figure size as (width, height).
+            sharex: Whether panels share the x-axis.
+
+        Returns:
+            Tuple of (figure, list of axes).
+        """
+        # Prevent auto-display in interactive environments
+        plt.ioff()
+
+        if n_panels == 1:
+            fig, ax = plt.subplots(figsize=figsize)
+            return fig, [ax]
+
+        fig, axes = plt.subplots(
+            n_panels,
+            1,
+            figsize=figsize,
+            height_ratios=height_ratios,
+            sharex=sharex,
+            gridspec_kw={"hspace": 0},
+        )
+
+        # Ensure axes is always a list
+        if n_panels == 1:
+            axes = [axes]
+
+        return fig, list(axes)
+
+    def scatter(
+        self,
+        ax: Axes,
+        x: pd.Series,
+        y: pd.Series,
+        colors: Union[str, List[str], pd.Series],
+        sizes: Union[float, List[float], pd.Series] = 60,
+        marker: str = "o",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+        hover_data: Optional[pd.DataFrame] = None,
+        label: Optional[str] = None,
+    ) -> Any:
+        """Create a scatter plot on the given axes.
+
+        Note: hover_data is ignored for matplotlib (static plots).
+        """
+        return ax.scatter(
+            x,
+            y,
+            c=colors,
+            s=sizes,
+            marker=marker,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            zorder=zorder,
+            label=label,
+        )
+
+    def line(
+        self,
+        ax: Axes,
+        x: pd.Series,
+        y: pd.Series,
+        color: str = "blue",
+        linewidth: float = 1.5,
+        alpha: float = 1.0,
+        linestyle: str = "-",
+        zorder: int = 1,
+        label: Optional[str] = None,
+    ) -> Any:
+        """Create a line plot on the given axes."""
+        (line,) = ax.plot(
+            x,
+            y,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            linestyle=linestyle,
+            zorder=zorder,
+            label=label,
+        )
+        return line
+
+    def fill_between(
+        self,
+        ax: Axes,
+        x: pd.Series,
+        y1: Union[float, pd.Series],
+        y2: Union[float, pd.Series],
+        color: str = "blue",
+        alpha: float = 0.3,
+        zorder: int = 0,
+    ) -> Any:
+        """Fill area between two y-values."""
+        return ax.fill_between(x, y1, y2, color=color, alpha=alpha, zorder=zorder)
+
+    def axhline(
+        self,
+        ax: Axes,
+        y: float,
+        color: str = "grey",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        zorder: int = 1,
+    ) -> Any:
+        """Add a horizontal line across the axes."""
+        return ax.axhline(
+            y=y, color=color, linestyle=linestyle, linewidth=linewidth, zorder=zorder
+        )
+
+    def add_text(
+        self,
+        ax: Axes,
+        x: float,
+        y: float,
+        text: str,
+        fontsize: int = 10,
+        ha: str = "center",
+        va: str = "bottom",
+        rotation: float = 0,
+        color: str = "black",
+    ) -> Any:
+        """Add text annotation to axes."""
+        return ax.text(
+            x, y, text, fontsize=fontsize, ha=ha, va=va, rotation=rotation, color=color
+        )
+
+    def add_rectangle(
+        self,
+        ax: Axes,
+        xy: Tuple[float, float],
+        width: float,
+        height: float,
+        facecolor: str = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Add a rectangle patch to axes."""
+        rect = Rectangle(
+            xy,
+            width,
+            height,
+            facecolor=facecolor,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            zorder=zorder,
+        )
+        ax.add_patch(rect)
+        return rect
+
+    def set_xlim(self, ax: Axes, left: float, right: float) -> None:
+        """Set x-axis limits."""
+        ax.set_xlim(left, right)
+
+    def set_ylim(self, ax: Axes, bottom: float, top: float) -> None:
+        """Set y-axis limits."""
+        ax.set_ylim(bottom, top)
+
+    def set_xlabel(self, ax: Axes, label: str, fontsize: int = 12) -> None:
+        """Set x-axis label."""
+        ax.set_xlabel(label, fontsize=fontsize)
+
+    def set_ylabel(self, ax: Axes, label: str, fontsize: int = 12) -> None:
+        """Set y-axis label."""
+        ax.set_ylabel(label, fontsize=fontsize)
+
+    def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
+        """Set panel title."""
+        ax.set_title(title, fontsize=fontsize)
+
+    def create_twin_axis(self, ax: Axes) -> Axes:
+        """Create a secondary y-axis sharing the same x-axis."""
+        return ax.twinx()
+
+    def add_legend(
+        self,
+        ax: Axes,
+        handles: List[Any],
+        labels: List[str],
+        loc: str = "upper left",
+        title: Optional[str] = None,
+    ) -> Any:
+        """Add a legend to the axes."""
+        return ax.legend(
+            handles=handles,
+            labels=labels,
+            loc=loc,
+            title=title,
+            fontsize=9,
+            frameon=True,
+            framealpha=0.9,
+            title_fontsize=10,
+            handlelength=1.5,
+            handleheight=1.0,
+            labelspacing=0.4,
+        )
+
+    def hide_spines(self, ax: Axes, spines: List[str]) -> None:
+        """Hide specified axis spines."""
+        for spine in spines:
+            ax.spines[spine].set_visible(False)
+
+    def format_xaxis_mb(self, ax: Axes) -> None:
+        """Format x-axis to show megabase values."""
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1e6:.2f}"))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
+
+    def save(
+        self,
+        fig: Figure,
+        path: str,
+        dpi: int = 150,
+        bbox_inches: str = "tight",
+    ) -> None:
+        """Save figure to file."""
+        fig.savefig(path, dpi=dpi, bbox_inches=bbox_inches)
+
+    def show(self, fig: Figure) -> None:
+        """Display the figure."""
+        plt.ion()
+        plt.show()
+
+    def close(self, fig: Figure) -> None:
+        """Close the figure and free resources."""
+        plt.close(fig)
+
+    def finalize_layout(
+        self,
+        fig: Figure,
+        left: float = 0.08,
+        right: float = 0.95,
+        top: float = 0.95,
+        bottom: float = 0.1,
+        hspace: float = 0.08,
+    ) -> None:
+        """Adjust subplot layout parameters.
+
+        Args:
+            fig: Figure object.
+            left: Left margin.
+            right: Right margin.
+            top: Top margin.
+            bottom: Bottom margin.
+            hspace: Height space between subplots.
+        """
+        fig.subplots_adjust(
+            left=left, right=right, top=top, bottom=bottom, hspace=hspace
+        )
+        plt.ion()

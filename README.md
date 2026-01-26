@@ -1,30 +1,44 @@
 # pyLocusZoom
 
+[![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+[![Matplotlib](https://img.shields.io/badge/Matplotlib-3.5+-11557c.svg)](https://matplotlib.org/)
+[![Plotly](https://img.shields.io/badge/Plotly-5.0+-3F4F75.svg)](https://plotly.com/python/)
+[![Bokeh](https://img.shields.io/badge/Bokeh-3.0+-E6526F.svg)](https://bokeh.org/)
+[![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
+
 <img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 
 Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
 
-Inspired by [LocusZoom](http://locuszoom.org/) and [LocusZoomR](https://github.com/Kungsgansen/locuszoomr).
+Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.com/myles-lewis/locuszoomr).
 
 ## Features
 
 - **LD coloring**: SNPs colored by linkage disequilibrium (R²) with lead variant
 - **Gene track**: Annotated gene/exon positions below the association plot
-- **Recombination rate**: Overlay showing recombination rate across region (dog only)
+- **Recombination rate**: Overlay showing recombination rate across region (*Canis lupus familiaris* only)
 - **SNP labels**: Automatic labeling of top SNPs with RS ID or nearest gene
-- **Species support**: Built-in dog (CanFam3.1/CanFam4), cat (FelCat9), or custom species
+- **Species support**: Built-in *Canis lupus familiaris* (CanFam3.1/CanFam4), *Felis catus* (FelCat9), or custom species
 - **CanFam4 support**: Automatic coordinate liftover for recombination maps
+- **Multiple backends**: matplotlib (static), plotly (interactive), bokeh (dashboards)
+- **Stacked plots**: Compare multiple GWAS/phenotypes vertically
+- **eQTL overlay**: Expression QTL data as separate panel
+- **PySpark support**: Handles large-scale genomics DataFrames
 
 ## Installation
 
 ```bash
-pip install pylocuszoom
+uv add pylocuszoom
 ```
 
-Or install from source:
+Or with pip:
 
 ```bash
-pip install -e .
+pip install pylocuszoom
 ```
 
 ## Quick Start
@@ -106,6 +120,79 @@ fig = plotter.plot(
     genes_df=my_genes_df,
 )
 ```
+
+## Interactive Backends
+
+Choose between static (matplotlib) and interactive (plotly, bokeh) outputs:
+
+```python
+# Static publication-quality plot (default)
+plotter = LocusZoomPlotter(species="dog", backend="matplotlib")
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
+fig.savefig("plot.png", dpi=150)
+
+# Interactive with plotly (hover tooltips, zoom/pan)
+plotter = LocusZoomPlotter(species="dog", backend="plotly")
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
+fig.write_html("plot.html")
+
+# Interactive with bokeh (dashboard-friendly)
+plotter = LocusZoomPlotter(species="dog", backend="bokeh")
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
+```
+
+Interactive plots show SNP details (RS ID, p-value, R²) on hover.
+
+## Stacked Plots
+
+Compare multiple GWAS results vertically with shared x-axis:
+
+```python
+fig = plotter.plot_stacked(
+    [gwas_height, gwas_bmi, gwas_whr],
+    chrom=1,
+    start=1000000,
+    end=2000000,
+    panel_labels=["Height", "BMI", "WHR"],
+    genes_df=genes_df,
+)
+```
+
+## eQTL Overlay
+
+Add expression QTL data as a separate panel:
+
+```python
+eqtl_df = pd.DataFrame({
+    "pos": [1000500, 1001200, 1002000],
+    "p_value": [1e-6, 1e-4, 0.01],
+    "gene": ["BRCA1", "BRCA1", "BRCA1"],
+})
+
+fig = plotter.plot_stacked(
+    [gwas_df],
+    chrom=1, start=1000000, end=2000000,
+    eqtl_df=eqtl_df,
+    eqtl_gene="BRCA1",
+    genes_df=genes_df,
+)
+```
+
+## PySpark Support
+
+For large-scale genomics data, pass PySpark DataFrames directly:
+
+```python
+from pylocuszoom import LocusZoomPlotter, to_pandas
+
+# PySpark DataFrame (automatically converted)
+fig = plotter.plot(spark_gwas_df, chrom=1, start=1000000, end=2000000)
+
+# Or convert manually with sampling for very large data
+pandas_df = to_pandas(spark_gwas_df, sample_size=100000)
+```
+
+Install PySpark support: `uv add pylocuszoom[spark]`
 
 ## Data Formats
 
@@ -224,9 +311,15 @@ plotter = LocusZoomPlotter(log_level="DEBUG")
 - pandas >= 1.4.0
 - numpy >= 1.21.0
 - loguru >= 0.7.0
+- plotly >= 5.0.0
+- bokeh >= 3.0.0
+- kaleido >= 0.2.0 (for plotly static export)
 - pyliftover >= 0.4 (for CanFam4 coordinate liftover)
 - [PLINK 1.9](https://www.cog-genomics.org/plink/) (for LD calculations) - must be on PATH or specify `plink_path`
 
+Optional:
+- pyspark >= 3.0.0 (for PySpark DataFrame support) - `uv add pylocuszoom[spark]`
+
 ## License
 
-MIT
+GPL-3.0-or-later
