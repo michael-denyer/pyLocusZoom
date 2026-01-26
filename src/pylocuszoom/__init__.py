@@ -36,13 +36,22 @@ Species Support:
 __version__ = "0.1.0"
 
 # Main plotter class
-from .plotter import LocusZoomPlotter
-
 # Backend types
 from .backends import BackendType, get_backend
 
 # Colors and LD
 from .colors import LEAD_SNP_COLOR, get_ld_bin, get_ld_color, get_ld_color_palette
+
+# eQTL support
+from .eqtl import (
+    EQTLValidationError,
+    calculate_colocalization_overlap,
+    filter_eqtl_by_gene,
+    filter_eqtl_by_region,
+    get_eqtl_genes,
+    prepare_eqtl_for_plotting,
+    validate_eqtl_df,
+)
 
 # Gene track
 from .gene_track import get_nearest_gene, plot_gene_track
@@ -55,6 +64,7 @@ from .ld import calculate_ld
 
 # Logging configuration
 from .logging import disable_logging, enable_logging
+from .plotter import LocusZoomPlotter
 
 # Reference data management
 from .recombination import (
@@ -62,17 +72,6 @@ from .recombination import (
     download_dog_recombination_maps,
     get_recombination_rate_for_region,
     load_recombination_map,
-)
-
-# eQTL support
-from .eqtl import (
-    EQTLValidationError,
-    calculate_colocalization_overlap,
-    filter_eqtl_by_gene,
-    filter_eqtl_by_region,
-    get_eqtl_genes,
-    prepare_eqtl_for_plotting,
-    validate_eqtl_df,
 )
 
 # Validation utilities

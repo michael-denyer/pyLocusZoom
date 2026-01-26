@@ -11,7 +11,6 @@ import pandas as pd
 
 from .logging import logger
 
-
 REQUIRED_EQTL_COLS = ["pos", "p_value"]
 OPTIONAL_EQTL_COLS = ["gene", "effect_size", "rs", "se"]
 

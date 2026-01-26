@@ -10,7 +10,7 @@ Supports multiple backends:
 """
 
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,8 +21,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
-from .backends import BackendType, PlotBackend, get_backend
-
+from .backends import BackendType, get_backend
 from .colors import (
     LD_BINS,
     LEAD_SNP_COLOR,

@@ -3,7 +3,7 @@
 Defines the interface that matplotlib, plotly, and bokeh backends must implement.
 """
 
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
+from typing import Any, List, Optional, Protocol, Tuple, Union
 
 import pandas as pd
 

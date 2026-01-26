@@ -395,14 +395,9 @@ class PlotlyBackend:
 
         Plotly doesn't have spines, but we can hide axis lines.
         """
-        fig, row = ax
-
-        xaxis = f"xaxis{row}" if row > 1 else "xaxis"
-        yaxis = f"yaxis{row}" if row > 1 else "yaxis"
-
-        if "top" in spines or "right" in spines:
-            # Plotly's template "plotly_white" already hides these
-            pass
+        # Plotly's template "plotly_white" already hides top/right lines
+        # No action needed - method exists for API compatibility
+        pass
 
     def format_xaxis_mb(self, ax: Tuple[go.Figure, int]) -> None:
         """Format x-axis to show megabase values."""

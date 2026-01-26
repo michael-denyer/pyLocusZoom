@@ -8,7 +8,7 @@ from typing import Any, List, Optional, Tuple, Union
 import pandas as pd
 from bokeh.io import export_png, export_svgs, output_file, save, show
 from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, HoverTool, Legend, LegendItem, Span
+from bokeh.models import ColumnDataSource, HoverTool, Span
 from bokeh.plotting import figure
 
 
@@ -289,7 +289,6 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a rectangle to the figure."""
-        from bokeh.models import Rect
 
         x_center = xy[0] + width / 2
         y_center = xy[1] + height / 2

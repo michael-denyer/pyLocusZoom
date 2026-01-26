@@ -3,14 +3,10 @@
 Supports matplotlib (default), plotly, and bokeh backends.
 """
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from .base import PlotBackend
 from .matplotlib_backend import MatplotlibBackend
-
-if TYPE_CHECKING:
-    from .bokeh_backend import BokehBackend
-    from .plotly_backend import PlotlyBackend
 
 BackendType = Literal["matplotlib", "plotly", "bokeh"]
 
