@@ -20,3 +20,6 @@ htmlcov/
 .vscode/
 *.swp
 .claude/
+
+# Project instructions (private)
+CLAUDE.md
