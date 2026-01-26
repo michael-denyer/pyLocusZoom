@@ -607,6 +607,23 @@ class LocusZoomPlotter:
             show_credible_sets: Whether to color points by credible set.
             pip_threshold: Minimum PIP to display as scatter point.
         """
+
+        def _build_finemapping_hover_data(
+            subset_df: pd.DataFrame,
+        ) -> Optional[pd.DataFrame]:
+            """Build hover data for interactive backends."""
+            hover_cols = {}
+            # Position
+            if pos_col in subset_df.columns:
+                hover_cols["Position"] = subset_df[pos_col].values
+            # PIP
+            if pip_col in subset_df.columns:
+                hover_cols["PIP"] = subset_df[pip_col].values
+            # Credible set
+            if cs_col and cs_col in subset_df.columns:
+                hover_cols["Credible Set"] = subset_df[cs_col].values
+            return pd.DataFrame(hover_cols) if hover_cols else None
+
         # Sort by position for line plotting
         df = df.sort_values(pos_col)
 
@@ -641,6 +658,7 @@ class LocusZoomPlotter:
                     linewidth=0.5,
                     zorder=3,
                     label=f"CS{cs_id}",
+                    hover_data=_build_finemapping_hover_data(cs_data),
                 )
             # Plot variants not in any credible set
             non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
@@ -657,6 +675,7 @@ class LocusZoomPlotter:
                         edgecolor="black",
                         linewidth=0.3,
                         zorder=2,
+                        hover_data=_build_finemapping_hover_data(non_cs_data),
                     )
         else:
             # No credible sets - show all points above threshold
@@ -673,6 +692,7 @@ class LocusZoomPlotter:
                         edgecolor="black",
                         linewidth=0.5,
                         zorder=3,
+                        hover_data=_build_finemapping_hover_data(high_pip),
                     )
 
     def plot_stacked(
@@ -1022,25 +1042,62 @@ class LocusZoomPlotter:
                     eqtl_data["p_value"].clip(lower=1e-300)
                 )
 
+                def _build_eqtl_hover_data(
+                    subset_df: pd.DataFrame,
+                ) -> Optional[pd.DataFrame]:
+                    """Build hover data for eQTL interactive backends."""
+                    hover_cols = {}
+                    # Position
+                    if "pos" in subset_df.columns:
+                        hover_cols["Position"] = subset_df["pos"].values
+                    # P-value
+                    if "p_value" in subset_df.columns:
+                        hover_cols["P-value"] = subset_df["p_value"].values
+                    # Effect size
+                    if "effect_size" in subset_df.columns:
+                        hover_cols["Effect"] = subset_df["effect_size"].values
+                    # Gene
+                    if "gene" in subset_df.columns:
+                        hover_cols["Gene"] = subset_df["gene"].values
+                    return pd.DataFrame(hover_cols) if hover_cols else None
+
                 # Check if effect_size column exists for directional coloring
                 has_effect = "effect_size" in eqtl_data.columns
 
                 if has_effect:
-                    # Plot triangles by effect direction with color by magnitude
-                    for _, row in eqtl_data.iterrows():
-                        effect = row["effect_size"]
-                        color = get_eqtl_color(effect)
-                        marker = "^" if effect >= 0 else "v"
+                    # Plot triangles by effect direction (batch by sign for efficiency)
+                    pos_effects = eqtl_data[eqtl_data["effect_size"] >= 0]
+                    neg_effects = eqtl_data[eqtl_data["effect_size"] < 0]
+
+                    # Plot positive effects (up triangles)
+                    for _, row in pos_effects.iterrows():
+                        row_df = pd.DataFrame([row])
                         self._backend.scatter(
                             ax,
                             pd.Series([row["pos"]]),
                             pd.Series([row["neglog10p"]]),
-                            colors=color,
+                            colors=get_eqtl_color(row["effect_size"]),
                             sizes=50,
-                            marker=marker,
+                            marker="^",
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
+                            hover_data=_build_eqtl_hover_data(row_df),
+                        )
+                    # Plot negative effects (down triangles)
+                    for _, row in neg_effects.iterrows():
+                        row_df = pd.DataFrame([row])
+                        self._backend.scatter(
+                            ax,
+                            pd.Series([row["pos"]]),
+                            pd.Series([row["neglog10p"]]),
+                            colors=get_eqtl_color(row["effect_size"]),
+                            sizes=50,
+                            marker="v",
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                            hover_data=_build_eqtl_hover_data(row_df),
                         )
                     # Add eQTL effect legend (all backends)
                     self._backend.add_eqtl_legend(
@@ -1060,6 +1117,7 @@ class LocusZoomPlotter:
                         linewidth=0.5,
                         zorder=2,
                         label=label,
+                        hover_data=_build_eqtl_hover_data(eqtl_data),
                     )
                     self._backend.add_simple_legend(ax, label, loc="upper right")
 
