@@ -29,6 +29,8 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 - **eQTL overlay**: Expression QTL data as separate panel
 - **PySpark support**: Handles large-scale genomics DataFrames
 
+![Example regional association plot](examples/regional_plot.png)
+
 ## Installation
 
 ```bash
