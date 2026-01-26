@@ -600,6 +600,131 @@ class BokehBackend:
         """Close the figure (no-op for bokeh)."""
         pass
 
+    def add_eqtl_legend(
+        self,
+        ax: figure,
+        eqtl_positive_bins: List[Tuple[float, float, str, str]],
+        eqtl_negative_bins: List[Tuple[float, float, str, str]],
+    ) -> None:
+        """Add eQTL effect size legend using invisible dummy glyphs."""
+        from bokeh.models import ColumnDataSource, Legend, LegendItem, Range1d
+
+        legend_items = []
+
+        # Create a separate range for legend glyphs that won't affect the main plot
+        if "legend_range" not in ax.extra_y_ranges:
+            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
+
+        dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
+
+        # Positive effects (upward triangles)
+        for _, _, label, color in eqtl_positive_bins:
+            renderer = ax.scatter(
+                x="x",
+                y="y",
+                source=dummy_source,
+                marker="triangle",
+                size=10,
+                fill_color=color,
+                line_color="black",
+                line_width=0.5,
+                y_range_name="legend_range",
+                visible=False,
+            )
+            legend_items.append(LegendItem(label=label, renderers=[renderer]))
+
+        # Negative effects (downward triangles)
+        for _, _, label, color in eqtl_negative_bins:
+            renderer = ax.scatter(
+                x="x",
+                y="y",
+                source=dummy_source,
+                marker="inverted_triangle",
+                size=10,
+                fill_color=color,
+                line_color="black",
+                line_width=0.5,
+                y_range_name="legend_range",
+                visible=False,
+            )
+            legend_items.append(LegendItem(label=label, renderers=[renderer]))
+
+        legend = Legend(
+            items=legend_items,
+            location="top_right",
+            title="eQTL effect",
+            background_fill_alpha=0.9,
+            border_line_color="black",
+        )
+        ax.add_layout(legend)
+
+    def add_finemapping_legend(
+        self,
+        ax: figure,
+        credible_sets: List[int],
+        get_color_func: Any,
+    ) -> None:
+        """Add fine-mapping credible set legend using invisible dummy glyphs."""
+        if not credible_sets:
+            return
+
+        from bokeh.models import ColumnDataSource, Legend, LegendItem, Range1d
+
+        legend_items = []
+
+        # Create a separate range for legend glyphs that won't affect the main plot
+        if "legend_range" not in ax.extra_y_ranges:
+            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
+
+        dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
+
+        for cs_id in credible_sets:
+            color = get_color_func(cs_id)
+            renderer = ax.scatter(
+                x="x",
+                y="y",
+                source=dummy_source,
+                marker="circle",
+                size=10,
+                fill_color=color,
+                line_color="black",
+                line_width=0.5,
+                y_range_name="legend_range",
+                visible=False,
+            )
+            legend_items.append(LegendItem(label=f"CS{cs_id}", renderers=[renderer]))
+
+        legend = Legend(
+            items=legend_items,
+            location="top_right",
+            title="Credible sets",
+            background_fill_alpha=0.9,
+            border_line_color="black",
+        )
+        ax.add_layout(legend)
+
+    def add_simple_legend(
+        self,
+        ax: figure,
+        label: str,
+        loc: str = "upper right",
+    ) -> None:
+        """Configure legend position.
+
+        Bokeh handles legends automatically from legend_label.
+        This just positions the legend.
+        """
+        loc_map = {
+            "upper left": "top_left",
+            "upper right": "top_right",
+            "lower left": "bottom_left",
+            "lower right": "bottom_right",
+        }
+
+        ax.legend.location = loc_map.get(loc, "top_right")
+        ax.legend.background_fill_alpha = 0.9
+        ax.legend.border_line_color = "black"
+
     def finalize_layout(
         self,
         fig: Any,

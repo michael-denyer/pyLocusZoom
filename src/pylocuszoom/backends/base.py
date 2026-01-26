@@ -341,3 +341,48 @@ class PlotBackend(Protocol):
             fig: Figure object.
         """
         ...
+
+    def add_eqtl_legend(
+        self,
+        ax: Any,
+        eqtl_positive_bins: List[Tuple[float, float, str, str]],
+        eqtl_negative_bins: List[Tuple[float, float, str, str]],
+    ) -> None:
+        """Add eQTL effect size legend to the axes.
+
+        Args:
+            ax: Axes or panel.
+            eqtl_positive_bins: List of (min, max, label, color) for positive effects.
+            eqtl_negative_bins: List of (min, max, label, color) for negative effects.
+        """
+        ...
+
+    def add_finemapping_legend(
+        self,
+        ax: Any,
+        credible_sets: List[int],
+        get_color_func: Any,
+    ) -> None:
+        """Add fine-mapping credible set legend to the axes.
+
+        Args:
+            ax: Axes or panel.
+            credible_sets: List of credible set IDs to show.
+            get_color_func: Function that takes CS ID and returns color.
+        """
+        ...
+
+    def add_simple_legend(
+        self,
+        ax: Any,
+        label: str,
+        loc: str = "upper right",
+    ) -> None:
+        """Add a simple legend entry for labeled data already in the plot.
+
+        Args:
+            ax: Axes or panel.
+            label: Legend label for labeled scatter data.
+            loc: Legend location.
+        """
+        ...

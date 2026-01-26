@@ -642,6 +642,148 @@ class PlotlyBackend:
         """Close the figure (no-op for plotly)."""
         pass
 
+    def add_eqtl_legend(
+        self,
+        ax: Tuple[go.Figure, int],
+        eqtl_positive_bins: List[Tuple[float, float, str, str]],
+        eqtl_negative_bins: List[Tuple[float, float, str, str]],
+    ) -> None:
+        """Add eQTL effect size legend using invisible scatter traces."""
+        fig, row = ax
+
+        # Positive effects (upward triangles)
+        for _, _, label, color in eqtl_positive_bins:
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers",
+                    marker=dict(
+                        symbol="triangle-up",
+                        size=10,
+                        color=color,
+                        line=dict(color="black", width=0.5),
+                    ),
+                    name=label,
+                    showlegend=True,
+                    legendgroup="eqtl",
+                ),
+                row=row,
+                col=1,
+            )
+
+        # Negative effects (downward triangles)
+        for _, _, label, color in eqtl_negative_bins:
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers",
+                    marker=dict(
+                        symbol="triangle-down",
+                        size=10,
+                        color=color,
+                        line=dict(color="black", width=0.5),
+                    ),
+                    name=label,
+                    showlegend=True,
+                    legendgroup="eqtl",
+                ),
+                row=row,
+                col=1,
+            )
+
+        # Position legend
+        fig.update_layout(
+            legend=dict(
+                x=0.99,
+                y=0.99,
+                xanchor="right",
+                yanchor="top",
+                title=dict(text="eQTL effect"),
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="black",
+                borderwidth=1,
+            )
+        )
+
+    def add_finemapping_legend(
+        self,
+        ax: Tuple[go.Figure, int],
+        credible_sets: List[int],
+        get_color_func: Any,
+    ) -> None:
+        """Add fine-mapping credible set legend using invisible scatter traces."""
+        if not credible_sets:
+            return
+
+        fig, row = ax
+
+        for cs_id in credible_sets:
+            color = get_color_func(cs_id)
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers",
+                    marker=dict(
+                        symbol="circle",
+                        size=10,
+                        color=color,
+                        line=dict(color="black", width=0.5),
+                    ),
+                    name=f"CS{cs_id}",
+                    showlegend=True,
+                    legendgroup="finemapping",
+                ),
+                row=row,
+                col=1,
+            )
+
+        # Position legend
+        fig.update_layout(
+            legend=dict(
+                x=0.99,
+                y=0.99,
+                xanchor="right",
+                yanchor="top",
+                title=dict(text="Credible sets"),
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="black",
+                borderwidth=1,
+            )
+        )
+
+    def add_simple_legend(
+        self,
+        ax: Tuple[go.Figure, int],
+        label: str,
+        loc: str = "upper right",
+    ) -> None:
+        """Add simple legend positioning.
+
+        Plotly handles legends automatically from trace names.
+        This just positions the legend.
+        """
+        fig, _ = ax
+
+        loc_map = {
+            "upper left": dict(x=0.01, y=0.99, xanchor="left", yanchor="top"),
+            "upper right": dict(x=0.99, y=0.99, xanchor="right", yanchor="top"),
+            "lower left": dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
+            "lower right": dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom"),
+        }
+
+        legend_pos = loc_map.get(loc, loc_map["upper right"])
+        fig.update_layout(
+            legend=dict(
+                **legend_pos,
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="black",
+                borderwidth=1,
+            )
+        )
+
     def finalize_layout(
         self,
         fig: go.Figure,
@@ -680,11 +822,11 @@ class PlotlyBackend:
                 if xaxis and xaxis.range:
                     x_range = xaxis.range
                 else:
-                    # Compute from trace data
+                    # Compute from trace data (filter out None values from legend traces)
                     x_vals = []
                     for trace in fig.data:
                         if hasattr(trace, "x") and trace.x is not None:
-                            x_vals.extend(list(trace.x))
+                            x_vals.extend([v for v in trace.x if v is not None])
                     if x_vals:
                         x_range = [min(x_vals), max(x_vals)]
 

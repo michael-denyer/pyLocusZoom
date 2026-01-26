@@ -1082,10 +1082,12 @@ class LocusZoomPlotter:
                     pip_threshold=0.01,
                 )
 
-                # Add legend for credible sets
+                # Add legend for credible sets (all backends)
                 credible_sets = get_credible_sets(fm_data, finemapping_cs_col)
                 if credible_sets:
-                    self._add_finemapping_legend(ax, credible_sets)
+                    self._backend.add_finemapping_legend(
+                        ax, credible_sets, get_credible_set_color
+                    )
 
             self._backend.set_ylabel(ax, "PIP")
             self._backend.set_ylim(ax, -0.05, 1.05)
@@ -1133,10 +1135,13 @@ class LocusZoomPlotter:
                             linewidth=0.5,
                             zorder=2,
                         )
-                    # Add eQTL effect legend
-                    self._add_eqtl_legend(ax)
+                    # Add eQTL effect legend (all backends)
+                    self._backend.add_eqtl_legend(
+                        ax, EQTL_POSITIVE_BINS, EQTL_NEGATIVE_BINS
+                    )
                 else:
                     # No effect sizes - plot as diamonds
+                    label = f"eQTL ({eqtl_gene})" if eqtl_gene else "eQTL"
                     self._backend.scatter(
                         ax,
                         eqtl_data["pos"],
@@ -1147,9 +1152,9 @@ class LocusZoomPlotter:
                         edgecolor="black",
                         linewidth=0.5,
                         zorder=2,
-                        label=f"eQTL ({eqtl_gene})" if eqtl_gene else "eQTL",
+                        label=label,
                     )
-                    ax.legend(loc="upper right", fontsize=9)
+                    self._backend.add_simple_legend(ax, label, loc="upper right")
 
             self._backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
             self._backend.axhline(

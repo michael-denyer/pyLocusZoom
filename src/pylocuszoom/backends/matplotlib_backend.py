@@ -290,6 +290,110 @@ class MatplotlibBackend:
         """Close the figure and free resources."""
         plt.close(fig)
 
+    def add_eqtl_legend(
+        self,
+        ax: Axes,
+        eqtl_positive_bins: List[Tuple[float, float, str, str]],
+        eqtl_negative_bins: List[Tuple[float, float, str, str]],
+    ) -> None:
+        """Add eQTL effect size legend using matplotlib Line2D markers."""
+        from matplotlib.lines import Line2D
+
+        legend_elements = []
+
+        # Positive effects (upward triangles)
+        for _, _, label, color in eqtl_positive_bins:
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="^",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=7,
+                    label=label,
+                )
+            )
+
+        # Negative effects (downward triangles)
+        for _, _, label, color in eqtl_negative_bins:
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="v",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=7,
+                    label=label,
+                )
+            )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            frameon=True,
+            framealpha=0.9,
+            title="eQTL effect",
+            title_fontsize=9,
+            handlelength=1.2,
+            handleheight=1.0,
+            labelspacing=0.3,
+        )
+
+    def add_finemapping_legend(
+        self,
+        ax: Axes,
+        credible_sets: List[int],
+        get_color_func: Any,
+    ) -> None:
+        """Add fine-mapping credible set legend using matplotlib Line2D markers."""
+        from matplotlib.lines import Line2D
+
+        if not credible_sets:
+            return
+
+        legend_elements = []
+        for cs_id in credible_sets:
+            color = get_color_func(cs_id)
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=7,
+                    label=f"CS{cs_id}",
+                )
+            )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            frameon=True,
+            framealpha=0.9,
+            title="Credible sets",
+            title_fontsize=9,
+            handlelength=1.2,
+            handleheight=1.0,
+            labelspacing=0.3,
+        )
+
+    def add_simple_legend(
+        self,
+        ax: Axes,
+        label: str,
+        loc: str = "upper right",
+    ) -> None:
+        """Add simple legend for labeled scatter data."""
+        ax.legend(loc=loc, fontsize=9)
+
     def finalize_layout(
         self,
         fig: Figure,
