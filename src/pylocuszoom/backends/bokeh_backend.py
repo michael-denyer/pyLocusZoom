@@ -529,6 +529,10 @@ class BokehBackend:
             title="r²",
             background_fill_alpha=0.9,
             border_line_color="black",
+            spacing=0,
+            padding=4,
+            label_height=12,
+            glyph_height=12,
         )
         ax.add_layout(legend)
 
@@ -651,6 +655,10 @@ class BokehBackend:
             title="eQTL effect",
             background_fill_alpha=0.9,
             border_line_color="black",
+            spacing=0,
+            padding=4,
+            label_height=12,
+            glyph_height=12,
         )
         ax.add_layout(legend)
 
@@ -696,6 +704,10 @@ class BokehBackend:
             title="Credible sets",
             background_fill_alpha=0.9,
             border_line_color="black",
+            spacing=0,
+            padding=4,
+            label_height=12,
+            glyph_height=12,
         )
         ax.add_layout(legend)
 
