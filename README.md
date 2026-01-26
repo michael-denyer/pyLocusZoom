@@ -48,8 +48,8 @@ pip install pylocuszoom
 ```python
 from pylocuszoom import LocusZoomPlotter
 
-# Initialize plotter (loads reference data for dog)
-plotter = LocusZoomPlotter(species="dog")
+# Initialize plotter (loads reference data for canine)
+plotter = LocusZoomPlotter(species="canine")
 
 # Create regional plot
 fig = plotter.plot(
@@ -69,7 +69,7 @@ fig.savefig("regional_plot.png", dpi=150)
 from pylocuszoom import LocusZoomPlotter
 
 plotter = LocusZoomPlotter(
-    species="dog",                      # or "cat", or None for custom
+    species="canine",                   # or "feline", or None for custom
     plink_path="/path/to/plink",        # Optional, auto-detects if on PATH
 )
 
@@ -94,10 +94,10 @@ fig = plotter.plot(
 
 ## Genome Builds
 
-The default genome build for dog is CanFam3.1. For CanFam4 data:
+The default genome build for canine is CanFam3.1. For CanFam4 data:
 
 ```python
-plotter = LocusZoomPlotter(species="dog", genome_build="canfam4")
+plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 ```
 
 Recombination maps are automatically lifted over from CanFam3.1 to CanFam4 coordinates using the UCSC liftOver chain file.
@@ -105,8 +105,8 @@ Recombination maps are automatically lifted over from CanFam3.1 to CanFam4 coord
 ## Using with Other Species
 
 ```python
-# Cat (LD and gene tracks, user provides recombination data)
-plotter = LocusZoomPlotter(species="cat")
+# Feline (LD and gene tracks, user provides recombination data)
+plotter = LocusZoomPlotter(species="feline")
 
 # Custom species (provide all reference data)
 plotter = LocusZoomPlotter(
@@ -129,7 +129,7 @@ fig = plotter.plot(
 
 ```python
 # Static publication-quality plot (default, currently only supported backend)
-plotter = LocusZoomPlotter(species="dog", backend="matplotlib")
+plotter = LocusZoomPlotter(species="canine", backend="matplotlib")
 fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 fig.savefig("plot.png", dpi=150)
 ```
@@ -277,14 +277,14 @@ chr	pos	rate	cM
 
 ## Reference Data
 
-Dog recombination maps are downloaded from [Campbell et al. 2016](https://github.com/cflerin/dog_recombination) on first use.
+Canine recombination maps are downloaded from [Campbell et al. 2016](https://github.com/cflerin/dog_recombination) on first use.
 
 To manually download:
 
 ```python
-from pylocuszoom import download_dog_recombination_maps
+from pylocuszoom import download_canine_recombination_maps
 
-download_dog_recombination_maps()
+download_canine_recombination_maps()
 ```
 
 ## Logging

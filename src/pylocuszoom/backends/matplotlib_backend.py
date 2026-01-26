@@ -205,7 +205,12 @@ class MatplotlibBackend:
 
     def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
         """Set panel title."""
-        ax.set_title(title, fontsize=fontsize)
+        ax.set_title(
+            title,
+            fontsize=fontsize,
+            fontweight="bold",
+            fontfamily="sans-serif",
+        )
 
     def create_twin_axis(self, ax: Axes) -> Axes:
         """Create a secondary y-axis sharing the same x-axis."""

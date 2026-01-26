@@ -90,17 +90,17 @@ class TestAddSnpLabels:
         assert "rs9" in texts[0].get_text()
         plt.close(fig)
 
-    def test_uses_gene_name_when_provided(self, sample_gwas_df, sample_genes_df):
-        """Should use nearest gene name when genes_df provided."""
+    def test_ignores_genes_df_uses_snp_id(self, sample_gwas_df, sample_genes_df):
+        """Should always use SNP ID, even when genes_df provided."""
         fig, ax = plt.subplots()
         ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
 
-        # rs9 is at position 1900000, which is near GENE_C (1850000-1950000)
+        # rs9 is at position 1900000 - should still show rs9, not gene name
         texts = add_snp_labels(
             ax, sample_gwas_df, label_top_n=1, genes_df=sample_genes_df, chrom=1
         )
 
-        assert "GENE_C" in texts[0].get_text()
+        assert "rs9" in texts[0].get_text()
         plt.close(fig)
 
     def test_truncates_long_labels(self, sample_gwas_df):

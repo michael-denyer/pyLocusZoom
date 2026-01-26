@@ -22,7 +22,7 @@ from .logging import logger
 RECOMB_COLOR = "#7FCDFF"  # Light blue
 
 # Data sources by species
-DOG_RECOMB_URL = (
+CANINE_RECOMB_URL = (
     "https://github.com/cflerin/dog_recombination/raw/master/dog_genetic_maps.tar.gz"
 )
 
@@ -177,11 +177,11 @@ def get_default_data_dir() -> Path:
     return base / "snp-scope-plot" / "recombination_maps"
 
 
-def download_dog_recombination_maps(
+def download_canine_recombination_maps(
     output_dir: Optional[str] = None,
     force: bool = False,
 ) -> Path:
-    """Download dog recombination rate maps from Campbell et al. 2016.
+    """Download canine recombination rate maps from Campbell et al. 2016.
 
     Downloads from: https://github.com/cflerin/dog_recombination
 
@@ -213,22 +213,22 @@ def download_dog_recombination_maps(
     # Create output directory
     output_path.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Downloading dog recombination maps from GitHub...")
-    logger.debug(f"Source: {DOG_RECOMB_URL}")
+    logger.info("Downloading canine recombination maps from GitHub...")
+    logger.debug(f"Source: {CANINE_RECOMB_URL}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Download tar.gz file
         tar_path = Path(tmpdir) / "dog_genetic_maps.tar.gz"
 
         try:
-            urllib.request.urlretrieve(DOG_RECOMB_URL, tar_path)
+            urllib.request.urlretrieve(CANINE_RECOMB_URL, tar_path)
         except Exception as e:
             logger.debug(f"urllib download failed: {e}")
             logger.debug("Trying alternative method with requests...")
             try:
                 import requests
 
-                response = requests.get(DOG_RECOMB_URL, timeout=60)
+                response = requests.get(CANINE_RECOMB_URL, timeout=60)
                 response.raise_for_status()
                 tar_path.write_bytes(response.content)
             except ImportError:
@@ -282,14 +282,14 @@ def download_dog_recombination_maps(
 
 def load_recombination_map(
     chrom: int,
-    species: str = "dog",
+    species: str = "canine",
     data_dir: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load recombination map for a specific chromosome.
 
     Args:
-        chrom: Chromosome number (1-38 for dog, 1-18 for cat) or 'X'.
-        species: Species name ('dog', 'cat').
+        chrom: Chromosome number (1-38 for canine, 1-18 for feline) or 'X'.
+        species: Species name ('canine', 'feline').
         data_dir: Directory containing recombination maps.
 
     Returns:
@@ -326,7 +326,7 @@ def get_recombination_rate_for_region(
     chrom: int,
     start: int,
     end: int,
-    species: str = "dog",
+    species: str = "canine",
     data_dir: Optional[str] = None,
     genome_build: Optional[str] = None,
 ) -> pd.DataFrame:
@@ -336,7 +336,7 @@ def get_recombination_rate_for_region(
         chrom: Chromosome number.
         start: Start position (bp).
         end: End position (bp).
-        species: Species name ('dog', 'cat').
+        species: Species name ('canine', 'feline').
         data_dir: Directory containing recombination maps.
         genome_build: Target genome build (e.g., "canfam4"). If specified and
             different from source data (CanFam3.1), coordinates are lifted over.
@@ -345,7 +345,7 @@ def get_recombination_rate_for_region(
         DataFrame with pos and rate columns for the region.
 
     Note:
-        Built-in dog recombination maps are in CanFam3.1 coordinates.
+        Built-in canine recombination maps are in CanFam3.1 coordinates.
         If genome_build="canfam4", positions are automatically lifted over.
         This requires pyliftover: pip install pyliftover
     """
@@ -353,7 +353,7 @@ def get_recombination_rate_for_region(
 
     # Liftover if needed
     build = _normalize_build(genome_build)
-    if species == "dog" and build == "canfam4":
+    if species == "canine" and build == "canfam4":
         logger.debug(f"Lifting over recombination map for chr{chrom} to CanFam4")
         df = liftover_recombination_map(
             df, from_build="canfam3", to_build="canfam4", chrom=chrom

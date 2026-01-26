@@ -70,25 +70,25 @@ class TestBuildLdCommand:
         assert "--out" in cmd
         assert "/path/to/output" in cmd
 
-    def test_includes_dog_flag_for_dog_species(self):
-        """Command should include --dog for dog species."""
+    def test_includes_dog_flag_for_canine_species(self):
+        """Command should include --dog for canine species."""
         cmd = build_ld_command(
             plink_path="/usr/bin/plink1.9",
             bfile_path="/path/to/data",
             lead_snp="rs12345",
             output_path="/path/to/output",
-            species="dog",
+            species="canine",
         )
         assert "--dog" in cmd
 
-    def test_includes_chr_set_for_cat_species(self):
-        """Command should include --chr-set 18 for cat species."""
+    def test_includes_chr_set_for_feline_species(self):
+        """Command should include --chr-set 18 for feline species."""
         cmd = build_ld_command(
             plink_path="/usr/bin/plink1.9",
             bfile_path="/path/to/data",
             lead_snp="rs12345",
             output_path="/path/to/output",
-            species="cat",
+            species="feline",
         )
         assert "--chr-set" in cmd
         assert "18" in cmd
@@ -274,3 +274,23 @@ class TestCalculateLd:
             call_args = mock_run.call_args
             cmd = call_args[0][0]
             assert cmd[0] == "/custom/path/plink"
+
+    def test_raises_validation_error_for_missing_plink_files(self, tmp_path):
+        """Bug: calculate_ld() raises ValidationError for missing PLINK files.
+
+        The docstring only documents FileNotFoundError, but validate_plink_files()
+        raises ValidationError when .bed/.bim/.fam files are missing.
+        This test documents the actual behavior.
+        """
+        from pylocuszoom.utils import ValidationError
+
+        # Non-existent PLINK files
+        nonexistent_bfile = str(tmp_path / "nonexistent")
+
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            # Should raise ValidationError (not FileNotFoundError as docstring says)
+            with pytest.raises(ValidationError, match="PLINK files missing"):
+                calculate_ld(
+                    bfile_path=nonexistent_bfile,
+                    lead_snp="rs12345",
+                )

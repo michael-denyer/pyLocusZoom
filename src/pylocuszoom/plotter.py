@@ -23,10 +23,20 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from .backends import BackendType, get_backend
 from .colors import (
+    EQTL_NEGATIVE_BINS,
+    EQTL_POSITIVE_BINS,
     LD_BINS,
     LEAD_SNP_COLOR,
+    PIP_LINE_COLOR,
+    get_credible_set_color,
+    get_eqtl_color,
     get_ld_bin,
     get_ld_color_palette,
+)
+from .eqtl import validate_eqtl_df
+from .finemapping import (
+    get_credible_sets,
+    prepare_finemapping_for_plotting,
 )
 from .gene_track import assign_gene_positions, plot_gene_track
 from .labels import add_snp_labels
@@ -34,13 +44,13 @@ from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
 from .recombination import (
     add_recombination_overlay,
-    download_dog_recombination_maps,
+    download_canine_recombination_maps,
     get_default_data_dir,
     get_recombination_rate_for_region,
 )
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
-# Default significance threshold: 5e-8 for human, 5e-7 for dog
+# Default significance threshold: 5e-8 for human, 5e-7 for canine
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-7
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
@@ -51,7 +61,7 @@ class LocusZoomPlotter:
     Creates LocusZoom-style regional plots with:
     - LD coloring based on R² with lead variant
     - Gene and exon tracks
-    - Recombination rate overlays (dog built-in, or user-provided)
+    - Recombination rate overlays (canine built-in, or user-provided)
     - Automatic SNP labeling
 
     Supports multiple rendering backends:
@@ -60,9 +70,9 @@ class LocusZoomPlotter:
     - bokeh: Interactive HTML for dashboards
 
     Args:
-        species: Species name ('dog', 'cat', or None for custom).
-            Dog has built-in recombination maps.
-        genome_build: Genome build for coordinate system. For dog:
+        species: Species name ('canine', 'feline', or None for custom).
+            Canine has built-in recombination maps.
+        genome_build: Genome build for coordinate system. For canine:
             "canfam3.1" (default) or "canfam4". If "canfam4", recombination
             maps are automatically lifted over from CanFam3.1.
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
@@ -77,10 +87,10 @@ class LocusZoomPlotter:
 
     Example:
         >>> # Static plot (default)
-        >>> plotter = LocusZoomPlotter(species="dog")
+        >>> plotter = LocusZoomPlotter(species="canine")
         >>>
         >>> # Interactive plot with plotly
-        >>> plotter = LocusZoomPlotter(species="dog", backend="plotly")
+        >>> plotter = LocusZoomPlotter(species="canine", backend="plotly")
         >>>
         >>> fig = plotter.plot(
         ...     gwas_df,
@@ -95,7 +105,7 @@ class LocusZoomPlotter:
 
     def __init__(
         self,
-        species: str = "dog",
+        species: str = "canine",
         genome_build: Optional[str] = None,
         backend: BackendType = "matplotlib",
         plink_path: Optional[str] = None,
@@ -125,9 +135,9 @@ class LocusZoomPlotter:
     @staticmethod
     def _default_build(species: str) -> Optional[str]:
         """Get default genome build for species."""
-        if species == "dog":
+        if species == "canine":
             return "canfam3.1"
-        if species == "cat":
+        if species == "feline":
             return "felCat9"
         return None
 
@@ -136,7 +146,7 @@ class LocusZoomPlotter:
 
         Returns path to recombination map directory, or None if not available.
         """
-        if self.species == "dog":
+        if self.species == "canine":
             if self.recomb_data_dir:
                 return Path(self.recomb_data_dir)
             # Check if already downloaded
@@ -148,7 +158,7 @@ class LocusZoomPlotter:
                 return default_dir
             # Download
             try:
-                return download_dog_recombination_maps()
+                return download_canine_recombination_maps()
             except Exception as e:
                 logger.warning(f"Could not download recombination maps: {e}")
                 return None
@@ -248,20 +258,27 @@ class LocusZoomPlotter:
 
         # Calculate LD if reference file provided
         if ld_reference_file and lead_pos and ld_col is None:
-            lead_snp_row = df[df[pos_col] == lead_pos]
-            if not lead_snp_row.empty:
-                lead_snp_id = lead_snp_row[rs_col].iloc[0]
-                logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
-                ld_df = calculate_ld(
-                    bfile_path=ld_reference_file,
-                    lead_snp=lead_snp_id,
-                    window_kb=max((end - start) // 1000, 500),
-                    plink_path=self.plink_path,
-                    species=self.species,
+            # Check if rs_col exists before attempting LD calculation
+            if rs_col not in df.columns:
+                logger.warning(
+                    f"Cannot calculate LD: column '{rs_col}' not found in GWAS data. "
+                    f"Provide rs_col parameter or add SNP IDs to DataFrame."
                 )
-                if not ld_df.empty:
-                    df = df.merge(ld_df, left_on=rs_col, right_on="SNP", how="left")
-                    ld_col = "R2"
+            else:
+                lead_snp_row = df[df[pos_col] == lead_pos]
+                if not lead_snp_row.empty:
+                    lead_snp_id = lead_snp_row[rs_col].iloc[0]
+                    logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
+                    ld_df = calculate_ld(
+                        bfile_path=ld_reference_file,
+                        lead_snp=lead_snp_id,
+                        window_kb=max((end - start) // 1000, 500),
+                        plink_path=self.plink_path,
+                        species=self.species,
+                    )
+                    if not ld_df.empty:
+                        df = df.merge(ld_df, left_on=rs_col, right_on="SNP", how="left")
+                        ld_col = "R2"
 
         # Load recombination data if needed
         if show_recombination and recomb_df is None:
@@ -276,9 +293,10 @@ class LocusZoomPlotter:
         # Add significance line
         ax.axhline(
             y=self._genomewide_line,
-            color="grey",
-            linestyle="--",
+            color="red",
+            linestyle=(0, (5, 10)),
             linewidth=1,
+            alpha=0.8,
             zorder=1,
         )
 
@@ -422,10 +440,10 @@ class LocusZoomPlotter:
                     lead_snp[pos_col],
                     lead_snp["neglog10p"],
                     c=LEAD_SNP_COLOR,
-                    s=120,
+                    s=60,
                     marker="D",
                     edgecolors="black",
-                    linewidths=1,
+                    linewidths=1.5,
                     zorder=10,
                 )
 
@@ -440,8 +458,8 @@ class LocusZoomPlotter:
                 color="w",
                 markerfacecolor=LEAD_SNP_COLOR,
                 markeredgecolor="black",
-                markersize=8,
-                label="Index SNP",
+                markersize=6,
+                label="Lead SNP",
             ),
         ]
 
@@ -456,7 +474,7 @@ class LocusZoomPlotter:
 
         ax.legend(
             handles=legend_elements,
-            loc="upper left",
+            loc="upper right",
             fontsize=9,
             frameon=True,
             framealpha=0.9,
@@ -465,6 +483,182 @@ class LocusZoomPlotter:
             handlelength=1.5,
             handleheight=1.0,
             labelspacing=0.4,
+        )
+
+    def _add_eqtl_legend(self, ax: Axes) -> None:
+        """Add eQTL effect size legend to plot."""
+        legend_elements = []
+
+        # Positive effects (upward triangles)
+        for _, _, label, color in EQTL_POSITIVE_BINS:
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="^",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=7,
+                    label=label,
+                )
+            )
+
+        # Negative effects (downward triangles)
+        for _, _, label, color in EQTL_NEGATIVE_BINS:
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="v",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=7,
+                    label=label,
+                )
+            )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            frameon=True,
+            framealpha=0.9,
+            title="eQTL effect",
+            title_fontsize=9,
+            handlelength=1.2,
+            handleheight=1.0,
+            labelspacing=0.3,
+        )
+
+    def _plot_finemapping(
+        self,
+        ax: Axes,
+        df: pd.DataFrame,
+        pos_col: str = "pos",
+        pip_col: str = "pip",
+        cs_col: Optional[str] = "cs",
+        show_credible_sets: bool = True,
+        pip_threshold: float = 0.0,
+    ) -> None:
+        """Plot fine-mapping results (PIP line with credible set coloring).
+
+        Args:
+            ax: Matplotlib axes object.
+            df: Fine-mapping DataFrame with pos and pip columns.
+            pos_col: Column name for position.
+            pip_col: Column name for posterior inclusion probability.
+            cs_col: Column name for credible set assignment (optional).
+            show_credible_sets: Whether to color points by credible set.
+            pip_threshold: Minimum PIP to display as scatter point.
+        """
+        # Sort by position for line plotting
+        df = df.sort_values(pos_col)
+
+        # Plot PIP as line
+        ax.plot(
+            df[pos_col],
+            df[pip_col],
+            color=PIP_LINE_COLOR,
+            linewidth=1.5,
+            alpha=0.8,
+            zorder=1,
+        )
+
+        # Check if credible sets are available
+        has_cs = cs_col is not None and cs_col in df.columns and show_credible_sets
+        credible_sets = get_credible_sets(df, cs_col) if has_cs else []
+
+        if credible_sets:
+            # Plot points colored by credible set
+            for cs_id in credible_sets:
+                cs_data = df[df[cs_col] == cs_id]
+                color = get_credible_set_color(cs_id)
+                ax.scatter(
+                    cs_data[pos_col],
+                    cs_data[pip_col],
+                    c=color,
+                    s=50,
+                    marker="o",
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=3,
+                    label=f"CS{cs_id}",
+                )
+            # Plot variants not in any credible set
+            non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
+            if not non_cs_data.empty and pip_threshold > 0:
+                non_cs_data = non_cs_data[non_cs_data[pip_col] >= pip_threshold]
+                if not non_cs_data.empty:
+                    ax.scatter(
+                        non_cs_data[pos_col],
+                        non_cs_data[pip_col],
+                        c="#BEBEBE",
+                        s=30,
+                        marker="o",
+                        edgecolor="black",
+                        linewidth=0.3,
+                        zorder=2,
+                        alpha=0.6,
+                    )
+        else:
+            # No credible sets - show all points above threshold
+            if pip_threshold > 0:
+                high_pip = df[df[pip_col] >= pip_threshold]
+                if not high_pip.empty:
+                    ax.scatter(
+                        high_pip[pos_col],
+                        high_pip[pip_col],
+                        c=PIP_LINE_COLOR,
+                        s=50,
+                        marker="o",
+                        edgecolor="black",
+                        linewidth=0.5,
+                        zorder=3,
+                    )
+
+    def _add_finemapping_legend(
+        self,
+        ax: Axes,
+        credible_sets: List[int],
+    ) -> None:
+        """Add fine-mapping legend showing credible sets.
+
+        Args:
+            ax: Matplotlib axes object.
+            credible_sets: List of credible set IDs to include.
+        """
+        if not credible_sets:
+            return
+
+        legend_elements = []
+        for cs_id in credible_sets:
+            color = get_credible_set_color(cs_id)
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=7,
+                    label=f"CS{cs_id}",
+                )
+            )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            frameon=True,
+            framealpha=0.9,
+            title="Credible sets",
+            title_fontsize=9,
+            handlelength=1.2,
+            handleheight=1.0,
+            labelspacing=0.3,
         )
 
     def plot_stacked(
@@ -477,10 +671,13 @@ class LocusZoomPlotter:
         panel_labels: Optional[List[str]] = None,
         ld_reference_file: Optional[str] = None,
         ld_reference_files: Optional[List[str]] = None,
+        ld_col: Optional[str] = None,
         genes_df: Optional[pd.DataFrame] = None,
         exons_df: Optional[pd.DataFrame] = None,
         eqtl_df: Optional[pd.DataFrame] = None,
         eqtl_gene: Optional[str] = None,
+        finemapping_df: Optional[pd.DataFrame] = None,
+        finemapping_cs_col: Optional[str] = "cs",
         recomb_df: Optional[pd.DataFrame] = None,
         show_recombination: bool = True,
         snp_labels: bool = True,
@@ -505,10 +702,15 @@ class LocusZoomPlotter:
             panel_labels: Labels for each panel (e.g., phenotype names).
             ld_reference_file: Single PLINK fileset for all panels.
             ld_reference_files: List of PLINK filesets (one per panel).
+            ld_col: Column name for pre-computed LD (R²) values in each DataFrame.
+                Use this if LD was calculated externally.
             genes_df: Gene annotations for bottom track.
             exons_df: Exon annotations for gene track.
             eqtl_df: eQTL data to display as additional panel.
             eqtl_gene: Filter eQTL data to this target gene.
+            finemapping_df: Fine-mapping/SuSiE results with pos and pip columns.
+                Displayed as PIP line with optional credible set coloring.
+            finemapping_cs_col: Column name for credible set assignment in finemapping_df.
             recomb_df: Pre-loaded recombination rate data.
             show_recombination: Whether to show recombination overlay.
             snp_labels: Whether to label top SNPs.
@@ -533,11 +735,30 @@ class LocusZoomPlotter:
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
 
+        # Validate list lengths match
+        if lead_positions is not None and len(lead_positions) != n_gwas:
+            raise ValueError(
+                f"lead_positions length ({len(lead_positions)}) must match "
+                f"number of GWAS DataFrames ({n_gwas})"
+            )
+        if panel_labels is not None and len(panel_labels) != n_gwas:
+            raise ValueError(
+                f"panel_labels length ({len(panel_labels)}) must match "
+                f"number of GWAS DataFrames ({n_gwas})"
+            )
+        if ld_reference_files is not None and len(ld_reference_files) != n_gwas:
+            raise ValueError(
+                f"ld_reference_files length ({len(ld_reference_files)}) must match "
+                f"number of GWAS DataFrames ({n_gwas})"
+            )
+
         # Validate inputs
         for i, df in enumerate(gwas_dfs):
             validate_gwas_df(df, pos_col=pos_col, p_col=p_col)
         if genes_df is not None:
             validate_genes_df(genes_df)
+        if eqtl_df is not None:
+            validate_eqtl_df(eqtl_df)
 
         # Handle lead positions
         if lead_positions is None:
@@ -557,6 +778,7 @@ class LocusZoomPlotter:
         # Calculate panel layout
         panel_height = 2.5  # inches per GWAS panel
         eqtl_height = 2.0 if eqtl_df is not None else 0
+        finemapping_height = 1.5 if finemapping_df is not None else 0
 
         # Gene track height
         if genes_df is not None:
@@ -583,10 +805,13 @@ class LocusZoomPlotter:
         # Calculate total panels and heights
         n_panels = (
             n_gwas
+            + (1 if finemapping_df is not None else 0)
             + (1 if eqtl_df is not None else 0)
             + (1 if genes_df is not None else 0)
         )
         height_ratios = [panel_height] * n_gwas
+        if finemapping_df is not None:
+            height_ratios.append(finemapping_height)
         if eqtl_df is not None:
             height_ratios.append(eqtl_height)
         if genes_df is not None:
@@ -625,9 +850,9 @@ class LocusZoomPlotter:
             df = gwas_df.copy()
             df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
 
-            # Calculate LD if reference provided
-            ld_col = None
-            if ld_reference_files and ld_reference_files[i] and lead_pos:
+            # Use pre-computed LD or calculate from reference
+            panel_ld_col = ld_col
+            if ld_reference_files and ld_reference_files[i] and lead_pos and not ld_col:
                 lead_snp_row = df[df[pos_col] == lead_pos]
                 if not lead_snp_row.empty and rs_col in df.columns:
                     lead_snp_id = lead_snp_row[rs_col].iloc[0]
@@ -640,17 +865,18 @@ class LocusZoomPlotter:
                     )
                     if not ld_df.empty:
                         df = df.merge(ld_df, left_on=rs_col, right_on="SNP", how="left")
-                        ld_col = "R2"
+                        panel_ld_col = "R2"
 
             # Plot association
-            self._plot_association(ax, df, pos_col, ld_col, lead_pos)
+            self._plot_association(ax, df, pos_col, panel_ld_col, lead_pos)
 
             # Add significance line
             ax.axhline(
                 y=self._genomewide_line,
-                color="grey",
+                color="red",
                 linestyle="--",
                 linewidth=1,
+                alpha=0.8,
                 zorder=1,
             )
 
@@ -690,13 +916,50 @@ class LocusZoomPlotter:
                 )
 
             # Add LD legend (only on first panel)
-            if i == 0 and ld_col is not None and ld_col in df.columns:
+            if i == 0 and panel_ld_col is not None and panel_ld_col in df.columns:
                 self._add_ld_legend(ax)
 
-        # Plot eQTL panel if provided
+        # Track current panel index
         panel_idx = n_gwas
-        if eqtl_df is not None:
+
+        # Plot fine-mapping panel if provided
+        if finemapping_df is not None:
             ax = axes[panel_idx]
+            fm_data = prepare_finemapping_for_plotting(
+                finemapping_df,
+                pos_col="pos",
+                pip_col="pip",
+                chrom=chrom,
+                start=start,
+                end=end,
+            )
+
+            if not fm_data.empty:
+                self._plot_finemapping(
+                    ax,
+                    fm_data,
+                    pos_col="pos",
+                    pip_col="pip",
+                    cs_col=finemapping_cs_col,
+                    show_credible_sets=True,
+                    pip_threshold=0.01,
+                )
+
+                # Add legend for credible sets
+                credible_sets = get_credible_sets(fm_data, finemapping_cs_col)
+                if credible_sets:
+                    self._add_finemapping_legend(ax, credible_sets)
+
+            ax.set_ylabel("PIP")
+            ax.set_ylim(-0.05, 1.05)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            panel_idx += 1
+
+        # Plot eQTL panel if provided
+        eqtl_panel_idx = panel_idx
+        if eqtl_df is not None:
+            ax = axes[eqtl_panel_idx]
             eqtl_data = eqtl_df.copy()
 
             # Filter by gene if specified
@@ -714,23 +977,49 @@ class LocusZoomPlotter:
                     eqtl_data["p_value"].clip(lower=1e-300)
                 )
 
-                # Plot as diamonds (different from GWAS circles)
-                ax.scatter(
-                    eqtl_data["pos"],
-                    eqtl_data["neglog10p"],
-                    c="#FF6B6B",
-                    s=60,
-                    marker="D",
-                    edgecolor="black",
-                    linewidth=0.5,
-                    zorder=2,
-                    label=f"eQTL ({eqtl_gene})" if eqtl_gene else "eQTL",
-                )
-                ax.legend(loc="upper left", fontsize=9)
+                # Check if effect_size column exists for directional coloring
+                has_effect = "effect_size" in eqtl_data.columns
+
+                if has_effect:
+                    # Plot triangles by effect direction with color by magnitude
+                    for _, row in eqtl_data.iterrows():
+                        effect = row["effect_size"]
+                        color = get_eqtl_color(effect)
+                        marker = "^" if effect >= 0 else "v"
+                        ax.scatter(
+                            row["pos"],
+                            row["neglog10p"],
+                            c=color,
+                            s=50,
+                            marker=marker,
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                        )
+                    # Add eQTL effect legend
+                    self._add_eqtl_legend(ax)
+                else:
+                    # No effect sizes - plot as diamonds
+                    ax.scatter(
+                        eqtl_data["pos"],
+                        eqtl_data["neglog10p"],
+                        c="#FF6B6B",
+                        s=60,
+                        marker="D",
+                        edgecolor="black",
+                        linewidth=0.5,
+                        zorder=2,
+                        label=f"eQTL ({eqtl_gene})" if eqtl_gene else "eQTL",
+                    )
+                    ax.legend(loc="upper right", fontsize=9)
 
             ax.set_ylabel(r"$-\log_{10}$ P (eQTL)")
             ax.axhline(
-                y=self._genomewide_line, color="grey", linestyle="--", linewidth=1
+                y=self._genomewide_line,
+                color="red",
+                linestyle="--",
+                linewidth=1,
+                alpha=0.8,
             )
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)

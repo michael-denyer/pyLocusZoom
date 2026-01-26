@@ -38,7 +38,7 @@ def build_ld_command(
     output_path: str,
     window_kb: int = 500,
     ld_window_r2: float = 0.0,
-    species: str = "dog",
+    species: str = "canine",
     threads: Optional[int] = None,
 ) -> list:
     """Build PLINK command for LD calculation.
@@ -50,7 +50,7 @@ def build_ld_command(
         output_path: Output prefix (creates .ld file).
         window_kb: Window size in kilobases.
         ld_window_r2: Minimum R² to report (0.0 reports all).
-        species: Species flag for PLINK ('dog', 'cat', or None for human).
+        species: Species flag for PLINK ('canine', 'feline', or None for human).
         threads: Number of threads (auto-detect if None).
 
     Returns:
@@ -58,10 +58,10 @@ def build_ld_command(
     """
     cmd = [plink_path]
 
-    # Species flag
-    if species == "dog":
+    # Species flag (maps to PLINK's --dog flag)
+    if species == "canine":
         cmd.append("--dog")
-    elif species == "cat":
+    elif species == "feline":
         # PLINK doesn't have --cat, use --chr-set for 18 autosomes + X
         cmd.extend(["--chr-set", "18"])
 
@@ -119,7 +119,7 @@ def calculate_ld(
     window_kb: int = 500,
     plink_path: Optional[str] = None,
     working_dir: Optional[str] = None,
-    species: str = "dog",
+    species: str = "canine",
     threads: Optional[int] = None,
 ) -> pd.DataFrame:
     """Calculate LD (R²) between a lead SNP and all SNPs in a region.
@@ -133,7 +133,7 @@ def calculate_ld(
         window_kb: Window size in kilobases around lead SNP.
         plink_path: Path to PLINK executable. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
-        species: Species flag ('dog', 'cat', or None for human).
+        species: Species flag ('canine', 'feline', or None for human).
         threads: Number of threads for PLINK.
 
     Returns:
@@ -142,6 +142,7 @@ def calculate_ld(
 
     Raises:
         FileNotFoundError: If PLINK executable not found.
+        ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing.
 
     Example:
         >>> ld_df = calculate_ld(

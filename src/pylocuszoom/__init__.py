@@ -3,20 +3,21 @@
 This package provides LocusZoom-style regional association plots with:
 - LD coloring based on R² with lead variant
 - Gene and exon tracks
-- Recombination rate overlays (dog built-in, or user-provided)
+- Recombination rate overlays (canine built-in, or user-provided)
 - Automatic SNP labeling
 - Multiple backends: matplotlib (static), plotly (interactive), bokeh (dashboards)
 - eQTL overlay support
+- Fine-mapping/SuSiE visualization (PIP line with credible set coloring)
 - PySpark DataFrame support for large-scale data
 
 Example:
     >>> from pylocuszoom import LocusZoomPlotter
-    >>> plotter = LocusZoomPlotter(species="dog")
+    >>> plotter = LocusZoomPlotter(species="canine")
     >>> fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
     >>> fig.savefig("regional_plot.png", dpi=150)
 
 Interactive example:
-    >>> plotter = LocusZoomPlotter(species="dog", backend="plotly")
+    >>> plotter = LocusZoomPlotter(species="canine", backend="plotly")
     >>> fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
     >>> fig.write_html("regional_plot.html")
 
@@ -28,8 +29,8 @@ Stacked plots:
     ... )
 
 Species Support:
-    - Dog (Canis lupus familiaris): Full features including built-in recombination maps
-    - Cat (Felis catus): LD coloring and gene tracks (user provides recombination data)
+    - Canine (Canis lupus familiaris): Full features including built-in recombination maps
+    - Feline (Felis catus): LD coloring and gene tracks (user provides recombination data)
     - Custom: User provides all reference data
 """
 
@@ -53,6 +54,17 @@ from .eqtl import (
     validate_eqtl_df,
 )
 
+# Fine-mapping/SuSiE support
+from .finemapping import (
+    FinemappingValidationError,
+    filter_by_credible_set,
+    filter_finemapping_by_region,
+    get_credible_sets,
+    get_top_pip_variants,
+    prepare_finemapping_for_plotting,
+    validate_finemapping_df,
+)
+
 # Gene track
 from .gene_track import get_nearest_gene, plot_gene_track
 
@@ -69,7 +81,7 @@ from .plotter import LocusZoomPlotter
 # Reference data management
 from .recombination import (
     add_recombination_overlay,
-    download_dog_recombination_maps,
+    download_canine_recombination_maps,
     get_recombination_rate_for_region,
     load_recombination_map,
 )
@@ -85,7 +97,7 @@ __all__ = [
     "BackendType",
     "get_backend",
     # Reference data
-    "download_dog_recombination_maps",
+    "download_canine_recombination_maps",
     # Colors
     "get_ld_color",
     "get_ld_bin",
@@ -110,6 +122,14 @@ __all__ = [
     "get_eqtl_genes",
     "calculate_colocalization_overlap",
     "EQTLValidationError",
+    # Fine-mapping/SuSiE
+    "validate_finemapping_df",
+    "filter_finemapping_by_region",
+    "filter_by_credible_set",
+    "get_credible_sets",
+    "get_top_pip_variants",
+    "prepare_finemapping_for_plotting",
+    "FinemappingValidationError",
     # Logging
     "enable_logging",
     "disable_logging",

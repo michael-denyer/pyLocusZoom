@@ -2,17 +2,14 @@
 
 Provides automatic labeling of top significant SNPs with:
 - SNP ID (rs number)
-- Nearest gene name (if gene annotations provided)
 - Automatic overlap avoidance (if adjustText installed)
 """
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.text import Annotation
-
-from .gene_track import get_nearest_gene
 
 
 def add_snp_labels(
@@ -25,11 +22,11 @@ def add_snp_labels(
     genes_df: Optional[pd.DataFrame] = None,
     chrom: Optional[Union[int, str]] = None,
     max_label_length: int = 15,
+    **kwargs: Any,
 ) -> List[Annotation]:
     """Add text labels to top SNPs in the regional plot.
 
-    Labels the most significant SNPs with either their SNP ID
-    or the nearest gene name (if genes_df provided).
+    Labels the most significant SNPs with their SNP ID (rs number).
 
     Args:
         ax: Matplotlib axes object.
@@ -39,10 +36,8 @@ def add_snp_labels(
         neglog10p_col: Column name for -log10(p-value).
         rs_col: Column name for SNP ID.
         label_top_n: Number of top SNPs to label.
-        genes_df: Optional gene annotations for gene-based labels.
-            If provided with chrom, labels will show nearest gene name
-            instead of SNP ID.
-        chrom: Chromosome number. Required if genes_df is provided.
+        genes_df: Unused, kept for backward compatibility.
+        chrom: Unused, kept for backward compatibility.
         max_label_length: Maximum label length before truncation.
 
     Returns:
@@ -53,6 +48,8 @@ def add_snp_labels(
         >>> # ... plot your data ...
         >>> texts = add_snp_labels(ax, df, label_top_n=5)
     """
+    # genes_df and chrom are unused but kept for backward compatibility
+    del genes_df, chrom, kwargs
     if neglog10p_col not in df.columns:
         raise ValueError(
             f"Column '{neglog10p_col}' not found in DataFrame. "
@@ -63,33 +60,34 @@ def add_snp_labels(
     top_snps = df.nlargest(label_top_n, neglog10p_col)
 
     texts = []
+    used_labels = set()  # Track used labels to avoid duplicates
+
     for _, snp in top_snps.iterrows():
         x = snp[pos_col]
         y = snp[neglog10p_col]
 
-        # Determine label text
+        # Use SNP ID as label
         label = str(snp[rs_col])
 
-        # Try to get gene name if genes_df provided
-        if genes_df is not None and chrom is not None:
-            nearest_gene = get_nearest_gene(genes_df, chrom, int(x))
-            if nearest_gene:
-                label = nearest_gene
+        # Skip duplicate labels
+        if label in used_labels:
+            continue
+        used_labels.add(label)
 
         # Truncate long labels
         if len(label) > max_label_length:
             label = label[: max_label_length - 3] + "..."
 
-        # Add text annotation with offset
+        # Add text annotation centered above marker
         text = ax.annotate(
             label,
             xy=(x, y),
-            xytext=(5, 5),
+            xytext=(0, 7),
             textcoords="offset points",
-            fontsize=8,
+            fontsize=6,
             fontweight="bold",
             color="#333333",
-            ha="left",
+            ha="center",
             va="bottom",
             zorder=15,
             bbox=dict(
@@ -101,18 +99,19 @@ def add_snp_labels(
         )
         texts.append(text)
 
-    # Try to adjust text positions to avoid overlap
-    try:
-        from adjustText import adjust_text
+    # Only use adjustText when there are multiple labels to avoid overlap
+    if len(texts) > 1:
+        try:
+            from adjustText import adjust_text
 
-        adjust_text(
-            texts,
-            ax=ax,
-            arrowprops=dict(arrowstyle="-", color="gray", lw=0.5),
-            expand_points=(1.5, 1.5),
-        )
-    except ImportError:
-        # adjustText not installed, labels may overlap
-        pass
+            adjust_text(
+                texts,
+                ax=ax,
+                arrowprops=dict(arrowstyle="-", color="gray", lw=0.5),
+                expand_points=(1.5, 1.5),
+            )
+        except ImportError:
+            # adjustText not installed, labels may overlap
+            pass
 
     return texts

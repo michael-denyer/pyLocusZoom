@@ -13,15 +13,15 @@ from pylocuszoom.plotter import LocusZoomPlotter
 class TestLocusZoomPlotterInit:
     """Tests for LocusZoomPlotter initialization."""
 
-    def test_default_species_is_dog(self):
-        """Default species should be dog."""
+    def test_default_species_is_canine(self):
+        """Default species should be canine."""
         plotter = LocusZoomPlotter()
-        assert plotter.species == "dog"
+        assert plotter.species == "canine"
 
     def test_custom_species(self):
         """Should accept custom species."""
-        plotter = LocusZoomPlotter(species="cat")
-        assert plotter.species == "cat"
+        plotter = LocusZoomPlotter(species="feline")
+        assert plotter.species == "feline"
 
     def test_custom_plink_path(self):
         """Should accept custom PLINK path."""
@@ -40,7 +40,7 @@ class TestLocusZoomPlotterPlot:
     @pytest.fixture
     def plotter(self):
         """Create plotter instance."""
-        return LocusZoomPlotter(species="dog")
+        return LocusZoomPlotter(species="canine")
 
     @pytest.fixture
     def sample_gwas_df(self):
@@ -198,7 +198,7 @@ class TestLocusZoomPlotterLdCalculation:
     @pytest.fixture
     def plotter(self):
         """Create plotter with mocked PLINK."""
-        return LocusZoomPlotter(species="dog", plink_path="/mock/plink")
+        return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
 
     def test_calculates_ld_when_reference_provided(self, plotter):
         """Should attempt LD calculation when ld_reference_file provided."""
@@ -255,3 +255,131 @@ class TestLocusZoomPlotterRecombination:
         result = plotter._get_recomb_for_region(1, 1000000, 2000000)
         assert result is not None
         assert len(result) == 3
+
+
+class TestPlotEdgeCases:
+    """Tests for plot() edge cases and error handling."""
+
+    @pytest.fixture
+    def plotter(self):
+        """Create plotter instance."""
+        return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
+
+    def test_plot_raises_keyerror_when_rs_col_missing_with_ld_reference(self, plotter):
+        """Bug: plot() should handle missing rs_col when ld_reference_file provided.
+
+        Currently raises KeyError at line 264 when rs_col column doesn't exist
+        but ld_reference_file is provided. Should either:
+        1. Validate rs_col exists upfront and raise clear error, or
+        2. Skip LD calculation gracefully with a warning
+        """
+        # GWAS data WITHOUT rs column
+        df = pd.DataFrame(
+            {
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
+            mock_ld.return_value = pd.DataFrame({"SNP": [], "R2": []})
+
+            # This should NOT raise KeyError - should handle gracefully
+            # Currently fails with: KeyError: 'rs'
+            fig = plotter.plot(
+                df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                lead_pos=1500000,
+                ld_reference_file="/path/to/genotypes",
+            )
+            plt.close(fig)
+
+
+class TestPlotStackedEdgeCases:
+    """Tests for plot_stacked() edge cases and error handling."""
+
+    @pytest.fixture
+    def plotter(self):
+        """Create plotter instance."""
+        return LocusZoomPlotter(species="canine", log_level=None)
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS results DataFrame."""
+        return pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+    def test_plot_stacked_validates_eqtl_columns(self, plotter, sample_gwas_df):
+        """Bug: plot_stacked() should validate eQTL DataFrame has required columns.
+
+        Currently bypasses validate_eqtl_df() and directly accesses 'pos' and
+        'p_value' columns at lines 945-952, causing cryptic KeyError instead
+        of helpful validation message.
+        """
+        from pylocuszoom.eqtl import EQTLValidationError
+
+        # eQTL data with wrong column names
+        bad_eqtl_df = pd.DataFrame(
+            {
+                "position": [1500000],  # Should be 'pos'
+                "pval": [1e-6],  # Should be 'p_value'
+            }
+        )
+
+        # Should raise EQTLValidationError with helpful message
+        # Currently raises KeyError: 'pos'
+        with pytest.raises(EQTLValidationError):
+            plotter.plot_stacked(
+                [sample_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                eqtl_df=bad_eqtl_df,
+                show_recombination=False,
+            )
+
+    def test_plot_stacked_validates_list_lengths(self, plotter, sample_gwas_df):
+        """Bug: plot_stacked() should error when list lengths don't match.
+
+        Currently uses zip() which silently truncates the longer list.
+        If user provides 3 GWAS DataFrames but only 2 lead_positions,
+        the third GWAS is plotted without a lead SNP - confusing behavior.
+        """
+        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy(), sample_gwas_df.copy()]
+        lead_positions = [1500000, 1500000]  # Only 2, but 3 gwas_dfs
+
+        # Should raise ValueError about mismatched lengths
+        # Currently silently truncates - third GWAS has no lead SNP
+        with pytest.raises(ValueError, match="lead_positions"):
+            plotter.plot_stacked(
+                gwas_dfs,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                lead_positions=lead_positions,
+                show_recombination=False,
+            )
+
+    def test_plot_stacked_validates_panel_labels_length(self, plotter, sample_gwas_df):
+        """Bug: panel_labels length should match gwas_dfs length."""
+        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy()]
+        panel_labels = ["Only One"]  # Should have 2 labels
+
+        # Should raise ValueError about mismatched lengths
+        # Currently silently ignores - second panel has no label
+        with pytest.raises(ValueError, match="panel_labels"):
+            plotter.plot_stacked(
+                gwas_dfs,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                panel_labels=panel_labels,
+                show_recombination=False,
+            )

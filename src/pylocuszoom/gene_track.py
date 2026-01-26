@@ -15,11 +15,11 @@ from matplotlib.patches import Polygon, Rectangle
 
 from .utils import normalize_chrom
 
-# Strand-specific colors (bold, distinct)
+# Strand-specific colors (distinct from LD palette)
 STRAND_COLORS: dict[Optional[str], str] = {
-    "+": "#6A3D9A",  # Bold purple for forward strand
-    "-": "#1F78B4",  # Bold teal/blue for reverse strand
-    None: "#666666",  # Grey if no strand info
+    "+": "#FFD700",  # Gold/bright yellow for forward strand
+    "-": "#DDA0DD",  # Plum/light purple for reverse strand
+    None: "#999999",  # Light grey if no strand info
 }
 
 # Layout constants
@@ -145,7 +145,7 @@ def plot_gene_track(
     ].copy()
 
     ax.set_xlim(start, end)
-    ax.set_ylabel("Genes", fontsize=10)
+    ax.set_ylabel("")
     ax.set_yticks([])
 
     # theme_classic: only bottom spine
@@ -255,43 +255,56 @@ def plot_gene_track(
                 )
             )
 
-        # Add strand direction triangle at gene tip
+        # Add strand direction triangles (tip, center, tail)
         if "strand" in gene.index:
             strand = gene["strand"]
             region_width = end - start
+            gene_width = gene_end - gene_start
             arrow_dir = 1 if strand == "+" else -1
 
-            # Triangle dimensions - whole arrow past gene end
+            # Triangle dimensions
             tri_height = EXON_HEIGHT * 0.35
             tri_width = region_width * 0.006
 
-            # Triangle entirely past gene tip
-            if arrow_dir == 1:  # Forward strand: arrow starts at gene end
-                base_x = gene_end
-                tip_x = base_x + tri_width
-                tri_points = [
-                    [tip_x, y_gene],  # Tip pointing right
-                    [base_x, y_gene + tri_height],
-                    [base_x, y_gene - tri_height],
+            # Arrow positions: front, middle, back
+            if arrow_dir == 1:  # Forward strand
+                arrow_positions = [
+                    gene_start,  # Front
+                    (gene_start + gene_end) / 2,  # Middle
+                    gene_end,  # Back (tip past gene end)
                 ]
-            else:  # Reverse strand: arrow starts at gene start
-                base_x = gene_start
-                tip_x = base_x - tri_width
-                tri_points = [
-                    [tip_x, y_gene],  # Tip pointing left
-                    [base_x, y_gene + tri_height],
-                    [base_x, y_gene - tri_height],
+            else:  # Reverse strand
+                arrow_positions = [
+                    gene_end,  # Front (arrows point left, so start from right)
+                    (gene_start + gene_end) / 2,  # Middle
+                    gene_start,  # Back (tip past gene start)
                 ]
 
-            triangle = Polygon(
-                tri_points,
-                closed=True,
-                facecolor="black",
-                edgecolor="black",
-                linewidth=0.5,
-                zorder=5,
-            )
-            ax.add_patch(triangle)
+            for base_x in arrow_positions:
+                if arrow_dir == 1:
+                    tip_x = base_x + tri_width
+                    tri_points = [
+                        [tip_x, y_gene],  # Tip pointing right
+                        [base_x, y_gene + tri_height],
+                        [base_x, y_gene - tri_height],
+                    ]
+                else:
+                    tip_x = base_x - tri_width
+                    tri_points = [
+                        [tip_x, y_gene],  # Tip pointing left
+                        [base_x, y_gene + tri_height],
+                        [base_x, y_gene - tri_height],
+                    ]
+
+                triangle = Polygon(
+                    tri_points,
+                    closed=True,
+                    facecolor="#000000",
+                    edgecolor="#000000",
+                    linewidth=0.5,
+                    zorder=5,
+                )
+                ax.add_patch(triangle)
 
         # Add gene name label in the gap above gene
         if gene_name:
