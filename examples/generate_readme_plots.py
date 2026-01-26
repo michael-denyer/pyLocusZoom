@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate example plots for README documentation.
 
-Note: Backend integration (plotly/bokeh) is not yet fully implemented in the main
-plot methods. This script generates matplotlib plots only.
+Generates:
+- Static PNG plots (matplotlib) for README display
+- Interactive HTML plots (plotly/bokeh) for exploration
 """
 
 import matplotlib
@@ -232,4 +233,79 @@ fig = plotter.plot_stacked(
 fig.savefig("examples/finemapping_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/finemapping_plot.png")
 
+# 5. Interactive Plotly eQTL plot
+print("5. Interactive Plotly eQTL plot...")
+plotly_plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+fig = plotly_plotter.plot_stacked(
+    [gwas_df],
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_positions=[1_500_000],
+    ld_col="ld_r2",
+    eqtl_df=eqtl_df,
+    eqtl_gene="GENE2",
+    genes_df=genes_df,
+    show_recombination=False,
+)
+fig.write_html("examples/eqtl_plotly.html")
+print("   Saved: examples/eqtl_plotly.html")
+
+# 6. Interactive Plotly fine-mapping plot
+print("6. Interactive Plotly fine-mapping plot...")
+fig = plotly_plotter.plot_stacked(
+    [gwas_df],
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_positions=[1_500_000],
+    ld_col="ld_r2",
+    finemapping_df=finemapping_df,
+    finemapping_cs_col="cs",
+    genes_df=genes_df,
+    show_recombination=False,
+)
+fig.write_html("examples/finemapping_plotly.html")
+print("   Saved: examples/finemapping_plotly.html")
+
+# 7. Interactive Bokeh eQTL plot
+print("7. Interactive Bokeh eQTL plot...")
+from bokeh.io import output_file, save
+
+bokeh_plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+fig = bokeh_plotter.plot_stacked(
+    [gwas_df],
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_positions=[1_500_000],
+    ld_col="ld_r2",
+    eqtl_df=eqtl_df,
+    eqtl_gene="GENE2",
+    genes_df=genes_df,
+    show_recombination=False,
+)
+output_file("examples/eqtl_bokeh.html")
+save(fig)
+print("   Saved: examples/eqtl_bokeh.html")
+
+# 8. Interactive Bokeh fine-mapping plot
+print("8. Interactive Bokeh fine-mapping plot...")
+fig = bokeh_plotter.plot_stacked(
+    [gwas_df],
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_positions=[1_500_000],
+    ld_col="ld_r2",
+    finemapping_df=finemapping_df,
+    finemapping_cs_col="cs",
+    genes_df=genes_df,
+    show_recombination=False,
+)
+output_file("examples/finemapping_bokeh.html")
+save(fig)
+print("   Saved: examples/finemapping_bokeh.html")
+
 print("\nAll plots generated successfully!")
+print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")

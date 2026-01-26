@@ -455,3 +455,344 @@ class TestDatabricksSpecific:
         assert isinstance(div, str)
         assert "<script" in script
         assert "<div" in div
+
+
+@pytest.fixture
+def sample_eqtl_df():
+    """Sample eQTL DataFrame with effect sizes."""
+    return pd.DataFrame(
+        {
+            "pos": [1_200_000, 1_400_000, 1_600_000, 1_800_000],
+            "p_value": [1e-8, 1e-6, 1e-4, 1e-5],
+            "effect_size": [0.5, -0.3, 0.8, -0.2],  # Mixed positive/negative
+            "gene": ["GENE_A", "GENE_A", "GENE_A", "GENE_A"],
+        }
+    )
+
+
+@pytest.fixture
+def sample_eqtl_no_effect_df():
+    """Sample eQTL DataFrame without effect sizes."""
+    return pd.DataFrame(
+        {
+            "pos": [1_200_000, 1_400_000, 1_600_000],
+            "p_value": [1e-8, 1e-6, 1e-4],
+            "gene": ["GENE_A", "GENE_A", "GENE_A"],
+        }
+    )
+
+
+@pytest.fixture
+def sample_finemapping_df():
+    """Sample fine-mapping DataFrame with credible sets."""
+    return pd.DataFrame(
+        {
+            "pos": [1_200_000, 1_300_000, 1_400_000, 1_500_000, 1_600_000],
+            "pip": [0.85, 0.10, 0.03, 0.45, 0.30],
+            "cs": [1, 1, 0, 2, 2],  # Two credible sets + non-CS variants
+        }
+    )
+
+
+class TestPlotlyEQTLFinemappingMarkers:
+    """Tests for eQTL and fine-mapping marker rendering in Plotly."""
+
+    def test_plotly_eqtl_positive_effect_markers(
+        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+    ):
+        """Plotly eQTL positive effects should render as triangle-up markers."""
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Find traces with triangle-up markers (positive effects)
+        triangle_up_traces = [
+            t
+            for t in fig.data
+            if hasattr(t, "marker") and t.marker.symbol == "triangle-up"
+        ]
+        assert len(triangle_up_traces) > 0, (
+            "No triangle-up markers for positive effects"
+        )
+
+    def test_plotly_eqtl_negative_effect_markers(
+        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+    ):
+        """Plotly eQTL negative effects should render as triangle-down markers."""
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Find traces with triangle-down markers (negative effects)
+        triangle_down_traces = [
+            t
+            for t in fig.data
+            if hasattr(t, "marker") and t.marker.symbol == "triangle-down"
+        ]
+        assert len(triangle_down_traces) > 0, (
+            "No triangle-down markers for negative effects"
+        )
+
+    def test_plotly_eqtl_no_effect_diamond_markers(
+        self, sample_gwas_df, sample_eqtl_no_effect_df, sample_genes_df
+    ):
+        """Plotly eQTL without effect sizes should render as diamond markers."""
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_no_effect_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Find traces with diamond markers
+        diamond_traces = [
+            t for t in fig.data if hasattr(t, "marker") and t.marker.symbol == "diamond"
+        ]
+        assert len(diamond_traces) > 0, (
+            "No diamond markers for eQTL without effect sizes"
+        )
+
+    def test_plotly_finemapping_circle_markers(
+        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+    ):
+        """Plotly fine-mapping should render as circle markers."""
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            finemapping_df=sample_finemapping_df,
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Find traces with circle markers (fine-mapping uses circles)
+        circle_traces = [
+            t for t in fig.data if hasattr(t, "marker") and t.marker.symbol == "circle"
+        ]
+        assert len(circle_traces) > 0, "No circle markers for fine-mapping"
+
+    def test_plotly_eqtl_hover_data(
+        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+    ):
+        """Plotly eQTL scatter should have hover data with position, p-value, effect."""
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Find eQTL data traces (triangle markers with actual data, not legend traces)
+        eqtl_traces = [
+            t
+            for t in fig.data
+            if hasattr(t, "marker")
+            and t.marker.symbol in ("triangle-up", "triangle-down")
+            and t.x is not None
+            and len(t.x) > 0
+            and t.x[0] is not None  # Exclude legend traces with None values
+        ]
+        assert len(eqtl_traces) > 0, "No eQTL data traces found"
+
+        # Check hover data exists
+        for trace in eqtl_traces:
+            assert trace.customdata is not None, "eQTL trace missing customdata"
+
+    def test_plotly_finemapping_hover_data(
+        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+    ):
+        """Plotly fine-mapping scatter should have hover data with position, PIP, CS."""
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            finemapping_df=sample_finemapping_df,
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Find fine-mapping traces (circle markers with PIP data)
+        fm_traces = [
+            t
+            for t in fig.data
+            if hasattr(t, "marker")
+            and t.marker.symbol == "circle"
+            and hasattr(t, "customdata")
+            and t.customdata is not None
+        ]
+        assert len(fm_traces) > 0, "No fine-mapping traces with hover data found"
+
+
+class TestBokehEQTLFinemappingMarkers:
+    """Tests for eQTL and fine-mapping marker rendering in Bokeh."""
+
+    def test_bokeh_eqtl_with_effects_creates_renderers(
+        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+    ):
+        """Bokeh eQTL with effect sizes should create scatter renderers."""
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Bokeh returns a column layout - get the figures
+        from bokeh.models import Column
+
+        assert isinstance(fig, Column)
+        # Should have multiple figures (GWAS + eQTL + gene track)
+        assert len(fig.children) >= 2
+
+    def test_bokeh_eqtl_triangle_markers(
+        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+    ):
+        """Bokeh eQTL should use triangle markers for directional effects."""
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        from bokeh.models import GlyphRenderer, Scatter
+
+        # Get all scatter renderers from all figures
+        scatter_markers = []
+        for child in fig.children:
+            if hasattr(child, "renderers"):
+                for r in child.renderers:
+                    if isinstance(r, GlyphRenderer) and isinstance(r.glyph, Scatter):
+                        scatter_markers.append(r.glyph.marker)
+
+        # Should have triangle and inverted_triangle markers
+        assert (
+            "triangle" in scatter_markers or "inverted_triangle" in scatter_markers
+        ), f"No triangle markers found in Bokeh plot. Markers: {scatter_markers}"
+
+    def test_bokeh_finemapping_circle_markers(
+        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+    ):
+        """Bokeh fine-mapping should use circle markers."""
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            finemapping_df=sample_finemapping_df,
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        from bokeh.models import GlyphRenderer, Scatter
+
+        # Get all scatter renderers
+        scatter_markers = []
+        for child in fig.children:
+            if hasattr(child, "renderers"):
+                for r in child.renderers:
+                    if isinstance(r, GlyphRenderer) and isinstance(r.glyph, Scatter):
+                        scatter_markers.append(r.glyph.marker)
+
+        # Should have circle markers for fine-mapping
+        assert "circle" in scatter_markers, (
+            f"No circle markers found in Bokeh plot. Markers: {scatter_markers}"
+        )
+
+    def test_bokeh_eqtl_has_hover_tool(
+        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+    ):
+        """Bokeh eQTL panels should have HoverTool for interactivity."""
+        from bokeh.models import HoverTool
+
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE_A",
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Check for HoverTool in any figure
+        has_hover = False
+        for child in fig.children:
+            if hasattr(child, "tools"):
+                for tool in child.tools:
+                    if isinstance(tool, HoverTool):
+                        has_hover = True
+                        break
+
+        assert has_hover, "No HoverTool found in Bokeh eQTL plot"
+
+    def test_bokeh_finemapping_has_hover_tool(
+        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+    ):
+        """Bokeh fine-mapping panels should have HoverTool for interactivity."""
+        from bokeh.models import HoverTool
+
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            finemapping_df=sample_finemapping_df,
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Check for HoverTool in any figure
+        has_hover = False
+        for child in fig.children:
+            if hasattr(child, "tools"):
+                for tool in child.tools:
+                    if isinstance(tool, HoverTool):
+                        has_hover = True
+                        break
+
+        assert has_hover, "No HoverTool found in Bokeh fine-mapping plot"
