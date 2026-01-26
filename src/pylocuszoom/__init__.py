@@ -34,7 +34,7 @@ Species Support:
     - Custom: User provides all reference data
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 # Main plotter class
 # Backend types
@@ -73,6 +73,31 @@ from .labels import add_snp_labels
 
 # LD calculation
 from .ld import calculate_ld
+
+# File format loaders
+from .loaders import (
+    load_bed,
+    load_bolt_lmm,
+    load_caviar,
+    load_ensembl_genes,
+    load_eqtl_catalogue,
+    load_finemap,
+    load_gemma,
+    # eQTL loaders
+    load_gtex_eqtl,
+    # Gene annotation loaders
+    load_gtf,
+    # GWAS loaders
+    load_gwas,
+    load_gwas_catalog,
+    load_matrixeqtl,
+    load_plink_assoc,
+    load_polyfun,
+    load_regenie,
+    load_saige,
+    # Fine-mapping loaders
+    load_susie,
+)
 
 # Logging configuration
 from .logging import disable_logging, enable_logging
@@ -136,4 +161,25 @@ __all__ = [
     # Validation & Utils
     "ValidationError",
     "to_pandas",
+    # GWAS loaders
+    "load_gwas",
+    "load_plink_assoc",
+    "load_regenie",
+    "load_bolt_lmm",
+    "load_gemma",
+    "load_saige",
+    "load_gwas_catalog",
+    # eQTL loaders
+    "load_gtex_eqtl",
+    "load_eqtl_catalogue",
+    "load_matrixeqtl",
+    # Fine-mapping loaders
+    "load_susie",
+    "load_finemap",
+    "load_caviar",
+    "load_polyfun",
+    # Gene annotation loaders
+    "load_gtf",
+    "load_bed",
+    "load_ensembl_genes",
 ]

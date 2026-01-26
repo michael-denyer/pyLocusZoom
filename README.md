@@ -1,16 +1,15 @@
 # pyLocusZoom
+<img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 
 [![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-3.5+-11557c.svg)](https://matplotlib.org/)
 [![Plotly](https://img.shields.io/badge/Plotly-5.0+-3F4F75.svg)](https://plotly.com/python/)
 [![Bokeh](https://img.shields.io/badge/Bokeh-3.8+-E6526F.svg)](https://bokeh.org/)
 [![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
 
-<img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 
 Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
 
@@ -18,16 +17,21 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 
 ## Features
 
-- **LD coloring**: SNPs colored by linkage disequilibrium (R²) with lead variant
-- **Gene track**: Annotated gene/exon positions below the association plot
-- **Recombination rate**: Overlay showing recombination rate across region (*Canis lupus familiaris* only)
-- **SNP labels**: Automatic labeling of top SNPs with RS ID or nearest gene
-- **Species support**: Built-in *Canis lupus familiaris* (CanFam3.1/CanFam4), *Felis catus* (FelCat9), or custom species
-- **CanFam4 support**: Automatic coordinate liftover for recombination maps
-- **Multiple backends**: matplotlib (static), plotly (interactive), bokeh (dashboards)
-- **Stacked plots**: Compare multiple GWAS/phenotypes vertically
-- **eQTL overlay**: Expression QTL data as separate panel
-- **PySpark support**: Handles large-scale genomics DataFrames
+1. **Regional association plot**:
+
+    - **Native Species support**: Built-in for *Canis lupus familiaris* (CanFam3.1 with CanFam4 LiftOver) and  *Felis catus* (FelCat9) or import from another data source (file format) for your chosen species plot(s)
+    - **LD coloring**: SNPs colored by linkage disequilibrium (R²) with lead variant
+    - **Gene tracks**: Annotated gene/exon positions below the association plot
+    - **Recombination rate**: Overlay showing recombination rate across region (*Canis lupus familiaris* only)
+    - **SNP labels (matplotLib)**: Automatic labeling of lead SNPs with RS ID
+    - **Tooltips (bokeh and plotly)**: Mouseover for detailed SNP data
+2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
+3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
+4, **Fine mapping plots
+4. **Supports nultiple charting libraries**: matplotlib (static), plotly (interactive), bokeh (dashboards)
+5. **Pandas and PySpark support**: Handles large-scale and popular format genomics DataFrames
+6. **Covenience data file loaders**: file loaders for common GWAS, eQTL and fine mapping files
+
 
 ![Example regional association plot](examples/regional_plot.png)
 
@@ -230,6 +234,47 @@ pandas_df = to_pandas(spark_gwas_df, sample_size=100000)
 ```
 
 Install PySpark support: `uv add pylocuszoom[spark]`
+
+## Loading Data from Files
+
+pyLocusZoom includes loaders for common GWAS, eQTL, and fine-mapping file formats:
+
+```python
+from pylocuszoom import (
+    # GWAS loaders
+    load_gwas,           # Auto-detect format
+    load_plink_assoc,    # PLINK .assoc, .assoc.linear, .qassoc
+    load_regenie,        # REGENIE .regenie
+    load_bolt_lmm,       # BOLT-LMM .stats
+    load_gemma,          # GEMMA .assoc.txt
+    load_saige,          # SAIGE output
+    # eQTL loaders
+    load_gtex_eqtl,      # GTEx significant pairs
+    load_eqtl_catalogue, # eQTL Catalogue format
+    # Fine-mapping loaders
+    load_susie,          # SuSiE output
+    load_finemap,        # FINEMAP .snp output
+    # Gene annotations
+    load_gtf,            # GTF/GFF3 files
+    load_bed,            # BED files
+)
+
+# Auto-detect GWAS format from filename
+gwas_df = load_gwas("results.assoc.linear")
+
+# Or use specific loader
+gwas_df = load_regenie("ukb_results.regenie")
+
+# Load gene annotations
+genes_df = load_gtf("genes.gtf", feature_type="gene")
+exons_df = load_gtf("genes.gtf", feature_type="exon")
+
+# Load eQTL data
+eqtl_df = load_gtex_eqtl("GTEx.signif_pairs.txt.gz", gene="BRCA1")
+
+# Load fine-mapping results
+fm_df = load_susie("susie_output.tsv")
+```
 
 ## Data Formats
 

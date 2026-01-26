@@ -19,6 +19,11 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [LocusZoomPlotter](#locuszoomplotter)
   - [plot() Method](#plot-method)
   - [plot_stacked() Method](#plot_stacked-method)
+- [File Loaders](#file-loaders)
+  - [GWAS Loaders](#gwas-loaders)
+  - [eQTL Loaders](#eqtl-loaders)
+  - [Fine-mapping Loaders](#fine-mapping-loaders)
+  - [Gene Annotation Loaders](#gene-annotation-loaders)
 - [Data Formats](#data-formats)
 - [Species Support](#species-support)
 - [Recipes & Examples](#recipes--examples)
@@ -385,6 +390,122 @@ fig = plotter.plot_stacked(
 | `eqtl_gene` | str | None | Filter eQTL to specific gene. |
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
+
+---
+
+## File Loaders
+
+pyLocusZoom includes convenience functions for loading common file formats directly into DataFrames ready for plotting.
+
+### GWAS Loaders
+
+| Function | Format | Description |
+|----------|--------|-------------|
+| `load_gwas()` | Auto | Auto-detects format from filename |
+| `load_plink_assoc()` | PLINK | `.assoc`, `.assoc.linear`, `.assoc.logistic`, `.qassoc` |
+| `load_regenie()` | REGENIE | `.regenie` files |
+| `load_bolt_lmm()` | BOLT-LMM | `.stats` files |
+| `load_gemma()` | GEMMA | `.assoc.txt` files |
+| `load_saige()` | SAIGE | SAIGE output files |
+| `load_gwas_catalog()` | GWAS Catalog | Summary statistics format |
+
+```python
+from pylocuszoom import load_gwas, load_plink_assoc, load_regenie
+
+# Auto-detect format from filename extension
+gwas_df = load_gwas("results.assoc.linear")
+
+# Or use specific loader with custom column names
+gwas_df = load_plink_assoc(
+    "results.assoc",
+    pos_col="position",  # Rename output column
+    p_col="pvalue",
+    rs_col="snp_id",
+)
+
+# REGENIE (handles LOG10P conversion automatically)
+gwas_df = load_regenie("ukb_chr1.regenie")
+```
+
+### eQTL Loaders
+
+| Function | Format | Description |
+|----------|--------|-------------|
+| `load_gtex_eqtl()` | GTEx | Significant variant-gene pairs |
+| `load_eqtl_catalogue()` | eQTL Catalogue | Standardized eQTL format |
+| `load_matrixeqtl()` | MatrixEQTL | R MatrixEQTL output |
+
+```python
+from pylocuszoom import load_gtex_eqtl, load_eqtl_catalogue
+
+# Load GTEx data, optionally filter to specific gene
+eqtl_df = load_gtex_eqtl(
+    "GTEx_Analysis_v8.signif_variant_gene_pairs.txt.gz",
+    gene="BRCA1",  # Filter to BRCA1 associations
+)
+
+# eQTL Catalogue format
+eqtl_df = load_eqtl_catalogue("eqtl_results.tsv", gene="TP53")
+```
+
+**Output columns:** `pos`, `p_value`, `gene`, `effect`
+
+### Fine-mapping Loaders
+
+| Function | Format | Description |
+|----------|--------|-------------|
+| `load_susie()` | SuSiE | susieR output (TSV) |
+| `load_finemap()` | FINEMAP | `.snp` output file |
+| `load_caviar()` | CAVIAR | `.set` output file |
+| `load_polyfun()` | PolyFun | PolyFun+SuSiE output |
+
+```python
+from pylocuszoom import load_susie, load_finemap
+
+# SuSiE results (handles credible set standardization)
+fm_df = load_susie("susie_results.tsv")
+# Output: pos, pip, cs (credible set, 0 = not in CS)
+
+# FINEMAP results (assigns CS based on 95% PIP threshold)
+fm_df = load_finemap("finemap_output.snp")
+
+# Use in plot
+fig = plotter.plot_stacked(
+    [gwas_df],
+    chrom=1, start=1e6, end=2e6,
+    finemapping_df=fm_df,
+)
+```
+
+**Output columns:** `pos`, `pip`, `cs` (credible set assignment)
+
+### Gene Annotation Loaders
+
+| Function | Format | Description |
+|----------|--------|-------------|
+| `load_gtf()` | GTF/GFF3 | Standard gene annotation format |
+| `load_bed()` | BED | BED4+ format |
+| `load_ensembl_genes()` | Ensembl | BioMart gene export |
+
+```python
+from pylocuszoom import load_gtf, load_bed
+
+# Load genes and exons from GTF
+genes_df = load_gtf("gencode.v40.annotation.gtf.gz", feature_type="gene")
+exons_df = load_gtf("gencode.v40.annotation.gtf.gz", feature_type="exon")
+
+# Load from BED file
+genes_df = load_bed("genes.bed")
+
+# Use in plot
+fig = plotter.plot(
+    gwas_df, chrom=1, start=1e6, end=2e6,
+    genes_df=genes_df,
+    exons_df=exons_df,
+)
+```
+
+**Output columns:** `chr`, `start`, `end`, `gene_name`, `strand` (optional)
 
 ---
 
