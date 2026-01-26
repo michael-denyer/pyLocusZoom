@@ -562,7 +562,10 @@ class LocusZoomPlotter:
         if genes_df is not None:
             chrom_str = normalize_chrom(chrom)
             region_genes = genes_df[
-                (genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
+                (
+                    genes_df["chr"].astype(str).str.replace("chr", "", regex=False)
+                    == chrom_str
+                )
                 & (genes_df["end"] >= start)
                 & (genes_df["start"] <= end)
             ]
@@ -578,7 +581,11 @@ class LocusZoomPlotter:
             gene_track_height = 0
 
         # Calculate total panels and heights
-        n_panels = n_gwas + (1 if eqtl_df is not None else 0) + (1 if genes_df is not None else 0)
+        n_panels = (
+            n_gwas
+            + (1 if eqtl_df is not None else 0)
+            + (1 if genes_df is not None else 0)
+        )
         height_ratios = [panel_height] * n_gwas
         if eqtl_df is not None:
             height_ratios.append(eqtl_height)
@@ -589,7 +596,9 @@ class LocusZoomPlotter:
         total_height = figsize[1] if figsize[1] else sum(height_ratios)
         actual_figsize = (figsize[0], total_height)
 
-        logger.debug(f"Creating stacked plot with {n_panels} panels for chr{chrom}:{start}-{end}")
+        logger.debug(
+            f"Creating stacked plot with {n_panels} panels for chr{chrom}:{start}-{end}"
+        )
 
         # Prevent auto-display in interactive environments
         plt.ioff()
@@ -637,13 +646,25 @@ class LocusZoomPlotter:
             self._plot_association(ax, df, pos_col, ld_col, lead_pos)
 
             # Add significance line
-            ax.axhline(y=self._genomewide_line, color="grey", linestyle="--", linewidth=1, zorder=1)
+            ax.axhline(
+                y=self._genomewide_line,
+                color="grey",
+                linestyle="--",
+                linewidth=1,
+                zorder=1,
+            )
 
             # Add SNP labels
             if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
                 add_snp_labels(
-                    ax, df, pos_col=pos_col, neglog10p_col="neglog10p",
-                    rs_col=rs_col, label_top_n=label_top_n, genes_df=genes_df, chrom=chrom,
+                    ax,
+                    df,
+                    pos_col=pos_col,
+                    neglog10p_col="neglog10p",
+                    rs_col=rs_col,
+                    label_top_n=label_top_n,
+                    genes_df=genes_df,
+                    chrom=chrom,
                 )
 
             # Add recombination overlay (only on first panel)
@@ -684,10 +705,14 @@ class LocusZoomPlotter:
 
             # Filter by region
             if "pos" in eqtl_data.columns:
-                eqtl_data = eqtl_data[(eqtl_data["pos"] >= start) & (eqtl_data["pos"] <= end)]
+                eqtl_data = eqtl_data[
+                    (eqtl_data["pos"] >= start) & (eqtl_data["pos"] <= end)
+                ]
 
             if not eqtl_data.empty:
-                eqtl_data["neglog10p"] = -np.log10(eqtl_data["p_value"].clip(lower=1e-300))
+                eqtl_data["neglog10p"] = -np.log10(
+                    eqtl_data["p_value"].clip(lower=1e-300)
+                )
 
                 # Plot as diamonds (different from GWAS circles)
                 ax.scatter(
@@ -704,7 +729,9 @@ class LocusZoomPlotter:
                 ax.legend(loc="upper left", fontsize=9)
 
             ax.set_ylabel(r"$-\log_{10}$ P (eQTL)")
-            ax.axhline(y=self._genomewide_line, color="grey", linestyle="--", linewidth=1)
+            ax.axhline(
+                y=self._genomewide_line, color="grey", linestyle="--", linewidth=1
+            )
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
             panel_idx += 1

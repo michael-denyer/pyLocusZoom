@@ -100,9 +100,9 @@ class PlotlyBackend:
 
         # Convert size (matplotlib uses area, plotly uses diameter)
         if isinstance(sizes, (int, float)):
-            size = max(6, sizes ** 0.5)  # Approximate conversion
+            size = max(6, sizes**0.5)  # Approximate conversion
         else:
-            size = [max(6, s ** 0.5) for s in sizes]
+            size = [max(6, s**0.5) for s in sizes]
 
         # Build hover template
         if hover_data is not None:
@@ -317,7 +317,9 @@ class PlotlyBackend:
         """Set x-axis label."""
         fig, row = ax
         xaxis = f"xaxis{row}" if row > 1 else "xaxis"
-        fig.update_layout(**{xaxis: dict(title=dict(text=label, font=dict(size=fontsize)))})
+        fig.update_layout(
+            **{xaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
+        )
 
     def set_ylabel(
         self, ax: Tuple[go.Figure, int], label: str, fontsize: int = 12
@@ -325,7 +327,9 @@ class PlotlyBackend:
         """Set y-axis label."""
         fig, row = ax
         yaxis = f"yaxis{row}" if row > 1 else "yaxis"
-        fig.update_layout(**{yaxis: dict(title=dict(text=label, font=dict(size=fontsize)))})
+        fig.update_layout(
+            **{yaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
+        )
 
     def set_title(
         self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14

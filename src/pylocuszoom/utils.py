@@ -29,7 +29,9 @@ def is_spark_dataframe(df: Any) -> bool:
         True if PySpark DataFrame, False otherwise.
     """
     # Check class name to avoid importing pyspark
-    return type(df).__name__ == "DataFrame" and type(df).__module__.startswith("pyspark")
+    return type(df).__name__ == "DataFrame" and type(df).__module__.startswith(
+        "pyspark"
+    )
 
 
 def to_pandas(

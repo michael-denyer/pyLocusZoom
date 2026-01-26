@@ -108,10 +108,10 @@ class BokehBackend:
 
         # Handle sizes (convert from area to diameter)
         if isinstance(sizes, (int, float)):
-            bokeh_size = max(6, sizes ** 0.5)
+            bokeh_size = max(6, sizes**0.5)
             data["size"] = [bokeh_size] * len(x)
         else:
-            data["size"] = [max(6, s ** 0.5) for s in sizes]
+            data["size"] = [max(6, s**0.5) for s in sizes]
 
         # Add hover data
         tooltips = []
@@ -388,9 +388,7 @@ class BokehBackend:
         # For now, assume values are already in bp and need /1e6
         from bokeh.models import FuncTickFormatter
 
-        ax.xaxis.formatter = FuncTickFormatter(
-            code="return (tick / 1e6).toFixed(2);"
-        )
+        ax.xaxis.formatter = FuncTickFormatter(code="return (tick / 1e6).toFixed(2);")
 
     def save(
         self,

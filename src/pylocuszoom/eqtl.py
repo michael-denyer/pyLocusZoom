@@ -108,7 +108,9 @@ def filter_eqtl_by_region(
         mask = mask & (df_chrom == chrom_str)
 
     filtered = df[mask].copy()
-    logger.debug(f"Filtered eQTL data to {len(filtered)} variants in region chr{chrom}:{start}-{end}")
+    logger.debug(
+        f"Filtered eQTL data to {len(filtered)} variants in region chr{chrom}:{start}-{end}"
+    )
     return filtered
 
 
