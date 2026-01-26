@@ -158,9 +158,9 @@ def get_default_data_dir() -> Path:
     """Get default directory for recombination map data.
 
     Returns platform-appropriate cache directory:
-    - macOS: ~/Library/Caches/snp-scope-plot
-    - Linux: ~/.cache/snp-scope-plot
+    - macOS/Linux: ~/.cache/snp-scope-plot (or $XDG_CACHE_HOME if set)
     - Windows: %LOCALAPPDATA%/snp-scope-plot
+    - Databricks: /dbfs/FileStore/reference_data/recombination_maps
     """
     if os.name == "nt":  # Windows
         base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
@@ -207,7 +207,7 @@ def download_canine_recombination_maps(
     # Check if already downloaded
     if output_path.exists() and not force:
         existing_files = list(output_path.glob("chr*_recomb.tsv"))
-        if len(existing_files) >= 38:  # 38 autosomes + X
+        if len(existing_files) >= 39:  # 38 autosomes + X
             return output_path
 
     # Create output directory

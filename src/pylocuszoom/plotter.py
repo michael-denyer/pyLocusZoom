@@ -157,8 +157,8 @@ class LocusZoomPlotter:
             default_dir = get_default_data_dir()
             if (
                 default_dir.exists()
-                and len(list(default_dir.glob("chr*_recomb.tsv"))) >= 38
-            ):
+                and len(list(default_dir.glob("chr*_recomb.tsv"))) >= 39
+            ):  # 38 autosomes + X
                 return default_dir
             # Download
             try:
@@ -215,7 +215,7 @@ class LocusZoomPlotter:
         p_col: str = "p_wald",
         rs_col: str = "rs",
         figsize: Tuple[int, int] = (12, 8),
-    ) -> Figure:
+    ) -> Any:
         """Create a regional association plot.
 
         Args:
@@ -589,53 +589,6 @@ class LocusZoomPlotter:
             yaxis_name=secondary_y,
         )
 
-    def _add_eqtl_legend(self, ax: Axes) -> None:
-        """Add eQTL effect size legend to plot."""
-        legend_elements = []
-
-        # Positive effects (upward triangles)
-        for _, _, label, color in EQTL_POSITIVE_BINS:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="^",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=label,
-                )
-            )
-
-        # Negative effects (downward triangles)
-        for _, _, label, color in EQTL_NEGATIVE_BINS:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="v",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=label,
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            frameon=True,
-            framealpha=0.9,
-            title="eQTL effect",
-            title_fontsize=9,
-            handlelength=1.2,
-            handleheight=1.0,
-            labelspacing=0.3,
-        )
-
     def _plot_finemapping(
         self,
         ax: Axes,
@@ -724,49 +677,6 @@ class LocusZoomPlotter:
                         linewidth=0.5,
                         zorder=3,
                     )
-
-    def _add_finemapping_legend(
-        self,
-        ax: Axes,
-        credible_sets: List[int],
-    ) -> None:
-        """Add fine-mapping legend showing credible sets.
-
-        Args:
-            ax: Matplotlib axes object.
-            credible_sets: List of credible set IDs to include.
-        """
-        if not credible_sets:
-            return
-
-        legend_elements = []
-        for cs_id in credible_sets:
-            color = get_credible_set_color(cs_id)
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=f"CS{cs_id}",
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            frameon=True,
-            framealpha=0.9,
-            title="Credible sets",
-            title_fontsize=9,
-            handlelength=1.2,
-            handleheight=1.0,
-            labelspacing=0.3,
-        )
 
     def plot_stacked(
         self,
