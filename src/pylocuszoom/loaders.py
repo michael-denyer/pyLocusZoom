@@ -32,6 +32,13 @@ from typing import Optional, Union
 import pandas as pd
 
 from .logging import logger
+from .schemas import (
+    LoaderValidationError,
+    validate_eqtl_dataframe,
+    validate_finemapping_dataframe,
+    validate_genes_dataframe,
+    validate_gwas_dataframe,
+)
 
 # =============================================================================
 # GWAS Loaders
@@ -92,6 +99,10 @@ def load_plink_assoc(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded PLINK file with {len(df)} variants")
+
+    # Validate output
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+
     return df
 
 
@@ -131,6 +142,7 @@ def load_regenie(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded REGENIE file with {len(df)} variants")
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
     return df
 
 
@@ -171,6 +183,7 @@ def load_bolt_lmm(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded BOLT-LMM file with {len(df)} variants")
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
     return df
 
 
@@ -217,6 +230,7 @@ def load_gemma(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded GEMMA file with {len(df)} variants")
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
     return df
 
 
@@ -252,6 +266,7 @@ def load_saige(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded SAIGE file with {len(df)} variants")
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
     return df
 
 
@@ -283,6 +298,7 @@ def load_gwas_catalog(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded GWAS Catalog file with {len(df)} variants")
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
     return df
 
 
@@ -350,6 +366,11 @@ def load_gtex_eqtl(
         df = df[mask]
 
     logger.debug(f"Loaded GTEx eQTL file with {len(df)} associations")
+
+    # Validate if required columns present
+    if "pos" in df.columns and "p_value" in df.columns and "gene" in df.columns:
+        validate_eqtl_dataframe(df)
+
     return df
 
 
@@ -383,6 +404,10 @@ def load_eqtl_catalogue(
         df = df[mask]
 
     logger.debug(f"Loaded eQTL Catalogue file with {len(df)} associations")
+
+    if "pos" in df.columns and "p_value" in df.columns and "gene" in df.columns:
+        validate_eqtl_dataframe(df)
+
     return df
 
 
@@ -483,6 +508,10 @@ def load_susie(
         df.loc[df[cs_col] < 0, cs_col] = 0
 
     logger.debug(f"Loaded SuSiE file with {len(df)} variants")
+
+    if "pos" in df.columns and "pip" in df.columns:
+        validate_finemapping_dataframe(df, cs_col=cs_col)
+
     return df
 
 
@@ -522,6 +551,10 @@ def load_finemap(
         df = df.drop(columns=["cumsum_pip"])
 
     logger.debug(f"Loaded FINEMAP file with {len(df)} variants")
+
+    if "pos" in df.columns and "pip" in df.columns:
+        validate_finemapping_dataframe(df, cs_col=cs_col)
+
     return df
 
 
@@ -554,6 +587,12 @@ def load_caviar(
     df = df.drop(columns=["cumsum_pip"])
 
     logger.debug(f"Loaded CAVIAR file with {len(df)} variants")
+
+    # CAVIAR doesn't have pos - can't fully validate
+    if "pip" in df.columns:
+        if ((df["pip"] < 0) | (df["pip"] > 1)).any():
+            raise LoaderValidationError("PIP values must be in range [0, 1]")
+
     return df
 
 
@@ -586,6 +625,10 @@ def load_polyfun(
         df[cs_col] = df[cs_col].fillna(0).astype(int)
 
     logger.debug(f"Loaded PolyFun file with {len(df)} variants")
+
+    if "pos" in df.columns and "pip" in df.columns:
+        validate_finemapping_dataframe(df, cs_col=cs_col)
+
     return df
 
 
@@ -654,6 +697,7 @@ def load_gtf(
     # Select and return relevant columns
     result = df[["chr", "start", "end", "gene_name", "strand"]].copy()
     logger.debug(f"Loaded {len(result)} {feature_type} features from GTF")
+    validate_genes_dataframe(result)
     return result
 
 
@@ -704,6 +748,10 @@ def load_bed(
         df["chr"] = df["chr"].astype(str).str.replace("chr", "", regex=False)
 
     logger.debug(f"Loaded {len(df)} features from BED")
+
+    if all(col in df.columns for col in ["chr", "start", "end", "gene_name"]):
+        validate_genes_dataframe(df)
+
     return df
 
 
@@ -740,6 +788,10 @@ def load_ensembl_genes(
         df["strand"] = df["strand"].map({1: "+", -1: "-", "+": "+", "-": "-"})
 
     logger.debug(f"Loaded {len(df)} genes from Ensembl export")
+
+    if all(col in df.columns for col in ["chr", "start", "end", "gene_name"]):
+        validate_genes_dataframe(df)
+
     return df
 
 

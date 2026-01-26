@@ -111,6 +111,9 @@ from .recombination import (
     load_recombination_map,
 )
 
+# Schema validation
+from .schemas import LoaderValidationError
+
 # Validation utilities
 from .utils import ValidationError, to_pandas
 
@@ -182,4 +185,6 @@ __all__ = [
     "load_gtf",
     "load_bed",
     "load_ensembl_genes",
+    # Schema validation
+    "LoaderValidationError",
 ]

@@ -34,6 +34,7 @@ dependencies = [
     "bokeh>=3.8.2",
     "kaleido>=0.2.0",
     "adjustText>=0.8",
+    "pydantic>=2.0.0",
 ]
 
 [project.optional-dependencies]
