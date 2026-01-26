@@ -115,13 +115,9 @@ class BokehBackend:
             for col in hover_data.columns:
                 data[col] = hover_data[col].values
                 col_lower = col.lower()
-                if (
-                    col_lower == "p-value"
-                    or col_lower == "pval"
-                    or col_lower == "p_value"
-                ):
+                if col_lower in ("p-value", "pval", "p_value"):
                     tooltips.append((col, "@{" + col + "}{0.2e}"))
-                elif "r2" in col_lower or "r²" in col_lower or "ld" in col_lower:
+                elif any(x in col_lower for x in ("r2", "r²", "ld")):
                     tooltips.append((col, "@{" + col + "}{0.3f}"))
                 elif "pos" in col_lower:
                     tooltips.append((col, "@{" + col + "}{0,0}"))
@@ -355,6 +351,16 @@ class BokehBackend:
         ax.yaxis.axis_label = label
         ax.yaxis.axis_label_text_font_size = f"{fontsize}pt"
 
+    def _get_legend_location(self, loc: str, default: str = "top_left") -> str:
+        """Map matplotlib-style legend location to Bokeh location."""
+        loc_map = {
+            "upper left": "top_left",
+            "upper right": "top_right",
+            "lower left": "bottom_left",
+            "lower right": "bottom_right",
+        }
+        return loc_map.get(loc, default)
+
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Bokeh display."""
         conversions = [
@@ -535,17 +541,7 @@ class BokehBackend:
         title: Optional[str] = None,
     ) -> Any:
         """Configure legend on the figure."""
-        # Bokeh handles legend automatically from legend_label
-        # Just configure position
-
-        loc_map = {
-            "upper left": "top_left",
-            "upper right": "top_right",
-            "lower left": "bottom_left",
-            "lower right": "bottom_right",
-        }
-
-        ax.legend.location = loc_map.get(loc, "top_left")
+        ax.legend.location = self._get_legend_location(loc, "top_left")
         if title:
             ax.legend.title = title
         ax.legend.background_fill_alpha = 0.9
@@ -714,14 +710,7 @@ class BokehBackend:
         Bokeh handles legends automatically from legend_label.
         This just positions the legend.
         """
-        loc_map = {
-            "upper left": "top_left",
-            "upper right": "top_right",
-            "lower left": "bottom_left",
-            "lower right": "bottom_right",
-        }
-
-        ax.legend.location = loc_map.get(loc, "top_right")
+        ax.legend.location = self._get_legend_location(loc, "top_right")
         ax.legend.background_fill_alpha = 0.9
         ax.legend.border_line_color = "black"
 

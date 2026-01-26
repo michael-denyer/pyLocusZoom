@@ -139,11 +139,8 @@ class LocusZoomPlotter:
     @staticmethod
     def _default_build(species: str) -> Optional[str]:
         """Get default genome build for species."""
-        if species == "canine":
-            return "canfam3.1"
-        if species == "feline":
-            return "felCat9"
-        return None
+        builds = {"canine": "canfam3.1", "feline": "felCat9"}
+        return builds.get(species)
 
     def _ensure_recomb_maps(self) -> Optional[Path]:
         """Ensure recombination maps are downloaded.

@@ -1,8 +1,5 @@
-# pyLocusZoom
-<img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
-
 [![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-red.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-3.5+-11557c.svg)](https://matplotlib.org/)
@@ -10,6 +7,8 @@
 [![Bokeh](https://img.shields.io/badge/Bokeh-3.8+-E6526F.svg)](https://bokeh.org/)
 [![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
 
+# pyLocusZoom
+<img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 
 Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
 
@@ -19,21 +18,21 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 
 1. **Regional association plot**:
 
-    - **Native Species support**: Built-in for *Canis lupus familiaris* (CanFam3.1 with CanFam4 LiftOver) and  *Felis catus* (FelCat9) or import from another data source (file format) for your chosen species plot(s)
+    - **Multi-species support**: Built-in reference data for *Canis lupus familiaris* (CanFam3.1/CanFam4) and *Felis catus* (FelCat9), or optionally provide your own for any species
     - **LD coloring**: SNPs colored by linkage disequilibrium (R²) with lead variant
     - **Gene tracks**: Annotated gene/exon positions below the association plot
     - **Recombination rate**: Overlay showing recombination rate across region (*Canis lupus familiaris* only)
-    - **SNP labels (matplotLib)**: Automatic labeling of lead SNPs with RS ID
-    - **Tooltips (bokeh and plotly)**: Mouseover for detailed SNP data
-2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
-3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
-4, **Fine mapping plots
-4. **Supports nultiple charting libraries**: matplotlib (static), plotly (interactive), bokeh (dashboards)
-5. **Pandas and PySpark support**: Handles large-scale and popular format genomics DataFrames
-6. **Covenience data file loaders**: file loaders for common GWAS, eQTL and fine mapping files
-
+    - **SNP labels (matplotlib)**: Automatic labeling of lead SNPs with RS ID
+    - **Tooltips (Bokeh and Plotly)**: Mouseover for detailed SNP data
 
 ![Example regional association plot](examples/regional_plot.png)
+
+2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
+3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
+4. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
+5. **Multiple charting libraries**: matplotlib (static), plotly (interactive), bokeh (dashboards)
+6. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
+7. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
 
 ## Installation
 

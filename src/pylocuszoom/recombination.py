@@ -42,7 +42,7 @@ def _normalize_build(build: Optional[str]) -> Optional[str]:
     if build is None:
         return None
     build_lower = build.lower().replace(".", "").replace("_", "")
-    if "canfam4" in build_lower or "uucfamgsd" in build_lower:
+    if any(x in build_lower for x in ("canfam4", "uucfamgsd")):
         return "canfam4"
     if "canfam3" in build_lower:
         return "canfam3"

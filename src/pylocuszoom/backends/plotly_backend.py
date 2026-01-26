@@ -112,13 +112,9 @@ class PlotlyBackend:
             hovertemplate = "<b>%{customdata[0]}</b><br>"
             for i, col in enumerate(hover_cols[1:], 1):
                 col_lower = col.lower()
-                if (
-                    col_lower == "p-value"
-                    or col_lower == "pval"
-                    or col_lower == "p_value"
-                ):
+                if col_lower in ("p-value", "pval", "p_value"):
                     hovertemplate += f"{col}: %{{customdata[{i}]:.2e}}<br>"
-                elif "r2" in col_lower or "r²" in col_lower or "ld" in col_lower:
+                elif any(x in col_lower for x in ("r2", "r²", "ld")):
                     hovertemplate += f"{col}: %{{customdata[{i}]:.3f}}<br>"
                 elif "pos" in col_lower:
                     hovertemplate += f"{col}: %{{customdata[{i}]:,.0f}}<br>"
@@ -372,9 +368,18 @@ class PlotlyBackend:
             **{yaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
         )
 
+    def _get_legend_position(self, loc: str) -> dict:
+        """Map matplotlib-style legend location to Plotly position dict."""
+        loc_map = {
+            "upper left": dict(x=0.01, y=0.99, xanchor="left", yanchor="top"),
+            "upper right": dict(x=0.99, y=0.99, xanchor="right", yanchor="top"),
+            "lower left": dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
+            "lower right": dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom"),
+        }
+        return loc_map.get(loc, loc_map["upper left"])
+
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Plotly display."""
-        # Common conversions for genomics plots
         conversions = [
             (r"$-\log_{10}$ P", "-log₁₀(P)"),
             (r"$-\log_{10}$", "-log₁₀"),
@@ -576,16 +581,7 @@ class PlotlyBackend:
         This method updates legend positioning.
         """
         fig, _ = ax
-
-        # Map matplotlib locations to plotly
-        loc_map = {
-            "upper left": dict(x=0.01, y=0.99, xanchor="left", yanchor="top"),
-            "upper right": dict(x=0.99, y=0.99, xanchor="right", yanchor="top"),
-            "lower left": dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
-            "lower right": dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom"),
-        }
-
-        legend_pos = loc_map.get(loc, loc_map["upper left"])
+        legend_pos = self._get_legend_position(loc)
         fig.update_layout(
             legend=dict(
                 **legend_pos,
@@ -766,15 +762,7 @@ class PlotlyBackend:
         This just positions the legend.
         """
         fig, _ = ax
-
-        loc_map = {
-            "upper left": dict(x=0.01, y=0.99, xanchor="left", yanchor="top"),
-            "upper right": dict(x=0.99, y=0.99, xanchor="right", yanchor="top"),
-            "lower left": dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
-            "lower right": dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom"),
-        }
-
-        legend_pos = loc_map.get(loc, loc_map["upper right"])
+        legend_pos = self._get_legend_position(loc)
         fig.update_layout(
             legend=dict(
                 **legend_pos,
