@@ -162,7 +162,7 @@ class PlotBackend(Protocol):
 - numpy >= 1.21.0
 - loguru >= 0.7.0
 - plotly >= 5.0.0
-- bokeh >= 3.0.0
+- bokeh >= 3.8.2
 - kaleido >= 0.2.0
 - pyliftover >= 0.4
 

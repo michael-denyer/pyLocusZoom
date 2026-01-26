@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-3.5+-11557c.svg)](https://matplotlib.org/)
 [![Plotly](https://img.shields.io/badge/Plotly-5.0+-3F4F75.svg)](https://plotly.com/python/)
-[![Bokeh](https://img.shields.io/badge/Bokeh-3.0+-E6526F.svg)](https://bokeh.org/)
+[![Bokeh](https://img.shields.io/badge/Bokeh-3.8+-E6526F.svg)](https://bokeh.org/)
 [![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
 
 <img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
@@ -306,13 +306,13 @@ plotter = LocusZoomPlotter(log_level="DEBUG")
 
 ## Requirements
 
-- Python >= 3.9
+- Python >= 3.10
 - matplotlib >= 3.5.0
 - pandas >= 1.4.0
 - numpy >= 1.21.0
 - loguru >= 0.7.0
 - plotly >= 5.0.0
-- bokeh >= 3.0.0
+- bokeh >= 3.8.2
 - kaleido >= 0.2.0 (for plotly static export)
 - pyliftover >= 0.4 (for CanFam4 coordinate liftover)
 - [PLINK 1.9](https://www.cog-genomics.org/plink/) (for LD calculations) - must be on PATH or specify `plink_path`
