@@ -123,27 +123,20 @@ fig = plotter.plot(
 )
 ```
 
-## Interactive Backends
+## Interactive Backends (Coming Soon)
 
-Choose between static (matplotlib) and interactive (plotly, bokeh) outputs:
+> **Note:** Interactive backends (plotly, bokeh) are planned but not yet fully integrated. Currently all plots use matplotlib.
 
 ```python
-# Static publication-quality plot (default)
+# Static publication-quality plot (default, currently only supported backend)
 plotter = LocusZoomPlotter(species="dog", backend="matplotlib")
 fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 fig.savefig("plot.png", dpi=150)
-
-# Interactive with plotly (hover tooltips, zoom/pan)
-plotter = LocusZoomPlotter(species="dog", backend="plotly")
-fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
-fig.write_html("plot.html")
-
-# Interactive with bokeh (dashboard-friendly)
-plotter = LocusZoomPlotter(species="dog", backend="bokeh")
-fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 ```
 
-Interactive plots show SNP details (RS ID, p-value, R²) on hover.
+Future releases will support:
+- **Plotly**: Interactive plots with hover tooltips, zoom/pan
+- **Bokeh**: Dashboard-friendly interactive plots
 
 ## Stacked Plots
 
