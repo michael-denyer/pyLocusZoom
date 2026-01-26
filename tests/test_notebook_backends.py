@@ -240,7 +240,7 @@ class TestBokehNotebookCompatibility:
         y = -np.log10(sample_gwas_df["p_wald"])
 
         # scatter() should work without deprecation warning
-        renderer = backend.scatter(
+        backend.scatter(
             ax=ax,
             x=x,
             y=y,

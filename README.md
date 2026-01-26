@@ -146,13 +146,13 @@ fig.write_html("plot.html")
 fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="bokeh")
 ```
 
-| Backend | Output | Best For |
-|---------|--------|----------|
-| `matplotlib` | Static PNG/PDF/SVG | Publications, presentations |
-| `plotly` | Interactive HTML | Web reports, data exploration |
-| `bokeh` | Interactive HTML | Dashboards, web apps |
+| Backend | Output | Best For | Features |
+|---------|--------|----------|----------|
+| `matplotlib` | Static PNG/PDF/SVG | Publications, presentations | Full feature set with SNP labels |
+| `plotly` | Interactive HTML | Web reports, data exploration | Hover tooltips, pan/zoom |
+| `bokeh` | Interactive HTML | Dashboards, web apps | Hover tooltips, pan/zoom |
 
-> **Note:** All backends support gene track, recombination overlay, and LD legend. SNP labels (auto-positioned with adjustText) are matplotlib-only.
+> **Note:** All backends support scatter plots, gene tracks, recombination overlay, and LD legend. SNP labels (auto-positioned with adjustText) are matplotlib-only; interactive backends use hover tooltips instead.
 
 ## Stacked Plots
 
@@ -168,6 +168,8 @@ fig = plotter.plot_stacked(
     genes_df=genes_df,
 )
 ```
+
+![Example stacked plot](examples/stacked_plot.png)
 
 ## eQTL Overlay
 
@@ -188,6 +190,30 @@ fig = plotter.plot_stacked(
     genes_df=genes_df,
 )
 ```
+
+![Example eQTL overlay plot](examples/eqtl_overlay.png)
+
+## Fine-mapping Visualization
+
+Visualize SuSiE or other fine-mapping results with credible set coloring:
+
+```python
+finemapping_df = pd.DataFrame({
+    "pos": [1000500, 1001200, 1002000, 1003500],
+    "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
+    "cs": [1, 1, 0, 2],               # Credible set assignment (0 = not in CS)
+})
+
+fig = plotter.plot_stacked(
+    [gwas_df],
+    chrom=1, start=1000000, end=2000000,
+    finemapping_df=finemapping_df,
+    finemapping_cs_col="cs",
+    genes_df=genes_df,
+)
+```
+
+![Example fine-mapping plot](examples/finemapping_plot.png)
 
 ## PySpark Support
 
@@ -330,6 +356,12 @@ plotter = LocusZoomPlotter(log_level="DEBUG")
 
 Optional:
 - pyspark >= 3.0.0 (for PySpark DataFrame support) - `uv add pylocuszoom[spark]`
+
+## Documentation
+
+- [User Guide](docs/USER_GUIDE.md) - Comprehensive documentation with API reference
+- [Example Notebook](examples/getting_started.ipynb) - Interactive tutorial
+- [CHANGELOG](CHANGELOG.md) - Version history
 
 ## License
 
