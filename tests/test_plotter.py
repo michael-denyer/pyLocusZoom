@@ -695,9 +695,7 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
-    def test_bokeh_eqtl_without_effects(
-        self, sample_gwas_df, sample_eqtl_df_no_effect
-    ):
+    def test_bokeh_eqtl_without_effects(self, sample_gwas_df, sample_eqtl_df_no_effect):
         """Bokeh backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
