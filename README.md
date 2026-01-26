@@ -12,7 +12,7 @@
 <img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 # pyLocusZoom
 
-Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
+Publication-ready regional association plots with LD coloring, gene tracks, and recombination overlays.
 
 Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.com/myles-lewis/locuszoomr).
 
