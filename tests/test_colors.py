@@ -2,7 +2,7 @@
 
 import math
 
-from snp_scope_plot.colors import (
+from pylocuszoom.colors import (
     LD_BINS,
     LD_NA_COLOR,
     LD_NA_LABEL,

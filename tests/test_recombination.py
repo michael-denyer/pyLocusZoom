@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from snp_scope_plot.recombination import (
+from pylocuszoom.recombination import (
     RECOMB_COLOR,
     add_recombination_overlay,
     get_default_data_dir,

@@ -1,4 +1,4 @@
-"""Tests for SNPScopePlotter class."""
+"""Tests for LocusZoomPlotter class."""
 
 from unittest.mock import patch
 
@@ -7,40 +7,40 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from snp_scope_plot.plotter import SNPScopePlotter
+from pylocuszoom.plotter import LocusZoomPlotter
 
 
-class TestSNPScopePlotterInit:
-    """Tests for SNPScopePlotter initialization."""
+class TestLocusZoomPlotterInit:
+    """Tests for LocusZoomPlotter initialization."""
 
     def test_default_species_is_dog(self):
         """Default species should be dog."""
-        plotter = SNPScopePlotter()
+        plotter = LocusZoomPlotter()
         assert plotter.species == "dog"
 
     def test_custom_species(self):
         """Should accept custom species."""
-        plotter = SNPScopePlotter(species="cat")
+        plotter = LocusZoomPlotter(species="cat")
         assert plotter.species == "cat"
 
     def test_custom_plink_path(self):
         """Should accept custom PLINK path."""
-        plotter = SNPScopePlotter(plink_path="/custom/plink")
+        plotter = LocusZoomPlotter(plink_path="/custom/plink")
         assert plotter.plink_path == "/custom/plink"
 
     def test_custom_threshold(self):
         """Should accept custom genomewide threshold."""
-        plotter = SNPScopePlotter(genomewide_threshold=5e-8)
+        plotter = LocusZoomPlotter(genomewide_threshold=5e-8)
         assert plotter.genomewide_threshold == 5e-8
 
 
-class TestSNPScopePlotterPlot:
-    """Tests for SNPScopePlotter.plot() method."""
+class TestLocusZoomPlotterPlot:
+    """Tests for LocusZoomPlotter.plot() method."""
 
     @pytest.fixture
     def plotter(self):
         """Create plotter instance."""
-        return SNPScopePlotter(species="dog")
+        return LocusZoomPlotter(species="dog")
 
     @pytest.fixture
     def sample_gwas_df(self):
@@ -192,13 +192,13 @@ class TestSNPScopePlotterPlot:
         plt.close(fig)
 
 
-class TestSNPScopePlotterLdCalculation:
+class TestLocusZoomPlotterLdCalculation:
     """Tests for LD calculation integration."""
 
     @pytest.fixture
     def plotter(self):
         """Create plotter with mocked PLINK."""
-        return SNPScopePlotter(species="dog", plink_path="/mock/plink")
+        return LocusZoomPlotter(species="dog", plink_path="/mock/plink")
 
     def test_calculates_ld_when_reference_provided(self, plotter):
         """Should attempt LD calculation when ld_reference_file provided."""
@@ -210,7 +210,7 @@ class TestSNPScopePlotterLdCalculation:
             }
         )
 
-        with patch("snp_scope_plot.plotter.calculate_ld") as mock_ld:
+        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
             mock_ld.return_value = pd.DataFrame(
                 {
                     "SNP": ["rs1", "rs2", "rs3"],
@@ -231,12 +231,12 @@ class TestSNPScopePlotterLdCalculation:
             plt.close(fig)
 
 
-class TestSNPScopePlotterRecombination:
+class TestLocusZoomPlotterRecombination:
     """Tests for recombination data handling."""
 
     def test_caches_recombination_data(self):
         """Should cache recombination data for repeated calls."""
-        plotter = SNPScopePlotter(species=None)  # No auto-download
+        plotter = LocusZoomPlotter(species=None)  # No auto-download
 
         recomb_df = pd.DataFrame(
             {

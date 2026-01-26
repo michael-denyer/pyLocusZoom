@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from snp_scope_plot.ld import (
+from pylocuszoom.ld import (
     build_ld_command,
     calculate_ld,
     find_plink,
@@ -213,7 +213,7 @@ class TestCalculateLd:
 
     def test_raises_when_plink_not_found(self, mock_plink_files):
         """Should raise FileNotFoundError when PLINK not found."""
-        with patch("snp_scope_plot.ld.find_plink", return_value=None):
+        with patch("pylocuszoom.ld.find_plink", return_value=None):
             with pytest.raises(FileNotFoundError, match="PLINK not found"):
                 calculate_ld(
                     bfile_path=mock_plink_files,
@@ -222,7 +222,7 @@ class TestCalculateLd:
 
     def test_returns_empty_dataframe_on_plink_failure(self, tmp_path, mock_plink_files):
         """Should return empty DataFrame when PLINK fails."""
-        with patch("snp_scope_plot.ld.find_plink", return_value="/usr/bin/plink1.9"):
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1)
 
@@ -238,7 +238,7 @@ class TestCalculateLd:
 
     def test_cleans_up_temp_directory(self, mock_plink_files):
         """Should clean up temp directory when working_dir not specified."""
-        with patch("snp_scope_plot.ld.find_plink", return_value="/usr/bin/plink1.9"):
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1)
 

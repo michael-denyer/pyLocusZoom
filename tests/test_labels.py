@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from snp_scope_plot.labels import add_snp_labels
+from pylocuszoom.labels import add_snp_labels
 
 
 class TestAddSnpLabels:

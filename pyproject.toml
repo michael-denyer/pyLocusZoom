@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "snp-scope-plot"
+name = "pylocuszoom"
 version = "0.1.0"
 description = "Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays"
 readme = "README.md"
@@ -12,7 +12,7 @@ requires-python = ">=3.9"
 authors = [
     { name = "Michael Denyer" },
 ]
-keywords = ["gwas", "genetics", "visualization", "locus-zoom", "regional-plot"]
+keywords = ["gwas", "genetics", "visualization", "locus-zoom", "regional-plot", "locuszoom"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
@@ -45,12 +46,12 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/michael-denyer/snp-scope-plot"
-Documentation = "https://github.com/michael-denyer/snp-scope-plot#readme"
-Repository = "https://github.com/michael-denyer/snp-scope-plot"
+Homepage = "https://github.com/michael-denyer/pylocuszoom"
+Documentation = "https://github.com/michael-denyer/pylocuszoom#readme"
+Repository = "https://github.com/michael-denyer/pylocuszoom"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/snp_scope_plot"]
+packages = ["src/pylocuszoom"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

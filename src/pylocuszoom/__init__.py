@@ -1,4 +1,4 @@
-"""SNP Scope Plot - Regional association plots for GWAS results.
+"""pyLocusZoom - Regional association plots for GWAS results.
 
 This package provides LocusZoom-style regional association plots with:
 - LD coloring based on R² with lead variant
@@ -7,8 +7,8 @@ This package provides LocusZoom-style regional association plots with:
 - Automatic SNP labeling
 
 Example:
-    >>> from snp_scope_plot import SNPScopePlotter
-    >>> plotter = SNPScopePlotter(species="dog")
+    >>> from pylocuszoom import LocusZoomPlotter
+    >>> plotter = LocusZoomPlotter(species="dog")
     >>> fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
     >>> fig.savefig("regional_plot.png", dpi=150)
 
@@ -29,7 +29,7 @@ from .ld import calculate_ld
 
 # Logging configuration
 from .logging import disable_logging, enable_logging
-from .plotter import SNPScopePlotter
+from .plotter import LocusZoomPlotter
 
 # Reference data management
 from .recombination import (
@@ -45,7 +45,7 @@ from .utils import ValidationError
 __all__ = [
     # Core
     "__version__",
-    "SNPScopePlotter",
+    "LocusZoomPlotter",
     # Reference data
     "download_dog_recombination_maps",
     # Colors

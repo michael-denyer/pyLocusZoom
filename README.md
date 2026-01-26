@@ -1,6 +1,6 @@
-# snp-scope-plot
+# pyLocusZoom
 
-<img src="logo.svg" alt="snp-scope-plot logo" width="120" align="right">
+<img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 
 Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
 
@@ -18,22 +18,22 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [LocusZoomR](https://github.c
 ## Installation
 
 ```bash
-pip install snp-scope-plot
+pip install pylocuszoom
 ```
 
 Or install from source:
 
 ```bash
-pip install -e packages/snp-scope-plot
+pip install -e .
 ```
 
 ## Quick Start
 
 ```python
-from snp_scope_plot import SNPScopePlotter
+from pylocuszoom import LocusZoomPlotter
 
 # Initialize plotter (loads reference data for dog)
-plotter = SNPScopePlotter(species="dog")
+plotter = LocusZoomPlotter(species="dog")
 
 # Create regional plot
 fig = plotter.plot(
@@ -50,9 +50,9 @@ fig.savefig("regional_plot.png", dpi=150)
 ## Full Example
 
 ```python
-from snp_scope_plot import SNPScopePlotter
+from pylocuszoom import LocusZoomPlotter
 
-plotter = SNPScopePlotter(
+plotter = LocusZoomPlotter(
     species="dog",                      # or "cat", or None for custom
     plink_path="/path/to/plink",        # Optional, auto-detects if on PATH
 )
@@ -81,7 +81,7 @@ fig = plotter.plot(
 The default genome build for dog is CanFam3.1. For CanFam4 data:
 
 ```python
-plotter = SNPScopePlotter(species="dog", genome_build="canfam4")
+plotter = LocusZoomPlotter(species="dog", genome_build="canfam4")
 ```
 
 Recombination maps are automatically lifted over from CanFam3.1 to CanFam4 coordinates using the UCSC liftOver chain file.
@@ -90,10 +90,10 @@ Recombination maps are automatically lifted over from CanFam3.1 to CanFam4 coord
 
 ```python
 # Cat (LD and gene tracks, user provides recombination data)
-plotter = SNPScopePlotter(species="cat")
+plotter = LocusZoomPlotter(species="cat")
 
 # Custom species (provide all reference data)
-plotter = SNPScopePlotter(
+plotter = LocusZoomPlotter(
     species=None,
     recomb_data_dir="/path/to/recomb_maps/",
 )
@@ -200,7 +200,7 @@ Dog recombination maps are downloaded from [Campbell et al. 2016](https://github
 To manually download:
 
 ```python
-from snp_scope_plot import download_dog_recombination_maps
+from pylocuszoom import download_dog_recombination_maps
 
 download_dog_recombination_maps()
 ```
@@ -211,10 +211,10 @@ Logging uses [loguru](https://github.com/Delgan/loguru) and is configured via th
 
 ```python
 # Suppress logging
-plotter = SNPScopePlotter(log_level=None)
+plotter = LocusZoomPlotter(log_level=None)
 
 # Enable DEBUG level for troubleshooting
-plotter = SNPScopePlotter(log_level="DEBUG")
+plotter = LocusZoomPlotter(log_level="DEBUG")
 ```
 
 ## Requirements

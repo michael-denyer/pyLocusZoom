@@ -19,3 +19,4 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+.claude/

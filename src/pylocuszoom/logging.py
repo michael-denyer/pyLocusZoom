@@ -1,4 +1,4 @@
-"""Logging configuration for snp-scope-plot.
+"""Logging configuration for pylocuszoom.
 
 Provides logging with sensible defaults:
 - Logging is enabled by default at INFO level
@@ -6,7 +6,7 @@ Provides logging with sensible defaults:
 - Users can adjust level via enable_logging() or disable via disable_logging()
 
 Usage:
-    >>> from snp_scope_plot.logging import enable_logging, disable_logging
+    >>> from pylocuszoom.logging import enable_logging, disable_logging
     >>> enable_logging("DEBUG")  # Enable DEBUG level for troubleshooting
     >>> disable_logging()  # Suppress all logging output
 """
@@ -44,8 +44,8 @@ class _LoguruWrapper:
         self._handler_id = _loguru_logger.add(
             sink,
             level=level,
-            format="<level>{level: <8}</level> | <cyan>snp-scope-plot</cyan> | {message}",
-            filter=lambda record: record["name"].startswith("snp_scope_plot"),
+            format="<level>{level: <8}</level> | <cyan>pylocuszoom</cyan> | {message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
         )
         self._enabled = True
 
@@ -81,7 +81,7 @@ class _StdlibWrapper:
     """Wrapper around stdlib logging with enable/disable support."""
 
     def __init__(self):
-        self._logger = _stdlib_logging.getLogger("snp_scope_plot")
+        self._logger = _stdlib_logging.getLogger("pylocuszoom")
         self._logger.setLevel(_stdlib_logging.WARNING)
         self._handler = None
         self._enabled = False
@@ -92,7 +92,7 @@ class _StdlibWrapper:
             self._logger.removeHandler(self._handler)
         self._handler = _stdlib_logging.StreamHandler(sink)
         self._handler.setFormatter(
-            _stdlib_logging.Formatter("%(levelname)-8s | snp-scope-plot | %(message)s")
+            _stdlib_logging.Formatter("%(levelname)-8s | pylocuszoom | %(message)s")
         )
         self._logger.addHandler(self._handler)
         self._logger.setLevel(getattr(_stdlib_logging, level.upper()))
@@ -141,7 +141,7 @@ def enable_logging(level: str = "INFO", sink=sys.stderr) -> None:
         sink: Output destination (default: stderr).
 
     Example:
-        >>> from snp_scope_plot.logging import enable_logging
+        >>> from pylocuszoom.logging import enable_logging
         >>> enable_logging()  # INFO level
         >>> enable_logging("DEBUG")  # DEBUG level for troubleshooting
     """

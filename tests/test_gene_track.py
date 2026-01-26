@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from snp_scope_plot.gene_track import (
+from pylocuszoom.gene_track import (
     STRAND_COLORS,
     assign_gene_positions,
     get_nearest_gene,

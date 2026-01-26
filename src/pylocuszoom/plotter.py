@@ -1,4 +1,4 @@
-"""Main SNPScopePlotter class for regional association plots.
+"""Main LocusZoomPlotter class for regional association plots.
 
 Orchestrates all components (LD coloring, gene track, recombination overlay,
 SNP labels) into a unified plotting interface.
@@ -39,7 +39,7 @@ DEFAULT_GENOMEWIDE_THRESHOLD = 5e-7
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
-class SNPScopePlotter:
+class LocusZoomPlotter:
     """Regional association plot generator with LD coloring and annotations.
 
     Creates LocusZoom-style regional plots with:
@@ -64,10 +64,10 @@ class SNPScopePlotter:
 
     Example:
         >>> # CanFam3.1 (default)
-        >>> plotter = SNPScopePlotter(species="dog")
+        >>> plotter = LocusZoomPlotter(species="dog")
         >>>
         >>> # CanFam4
-        >>> plotter = SNPScopePlotter(species="dog", genome_build="canfam4")
+        >>> plotter = LocusZoomPlotter(species="dog", genome_build="canfam4")
         >>>
         >>> fig = plotter.plot(
         ...     gwas_df,
