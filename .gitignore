@@ -21,5 +21,8 @@ htmlcov/
 *.swp
 .claude/
 
+# Issue tracking (local)
+.beads/
+
 # Project instructions (private)
 CLAUDE.md
