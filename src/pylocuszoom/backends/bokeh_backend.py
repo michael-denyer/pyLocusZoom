@@ -507,7 +507,22 @@ class BokehBackend:
         # Use coordinates within the legend range
         dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
 
-        # Add LD bin markers (no lead SNP - it's shown in the actual plot)
+        # Add lead SNP marker first (diamond)
+        lead_glyph = Scatter(
+            x="x",
+            y="y",
+            marker="diamond",
+            size=12,
+            fill_color=lead_snp_color,
+            line_color="black",
+            line_width=0.5,
+        )
+        lead_renderer = ax.add_glyph(dummy_source, lead_glyph)
+        lead_renderer.y_range_name = "legend_range"
+        lead_renderer.visible = False
+        legend_items.append(LegendItem(label="Lead SNP", renderers=[lead_renderer]))
+
+        # Add LD bin markers
         for _, label, color in ld_bins:
             glyph = Scatter(
                 x="x",

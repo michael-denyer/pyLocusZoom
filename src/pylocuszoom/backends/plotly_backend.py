@@ -533,7 +533,28 @@ class PlotlyBackend:
         """Add LD color legend using invisible scatter traces."""
         fig, row = ax
 
-        # Add LD bin markers (no lead SNP - it's shown in the actual plot)
+        # Add lead SNP marker first (diamond)
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(
+                    symbol="diamond",
+                    size=12,
+                    color=lead_snp_color,
+                    line=dict(color="black", width=0.5),
+                ),
+                name="Lead SNP",
+                showlegend=True,
+                legendgroup="ld",
+                legendgrouptitle=dict(text="r²"),
+            ),
+            row=row,
+            col=1,
+        )
+
+        # Add LD bin markers with legendgroup for separation from other legends
         for _, label, color in ld_bins:
             fig.add_trace(
                 go.Scatter(
@@ -548,22 +569,23 @@ class PlotlyBackend:
                     ),
                     name=label,
                     showlegend=True,
+                    legendgroup="ld",
                 ),
                 row=row,
                 col=1,
             )
 
-        # Position legend
+        # Position legend with group gap for separation
         fig.update_layout(
             legend=dict(
                 x=0.99,
                 y=0.99,
                 xanchor="right",
                 yanchor="top",
-                title=dict(text="r²"),
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,
+                tracegroupgap=10,
             )
         )
 
@@ -647,8 +669,8 @@ class PlotlyBackend:
         """Add eQTL effect size legend using invisible scatter traces."""
         fig, row = ax
 
-        # Positive effects (upward triangles)
-        for _, _, label, color in eqtl_positive_bins:
+        # Positive effects (upward triangles) - first one gets the group title
+        for i, (_, _, label, color) in enumerate(eqtl_positive_bins):
             fig.add_trace(
                 go.Scatter(
                     x=[None],
@@ -663,6 +685,7 @@ class PlotlyBackend:
                     name=label,
                     showlegend=True,
                     legendgroup="eqtl",
+                    legendgrouptitle=dict(text="eQTL effect") if i == 0 else None,
                 ),
                 row=row,
                 col=1,
@@ -689,17 +712,17 @@ class PlotlyBackend:
                 col=1,
             )
 
-        # Position legend
+        # Position legend with group gap for separation
         fig.update_layout(
             legend=dict(
                 x=0.99,
                 y=0.99,
                 xanchor="right",
                 yanchor="top",
-                title=dict(text="eQTL effect"),
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,
+                tracegroupgap=10,
             )
         )
 
@@ -715,7 +738,7 @@ class PlotlyBackend:
 
         fig, row = ax
 
-        for cs_id in credible_sets:
+        for i, cs_id in enumerate(credible_sets):
             color = get_color_func(cs_id)
             fig.add_trace(
                 go.Scatter(
@@ -731,22 +754,23 @@ class PlotlyBackend:
                     name=f"CS{cs_id}",
                     showlegend=True,
                     legendgroup="finemapping",
+                    legendgrouptitle=dict(text="Credible sets") if i == 0 else None,
                 ),
                 row=row,
                 col=1,
             )
 
-        # Position legend
+        # Position legend with group gap for separation
         fig.update_layout(
             legend=dict(
                 x=0.99,
                 y=0.99,
                 xanchor="right",
                 yanchor="top",
-                title=dict(text="Credible sets"),
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,
+                tracegroupgap=10,
             )
         )
 
