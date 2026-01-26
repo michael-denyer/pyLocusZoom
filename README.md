@@ -34,13 +34,19 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 ## Installation
 
 ```bash
+pip install pylocuszoom
+```
+
+Or with uv:
+
+```bash
 uv add pylocuszoom
 ```
 
-Or with pip:
+Or with conda (Bioconda):
 
 ```bash
-pip install pylocuszoom
+conda install -c bioconda pylocuszoom
 ```
 
 ## Quick Start
@@ -123,20 +129,30 @@ fig = plotter.plot(
 )
 ```
 
-## Interactive Backends (Coming Soon)
+## Backends
 
-> **Note:** Interactive backends (plotly, bokeh) are planned but not yet fully integrated. Currently all plots use matplotlib.
+pyLocusZoom supports multiple rendering backends:
 
 ```python
-# Static publication-quality plot (default, currently only supported backend)
-plotter = LocusZoomPlotter(species="canine", backend="matplotlib")
-fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
+# Static publication-quality plot (default)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="matplotlib")
 fig.savefig("plot.png", dpi=150)
+
+# Interactive Plotly (hover tooltips, pan/zoom)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="plotly")
+fig.write_html("plot.html")
+
+# Interactive Bokeh (dashboard-ready)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="bokeh")
 ```
 
-Future releases will support:
-- **Plotly**: Interactive plots with hover tooltips, zoom/pan
-- **Bokeh**: Dashboard-friendly interactive plots
+| Backend | Output | Best For |
+|---------|--------|----------|
+| `matplotlib` | Static PNG/PDF/SVG | Publications, presentations |
+| `plotly` | Interactive HTML | Web reports, data exploration |
+| `bokeh` | Interactive HTML | Dashboards, web apps |
+
+> **Note:** All backends support gene track, recombination overlay, and LD legend. SNP labels (auto-positioned with adjustText) are matplotlib-only.
 
 ## Stacked Plots
 

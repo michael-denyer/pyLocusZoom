@@ -8,7 +8,7 @@ from typing import Any, List, Optional, Tuple, Union
 import pandas as pd
 from bokeh.io import export_png, export_svgs, output_file, save, show
 from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, HoverTool, Span
+from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
 
@@ -56,20 +56,16 @@ class BokehBackend:
         heights = [int(total_height * r / total_ratio) for r in height_ratios]
 
         figures = []
-        x_range = None
+        x_range = DataRange1d() if sharex else None
 
         for i, h in enumerate(heights):
             p = figure(
                 width=width_px,
                 height=h,
-                x_range=x_range if sharex and x_range else None,
+                x_range=x_range if sharex else DataRange1d(),
                 tools="pan,wheel_zoom,box_zoom,reset,save",
                 toolbar_location="above" if i == 0 else None,
             )
-
-            # Share x_range for subsequent figures
-            if sharex and x_range is None:
-                x_range = p.x_range
 
             # Style
             p.grid.grid_line_alpha = 0.3
@@ -77,8 +73,8 @@ class BokehBackend:
 
             figures.append(p)
 
-        # Create column layout
-        layout = column(*figures, sizing_mode="fixed")
+        # Create column layout (use default sizing mode to avoid validation warnings)
+        layout = column(*figures)
 
         return layout, figures
 
@@ -118,29 +114,34 @@ class BokehBackend:
         if hover_data is not None:
             for col in hover_data.columns:
                 data[col] = hover_data[col].values
-                if "p" in col.lower():
+                col_lower = col.lower()
+                if col_lower == "p-value" or col_lower == "pval" or col_lower == "p_value":
                     tooltips.append((col, "@{" + col + "}{0.2e}"))
-                elif "r2" in col.lower() or "ld" in col.lower():
+                elif "r2" in col_lower or "r²" in col_lower or "ld" in col_lower:
                     tooltips.append((col, "@{" + col + "}{0.3f}"))
+                elif "pos" in col_lower:
+                    tooltips.append((col, "@{" + col + "}{0,0}"))
                 else:
                     tooltips.append((col, f"@{col}"))
 
         source = ColumnDataSource(data)
 
-        # Get marker type
+        # Get marker type for scatter()
         marker_type = self._marker_map.get(marker, "circle")
 
-        # Create scatter
-        renderer = getattr(ax, marker_type)(
-            "x",
-            "y",
-            source=source,
-            size="size",
-            fill_color="color",
-            line_color=edgecolor,
-            line_width=linewidth,
-            legend_label=label if label else None,
-        )
+        # Create scatter using scatter() method (Bokeh 3.4+ preferred API)
+        scatter_kwargs = {
+            "source": source,
+            "marker": marker_type,
+            "size": "size",
+            "fill_color": "color",
+            "line_color": edgecolor,
+            "line_width": linewidth,
+        }
+        if label:
+            scatter_kwargs["legend_label"] = label
+
+        renderer = ax.scatter("x", "y", **scatter_kwargs)
 
         # Add hover tool if we have hover data
         if tooltips:
@@ -175,15 +176,16 @@ class BokehBackend:
         }
         line_dash = dash_map.get(linestyle, "solid")
 
-        return ax.line(
-            x.values,
-            y.values,
-            line_color=color,
-            line_width=linewidth,
-            line_alpha=alpha,
-            line_dash=line_dash,
-            legend_label=label if label else None,
-        )
+        line_kwargs = {
+            "line_color": color,
+            "line_width": linewidth,
+            "line_alpha": alpha,
+            "line_dash": line_dash,
+        }
+        if label:
+            line_kwargs["legend_label"] = label
+
+        return ax.line(x.values, y.values, **line_kwargs)
 
     def fill_between(
         self,
@@ -223,6 +225,7 @@ class BokehBackend:
         color: str = "grey",
         linestyle: str = "--",
         linewidth: float = 1.0,
+        alpha: float = 1.0,
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the figure."""
@@ -235,6 +238,7 @@ class BokehBackend:
             line_color=color,
             line_dash=line_dash,
             line_width=linewidth,
+            line_alpha=alpha,
         )
         ax.add_layout(span)
         return span
@@ -303,6 +307,28 @@ class BokehBackend:
             line_width=linewidth,
         )
 
+    def add_polygon(
+        self,
+        ax: figure,
+        points: List[List[float]],
+        facecolor: str = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Add a polygon (e.g., triangle for strand arrows) to the figure."""
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+
+        # Bokeh patch() uses x/y (singular) for single polygon
+        return ax.patch(
+            x=xs,
+            y=ys,
+            fill_color=facecolor,
+            line_color=edgecolor,
+            line_width=linewidth,
+        )
+
     def set_xlim(self, ax: figure, left: float, right: float) -> None:
         """Set x-axis limits."""
         ax.x_range.start = left
@@ -315,13 +341,30 @@ class BokehBackend:
 
     def set_xlabel(self, ax: figure, label: str, fontsize: int = 12) -> None:
         """Set x-axis label."""
+        label = self._convert_label(label)
         ax.xaxis.axis_label = label
         ax.xaxis.axis_label_text_font_size = f"{fontsize}pt"
 
     def set_ylabel(self, ax: figure, label: str, fontsize: int = 12) -> None:
         """Set y-axis label."""
+        label = self._convert_label(label)
         ax.yaxis.axis_label = label
         ax.yaxis.axis_label_text_font_size = f"{fontsize}pt"
+
+    def _convert_label(self, label: str) -> str:
+        """Convert LaTeX-style labels to Unicode for Bokeh display."""
+        conversions = [
+            (r"$-\log_{10}$ P", "-log₁₀(P)"),
+            (r"$-\log_{10}$", "-log₁₀"),
+            (r"\log_{10}", "log₁₀"),
+            (r"$r^2$", "r²"),
+            (r"$R^2$", "R²"),
+        ]
+        for latex, unicode_str in conversions:
+            if latex in label:
+                label = label.replace(latex, unicode_str)
+        label = label.replace("$", "")
+        return label
 
     def set_title(self, ax: figure, title: str, fontsize: int = 14) -> None:
         """Set figure title."""
@@ -340,6 +383,141 @@ class BokehBackend:
         ax.add_layout(LinearAxis(y_range_name="secondary"), "right")
 
         return "secondary"
+
+    def line_secondary(
+        self,
+        ax: figure,
+        x: pd.Series,
+        y: pd.Series,
+        color: str = "blue",
+        linewidth: float = 1.5,
+        alpha: float = 1.0,
+        linestyle: str = "-",
+        label: Optional[str] = None,
+        yaxis_name: str = "secondary",
+    ) -> Any:
+        """Create a line plot on secondary y-axis."""
+        dash_map = {"-": "solid", "--": "dashed", ":": "dotted", "-.": "dashdot"}
+        line_dash = dash_map.get(linestyle, "solid")
+
+        return ax.line(
+            x.values,
+            y.values,
+            line_color=color,
+            line_width=linewidth,
+            line_alpha=alpha,
+            line_dash=line_dash,
+            y_range_name=yaxis_name,
+        )
+
+    def fill_between_secondary(
+        self,
+        ax: figure,
+        x: pd.Series,
+        y1: Union[float, pd.Series],
+        y2: Union[float, pd.Series],
+        color: str = "blue",
+        alpha: float = 0.3,
+        yaxis_name: str = "secondary",
+    ) -> Any:
+        """Fill area between two y-values on secondary y-axis."""
+        x_arr = x.values
+        if isinstance(y1, (int, float)):
+            y1_arr = [y1] * len(x_arr)
+        else:
+            y1_arr = y1.values if hasattr(y1, "values") else list(y1)
+
+        if isinstance(y2, (int, float)):
+            y2_arr = [y2] * len(x_arr)
+        else:
+            y2_arr = y2.values if hasattr(y2, "values") else list(y2)
+
+        return ax.varea(
+            x=x_arr,
+            y1=y1_arr,
+            y2=y2_arr,
+            fill_color=color,
+            fill_alpha=alpha,
+            y_range_name=yaxis_name,
+        )
+
+    def set_secondary_ylim(
+        self,
+        ax: figure,
+        bottom: float,
+        top: float,
+        yaxis_name: str = "secondary",
+    ) -> None:
+        """Set secondary y-axis limits."""
+        if yaxis_name in ax.extra_y_ranges:
+            ax.extra_y_ranges[yaxis_name].start = bottom
+            ax.extra_y_ranges[yaxis_name].end = top
+
+    def set_secondary_ylabel(
+        self,
+        ax: figure,
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+        yaxis_name: str = "secondary",
+    ) -> None:
+        """Set secondary y-axis label."""
+        label = self._convert_label(label)
+        # Find the secondary axis and update its label
+        for renderer in ax.right:
+            if hasattr(renderer, "y_range_name") and renderer.y_range_name == yaxis_name:
+                renderer.axis_label = label
+                renderer.axis_label_text_font_size = f"{fontsize}pt"
+                renderer.axis_label_text_color = color
+                renderer.major_label_text_color = color
+                break
+
+    def add_ld_legend(
+        self,
+        ax: figure,
+        ld_bins: List[Tuple[float, str, str]],
+        lead_snp_color: str,
+    ) -> None:
+        """Add LD color legend using invisible dummy glyphs.
+
+        Creates legend entries with dummy renderers that are excluded from
+        the data range calculation to avoid affecting axis scaling.
+        """
+        from bokeh.models import ColumnDataSource, Legend, LegendItem, Range1d, Scatter
+
+        legend_items = []
+
+        # Create a separate range for legend glyphs that won't affect the main plot
+        if "legend_range" not in ax.extra_y_ranges:
+            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
+
+        # Use coordinates within the legend range
+        dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
+
+        # Add LD bin markers (no lead SNP - it's shown in the actual plot)
+        for _, label, color in ld_bins:
+            glyph = Scatter(
+                x="x",
+                y="y",
+                marker="square",
+                size=10,
+                fill_color=color,
+                line_color="black",
+                line_width=0.5,
+            )
+            renderer = ax.add_glyph(dummy_source, glyph)
+            renderer.y_range_name = "legend_range"
+            renderer.visible = False
+            legend_items.append(LegendItem(label=label, renderers=[renderer]))
+
+        legend = Legend(
+            items=legend_items,
+            location="top_right",
+            title="r²",
+            background_fill_alpha=0.9,
+            border_line_color="black",
+        )
+        ax.add_layout(legend)
 
     def add_legend(
         self,
@@ -369,26 +547,20 @@ class BokehBackend:
         return ax.legend
 
     def hide_spines(self, ax: figure, spines: List[str]) -> None:
-        """Hide specified axis spines."""
-        # Bokeh doesn't have spines in the same way
-        # We can hide axis lines
-        if "top" in spines:
-            ax.xaxis.visible = ax.xaxis.visible  # Keep visible but could customize
-        if "right" in spines:
-            ax.yaxis.visible = ax.yaxis.visible
+        """Hide specified axis spines (no-op for Bokeh).
+
+        Bokeh doesn't have matplotlib-style spines. This method exists
+        for interface compatibility but has no visual effect.
+        """
+        pass
 
     def format_xaxis_mb(self, ax: figure) -> None:
         """Format x-axis to show megabase values."""
-        from bokeh.models import NumeralTickFormatter
+        from bokeh.models import CustomJSTickFormatter
 
-        ax.xaxis.formatter = NumeralTickFormatter(format="0.00")
-        ax.xaxis.axis_label = ax.xaxis.axis_label or "Position (Mb)"
-
-        # We need to scale values or use a custom formatter
-        # For now, assume values are already in bp and need /1e6
-        from bokeh.models import FuncTickFormatter
-
-        ax.xaxis.formatter = FuncTickFormatter(code="return (tick / 1e6).toFixed(2);")
+        ax.xaxis.formatter = CustomJSTickFormatter(
+            code="return (tick / 1e6).toFixed(2);"
+        )
 
     def save(
         self,

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 
@@ -55,12 +55,7 @@ class MatplotlibBackend:
             figsize=figsize,
             height_ratios=height_ratios,
             sharex=sharex,
-            gridspec_kw={"hspace": 0},
         )
-
-        # Ensure axes is always a list
-        if n_panels == 1:
-            axes = [axes]
 
         return fig, list(axes)
 
@@ -139,11 +134,17 @@ class MatplotlibBackend:
         color: str = "grey",
         linestyle: str = "--",
         linewidth: float = 1.0,
+        alpha: float = 1.0,
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the axes."""
         return ax.axhline(
-            y=y, color=color, linestyle=linestyle, linewidth=linewidth, zorder=zorder
+            y=y,
+            color=color,
+            linestyle=linestyle,
+            linewidth=linewidth,
+            alpha=alpha,
+            zorder=zorder,
         )
 
     def add_text(
@@ -186,6 +187,27 @@ class MatplotlibBackend:
         )
         ax.add_patch(rect)
         return rect
+
+    def add_polygon(
+        self,
+        ax: Axes,
+        points: List[List[float]],
+        facecolor: str = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Add a polygon patch to axes."""
+        polygon = Polygon(
+            points,
+            closed=True,
+            facecolor=facecolor,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            zorder=zorder,
+        )
+        ax.add_patch(polygon)
+        return polygon
 
     def set_xlim(self, ax: Axes, left: float, right: float) -> None:
         """Set x-axis limits."""

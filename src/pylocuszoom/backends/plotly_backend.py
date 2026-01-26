@@ -71,8 +71,9 @@ class PlotlyBackend:
             template="plotly_white",
         )
 
-        # Return row indices (1-based for plotly)
-        panel_refs = list(range(1, n_panels + 1))
+        # Return (fig, row) tuples for each panel
+        # This matches the expected ax parameter format for all methods
+        panel_refs = [(fig, row) for row in range(1, n_panels + 1)]
         return fig, panel_refs
 
     def scatter(
@@ -110,10 +111,13 @@ class PlotlyBackend:
             hover_cols = hover_data.columns.tolist()
             hovertemplate = "<b>%{customdata[0]}</b><br>"
             for i, col in enumerate(hover_cols[1:], 1):
-                if "p" in col.lower():
+                col_lower = col.lower()
+                if col_lower == "p-value" or col_lower == "pval" or col_lower == "p_value":
                     hovertemplate += f"{col}: %{{customdata[{i}]:.2e}}<br>"
-                elif "r2" in col.lower() or "ld" in col.lower():
+                elif "r2" in col_lower or "r²" in col_lower or "ld" in col_lower:
                     hovertemplate += f"{col}: %{{customdata[{i}]:.3f}}<br>"
+                elif "pos" in col_lower:
+                    hovertemplate += f"{col}: %{{customdata[{i}]:,.0f}}<br>"
                 else:
                     hovertemplate += f"{col}: %{{customdata[{i}]}}<br>"
             hovertemplate += "<extra></extra>"
@@ -221,6 +225,7 @@ class PlotlyBackend:
         color: str = "grey",
         linestyle: str = "--",
         linewidth: float = 1.0,
+        alpha: float = 1.0,
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the panel."""
@@ -234,6 +239,7 @@ class PlotlyBackend:
             line_dash=dash,
             line_color=color,
             line_width=linewidth,
+            opacity=alpha,
             row=row,
             col=1,
         )
@@ -299,6 +305,33 @@ class PlotlyBackend:
             col=1,
         )
 
+    def add_polygon(
+        self,
+        ax: Tuple[go.Figure, int],
+        points: List[List[float]],
+        facecolor: str = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Add a polygon (e.g., triangle for strand arrows) to the panel."""
+        fig, row = ax
+
+        # Build SVG path from points
+        path = f"M {points[0][0]} {points[0][1]}"
+        for px, py in points[1:]:
+            path += f" L {px} {py}"
+        path += " Z"
+
+        fig.add_shape(
+            type="path",
+            path=path,
+            fillcolor=facecolor,
+            line=dict(color=edgecolor, width=linewidth),
+            row=row,
+            col=1,
+        )
+
     def set_xlim(self, ax: Tuple[go.Figure, int], left: float, right: float) -> None:
         """Set x-axis limits."""
         fig, row = ax
@@ -317,6 +350,8 @@ class PlotlyBackend:
         """Set x-axis label."""
         fig, row = ax
         xaxis = f"xaxis{row}" if row > 1 else "xaxis"
+        # Convert LaTeX-style labels to Unicode for Plotly
+        label = self._convert_label(label)
         fig.update_layout(
             **{xaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
         )
@@ -327,9 +362,28 @@ class PlotlyBackend:
         """Set y-axis label."""
         fig, row = ax
         yaxis = f"yaxis{row}" if row > 1 else "yaxis"
+        # Convert LaTeX-style labels to Unicode for Plotly
+        label = self._convert_label(label)
         fig.update_layout(
             **{yaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
         )
+
+    def _convert_label(self, label: str) -> str:
+        """Convert LaTeX-style labels to Unicode for Plotly display."""
+        # Common conversions for genomics plots
+        conversions = [
+            (r"$-\log_{10}$ P", "-log₁₀(P)"),
+            (r"$-\log_{10}$", "-log₁₀"),
+            (r"\log_{10}", "log₁₀"),
+            (r"$r^2$", "r²"),
+            (r"$R^2$", "R²"),
+        ]
+        for latex, unicode_str in conversions:
+            if latex in label:
+                label = label.replace(latex, unicode_str)
+        # Remove any remaining $ markers
+        label = label.replace("$", "")
+        return label
 
     def set_title(
         self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14
@@ -359,6 +413,146 @@ class PlotlyBackend:
         )
 
         return (fig, row, secondary_y)
+
+    def line_secondary(
+        self,
+        ax: Tuple[go.Figure, int],
+        x: pd.Series,
+        y: pd.Series,
+        color: str = "blue",
+        linewidth: float = 1.5,
+        alpha: float = 1.0,
+        linestyle: str = "-",
+        label: Optional[str] = None,
+        yaxis_name: str = "y2",
+    ) -> Any:
+        """Create a line plot on secondary y-axis."""
+        fig, row = ax
+
+        dash_map = {"-": "solid", "--": "dash", ":": "dot", "-.": "dashdot"}
+        dash = dash_map.get(linestyle, "solid")
+
+        trace = go.Scatter(
+            x=x,
+            y=y,
+            mode="lines",
+            line=dict(color=color, width=linewidth, dash=dash),
+            opacity=alpha,
+            name=label or "",
+            showlegend=label is not None,
+            yaxis=yaxis_name,
+            hoverinfo="skip",
+        )
+
+        fig.add_trace(trace, row=row, col=1)
+        return trace
+
+    def fill_between_secondary(
+        self,
+        ax: Tuple[go.Figure, int],
+        x: pd.Series,
+        y1: Union[float, pd.Series],
+        y2: Union[float, pd.Series],
+        color: str = "blue",
+        alpha: float = 0.3,
+        yaxis_name: str = "y2",
+    ) -> Any:
+        """Fill area between two y-values on secondary y-axis."""
+        fig, row = ax
+
+        if isinstance(y1, (int, float)):
+            y1 = pd.Series([y1] * len(x))
+
+        trace = go.Scatter(
+            x=pd.concat([x, x[::-1]]),
+            y=pd.concat([y2, y1[::-1]]),
+            fill="toself",
+            fillcolor=color,
+            opacity=alpha,
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo="skip",
+            yaxis=yaxis_name,
+        )
+
+        fig.add_trace(trace, row=row, col=1)
+        return trace
+
+    def set_secondary_ylim(
+        self,
+        ax: Tuple[go.Figure, int],
+        bottom: float,
+        top: float,
+        yaxis_name: str = "y2",
+    ) -> None:
+        """Set secondary y-axis limits."""
+        fig, row = ax
+        yaxis_key = "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        fig.update_layout(**{yaxis_key: dict(range=[bottom, top])})
+
+    def set_secondary_ylabel(
+        self,
+        ax: Tuple[go.Figure, int],
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+        yaxis_name: str = "y2",
+    ) -> None:
+        """Set secondary y-axis label."""
+        fig, row = ax
+        label = self._convert_label(label)
+        yaxis_key = "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        fig.update_layout(
+            **{
+                yaxis_key: dict(
+                    title=dict(text=label, font=dict(size=fontsize, color=color)),
+                    tickfont=dict(color=color),
+                )
+            }
+        )
+
+    def add_ld_legend(
+        self,
+        ax: Tuple[go.Figure, int],
+        ld_bins: List[Tuple[float, str, str]],
+        lead_snp_color: str,
+    ) -> None:
+        """Add LD color legend using invisible scatter traces."""
+        fig, row = ax
+
+        # Add LD bin markers (no lead SNP - it's shown in the actual plot)
+        for _, label, color in ld_bins:
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers",
+                    marker=dict(
+                        symbol="square",
+                        size=10,
+                        color=color,
+                        line=dict(color="black", width=0.5),
+                    ),
+                    name=label,
+                    showlegend=True,
+                ),
+                row=row,
+                col=1,
+            )
+
+        # Position legend
+        fig.update_layout(
+            legend=dict(
+                x=0.99,
+                y=0.99,
+                xanchor="right",
+                yanchor="top",
+                title=dict(text="r²"),
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="black",
+                borderwidth=1,
+            )
+        )
 
     def add_legend(
         self,
@@ -404,22 +598,15 @@ class PlotlyBackend:
         pass
 
     def format_xaxis_mb(self, ax: Tuple[go.Figure, int]) -> None:
-        """Format x-axis to show megabase values."""
+        """Format x-axis to show megabase values.
+
+        Stores the row for later tick formatting in finalize_layout.
+        """
         fig, row = ax
-        xaxis = f"xaxis{row}" if row > 1 else "xaxis"
-
-        fig.update_layout(
-            **{
-                xaxis: dict(
-                    tickformat=".2f",
-                    ticksuffix=" Mb",
-                    tickvals=None,  # Auto
-                )
-            }
-        )
-
-        # Apply custom tick formatting via ticktext/tickvals if needed
-        # For now, let plotly auto-format
+        # Store that this axis needs Mb formatting
+        if not hasattr(fig, "_mb_format_rows"):
+            fig._mb_format_rows = []
+        fig._mb_format_rows.append(row)
 
     def save(
         self,
@@ -456,7 +643,7 @@ class PlotlyBackend:
         bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust layout margins.
+        """Adjust layout margins and apply Mb tick formatting.
 
         Args:
             fig: Figure object.
@@ -471,3 +658,58 @@ class PlotlyBackend:
                 b=int(bottom * fig.layout.height) if fig.layout.height else 80,
             )
         )
+
+        # Apply Mb tick formatting to marked axes
+        if hasattr(fig, "_mb_format_rows"):
+            import numpy as np
+
+            for row in fig._mb_format_rows:
+                xaxis_name = f"xaxis{row}" if row > 1 else "xaxis"
+                xaxis = getattr(fig.layout, xaxis_name, None)
+
+                # Get x-range from the axis or compute from data
+                x_range = None
+                if xaxis and xaxis.range:
+                    x_range = xaxis.range
+                else:
+                    # Compute from trace data
+                    x_vals = []
+                    for trace in fig.data:
+                        if hasattr(trace, "x") and trace.x is not None:
+                            x_vals.extend(list(trace.x))
+                    if x_vals:
+                        x_range = [min(x_vals), max(x_vals)]
+
+                if x_range:
+                    # Create nice tick values in Mb
+                    x_min_mb = x_range[0] / 1e6
+                    x_max_mb = x_range[1] / 1e6
+                    span_mb = x_max_mb - x_min_mb
+
+                    # Choose tick spacing based on range
+                    if span_mb <= 0.5:
+                        tick_step = 0.1
+                    elif span_mb <= 2:
+                        tick_step = 0.25
+                    elif span_mb <= 5:
+                        tick_step = 0.5
+                    elif span_mb <= 20:
+                        tick_step = 2
+                    else:
+                        tick_step = 5
+
+                    # Generate ticks
+                    first_tick = np.ceil(x_min_mb / tick_step) * tick_step
+                    tickvals_mb = np.arange(first_tick, x_max_mb + tick_step / 2, tick_step)
+                    tickvals_bp = [v * 1e6 for v in tickvals_mb]
+                    ticktext = [f"{v:.2f}" for v in tickvals_mb]
+
+                    fig.update_layout(
+                        **{
+                            xaxis_name: dict(
+                                tickvals=tickvals_bp,
+                                ticktext=ticktext,
+                                ticksuffix=" Mb",
+                            )
+                        }
+                    )

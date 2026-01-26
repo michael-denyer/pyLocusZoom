@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pylocuszoom"
-version = "0.2.0"
+version = "0.3.0"
 description = "Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -33,6 +33,7 @@ dependencies = [
     "plotly>=5.0.0",
     "bokeh>=3.8.2",
     "kaleido>=0.2.0",
+    "adjustText>=0.8",
 ]
 
 [project.optional-dependencies]
@@ -41,14 +42,10 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
 ]
-labels = [
-    "adjustText>=0.8",
-]
 spark = [
     "pyspark>=3.0.0",
 ]
 all = [
-    "adjustText>=0.8",
     "pyspark>=3.0.0",
 ]
 
@@ -71,3 +68,8 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 ignore = ["E501"]
+
+[dependency-groups]
+dev = [
+    "nbformat>=5.10.4",
+]

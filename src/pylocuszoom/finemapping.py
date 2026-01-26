@@ -6,7 +6,6 @@ fine-mapping results (SuSiE, FINEMAP, etc.) for visualization.
 
 from typing import List, Optional
 
-import numpy as np
 import pandas as pd
 
 from .logging import logger

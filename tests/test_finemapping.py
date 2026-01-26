@@ -1,6 +1,5 @@
 """Tests for fine-mapping/SuSiE data handling."""
 
-import numpy as np
 import pandas as pd
 import pytest
 

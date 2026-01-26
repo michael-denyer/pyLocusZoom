@@ -1,13 +1,157 @@
 """Tests for LocusZoomPlotter class."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
+
+
+class TestBackendIntegration:
+    """Tests for backend protocol integration."""
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS results DataFrame."""
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+    def test_plot_uses_backend_create_figure(self, sample_gwas_df):
+        """plot() should use self._backend.create_figure() instead of plt.subplots()."""
+        plotter = LocusZoomPlotter(species="canine")
+
+        # Spy on the backend's create_figure method
+        original_create_figure = plotter._backend.create_figure
+        plotter._backend.create_figure = MagicMock(side_effect=original_create_figure)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+
+        # Backend's create_figure should have been called
+        plotter._backend.create_figure.assert_called()
+        plt.close(fig)
+
+    def test_plot_stacked_uses_backend_create_figure(self, sample_gwas_df):
+        """plot_stacked() should use self._backend.create_figure()."""
+        plotter = LocusZoomPlotter(species="canine")
+
+        original_create_figure = plotter._backend.create_figure
+        plotter._backend.create_figure = MagicMock(side_effect=original_create_figure)
+
+        fig = plotter.plot_stacked(
+            [sample_gwas_df, sample_gwas_df.copy()],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+
+        plotter._backend.create_figure.assert_called()
+        plt.close(fig)
+
+    def test_default_backend_is_matplotlib(self):
+        """Default backend should be matplotlib."""
+        plotter = LocusZoomPlotter()
+        assert isinstance(plotter._backend, MatplotlibBackend)
+
+    def test_explicit_matplotlib_backend(self):
+        """backend='matplotlib' should use MatplotlibBackend."""
+        plotter = LocusZoomPlotter(backend="matplotlib")
+        assert isinstance(plotter._backend, MatplotlibBackend)
+
+    def test_explicit_plotly_backend(self):
+        """backend='plotly' should use PlotlyBackend."""
+        plotter = LocusZoomPlotter(backend="plotly")
+        assert isinstance(plotter._backend, PlotlyBackend)
+
+    def test_plotly_backend_creates_figure(self, sample_gwas_df):
+        """plot() with backend='plotly' should create a plotly figure."""
+        import plotly.graph_objects as go
+
+        plotter = LocusZoomPlotter(species="canine", backend="plotly")
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+
+        assert isinstance(fig, go.Figure)
+
+    def test_plot_uses_backend_scatter(self, sample_gwas_df):
+        """plot() should use self._backend.scatter() for association points."""
+        plotter = LocusZoomPlotter(species="canine")
+
+        original_scatter = plotter._backend.scatter
+        plotter._backend.scatter = MagicMock(side_effect=original_scatter)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+
+        plotter._backend.scatter.assert_called()
+        plt.close(fig)
+
+    def test_plot_uses_backend_axhline(self, sample_gwas_df):
+        """plot() should use self._backend.axhline() for significance line."""
+        plotter = LocusZoomPlotter(species="canine")
+
+        original_axhline = plotter._backend.axhline
+        plotter._backend.axhline = MagicMock(side_effect=original_axhline)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+
+        plotter._backend.axhline.assert_called()
+        plt.close(fig)
+
+    def test_plot_uses_backend_axis_methods(self, sample_gwas_df):
+        """plot() should use backend methods for axis configuration."""
+        plotter = LocusZoomPlotter(species="canine")
+
+        original_set_ylabel = plotter._backend.set_ylabel
+        original_set_xlim = plotter._backend.set_xlim
+        plotter._backend.set_ylabel = MagicMock(side_effect=original_set_ylabel)
+        plotter._backend.set_xlim = MagicMock(side_effect=original_set_xlim)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+
+        plotter._backend.set_ylabel.assert_called()
+        plotter._backend.set_xlim.assert_called()
+        plt.close(fig)
 
 
 class TestLocusZoomPlotterInit:

@@ -132,6 +132,7 @@ class PlotBackend(Protocol):
         color: str = "grey",
         linestyle: str = "--",
         linewidth: float = 1.0,
+        alpha: float = 1.0,
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the axes.
@@ -142,6 +143,7 @@ class PlotBackend(Protocol):
             color: Line color.
             linestyle: Line style.
             linewidth: Line width.
+            alpha: Line transparency (0-1).
             zorder: Drawing order.
 
         Returns:

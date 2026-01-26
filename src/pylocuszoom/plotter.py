@@ -19,7 +19,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from .backends import BackendType, get_backend
 from .colors import (
@@ -38,11 +37,16 @@ from .finemapping import (
     get_credible_sets,
     prepare_finemapping_for_plotting,
 )
-from .gene_track import assign_gene_positions, plot_gene_track
+from .gene_track import (
+    assign_gene_positions,
+    plot_gene_track,
+    plot_gene_track_generic,
+)
 from .labels import add_snp_labels
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
 from .recombination import (
+    RECOMB_COLOR,
     add_recombination_overlay,
     download_canine_recombination_maps,
     get_default_data_dir,
@@ -50,8 +54,8 @@ from .recombination import (
 )
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
-# Default significance threshold: 5e-8 for human, 5e-7 for canine
-DEFAULT_GENOMEWIDE_THRESHOLD = 5e-7
+# Default significance threshold: 5e-8 (genome-wide significance)
+DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
@@ -288,62 +292,70 @@ class LocusZoomPlotter:
         fig, ax, gene_ax = self._create_figure(genes_df, chrom, start, end, figsize)
 
         # Plot association data
-        self._plot_association(ax, df, pos_col, ld_col, lead_pos)
+        self._plot_association(ax, df, pos_col, ld_col, lead_pos, rs_col, p_col)
 
         # Add significance line
-        ax.axhline(
+        self._backend.axhline(
+            ax,
             y=self._genomewide_line,
             color="red",
-            linestyle=(0, (5, 10)),
+            linestyle="--",
             linewidth=1,
-            alpha=0.8,
+            alpha=0.65,
             zorder=1,
         )
 
-        # Add SNP labels
+        # Add SNP labels (matplotlib only - interactive backends use hover tooltips)
         if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
-            add_snp_labels(
-                ax,
-                df,
-                pos_col=pos_col,
-                neglog10p_col="neglog10p",
-                rs_col=rs_col,
-                label_top_n=label_top_n,
-                genes_df=genes_df,
-                chrom=chrom,
-            )
+            if self.backend_name == "matplotlib":
+                add_snp_labels(
+                    ax,
+                    df,
+                    pos_col=pos_col,
+                    neglog10p_col="neglog10p",
+                    rs_col=rs_col,
+                    label_top_n=label_top_n,
+                    genes_df=genes_df,
+                    chrom=chrom,
+                )
 
-        # Add recombination overlay
+        # Add recombination overlay (all backends)
         if recomb_df is not None and not recomb_df.empty:
-            add_recombination_overlay(ax, recomb_df, start, end)
+            if self.backend_name == "matplotlib":
+                add_recombination_overlay(ax, recomb_df, start, end)
+            else:
+                self._add_recombination_overlay_generic(ax, recomb_df, start, end)
 
         # Format axes
-        ax.set_ylabel(r"$-\log_{10}$ P")
-        ax.set_xlim(start, end)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+        self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
+        self._backend.set_xlim(ax, start, end)
+        self._backend.hide_spines(ax, ["top", "right"])
 
-        # Add LD legend
+        # Add LD legend (all backends)
         if ld_col is not None and ld_col in df.columns:
-            self._add_ld_legend(ax)
+            if self.backend_name == "matplotlib":
+                self._add_ld_legend(ax)
+            else:
+                self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
 
-        # Plot gene track
+        # Plot gene track (all backends)
         if genes_df is not None and gene_ax is not None:
-            plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
-            gene_ax.set_xlabel(f"Chromosome {chrom} (Mb)")
-            gene_ax.spines["top"].set_visible(False)
-            gene_ax.spines["right"].set_visible(False)
-            gene_ax.spines["left"].set_visible(False)
+            if self.backend_name == "matplotlib":
+                plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
+            else:
+                plot_gene_track_generic(
+                    gene_ax, self._backend, genes_df, chrom, start, end, exons_df
+                )
+            self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
+            self._backend.hide_spines(gene_ax, ["top", "right", "left"])
         else:
-            ax.set_xlabel(f"Chromosome {chrom} (Mb)")
+            self._backend.set_xlabel(ax, f"Chromosome {chrom} (Mb)")
 
         # Format x-axis with Mb labels
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1e6:.2f}"))
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
+        self._backend.format_xaxis_mb(ax)
 
         # Adjust layout
-        fig.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.1, hspace=0.08)
-        plt.ion()
+        self._backend.finalize_layout(fig, hspace=0.1)
 
         return fig
 
@@ -381,18 +393,20 @@ class LocusZoomPlotter:
             assoc_height = figsize[1] * 0.6
             total_height = assoc_height + gene_track_height
 
-            fig, axes = plt.subplots(
-                2,
-                1,
-                figsize=(figsize[0], total_height),
+            fig, axes = self._backend.create_figure(
+                n_panels=2,
                 height_ratios=[assoc_height, gene_track_height],
+                figsize=(figsize[0], total_height),
                 sharex=True,
-                gridspec_kw={"hspace": 0},
             )
             return fig, axes[0], axes[1]
         else:
-            fig, ax = plt.subplots(figsize=(figsize[0], figsize[1] * 0.75))
-            return fig, ax, None
+            fig, axes = self._backend.create_figure(
+                n_panels=1,
+                height_ratios=[1.0],
+                figsize=(figsize[0], figsize[1] * 0.75),
+            )
+            return fig, axes[0], None
 
     def _plot_association(
         self,
@@ -401,8 +415,28 @@ class LocusZoomPlotter:
         pos_col: str,
         ld_col: Optional[str],
         lead_pos: Optional[int],
+        rs_col: Optional[str] = None,
+        p_col: Optional[str] = None,
     ) -> None:
         """Plot association scatter with LD coloring."""
+
+        def _build_hover_data(subset_df: pd.DataFrame) -> Optional[pd.DataFrame]:
+            """Build hover data for interactive backends."""
+            hover_cols = {}
+            # RS ID first (will be bold in hover)
+            if rs_col and rs_col in subset_df.columns:
+                hover_cols["SNP"] = subset_df[rs_col].values
+            # Position
+            if pos_col in subset_df.columns:
+                hover_cols["Position"] = subset_df[pos_col].values
+            # P-value
+            if p_col and p_col in subset_df.columns:
+                hover_cols["P-value"] = subset_df[p_col].values
+            # LD
+            if ld_col and ld_col in subset_df.columns:
+                hover_cols["R²"] = subset_df[ld_col].values
+            return pd.DataFrame(hover_cols) if hover_cols else None
+
         # LD-based coloring
         if ld_col is not None and ld_col in df.columns:
             df["ld_bin"] = df[ld_col].apply(get_ld_bin)
@@ -411,40 +445,46 @@ class LocusZoomPlotter:
             palette = get_ld_color_palette()
             for bin_label in df["ld_bin"].unique():
                 bin_data = df[df["ld_bin"] == bin_label]
-                ax.scatter(
+                self._backend.scatter(
+                    ax,
                     bin_data[pos_col],
                     bin_data["neglog10p"],
-                    c=palette.get(bin_label, "#BEBEBE"),
-                    s=60,
+                    colors=palette.get(bin_label, "#BEBEBE"),
+                    sizes=60,
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=2,
+                    hover_data=_build_hover_data(bin_data),
                 )
         else:
             # Default: grey points
-            ax.scatter(
+            self._backend.scatter(
+                ax,
                 df[pos_col],
                 df["neglog10p"],
-                c="#BEBEBE",
-                s=60,
+                colors="#BEBEBE",
+                sizes=60,
                 edgecolor="black",
                 linewidth=0.5,
                 zorder=2,
+                hover_data=_build_hover_data(df),
             )
 
-        # Highlight lead SNP
+        # Highlight lead SNP with larger, more prominent marker
         if lead_pos is not None:
             lead_snp = df[df[pos_col] == lead_pos]
             if not lead_snp.empty:
-                ax.scatter(
+                self._backend.scatter(
+                    ax,
                     lead_snp[pos_col],
                     lead_snp["neglog10p"],
-                    c=LEAD_SNP_COLOR,
-                    s=60,
+                    colors=LEAD_SNP_COLOR,
+                    sizes=120,  # Larger than regular points for visibility
                     marker="D",
-                    edgecolors="black",
-                    linewidths=1.5,
+                    edgecolor="black",
+                    linewidth=1.5,
                     zorder=10,
+                    hover_data=_build_hover_data(lead_snp),
                 )
 
     def _add_ld_legend(self, ax: Axes) -> None:
@@ -483,6 +523,70 @@ class LocusZoomPlotter:
             handlelength=1.5,
             handleheight=1.0,
             labelspacing=0.4,
+        )
+
+    def _add_recombination_overlay_generic(
+        self,
+        ax: Any,
+        recomb_df: pd.DataFrame,
+        start: int,
+        end: int,
+    ) -> None:
+        """Add recombination overlay for interactive backends (plotly/bokeh).
+
+        Creates a secondary y-axis with recombination rate line and fill.
+        """
+        # Filter to region
+        region_recomb = recomb_df[
+            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
+        ].copy()
+
+        if region_recomb.empty:
+            return
+
+        # Create secondary y-axis
+        yaxis_name = self._backend.create_twin_axis(ax)
+
+        # For plotly, yaxis_name is a tuple (fig, row, secondary_y)
+        # For bokeh, yaxis_name is just a string
+        if isinstance(yaxis_name, tuple):
+            _, _, secondary_y = yaxis_name
+        else:
+            secondary_y = yaxis_name
+
+        # Plot fill under curve
+        self._backend.fill_between_secondary(
+            ax,
+            region_recomb["pos"],
+            0,
+            region_recomb["rate"],
+            color=RECOMB_COLOR,
+            alpha=0.15,
+            yaxis_name=secondary_y,
+        )
+
+        # Plot recombination rate line
+        self._backend.line_secondary(
+            ax,
+            region_recomb["pos"],
+            region_recomb["rate"],
+            color=RECOMB_COLOR,
+            linewidth=1.5,
+            alpha=0.7,
+            yaxis_name=secondary_y,
+        )
+
+        # Set y-axis limits and label
+        max_rate = region_recomb["rate"].max()
+        self._backend.set_secondary_ylim(
+            ax, 0, max(max_rate * 1.2, 20), yaxis_name=secondary_y
+        )
+        self._backend.set_secondary_ylabel(
+            ax,
+            "Recombination rate (cM/Mb)",
+            color=RECOMB_COLOR,
+            fontsize=9,
+            yaxis_name=secondary_y,
         )
 
     def _add_eqtl_legend(self, ax: Axes) -> None:
@@ -557,7 +661,8 @@ class LocusZoomPlotter:
         df = df.sort_values(pos_col)
 
         # Plot PIP as line
-        ax.plot(
+        self._backend.line(
+            ax,
             df[pos_col],
             df[pip_col],
             color=PIP_LINE_COLOR,
@@ -575,11 +680,12 @@ class LocusZoomPlotter:
             for cs_id in credible_sets:
                 cs_data = df[df[cs_col] == cs_id]
                 color = get_credible_set_color(cs_id)
-                ax.scatter(
+                self._backend.scatter(
+                    ax,
                     cs_data[pos_col],
                     cs_data[pip_col],
-                    c=color,
-                    s=50,
+                    colors=color,
+                    sizes=50,
                     marker="o",
                     edgecolor="black",
                     linewidth=0.5,
@@ -591,27 +697,28 @@ class LocusZoomPlotter:
             if not non_cs_data.empty and pip_threshold > 0:
                 non_cs_data = non_cs_data[non_cs_data[pip_col] >= pip_threshold]
                 if not non_cs_data.empty:
-                    ax.scatter(
+                    self._backend.scatter(
+                        ax,
                         non_cs_data[pos_col],
                         non_cs_data[pip_col],
-                        c="#BEBEBE",
-                        s=30,
+                        colors="#BEBEBE",
+                        sizes=30,
                         marker="o",
                         edgecolor="black",
                         linewidth=0.3,
                         zorder=2,
-                        alpha=0.6,
                     )
         else:
             # No credible sets - show all points above threshold
             if pip_threshold > 0:
                 high_pip = df[df[pip_col] >= pip_threshold]
                 if not high_pip.empty:
-                    ax.scatter(
+                    self._backend.scatter(
+                        ax,
                         high_pip[pos_col],
                         high_pip[pip_col],
-                        c=PIP_LINE_COLOR,
-                        s=50,
+                        colors=PIP_LINE_COLOR,
+                        sizes=50,
                         marker="o",
                         edgecolor="black",
                         linewidth=0.5,
@@ -825,24 +932,17 @@ class LocusZoomPlotter:
             f"Creating stacked plot with {n_panels} panels for chr{chrom}:{start}-{end}"
         )
 
-        # Prevent auto-display in interactive environments
-        plt.ioff()
-
         # Load recombination data if needed
         if show_recombination and recomb_df is None:
             recomb_df = self._get_recomb_for_region(chrom, start, end)
 
-        # Create figure
-        fig, axes = plt.subplots(
-            n_panels,
-            1,
-            figsize=actual_figsize,
+        # Create figure using backend
+        fig, axes = self._backend.create_figure(
+            n_panels=n_panels,
             height_ratios=height_ratios,
+            figsize=actual_figsize,
             sharex=True,
-            gridspec_kw={"hspace": 0.05},
         )
-        if n_panels == 1:
-            axes = [axes]
 
         # Plot each GWAS panel
         for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
@@ -868,56 +968,91 @@ class LocusZoomPlotter:
                         panel_ld_col = "R2"
 
             # Plot association
-            self._plot_association(ax, df, pos_col, panel_ld_col, lead_pos)
+            self._plot_association(ax, df, pos_col, panel_ld_col, lead_pos, rs_col, p_col)
 
             # Add significance line
-            ax.axhline(
+            self._backend.axhline(
+                ax,
                 y=self._genomewide_line,
                 color="red",
                 linestyle="--",
                 linewidth=1,
-                alpha=0.8,
+                alpha=0.65,
                 zorder=1,
             )
 
-            # Add SNP labels
+            # Add SNP labels (matplotlib only - interactive backends use hover tooltips)
             if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
-                add_snp_labels(
-                    ax,
-                    df,
-                    pos_col=pos_col,
-                    neglog10p_col="neglog10p",
-                    rs_col=rs_col,
-                    label_top_n=label_top_n,
-                    genes_df=genes_df,
-                    chrom=chrom,
-                )
+                if self.backend_name == "matplotlib":
+                    add_snp_labels(
+                        ax,
+                        df,
+                        pos_col=pos_col,
+                        neglog10p_col="neglog10p",
+                        rs_col=rs_col,
+                        label_top_n=label_top_n,
+                        genes_df=genes_df,
+                        chrom=chrom,
+                    )
 
-            # Add recombination overlay (only on first panel)
+            # Add recombination overlay (only on first panel, all backends)
             if i == 0 and recomb_df is not None and not recomb_df.empty:
-                add_recombination_overlay(ax, recomb_df, start, end)
+                if self.backend_name == "matplotlib":
+                    add_recombination_overlay(ax, recomb_df, start, end)
+                else:
+                    self._add_recombination_overlay_generic(ax, recomb_df, start, end)
 
             # Format axes
-            ax.set_ylabel(r"$-\log_{10}$ P")
-            ax.set_xlim(start, end)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
+            self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
+            self._backend.set_xlim(ax, start, end)
+            self._backend.hide_spines(ax, ["top", "right"])
 
             # Add panel label
             if panel_labels and i < len(panel_labels):
-                ax.annotate(
-                    panel_labels[i],
-                    xy=(0.02, 0.95),
-                    xycoords="axes fraction",
-                    fontsize=11,
-                    fontweight="bold",
-                    va="top",
-                    ha="left",
-                )
+                if self.backend_name == "matplotlib":
+                    ax.annotate(
+                        panel_labels[i],
+                        xy=(0.02, 0.95),
+                        xycoords="axes fraction",
+                        fontsize=11,
+                        fontweight="bold",
+                        va="top",
+                        ha="left",
+                    )
+                elif self.backend_name == "plotly":
+                    fig, row = ax
+                    fig.add_annotation(
+                        text=f"<b>{panel_labels[i]}</b>",
+                        xref=f"x{row} domain" if row > 1 else "x domain",
+                        yref=f"y{row} domain" if row > 1 else "y domain",
+                        x=0.02,
+                        y=0.95,
+                        showarrow=False,
+                        font=dict(size=11),
+                        xanchor="left",
+                        yanchor="top",
+                    )
+                elif self.backend_name == "bokeh":
+                    from bokeh.models import Label
 
-            # Add LD legend (only on first panel)
+                    # Get y-axis range for positioning
+                    y_max = ax.y_range.end if ax.y_range.end else 10
+                    x_min = ax.x_range.start if ax.x_range.start else start
+                    label = Label(
+                        x=x_min + (end - start) * 0.02,
+                        y=y_max * 0.95,
+                        text=panel_labels[i],
+                        text_font_size="11pt",
+                        text_font_style="bold",
+                    )
+                    ax.add_layout(label)
+
+            # Add LD legend (only on first panel, all backends)
             if i == 0 and panel_ld_col is not None and panel_ld_col in df.columns:
-                self._add_ld_legend(ax)
+                if self.backend_name == "matplotlib":
+                    self._add_ld_legend(ax)
+                else:
+                    self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
 
         # Track current panel index
         panel_idx = n_gwas
@@ -950,10 +1085,9 @@ class LocusZoomPlotter:
                 if credible_sets:
                     self._add_finemapping_legend(ax, credible_sets)
 
-            ax.set_ylabel("PIP")
-            ax.set_ylim(-0.05, 1.05)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
+            self._backend.set_ylabel(ax, "PIP")
+            self._backend.set_ylim(ax, -0.05, 1.05)
+            self._backend.hide_spines(ax, ["top", "right"])
             panel_idx += 1
 
         # Plot eQTL panel if provided
@@ -986,11 +1120,12 @@ class LocusZoomPlotter:
                         effect = row["effect_size"]
                         color = get_eqtl_color(effect)
                         marker = "^" if effect >= 0 else "v"
-                        ax.scatter(
-                            row["pos"],
-                            row["neglog10p"],
-                            c=color,
-                            s=50,
+                        self._backend.scatter(
+                            ax,
+                            pd.Series([row["pos"]]),
+                            pd.Series([row["neglog10p"]]),
+                            colors=color,
+                            sizes=50,
                             marker=marker,
                             edgecolor="black",
                             linewidth=0.5,
@@ -1000,11 +1135,12 @@ class LocusZoomPlotter:
                     self._add_eqtl_legend(ax)
                 else:
                     # No effect sizes - plot as diamonds
-                    ax.scatter(
+                    self._backend.scatter(
+                        ax,
                         eqtl_data["pos"],
                         eqtl_data["neglog10p"],
-                        c="#FF6B6B",
-                        s=60,
+                        colors="#FF6B6B",
+                        sizes=60,
                         marker="D",
                         edgecolor="black",
                         linewidth=0.5,
@@ -1013,36 +1149,38 @@ class LocusZoomPlotter:
                     )
                     ax.legend(loc="upper right", fontsize=9)
 
-            ax.set_ylabel(r"$-\log_{10}$ P (eQTL)")
-            ax.axhline(
+            self._backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
+            self._backend.axhline(
+                ax,
                 y=self._genomewide_line,
                 color="red",
                 linestyle="--",
                 linewidth=1,
-                alpha=0.8,
+                alpha=0.65,
             )
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
+            self._backend.hide_spines(ax, ["top", "right"])
             panel_idx += 1
 
-        # Plot gene track
+        # Plot gene track (all backends)
         if genes_df is not None:
             gene_ax = axes[panel_idx]
-            plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
-            gene_ax.set_xlabel(f"Chromosome {chrom} (Mb)")
-            gene_ax.spines["top"].set_visible(False)
-            gene_ax.spines["right"].set_visible(False)
-            gene_ax.spines["left"].set_visible(False)
+            if self.backend_name == "matplotlib":
+                plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
+            else:
+                plot_gene_track_generic(
+                    gene_ax, self._backend, genes_df, chrom, start, end, exons_df
+                )
+            self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
+            self._backend.hide_spines(gene_ax, ["top", "right", "left"])
         else:
             # Set x-label on bottom panel
-            axes[-1].set_xlabel(f"Chromosome {chrom} (Mb)")
+            self._backend.set_xlabel(axes[-1], f"Chromosome {chrom} (Mb)")
 
-        # Format x-axis
-        axes[0].xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1e6:.2f}"))
-        axes[0].xaxis.set_major_locator(MaxNLocator(nbins=6))
+        # Format x-axis (call for all axes - Plotly needs each subplot formatted)
+        for ax in axes:
+            self._backend.format_xaxis_mb(ax)
 
         # Adjust layout
-        fig.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.08, hspace=0.05)
-        plt.ion()
+        self._backend.finalize_layout(fig, hspace=0.1)
 
         return fig
