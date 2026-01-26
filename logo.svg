@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <!-- Gradient for the peak -->
+    <linearGradient id="peakGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E74C3C"/>
+      <stop offset="30%" style="stop-color:#F39C12"/>
+      <stop offset="60%" style="stop-color:#2ECC71"/>
+      <stop offset="100%" style="stop-color:#3498DB"/>
+    </linearGradient>
+    <!-- Scope ring gradient -->
+    <linearGradient id="scopeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2C3E50"/>
+      <stop offset="100%" style="stop-color:#34495E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle (scope lens) -->
+  <circle cx="100" cy="85" r="70" fill="#F8F9FA" stroke="url(#scopeGradient)" stroke-width="8"/>
+
+  <!-- Regional plot - scattered points with LD coloring -->
+  <!-- Low LD (blue) points -->
+  <circle cx="45" cy="95" r="4" fill="#3498DB"/>
+  <circle cx="55" cy="100" r="4" fill="#3498DB"/>
+  <circle cx="65" cy="90" r="4" fill="#3498DB"/>
+  <circle cx="140" cy="95" r="4" fill="#3498DB"/>
+  <circle cx="150" cy="105" r="4" fill="#3498DB"/>
+
+  <!-- Medium LD (green/cyan) points -->
+  <circle cx="70" cy="80" r="4" fill="#2ECC71"/>
+  <circle cx="80" cy="70" r="4" fill="#2ECC71"/>
+  <circle cx="120" cy="75" r="4" fill="#2ECC71"/>
+  <circle cx="130" cy="85" r="4" fill="#1ABC9C"/>
+
+  <!-- High LD (orange) points -->
+  <circle cx="85" cy="55" r="5" fill="#F39C12"/>
+  <circle cx="95" cy="45" r="5" fill="#F39C12"/>
+  <circle cx="105" cy="50" r="5" fill="#F39C12"/>
+  <circle cx="115" cy="60" r="5" fill="#E67E22"/>
+
+  <!-- Lead SNP (red diamond) -->
+  <polygon points="100,30 108,45 100,60 92,45" fill="#E74C3C" stroke="#C0392B" stroke-width="1"/>
+
+  <!-- Significance threshold line -->
+  <line x1="40" y1="65" x2="160" y2="65" stroke="#7F8C8D" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+  <!-- X-axis baseline -->
+  <line x1="40" y1="115" x2="160" y2="115" stroke="#BDC3C7" stroke-width="1"/>
+
+  <!-- Chromosome region indicator -->
+  <rect x="55" y="120" width="90" height="6" rx="3" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="0.5"/>
+  <rect x="85" y="120" width="30" height="6" rx="3" fill="#3498DB" opacity="0.7"/>
+
+  <!-- Scope handle -->
+  <line x1="150" y1="140" x2="185" y2="175" stroke="url(#scopeGradient)" stroke-width="12" stroke-linecap="round"/>
+  <line x1="150" y1="140" x2="185" y2="175" stroke="#5D6D7E" stroke-width="8" stroke-linecap="round"/>
+</svg>
