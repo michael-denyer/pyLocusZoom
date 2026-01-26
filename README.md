@@ -1,4 +1,7 @@
 [![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/michael-denyer/pyLocusZoom/graph/badge.svg)](https://codecov.io/gh/michael-denyer/pyLocusZoom)
+[![PyPI](https://img.shields.io/pypi/v/pylocuszoom)](https://pypi.org/project/pylocuszoom/)
+[![Bioconda](https://img.shields.io/conda/vn/bioconda/pylocuszoom)](https://anaconda.org/bioconda/pylocuszoom)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-red.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -6,9 +9,8 @@
 [![Plotly](https://img.shields.io/badge/Plotly-5.0+-3F4F75.svg)](https://plotly.com/python/)
 [![Bokeh](https://img.shields.io/badge/Bokeh-3.8+-E6526F.svg)](https://bokeh.org/)
 [![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
-
-# pyLocusZoom
 <img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
+# pyLocusZoom
 
 Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
 
@@ -404,6 +406,7 @@ Optional:
 ## Documentation
 
 - [User Guide](docs/USER_GUIDE.md) - Comprehensive documentation with API reference
+- [Architecture](docs/ARCHITECTURE.md) - Design decisions and component overview
 - [Example Notebook](examples/getting_started.ipynb) - Interactive tutorial
 - [CHANGELOG](CHANGELOG.md) - Version history
 

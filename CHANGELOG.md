@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-26
+
+### Added
+- **File format loaders** for common GWAS, eQTL, and fine-mapping formats:
+  - GWAS: `load_gwas`, `load_plink_assoc`, `load_regenie`, `load_bolt_lmm`, `load_gemma`, `load_saige`, `load_gwas_catalog`
+  - eQTL: `load_gtex_eqtl`, `load_eqtl_catalogue`, `load_matrixeqtl`
+  - Fine-mapping: `load_susie`, `load_finemap`, `load_caviar`, `load_polyfun`
+  - Gene annotations: `load_gtf`, `load_bed`, `load_ensembl_genes`
+- Pydantic validation for file loaders with detailed error messages
+- `py.typed` marker for PEP 561 type checking support
+- Pre-commit configuration for automated linting
+- GitHub issue templates for bug reports and feature requests
+- Codecov badge in README
+
+### Changed
+- eQTL and fine-mapping legends now route through backend protocol (works with all backends)
+- Simplified backend code with reduced duplication
+- Backend protocol class diagram added to ARCHITECTURE.md
+
+### Fixed
+- Additional robustness improvements for edge cases
+
 ## [0.3.0] - 2026-01-26
 
 ### Added
@@ -80,7 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 
-[Unreleased]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/michael-denyer/pyLocusZoom/releases/tag/v0.1.0

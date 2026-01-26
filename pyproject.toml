@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pylocuszoom"
-version = "0.3.0"
+version = "0.4.0"
 description = "Regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays"
 readme = "README.md"
 license = "GPL-3.0-or-later"

@@ -129,14 +129,36 @@ flowchart LR
 
 All backends implement the `PlotBackend` protocol defined in `backends/base.py`:
 
-```python
-class PlotBackend(Protocol):
-    def create_figure(self, n_panels, height_ratios, figsize) -> Any
-    def create_scatter(self, ax, x, y, colors, sizes, hover_data, **kwargs) -> None
-    def create_line(self, ax, x, y, **kwargs) -> None
-    def add_annotation(self, ax, text, xy, **kwargs) -> None
-    def finalize(self, fig, **kwargs) -> Any
-    def save(self, fig, path, **kwargs) -> None
+```mermaid
+classDiagram
+    class PlotBackend {
+        <<Protocol>>
+        +create_figure()
+        +scatter()
+        +line()
+        +fill_between()
+        +axhline()
+        +set_xlabel()
+        +set_ylabel()
+        +add_ld_legend()
+    }
+
+    class MatplotlibBackend {
+        +fig: Figure
+        +ax: Axes
+    }
+
+    class PlotlyBackend {
+        +fig: go.Figure
+    }
+
+    class BokehBackend {
+        +fig: figure
+    }
+
+    PlotBackend <|.. MatplotlibBackend
+    PlotBackend <|.. PlotlyBackend
+    PlotBackend <|.. BokehBackend
 ```
 
 ## Module Responsibilities
