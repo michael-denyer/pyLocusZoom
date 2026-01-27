@@ -239,3 +239,44 @@ def get_credible_set_color_palette(n_sets: int = 10) -> dict[int, str]:
     return {
         i + 1: CREDIBLE_SET_COLORS[i % len(CREDIBLE_SET_COLORS)] for i in range(n_sets)
     }
+
+
+# PheWAS category colors - distinct colors for phenotype categories
+PHEWAS_CATEGORY_COLORS: List[str] = [
+    "#E41A1C",  # red
+    "#377EB8",  # blue
+    "#4DAF4A",  # green
+    "#984EA3",  # purple
+    "#FF7F00",  # orange
+    "#FFFF33",  # yellow
+    "#A65628",  # brown
+    "#F781BF",  # pink
+    "#999999",  # grey
+    "#66C2A5",  # teal
+    "#FC8D62",  # salmon
+    "#8DA0CB",  # periwinkle
+]
+
+
+def get_phewas_category_color(category_idx: int) -> str:
+    """Get color for a PheWAS category by index.
+
+    Args:
+        category_idx: Zero-indexed category number.
+
+    Returns:
+        Hex color code string.
+    """
+    return PHEWAS_CATEGORY_COLORS[category_idx % len(PHEWAS_CATEGORY_COLORS)]
+
+
+def get_phewas_category_palette(categories: List[str]) -> dict[str, str]:
+    """Get color palette mapping category names to colors.
+
+    Args:
+        categories: List of unique category names.
+
+    Returns:
+        Dictionary mapping category names to hex colors.
+    """
+    return {cat: get_phewas_category_color(i) for i, cat in enumerate(categories)}

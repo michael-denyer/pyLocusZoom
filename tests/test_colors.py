@@ -88,6 +88,31 @@ class TestGetLdBin:
         assert get_ld_bin(None) == LD_NA_LABEL
 
 
+class TestPheWASColors:
+    """Tests for PheWAS category colors."""
+
+    def test_get_phewas_category_color(self):
+        """Test PheWAS category color assignment."""
+        from pylocuszoom.colors import get_phewas_category_color, PHEWAS_CATEGORY_COLORS
+
+        # First category should return first color
+        assert get_phewas_category_color(0) == PHEWAS_CATEGORY_COLORS[0]
+        # Should cycle through colors
+        n_colors = len(PHEWAS_CATEGORY_COLORS)
+        assert get_phewas_category_color(n_colors) == PHEWAS_CATEGORY_COLORS[0]
+
+    def test_phewas_category_palette(self):
+        """Test PheWAS category color palette generation."""
+        from pylocuszoom.colors import get_phewas_category_palette
+
+        categories = ["Cardiovascular", "Metabolic", "Neurological"]
+        palette = get_phewas_category_palette(categories)
+
+        assert len(palette) == 3
+        assert "Cardiovascular" in palette
+        assert all(c.startswith("#") for c in palette.values())
+
+
 class TestGetLdColorPalette:
     """Tests for get_ld_color_palette function."""
 
