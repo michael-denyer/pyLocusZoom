@@ -524,6 +524,19 @@ class PlotlyBackend:
             }
         )
 
+    def _get_panel_y_top(self, fig: go.Figure, row: int) -> float:
+        """Get the top y-coordinate (in paper coords) for a subplot row.
+
+        Plotly subplots have y-axis domains that define their vertical position.
+        This returns the top of the domain for positioning legends.
+        """
+        yaxis_name = f"yaxis{row}" if row > 1 else "yaxis"
+        yaxis = getattr(fig.layout, yaxis_name, None)
+        if yaxis and yaxis.domain:
+            return yaxis.domain[1]  # Top of domain
+        # Fallback: estimate based on row count
+        return 0.99
+
     def add_ld_legend(
         self,
         ax: Tuple[go.Figure, int],
@@ -534,6 +547,7 @@ class PlotlyBackend:
 
         Uses Plotly's separate legend feature (legend="legend") so LD legend
         can be positioned independently from eQTL and fine-mapping legends.
+        Legend is positioned at top-right of its associated panel.
         """
         fig, row = ax
 
@@ -578,12 +592,13 @@ class PlotlyBackend:
                 col=1,
             )
 
-        # Position LD legend (primary legend, top right)
+        # Position LD legend at top-right of its panel
+        y_pos = self._get_panel_y_top(fig, row)
         fig.update_layout(
             legend=dict(
                 title=dict(text="r²"),
                 x=0.99,
-                y=0.99,
+                y=y_pos,
                 xanchor="right",
                 yanchor="top",
                 bgcolor="rgba(255,255,255,0.9)",
@@ -718,12 +733,13 @@ class PlotlyBackend:
                 col=1,
             )
 
-        # Position eQTL legend (second legend, below LD legend)
+        # Position eQTL legend at top-right of its panel
+        y_pos = self._get_panel_y_top(fig, row)
         fig.update_layout(
             legend2=dict(
                 title=dict(text="eQTL effect"),
                 x=0.99,
-                y=0.65,
+                y=y_pos,
                 xanchor="right",
                 yanchor="top",
                 bgcolor="rgba(255,255,255,0.9)",
@@ -769,13 +785,13 @@ class PlotlyBackend:
                 col=1,
             )
 
-        # Position fine-mapping legend (second legend, below LD legend)
-        # Uses legend2 like eQTL since they don't appear together
+        # Position fine-mapping legend at top-right of its panel
+        y_pos = self._get_panel_y_top(fig, row)
         fig.update_layout(
             legend2=dict(
                 title=dict(text="Credible sets"),
                 x=0.99,
-                y=0.65,
+                y=y_pos,
                 xanchor="right",
                 yanchor="top",
                 bgcolor="rgba(255,255,255,0.9)",
