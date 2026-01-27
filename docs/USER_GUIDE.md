@@ -773,6 +773,44 @@ plotter = LocusZoomPlotter(
 
 Recombination maps must be named `chr{N}_recomb.tsv`.
 
+### Automatic Gene Annotations from Ensembl
+
+Instead of providing your own `genes_df`, enable automatic fetching from Ensembl:
+
+```python
+plotter = LocusZoomPlotter(species="human", auto_genes=True)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
+# Gene track populated automatically from Ensembl
+```
+
+**Supported Species:**
+| Alias | Ensembl Name |
+|-------|--------------|
+| human | homo_sapiens |
+| mouse | mus_musculus |
+| rat | rattus_norvegicus |
+| canine, dog | canis_lupus_familiaris |
+| feline, cat | felis_catus |
+
+Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
+
+**Region Limit:** Maximum 5Mb per request (Ensembl API limitation). For larger regions, provide `genes_df` directly.
+
+**Error Handling:** By default, API errors result in warnings and an empty gene track. Use `raise_on_error=True` in low-level functions to get exceptions instead.
+
+**Cache Location:**
+- Linux/macOS: `~/.cache/snp-scope-plot/ensembl/{species}/`
+- Windows: `%LOCALAPPDATA%/snp-scope-plot/ensembl/{species}/`
+
+```python
+# Clear cache when needed
+from pylocuszoom import clear_ensembl_cache
+clear_ensembl_cache()  # Clear all
+clear_ensembl_cache(species="human")  # Clear specific species
+```
+
+**Note:** Recombination rates are NOT available from Ensembl for most species. Continue to provide recombination maps separately.
+
 ---
 
 ## Recipes & Examples

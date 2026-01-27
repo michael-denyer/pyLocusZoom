@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `set_yticks()` backend method for consistent y-axis labels across all backends
 - Shared `convert_latex_to_unicode()` utility for interactive backends
+- Automatic gene annotation fetching from Ensembl REST API (`auto_genes=True`)
+- `get_genes_for_region()` function to fetch genes from Ensembl with disk caching
+- `fetch_genes_from_ensembl()` and `fetch_exons_from_ensembl()` low-level API functions
+- `clear_ensembl_cache()` utility to clear cached Ensembl data
+- Support for human, mouse, rat, and any Ensembl species
+- Retry logic with exponential backoff for Ensembl API resilience
+- 5Mb region size validation (Ensembl API limit)
 
 ### Changed
 - Forest plot example now uses odds ratios with `null_value=1.0` (more representative)
