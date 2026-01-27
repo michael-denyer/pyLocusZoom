@@ -197,3 +197,71 @@ def fetch_genes_from_ensembl(
     df = pd.DataFrame(records)
     logger.debug(f"Fetched {len(df)} genes from Ensembl")
     return df
+
+
+def fetch_exons_from_ensembl(
+    species: str,
+    chrom: str | int,
+    start: int,
+    end: int,
+    raise_on_error: bool = False,
+) -> pd.DataFrame:
+    """Fetch exon annotations from Ensembl REST API.
+
+    Args:
+        species: Species name or alias.
+        chrom: Chromosome name or number.
+        start: Region start position (1-based).
+        end: Region end position (1-based).
+        raise_on_error: If True, raise ValidationError on API errors.
+
+    Returns:
+        DataFrame with columns: chr, start, end, gene_name, exon_id, transcript_id.
+        Returns empty DataFrame on API error (unless raise_on_error=True).
+
+    Raises:
+        ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
+    """
+    # Validate region size
+    region_size = end - start
+    if region_size > ENSEMBL_MAX_REGION_SIZE:
+        raise ValidationError(
+            f"Region size {region_size:,} bp exceeds Ensembl API limit of 5Mb. "
+            f"Please use a smaller region or provide exons_df directly."
+        )
+
+    ensembl_species = get_ensembl_species_name(species)
+    chrom_str = str(chrom).replace("chr", "")
+    region = f"{chrom_str}:{start}-{end}"
+
+    url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
+    params = {"feature": "exon"}
+
+    logger.debug(f"Fetching exons from Ensembl: {url}")
+
+    data = _make_ensembl_request(url, params, raise_on_error=raise_on_error)
+
+    if data is None:
+        return pd.DataFrame()
+
+    if not data:
+        return pd.DataFrame()
+
+    records = []
+    for exon in data:
+        if exon.get("feature_type") != "exon":
+            continue
+        records.append(
+            {
+                "chr": str(exon.get("seq_region_name", chrom_str)),
+                "start": exon.get("start"),
+                "end": exon.get("end"),
+                "gene_name": "",  # Exon endpoint doesn't include gene name
+                "exon_id": exon.get("id", ""),
+                "transcript_id": exon.get("Parent", ""),
+            }
+        )
+
+    df = pd.DataFrame(records)
+    logger.debug(f"Fetched {len(df)} exons from Ensembl")
+    return df

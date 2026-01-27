@@ -133,3 +133,50 @@ def test_fetch_genes_retry_on_429():
 
     assert len(df) == 1
     assert df["gene_name"].iloc[0] == "BRCA2"
+
+
+def test_fetch_exons_from_ensembl_success():
+    """Test fetching exons from Ensembl API with mocked response."""
+    from pylocuszoom.ensembl import fetch_exons_from_ensembl
+
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.json.return_value = [
+        {
+            "id": "ENSE00003659301",
+            "Parent": "ENST00000380152",
+            "seq_region_name": "13",
+            "start": 32315474,
+            "end": 32315667,
+            "strand": 1,
+            "feature_type": "exon",
+        },
+        {
+            "id": "ENSE00003527960",
+            "Parent": "ENST00000380152",
+            "seq_region_name": "13",
+            "start": 32316422,
+            "end": 32316527,
+            "strand": 1,
+            "feature_type": "exon",
+        },
+    ]
+
+    with patch("pylocuszoom.ensembl.requests.get", return_value=mock_response):
+        df = fetch_exons_from_ensembl("human", chrom="13", start=32000000, end=33000000)
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == 2
+    assert "chr" in df.columns
+    assert "start" in df.columns
+    assert "end" in df.columns
+    assert "exon_id" in df.columns
+
+
+def test_fetch_exons_region_too_large():
+    """Test that regions > 5Mb raise ValidationError."""
+    from pylocuszoom.ensembl import fetch_exons_from_ensembl
+    from pylocuszoom.utils import ValidationError
+
+    with pytest.raises(ValidationError, match="5Mb"):
+        fetch_exons_from_ensembl("human", chrom="1", start=1000000, end=10000000)
