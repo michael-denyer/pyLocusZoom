@@ -386,3 +386,89 @@ class PlotBackend(Protocol):
             loc: Legend location.
         """
         ...
+
+    def axvline(
+        self,
+        ax: Any,
+        x: float,
+        color: str = "grey",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        alpha: float = 1.0,
+        zorder: int = 1,
+    ) -> Any:
+        """Add a vertical line across the axes.
+
+        Args:
+            ax: Axes or panel.
+            x: X-value for the line.
+            color: Line color.
+            linestyle: Line style.
+            linewidth: Line width.
+            alpha: Line transparency (0-1).
+            zorder: Drawing order.
+
+        Returns:
+            The line object.
+        """
+        ...
+
+    def hbar(
+        self,
+        ax: Any,
+        y: pd.Series,
+        width: pd.Series,
+        height: float = 0.8,
+        left: Union[float, pd.Series] = 0,
+        color: Union[str, List[str]] = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Create horizontal bar chart.
+
+        Args:
+            ax: Axes or panel.
+            y: Y positions for bars.
+            width: Bar widths (x-extent).
+            height: Bar height.
+            left: Left edge positions.
+            color: Bar colors.
+            edgecolor: Edge color.
+            linewidth: Edge width.
+            zorder: Drawing order.
+
+        Returns:
+            The bar collection object.
+        """
+        ...
+
+    def errorbar_h(
+        self,
+        ax: Any,
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> Any:
+        """Add horizontal error bars (for forest plots).
+
+        Args:
+            ax: Axes or panel.
+            x: X positions (effect sizes).
+            y: Y positions.
+            xerr_lower: Lower error (distance from x).
+            xerr_upper: Upper error (distance from x).
+            color: Line color.
+            linewidth: Line width.
+            capsize: Cap size in points.
+            zorder: Drawing order.
+
+        Returns:
+            The errorbar object.
+        """
+        ...

@@ -782,6 +782,103 @@ class PlotlyBackend:
             )
         )
 
+    def axvline(
+        self,
+        ax: Tuple[go.Figure, int],
+        x: float,
+        color: str = "grey",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        alpha: float = 1.0,
+        zorder: int = 1,
+    ) -> Any:
+        """Add a vertical line across the panel."""
+        fig, row = ax
+
+        dash_map = {"-": "solid", "--": "dash", ":": "dot", "-.": "dashdot"}
+        dash = dash_map.get(linestyle, "dash")
+
+        fig.add_vline(
+            x=x,
+            line_dash=dash,
+            line_color=color,
+            line_width=linewidth,
+            opacity=alpha,
+            row=row,
+            col=1,
+        )
+
+    def hbar(
+        self,
+        ax: Tuple[go.Figure, int],
+        y: pd.Series,
+        width: pd.Series,
+        height: float = 0.8,
+        left: Union[float, pd.Series] = 0,
+        color: Union[str, List[str]] = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Create horizontal bar chart."""
+        fig, row = ax
+
+        # Convert left to array if scalar
+        if isinstance(left, (int, float)):
+            left_arr = [left] * len(y)
+        else:
+            left_arr = list(left) if hasattr(left, "tolist") else left
+
+        trace = go.Bar(
+            y=y,
+            x=width,
+            orientation="h",
+            base=left_arr,
+            marker=dict(
+                color=color,
+                line=dict(color=edgecolor, width=linewidth),
+            ),
+            showlegend=False,
+        )
+
+        fig.add_trace(trace, row=row, col=1)
+        return trace
+
+    def errorbar_h(
+        self,
+        ax: Tuple[go.Figure, int],
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> Any:
+        """Add horizontal error bars."""
+        fig, row = ax
+
+        trace = go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(size=0),
+            error_x=dict(
+                type="data",
+                symmetric=False,
+                array=xerr_upper,
+                arrayminus=xerr_lower,
+                color=color,
+                thickness=linewidth,
+                width=capsize,
+            ),
+            showlegend=False,
+        )
+
+        fig.add_trace(trace, row=row, col=1)
+        return trace
+
     def finalize_layout(
         self,
         fig: go.Figure,

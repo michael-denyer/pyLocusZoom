@@ -47,6 +47,121 @@ def sample_genes_df():
     )
 
 
+class TestBackendForestPlotMethods:
+    """Tests for forest plot backend methods (hbar, errorbar_h, axvline)."""
+
+    def test_hbar_matplotlib(self):
+        """Test horizontal bar chart in matplotlib backend."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        y = pd.Series([0, 1, 2])
+        width = pd.Series([0.5, 0.8, 0.3])
+
+        backend.hbar(ax, y=y, width=width, height=0.5, color="blue")
+        # Should not raise
+
+    def test_errorbar_h_matplotlib(self):
+        """Test horizontal error bar in matplotlib backend."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        x = pd.Series([0.5, 0.8, 0.3])
+        y = pd.Series([0, 1, 2])
+        xerr_lower = pd.Series([0.1, 0.2, 0.1])
+        xerr_upper = pd.Series([0.1, 0.1, 0.2])
+
+        backend.errorbar_h(ax, x=x, y=y, xerr_lower=xerr_lower, xerr_upper=xerr_upper)
+        # Should not raise
+
+    def test_axvline_matplotlib(self):
+        """Test vertical line in matplotlib backend."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        backend.axvline(ax, x=0.5, color="red", linestyle="--")
+        # Should not raise
+
+    def test_axvline_plotly(self):
+        """Test vertical line in plotly backend."""
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        backend.axvline(ax, x=0.5, color="red", linestyle="--")
+        # Should not raise
+
+    def test_axvline_bokeh(self):
+        """Test vertical line in bokeh backend."""
+        backend = BokehBackend()
+        layout, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        backend.axvline(ax, x=0.5, color="red", linestyle="--")
+        # Should not raise
+
+    def test_hbar_plotly(self):
+        """Test horizontal bar in plotly backend."""
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        y = pd.Series([0, 1, 2])
+        width = pd.Series([0.5, 0.8, 0.3])
+
+        backend.hbar(ax, y=y, width=width, height=0.5, color="blue")
+        # Should not raise
+
+    def test_errorbar_h_plotly(self):
+        """Test horizontal error bar in plotly backend."""
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        x = pd.Series([0.5, 0.8, 0.3])
+        y = pd.Series([0, 1, 2])
+        xerr_lower = pd.Series([0.1, 0.2, 0.1])
+        xerr_upper = pd.Series([0.1, 0.1, 0.2])
+
+        backend.errorbar_h(ax, x=x, y=y, xerr_lower=xerr_lower, xerr_upper=xerr_upper)
+        # Should not raise
+
+    def test_hbar_bokeh(self):
+        """Test horizontal bar in bokeh backend."""
+        backend = BokehBackend()
+        layout, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        y = pd.Series([0, 1, 2])
+        width = pd.Series([0.5, 0.8, 0.3])
+
+        backend.hbar(ax, y=y, width=width, height=0.5, color="blue")
+        # Should not raise
+
+    def test_errorbar_h_bokeh(self):
+        """Test horizontal error bar in bokeh backend."""
+        backend = BokehBackend()
+        layout, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        ax = axes[0]
+
+        x = pd.Series([0.5, 0.8, 0.3])
+        y = pd.Series([0, 1, 2])
+        xerr_lower = pd.Series([0.1, 0.2, 0.1])
+        xerr_upper = pd.Series([0.1, 0.1, 0.2])
+
+        backend.errorbar_h(ax, x=x, y=y, xerr_lower=xerr_lower, xerr_upper=xerr_upper)
+        # Should not raise
+
+
 class TestPlotlyNotebookCompatibility:
     """Tests for Plotly backend notebook compatibility."""
 

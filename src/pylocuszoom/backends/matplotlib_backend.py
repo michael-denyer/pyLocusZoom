@@ -394,6 +394,75 @@ class MatplotlibBackend:
         """Add simple legend for labeled scatter data."""
         ax.legend(loc=loc, fontsize=9)
 
+    def axvline(
+        self,
+        ax: Axes,
+        x: float,
+        color: str = "grey",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        alpha: float = 1.0,
+        zorder: int = 1,
+    ) -> Any:
+        """Add a vertical line across the axes."""
+        return ax.axvline(
+            x=x,
+            color=color,
+            linestyle=linestyle,
+            linewidth=linewidth,
+            alpha=alpha,
+            zorder=zorder,
+        )
+
+    def hbar(
+        self,
+        ax: Axes,
+        y: pd.Series,
+        width: pd.Series,
+        height: float = 0.8,
+        left: Union[float, pd.Series] = 0,
+        color: Union[str, List[str]] = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Create horizontal bar chart."""
+        return ax.barh(
+            y=y,
+            width=width,
+            height=height,
+            left=left,
+            color=color,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            zorder=zorder,
+        )
+
+    def errorbar_h(
+        self,
+        ax: Axes,
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> Any:
+        """Add horizontal error bars."""
+        xerr = [xerr_lower.values, xerr_upper.values]
+        return ax.errorbar(
+            x=x,
+            y=y,
+            xerr=xerr,
+            fmt="none",
+            ecolor=color,
+            elinewidth=linewidth,
+            capsize=capsize,
+            zorder=zorder,
+        )
+
     def finalize_layout(
         self,
         fig: Figure,

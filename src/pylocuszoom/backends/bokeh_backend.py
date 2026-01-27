@@ -683,6 +683,101 @@ class BokehBackend:
         ax.legend.background_fill_alpha = 0.9
         ax.legend.border_line_color = "black"
 
+    def axvline(
+        self,
+        ax: figure,
+        x: float,
+        color: str = "grey",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        alpha: float = 1.0,
+        zorder: int = 1,
+    ) -> Any:
+        """Add a vertical line across the figure."""
+        dash_map = {"-": "solid", "--": "dashed", ":": "dotted", "-.": "dashdot"}
+        line_dash = dash_map.get(linestyle, "dashed")
+
+        span = Span(
+            location=x,
+            dimension="height",
+            line_color=color,
+            line_dash=line_dash,
+            line_width=linewidth,
+            line_alpha=alpha,
+        )
+        ax.add_layout(span)
+        return span
+
+    def hbar(
+        self,
+        ax: figure,
+        y: pd.Series,
+        width: pd.Series,
+        height: float = 0.8,
+        left: Union[float, pd.Series] = 0,
+        color: Union[str, List[str]] = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Create horizontal bar chart."""
+        # Convert left to array if scalar
+        if isinstance(left, (int, float)):
+            left_arr = [left] * len(y)
+        else:
+            left_arr = list(left) if hasattr(left, "tolist") else left
+
+        # Calculate right edge
+        right_arr = [l + w for l, w in zip(left_arr, width)]
+
+        return ax.hbar(
+            y=y.values,
+            right=right_arr,
+            left=left_arr,
+            height=height,
+            fill_color=color,
+            line_color=edgecolor,
+            line_width=linewidth,
+        )
+
+    def errorbar_h(
+        self,
+        ax: figure,
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> Any:
+        """Add horizontal error bars."""
+        from bokeh.models import Whisker
+
+        # Calculate bounds
+        lower = x - xerr_lower
+        upper = x + xerr_upper
+
+        source = ColumnDataSource(data={
+            "y": y.values,
+            "lower": lower.values,
+            "upper": upper.values,
+        })
+
+        # Add horizontal whisker
+        whisker = Whisker(
+            source=source,
+            base="y",
+            lower="lower",
+            upper="upper",
+            dimension="width",
+            line_color=color,
+            line_width=linewidth,
+        )
+        ax.add_layout(whisker)
+        return whisker
+
     def finalize_layout(
         self,
         fig: Any,
