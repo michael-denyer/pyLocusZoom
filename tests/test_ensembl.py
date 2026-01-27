@@ -180,3 +180,76 @@ def test_fetch_exons_region_too_large():
 
     with pytest.raises(ValidationError, match="5Mb"):
         fetch_exons_from_ensembl("human", chrom="1", start=1000000, end=10000000)
+
+
+# --- Caching tests ---
+from pathlib import Path
+import tempfile
+
+
+def test_get_ensembl_cache_dir():
+    """Test cache directory follows snp-scope-plot convention."""
+    from pylocuszoom.ensembl import get_ensembl_cache_dir
+
+    cache_dir = get_ensembl_cache_dir()
+    assert isinstance(cache_dir, Path)
+    assert "snp-scope-plot" in str(cache_dir)
+    assert "ensembl" in str(cache_dir)
+
+
+def test_get_cached_genes_miss():
+    """Test cache miss returns None."""
+    from pylocuszoom.ensembl import get_cached_genes
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = get_cached_genes(
+            cache_dir=Path(tmpdir),
+            species="human",
+            chrom="13",
+            start=32000000,
+            end=33000000,
+        )
+        assert result is None
+
+
+def test_save_and_load_cached_genes():
+    """Test saving and loading cached genes using CSV."""
+    from pylocuszoom.ensembl import save_cached_genes, get_cached_genes
+
+    df = pd.DataFrame({
+        "chr": ["13", "13"],
+        "start": [32315474, 32400000],
+        "end": [32400266, 32500000],
+        "gene_name": ["BRCA2", "TEST"],
+        "strand": ["+", "-"],
+    })
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+
+        save_cached_genes(
+            df,
+            cache_dir=cache_dir,
+            species="human",
+            chrom="13",
+            start=32000000,
+            end=33000000,
+        )
+
+        # Verify CSV file created (not parquet)
+        csv_files = list(cache_dir.glob("**/*.csv"))
+        assert len(csv_files) == 1
+
+        loaded = get_cached_genes(
+            cache_dir=cache_dir,
+            species="human",
+            chrom="13",
+            start=32000000,
+            end=33000000,
+        )
+
+        assert loaded is not None
+        assert len(loaded) == 2
+        # Sort for deterministic comparison
+        loaded_sorted = loaded.sort_values("start")
+        assert loaded_sorted["gene_name"].tolist() == ["BRCA2", "TEST"]

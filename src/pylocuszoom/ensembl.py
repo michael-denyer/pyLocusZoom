@@ -8,7 +8,11 @@ Note: Recombination rates are NOT available from Ensembl for most species.
 Use species-specific recombination maps instead (see recombination.py).
 """
 
+import hashlib
+import os
+import sys
 import time
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -53,6 +57,97 @@ def get_ensembl_species_name(species: str) -> str:
         Ensembl-compatible species name (e.g., "canis_lupus_familiaris").
     """
     return SPECIES_ALIASES.get(species.lower(), species.lower())
+
+
+def get_ensembl_cache_dir() -> Path:
+    """Get the cache directory for Ensembl data.
+
+    Uses same base location as recombination maps: ~/.cache/snp-scope-plot/ensembl
+
+    Returns:
+        Path to cache directory (created if doesn't exist).
+    """
+    if sys.platform == "darwin":
+        base = Path.home() / ".cache"
+    elif sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    else:
+        base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+
+    cache_dir = base / "snp-scope-plot" / "ensembl"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def _cache_key(species: str, chrom: str, start: int, end: int) -> str:
+    """Generate cache key for a region."""
+    key_str = f"{species}_{chrom}_{start}_{end}"
+    return hashlib.md5(key_str.encode()).hexdigest()[:16]
+
+
+def get_cached_genes(
+    cache_dir: Path,
+    species: str,
+    chrom: str | int,
+    start: int,
+    end: int,
+) -> pd.DataFrame | None:
+    """Load cached genes if available.
+
+    Args:
+        cache_dir: Cache directory path.
+        species: Species name or alias.
+        chrom: Chromosome name or number.
+        start: Region start position.
+        end: Region end position.
+
+    Returns:
+        DataFrame if cache hit, None if cache miss.
+    """
+    ensembl_species = get_ensembl_species_name(species)
+    chrom_str = str(chrom).replace("chr", "")
+    cache_key = _cache_key(ensembl_species, chrom_str, start, end)
+
+    # Species-specific subdirectory
+    species_dir = cache_dir / ensembl_species
+    cache_file = species_dir / f"genes_{cache_key}.csv"
+
+    if cache_file.exists():
+        logger.debug(f"Cache hit: {cache_file}")
+        return pd.read_csv(cache_file)
+
+    return None
+
+
+def save_cached_genes(
+    df: pd.DataFrame,
+    cache_dir: Path,
+    species: str,
+    chrom: str | int,
+    start: int,
+    end: int,
+) -> None:
+    """Save genes to cache as CSV.
+
+    Args:
+        df: DataFrame with gene annotations to cache.
+        cache_dir: Cache directory path.
+        species: Species name or alias.
+        chrom: Chromosome name or number.
+        start: Region start position.
+        end: Region end position.
+    """
+    ensembl_species = get_ensembl_species_name(species)
+    chrom_str = str(chrom).replace("chr", "")
+    cache_key = _cache_key(ensembl_species, chrom_str, start, end)
+
+    # Species-specific subdirectory
+    species_dir = cache_dir / ensembl_species
+    species_dir.mkdir(parents=True, exist_ok=True)
+
+    cache_file = species_dir / f"genes_{cache_key}.csv"
+    df.to_csv(cache_file, index=False)
+    logger.debug(f"Cached genes to: {cache_file}")
 
 
 def _make_ensembl_request(
