@@ -10,14 +10,99 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.sha256.outputs.sha256 }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build package
         run: uv build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Wait for PyPI availability
+        env:
+          PKG_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Waiting for pylocuszoom $PKG_VERSION to be available on PyPI..."
+          for i in {1..30}; do
+            if curl -s "https://pypi.org/pypi/pylocuszoom/$PKG_VERSION/json" | grep -q '"version"'; then
+              echo "Package available on PyPI"
+              break
+            fi
+            echo "Attempt $i: Package not yet available, waiting 10s..."
+            sleep 10
+          done
+
+      - name: Get SHA256
+        id: sha256
+        env:
+          PKG_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          URL="https://pypi.io/packages/source/p/pylocuszoom/pylocuszoom-$PKG_VERSION.tar.gz"
+          SHA256=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $SHA256"
+
+  update-bioconda:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update bioconda/meta.yaml
+        env:
+          PKG_VERSION: ${{ needs.publish.outputs.version }}
+          PKG_SHA256: ${{ needs.publish.outputs.sha256 }}
+        run: |
+          # Update version
+          sed -i "s/{% set version = \".*\" %}/{% set version = \"$PKG_VERSION\" %}/" bioconda/meta.yaml
+
+          # Update sha256
+          sed -i "s/sha256: .*/sha256: $PKG_SHA256/" bioconda/meta.yaml
+
+          # Update plotly version requirement
+          sed -i "s/plotly >=5.0.0/plotly >=5.15.0/" bioconda/meta.yaml
+
+          # Add new dependencies if missing
+          if ! grep -q "pydantic" bioconda/meta.yaml; then
+            sed -i '/adjusttext/a\    - pydantic >=2.0.0' bioconda/meta.yaml
+          fi
+          if ! grep -q "requests" bioconda/meta.yaml; then
+            sed -i '/pydantic/a\    - requests >=2.25.0' bioconda/meta.yaml
+          fi
+          if ! grep -q "tqdm" bioconda/meta.yaml; then
+            sed -i '/requests/a\    - tqdm >=4.60.0' bioconda/meta.yaml
+          fi
+
+          cat bioconda/meta.yaml
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update bioconda recipe for new release"
+          branch: bioconda-update
+          title: "Update bioconda recipe"
+          body: |
+            Automated update of bioconda/meta.yaml after PyPI release.
+
+            **Next steps:**
+            1. Review this PR
+            2. Merge to main
+            3. Copy `bioconda/meta.yaml` to your fork of bioconda-recipes
+            4. Submit PR to bioconda-recipes
+          labels: |
+            bioconda
+            automated
