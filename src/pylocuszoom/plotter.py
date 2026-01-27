@@ -657,7 +657,6 @@ class LocusZoomPlotter:
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=3,
-                    label=f"CS{cs_id}",
                     hover_data=_build_finemapping_hover_data(cs_data),
                 )
             # Plot variants not in any credible set
