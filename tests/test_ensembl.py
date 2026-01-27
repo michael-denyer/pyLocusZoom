@@ -1,6 +1,8 @@
 # tests/test_ensembl.py
 """Tests for Ensembl REST API integration."""
 
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -125,7 +127,9 @@ def test_fetch_genes_retry_on_429():
         },
     ]
 
-    with patch("pylocuszoom.ensembl.requests.get", side_effect=[mock_429, mock_success]):
+    with patch(
+        "pylocuszoom.ensembl.requests.get", side_effect=[mock_429, mock_success]
+    ):
         with patch("pylocuszoom.ensembl.time.sleep"):  # Skip actual sleep
             df = fetch_genes_from_ensembl(
                 "human", chrom="13", start=32000000, end=33000000
@@ -183,8 +187,6 @@ def test_fetch_exons_region_too_large():
 
 
 # --- Caching tests ---
-from pathlib import Path
-import tempfile
 
 
 def test_get_ensembl_cache_dir():
@@ -214,15 +216,17 @@ def test_get_cached_genes_miss():
 
 def test_save_and_load_cached_genes():
     """Test saving and loading cached genes using CSV."""
-    from pylocuszoom.ensembl import save_cached_genes, get_cached_genes
+    from pylocuszoom.ensembl import get_cached_genes, save_cached_genes
 
-    df = pd.DataFrame({
-        "chr": ["13", "13"],
-        "start": [32315474, 32400000],
-        "end": [32400266, 32500000],
-        "gene_name": ["BRCA2", "TEST"],
-        "strand": ["+", "-"],
-    })
+    df = pd.DataFrame(
+        {
+            "chr": ["13", "13"],
+            "start": [32315474, 32400000],
+            "end": [32400266, 32500000],
+            "gene_name": ["BRCA2", "TEST"],
+            "strand": ["+", "-"],
+        }
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -263,13 +267,15 @@ def test_get_genes_for_region_uses_cache():
     from pylocuszoom.ensembl import get_genes_for_region, save_cached_genes
 
     # Pre-populate cache
-    cached_df = pd.DataFrame({
-        "chr": ["13"],
-        "start": [32315474],
-        "end": [32400266],
-        "gene_name": ["CACHED_GENE"],
-        "strand": ["+"],
-    })
+    cached_df = pd.DataFrame(
+        {
+            "chr": ["13"],
+            "start": [32315474],
+            "end": [32400266],
+            "gene_name": ["CACHED_GENE"],
+            "strand": ["+"],
+        }
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -367,7 +373,9 @@ def test_get_genes_for_region_include_exons():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
 
-        with patch("pylocuszoom.ensembl.requests.get", side_effect=[mock_genes, mock_exons]):
+        with patch(
+            "pylocuszoom.ensembl.requests.get", side_effect=[mock_genes, mock_exons]
+        ):
             genes_df, exons_df = get_genes_for_region(
                 species="human",
                 chrom="13",
@@ -392,13 +400,15 @@ def test_clear_ensembl_cache():
         cache_dir = Path(tmpdir)
 
         # Create some cache files
-        df = pd.DataFrame({
-            "chr": ["1"],
-            "start": [100],
-            "end": [200],
-            "gene_name": ["X"],
-            "strand": ["+"],
-        })
+        df = pd.DataFrame(
+            {
+                "chr": ["1"],
+                "start": [100],
+                "end": [200],
+                "gene_name": ["X"],
+                "strand": ["+"],
+            }
+        )
         save_cached_genes(df, cache_dir, "human", "1", 100, 200)
         save_cached_genes(df, cache_dir, "mouse", "1", 100, 200)
 
@@ -420,13 +430,15 @@ def test_clear_ensembl_cache_species_specific():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
 
-        df = pd.DataFrame({
-            "chr": ["1"],
-            "start": [100],
-            "end": [200],
-            "gene_name": ["X"],
-            "strand": ["+"],
-        })
+        df = pd.DataFrame(
+            {
+                "chr": ["1"],
+                "start": [100],
+                "end": [200],
+                "gene_name": ["X"],
+                "strand": ["+"],
+            }
+        )
         save_cached_genes(df, cache_dir, "human", "1", 100, 200)
         save_cached_genes(df, cache_dir, "mouse", "1", 100, 200)
 
@@ -444,9 +456,9 @@ def test_clear_ensembl_cache_species_specific():
 def test_ensembl_functions_exported():
     """Test that Ensembl functions are exported from main package."""
     from pylocuszoom import (
-        get_genes_for_region,
-        fetch_genes_from_ensembl,
         clear_ensembl_cache,
+        fetch_genes_from_ensembl,
+        get_genes_for_region,
     )
 
     assert callable(get_genes_for_region)
