@@ -14,10 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Forest plot and PheWAS validation utilities
 - Backend methods: `axvline()`, `hbar()`, `errorbar_h()` for new plot types
 - Example plots for PheWAS and forest plots
+- Progress bars (tqdm) for recombination map and liftover chain downloads
+- `requests` and `tqdm` as core dependencies for reliable downloads with progress
+- `pytest-randomly` and `pytest-xdist` as dev dependencies for test randomization and parallel execution
 
 ### Changed
 - Bumped minimum Plotly version to 5.15.0 (required for multiple legends feature)
 - eQTL loaders now output `effect_size` column instead of `effect` for plotter compatibility
+- Download functions now use `requests` with streaming and progress bars instead of `urllib`
 
 ### Fixed
 - SAIGE loader now prefers SPA-adjusted p-values (`p.value.NA`) over raw p-values when both present

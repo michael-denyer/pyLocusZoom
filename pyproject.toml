@@ -35,12 +35,16 @@ dependencies = [
     "kaleido>=0.2.0",
     "adjustText>=0.8",
     "pydantic>=2.0.0",
+    "requests>=2.25.0",
+    "tqdm>=4.60.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-randomly>=3.0.0",
+    "pytest-xdist>=3.0.0",
     "ruff>=0.1.0",
 ]
 spark = [

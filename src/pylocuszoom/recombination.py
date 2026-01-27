@@ -9,12 +9,13 @@ Provides:
 import os
 import tarfile
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import requests
 from matplotlib.axes import Axes
+from tqdm import tqdm
 
 from .logging import logger
 
@@ -54,6 +55,38 @@ def get_chain_file_path() -> Path:
     return get_default_data_dir() / "canFam3ToCanFam4.over.chain.gz"
 
 
+def _download_with_progress(
+    url: str, dest_path: Path, desc: str = "Downloading"
+) -> None:
+    """Download a file with a progress bar.
+
+    Args:
+        url: URL to download from.
+        dest_path: Destination file path.
+        desc: Description for the progress bar.
+    """
+    response = requests.get(url, stream=True, timeout=60)
+    response.raise_for_status()
+
+    total_size = int(response.headers.get("content-length", 0))
+
+    with (
+        open(dest_path, "wb") as f,
+        tqdm(
+            total=total_size,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            desc=desc,
+            disable=total_size == 0,  # Disable if size unknown
+        ) as pbar,
+    ):
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+                pbar.update(len(chunk))
+
+
 def download_liftover_chain(force: bool = False) -> Path:
     """Download the CanFam3 to CanFam4 liftover chain file.
 
@@ -73,20 +106,11 @@ def download_liftover_chain(force: bool = False) -> Path:
     logger.info("Downloading CanFam3 to CanFam4 liftover chain...")
     logger.debug(f"Source: {CANFAM3_TO_CANFAM4_CHAIN_URL}")
 
-    try:
-        urllib.request.urlretrieve(CANFAM3_TO_CANFAM4_CHAIN_URL, chain_path)
-    except Exception as e:
-        logger.debug(f"urllib download failed: {e}")
-        try:
-            import requests
-
-            response = requests.get(CANFAM3_TO_CANFAM4_CHAIN_URL, timeout=60)
-            response.raise_for_status()
-            chain_path.write_bytes(response.content)
-        except ImportError:
-            raise RuntimeError(
-                "Failed to download. Install requests: pip install requests"
-            )
+    _download_with_progress(
+        CANFAM3_TO_CANFAM4_CHAIN_URL,
+        chain_path,
+        desc="Liftover chain",
+    )
 
     logger.info(f"Chain file saved to: {chain_path}")
     return chain_path
@@ -217,24 +241,14 @@ def download_canine_recombination_maps(
     logger.debug(f"Source: {CANINE_RECOMB_URL}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Download tar.gz file
+        # Download tar.gz file with progress bar
         tar_path = Path(tmpdir) / "dog_genetic_maps.tar.gz"
 
-        try:
-            urllib.request.urlretrieve(CANINE_RECOMB_URL, tar_path)
-        except Exception as e:
-            logger.debug(f"urllib download failed: {e}")
-            logger.debug("Trying alternative method with requests...")
-            try:
-                import requests
-
-                response = requests.get(CANINE_RECOMB_URL, timeout=60)
-                response.raise_for_status()
-                tar_path.write_bytes(response.content)
-            except ImportError:
-                raise RuntimeError(
-                    "Failed to download. Install requests: pip install requests"
-                )
+        _download_with_progress(
+            CANINE_RECOMB_URL,
+            tar_path,
+            desc="Recombination maps",
+        )
 
         logger.debug(f"Downloaded {tar_path.stat().st_size / 1024:.1f} KB")
 
