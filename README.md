@@ -36,6 +36,7 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 7. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
 8. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
 9. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
+10. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
 
 ## Installation
 
@@ -134,6 +135,21 @@ fig = plotter.plot(
     genes_df=my_genes_df,
 )
 ```
+
+## Automatic Gene Annotations
+
+pyLocusZoom can automatically fetch gene annotations from Ensembl for any species:
+
+```python
+# Enable automatic gene fetching
+plotter = LocusZoomPlotter(species="human", auto_genes=True)
+
+# No need to provide genes_df - fetched automatically
+fig = plotter.plot(gwas_df, chrom=13, start=32000000, end=33000000)
+```
+
+Supported species aliases: `human`, `mouse`, `rat`, `canine`/`dog`, `feline`/`cat`, or any Ensembl species name.
+Data is cached locally for fast subsequent plots. Maximum region size is 5Mb (Ensembl API limit).
 
 ## Backends
 

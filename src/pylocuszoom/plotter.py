@@ -33,6 +33,7 @@ from .colors import (
     get_ld_color_palette,
     get_phewas_category_palette,
 )
+from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import (
     get_credible_sets,
@@ -119,8 +120,21 @@ class LocusZoomPlotter:
         recomb_data_dir: Optional[str] = None,
         genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
         log_level: Optional[str] = "INFO",
+        auto_genes: bool = False,
     ):
-        """Initialize the plotter."""
+        """Initialize the plotter.
+
+        Args:
+            species: Species name ('canine', 'feline', or None for custom).
+            genome_build: Genome build for coordinate system.
+            backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
+            plink_path: Path to PLINK executable for LD calculation.
+            recomb_data_dir: Directory containing recombination maps.
+            genomewide_threshold: P-value threshold for significance line.
+            log_level: Logging level.
+            auto_genes: If True, automatically fetch genes from Ensembl when
+                genes_df is not provided. Default False for backward compatibility.
+        """
         # Configure logging
         if log_level is not None:
             enable_logging(log_level)
@@ -135,6 +149,7 @@ class LocusZoomPlotter:
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
         self._genomewide_line = -np.log10(genomewide_threshold)
+        self._auto_genes = auto_genes
 
         # Cache for loaded data
         self._recomb_cache = {}
@@ -248,6 +263,22 @@ class LocusZoomPlotter:
         """
         # Validate inputs
         validate_gwas_df(gwas_df, pos_col=pos_col, p_col=p_col)
+
+        # Auto-fetch genes if enabled and not provided
+        if genes_df is None and self._auto_genes:
+            logger.debug(
+                f"auto_genes enabled, fetching genes for chr{chrom}:{start}-{end}"
+            )
+            genes_df = get_genes_for_region(
+                species=self.species,
+                chrom=chrom,
+                start=start,
+                end=end,
+            )
+            if genes_df.empty:
+                logger.debug("No genes found in region from Ensembl")
+                genes_df = None
+
         if genes_df is not None:
             validate_genes_df(genes_df)
 

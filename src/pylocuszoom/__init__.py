@@ -51,6 +51,15 @@ from .colors import (
     get_phewas_category_palette,
 )
 
+# Ensembl integration
+from .ensembl import (
+    clear_ensembl_cache,
+    fetch_exons_from_ensembl,
+    fetch_genes_from_ensembl,
+    get_ensembl_species_name,
+    get_genes_for_region,
+)
+
 # eQTL support
 from .eqtl import (
     EQTLValidationError,
@@ -208,4 +217,10 @@ __all__ = [
     "load_ensembl_genes",
     # Schema validation
     "LoaderValidationError",
+    # Ensembl integration
+    "get_genes_for_region",
+    "fetch_genes_from_ensembl",
+    "fetch_exons_from_ensembl",
+    "get_ensembl_species_name",
+    "clear_ensembl_cache",
 ]
