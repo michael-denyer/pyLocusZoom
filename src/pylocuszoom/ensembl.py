@@ -392,6 +392,10 @@ def get_genes_for_region(
 
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
+
+    Note:
+        Gene annotations are cached to disk. Exons are fetched from the API
+        on each call when include_exons=True (not cached separately).
     """
     if cache_dir is None:
         cache_dir = get_ensembl_cache_dir()
@@ -415,8 +419,8 @@ def get_genes_for_region(
         species, chrom_str, start, end, raise_on_error=raise_on_error
     )
 
-    # Cache the result (even if empty, to avoid repeated failed requests)
-    if use_cache and not genes_df.empty:
+    # Cache the result (even if empty, to avoid repeated API calls for gene-sparse regions)
+    if use_cache:
         save_cached_genes(genes_df, cache_dir, species, chrom_str, start, end)
 
     if include_exons:

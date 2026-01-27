@@ -42,8 +42,8 @@ def test_fetch_mouse_genes_real_api():
     )
 
     assert isinstance(df, pd.DataFrame)
-    # Region should have genes
-    assert len(df) >= 0
+    # Region may be empty if it has no genes, just verify it's a valid DataFrame
+    assert "chr" in df.columns or len(df) == 0
 
 
 @pytest.mark.integration
