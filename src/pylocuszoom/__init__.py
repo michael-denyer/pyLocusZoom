@@ -40,15 +40,6 @@ __version__ = "0.6.0"
 # Backend types
 from .backends import BackendType, get_backend
 
-# Ensembl integration
-from .ensembl import (
-    clear_ensembl_cache,
-    fetch_exons_from_ensembl,
-    fetch_genes_from_ensembl,
-    get_ensembl_species_name,
-    get_genes_for_region,
-)
-
 # Colors and LD
 from .colors import (
     LEAD_SNP_COLOR,
@@ -58,6 +49,15 @@ from .colors import (
     get_ld_color_palette,
     get_phewas_category_color,
     get_phewas_category_palette,
+)
+
+# Ensembl integration
+from .ensembl import (
+    clear_ensembl_cache,
+    fetch_exons_from_ensembl,
+    fetch_genes_from_ensembl,
+    get_ensembl_species_name,
+    get_genes_for_region,
 )
 
 # eQTL support

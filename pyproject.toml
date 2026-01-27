@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pylocuszoom"
-version = "0.6.0"
+version = "0.7.0"
 description = "Publication-ready regional association plots with LD coloring, gene tracks, and recombination overlays"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -30,7 +30,7 @@ dependencies = [
     "numpy>=1.21.0",
     "loguru>=0.7.0",
     "pyliftover>=0.4",
-    "plotly>=5.15.0",  # 5.15+ required for multiple legends (legend2)
+    "plotly>=5.15.0", # 5.15+ required for multiple legends (legend2)
     "bokeh>=3.8.2",
     "kaleido>=0.2.0",
     "adjustText>=0.8",

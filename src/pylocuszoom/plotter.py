@@ -33,6 +33,7 @@ from .colors import (
     get_ld_color_palette,
     get_phewas_category_palette,
 )
+from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import (
     get_credible_sets,
@@ -55,7 +56,6 @@ from .recombination import (
     get_default_data_dir,
     get_recombination_rate_for_region,
 )
-from .ensembl import get_genes_for_region
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
 # Default significance threshold: 5e-8 (genome-wide significance)
