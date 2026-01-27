@@ -55,7 +55,9 @@ class TestBackendForestPlotMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         y = pd.Series([0, 1, 2])
@@ -69,7 +71,9 @@ class TestBackendForestPlotMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         x = pd.Series([0.5, 0.8, 0.3])
@@ -85,7 +89,9 @@ class TestBackendForestPlotMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         backend.axvline(ax, x=0.5, color="red", linestyle="--")
@@ -94,7 +100,9 @@ class TestBackendForestPlotMethods:
     def test_axvline_plotly(self):
         """Test vertical line in plotly backend."""
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         backend.axvline(ax, x=0.5, color="red", linestyle="--")
@@ -103,7 +111,9 @@ class TestBackendForestPlotMethods:
     def test_axvline_bokeh(self):
         """Test vertical line in bokeh backend."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        layout, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         backend.axvline(ax, x=0.5, color="red", linestyle="--")
@@ -112,7 +122,9 @@ class TestBackendForestPlotMethods:
     def test_hbar_plotly(self):
         """Test horizontal bar in plotly backend."""
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         y = pd.Series([0, 1, 2])
@@ -124,7 +136,9 @@ class TestBackendForestPlotMethods:
     def test_errorbar_h_plotly(self):
         """Test horizontal error bar in plotly backend."""
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         x = pd.Series([0.5, 0.8, 0.3])
@@ -138,7 +152,9 @@ class TestBackendForestPlotMethods:
     def test_hbar_bokeh(self):
         """Test horizontal bar in bokeh backend."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        layout, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         y = pd.Series([0, 1, 2])
@@ -150,7 +166,9 @@ class TestBackendForestPlotMethods:
     def test_errorbar_h_bokeh(self):
         """Test horizontal error bar in bokeh backend."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        layout, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+        )
         ax = axes[0]
 
         x = pd.Series([0.5, 0.8, 0.3])

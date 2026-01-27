@@ -93,7 +93,7 @@ class TestPheWASColors:
 
     def test_get_phewas_category_color(self):
         """Test PheWAS category color assignment."""
-        from pylocuszoom.colors import get_phewas_category_color, PHEWAS_CATEGORY_COLORS
+        from pylocuszoom.colors import PHEWAS_CATEGORY_COLORS, get_phewas_category_color
 
         # First category should return first color
         assert get_phewas_category_color(0) == PHEWAS_CATEGORY_COLORS[0]

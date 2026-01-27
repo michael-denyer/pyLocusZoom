@@ -728,7 +728,7 @@ class BokehBackend:
             left_arr = list(left) if hasattr(left, "tolist") else left
 
         # Calculate right edge
-        right_arr = [l + w for l, w in zip(left_arr, width)]
+        right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
 
         return ax.hbar(
             y=y.values,
@@ -759,11 +759,13 @@ class BokehBackend:
         lower = x - xerr_lower
         upper = x + xerr_upper
 
-        source = ColumnDataSource(data={
-            "y": y.values,
-            "lower": lower.values,
-            "upper": upper.values,
-        })
+        source = ColumnDataSource(
+            data={
+                "y": y.values,
+                "lower": lower.values,
+                "upper": upper.values,
+            }
+        )
 
         # Add horizontal whisker
         whisker = Whisker(

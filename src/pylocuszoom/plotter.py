@@ -34,12 +34,11 @@ from .colors import (
     get_phewas_category_palette,
 )
 from .eqtl import validate_eqtl_df
-from .forest import validate_forest_df
-from .phewas import validate_phewas_df
 from .finemapping import (
     get_credible_sets,
     prepare_finemapping_for_plotting,
 )
+from .forest import validate_forest_df
 from .gene_track import (
     assign_gene_positions,
     plot_gene_track,
@@ -48,6 +47,7 @@ from .gene_track import (
 from .labels import add_snp_labels
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
+from .phewas import validate_phewas_df
 from .recombination import (
     RECOMB_COLOR,
     add_recombination_overlay,
@@ -1346,9 +1346,8 @@ class LocusZoomPlotter:
             min_size, max_size = 40, 200
             weight_range = weights.max() - weights.min()
             if weight_range > 0:
-                sizes = (
-                    min_size
-                    + (weights - weights.min()) / weight_range * (max_size - min_size)
+                sizes = min_size + (weights - weights.min()) / weight_range * (
+                    max_size - min_size
                 )
             else:
                 sizes = (min_size + max_size) / 2

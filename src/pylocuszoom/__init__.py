@@ -62,9 +62,6 @@ from .eqtl import (
     validate_eqtl_df,
 )
 
-# Forest plot support
-from .forest import validate_forest_df
-
 # Fine-mapping/SuSiE support
 from .finemapping import (
     FinemappingValidationError,
@@ -75,6 +72,9 @@ from .finemapping import (
     prepare_finemapping_for_plotting,
     validate_finemapping_df,
 )
+
+# Forest plot support
+from .forest import validate_forest_df
 
 # Gene track
 from .gene_track import get_nearest_gene, plot_gene_track

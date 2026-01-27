@@ -763,3 +763,130 @@ class TestBackendEQTLFinemapping:
         )
 
         assert fig is not None
+
+
+class TestPheWASPlot:
+    """Tests for plot_phewas method."""
+
+    def test_plot_phewas_basic(self):
+        """Test basic PheWAS plot generation."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        phewas_df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
+                "p_value": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
+                "category": [
+                    "Anthropometric",
+                    "Anthropometric",
+                    "Metabolic",
+                    "Cardiovascular",
+                    "Metabolic",
+                ],
+            }
+        )
+
+        fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
+
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plot_phewas_with_effect(self):
+        """Test PheWAS plot with effect sizes."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        phewas_df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "BMI", "T2D"],
+                "p_value": [1e-15, 0.05, 1e-8],
+                "category": ["Anthropometric", "Anthropometric", "Metabolic"],
+                "effect_size": [0.5, -0.1, 0.3],
+            }
+        )
+
+        fig = plotter.plot_phewas(
+            phewas_df, variant_id="rs12345", effect_col="effect_size"
+        )
+
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plot_phewas_no_category(self):
+        """Test PheWAS plot without category column."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        phewas_df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "BMI", "T2D"],
+                "p_value": [1e-15, 0.05, 1e-8],
+            }
+        )
+
+        fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
+
+        assert fig is not None
+        plt.close(fig)
+
+
+class TestForestPlot:
+    """Tests for plot_forest method."""
+
+    def test_plot_forest_basic(self):
+        """Test basic forest plot generation."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        forest_df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
+                "effect": [0.5, 0.3, 0.6, 0.45],
+                "ci_lower": [0.2, 0.0, 0.3, 0.35],
+                "ci_upper": [0.8, 0.6, 0.9, 0.55],
+            }
+        )
+
+        fig = plotter.plot_forest(forest_df, variant_id="rs12345")
+
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plot_forest_with_weights(self):
+        """Test forest plot with study weights."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        forest_df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B", "Meta"],
+                "effect": [0.5, 0.3, 0.4],
+                "ci_lower": [0.2, 0.0, 0.3],
+                "ci_upper": [0.8, 0.6, 0.5],
+                "weight": [30, 70, 100],
+            }
+        )
+
+        fig = plotter.plot_forest(forest_df, variant_id="rs12345", weight_col="weight")
+
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plot_forest_custom_null_value(self):
+        """Test forest plot with custom null value (e.g., OR=1)."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        forest_df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B"],
+                "effect": [1.5, 0.9],
+                "ci_lower": [1.1, 0.6],
+                "ci_upper": [1.9, 1.3],
+            }
+        )
+
+        fig = plotter.plot_forest(
+            forest_df,
+            variant_id="rs12345",
+            null_value=1.0,
+            effect_label="Odds Ratio",
+        )
+
+        assert fig is not None
+        plt.close(fig)
