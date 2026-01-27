@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `set_yticks()` backend method for consistent y-axis labels across all backends
+- Shared `convert_latex_to_unicode()` utility for interactive backends
+
+### Changed
+- Forest plot example now uses odds ratios with `null_value=1.0` (more representative)
+- PheWAS and forest plot y-axis labels now work correctly in Plotly and Bokeh backends
+
+### Fixed
+- `load_gwas()` now forwards `**kwargs` to format-specific loaders
+- Forest plot validator now checks that effect and CI columns are numeric
+- PheWAS validator now checks that p-values are numeric and within (0, 1] range
+
+### Security
+- Tar extraction now includes path traversal protection for recombination map downloads
+
 ## [0.6.0] - 2026-01-27
 
 ### Added

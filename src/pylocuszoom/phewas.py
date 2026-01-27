@@ -50,6 +50,4 @@ def validate_phewas_df(
             )
 
     if errors:
-        raise ValidationError(
-            "PheWAS validation failed:\n  - " + "\n  - ".join(errors)
-        )
+        raise ValidationError("PheWAS validation failed:\n  - " + "\n  - ".join(errors))
