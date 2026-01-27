@@ -5,9 +5,11 @@ import pytest
 
 from pylocuszoom.loaders import (
     load_bed,
+    load_gtex_eqtl,
     load_gwas,
     load_plink_assoc,
     load_regenie,
+    load_saige,
     load_susie,
 )
 from pylocuszoom.schemas import (
@@ -135,6 +137,81 @@ class TestREGENIELoader:
         assert df["p_wald"].iloc[2] == pytest.approx(1e-8, rel=0.01)
 
 
+class TestSAIGELoader:
+    """Tests for SAIGE file loader."""
+
+    @pytest.fixture
+    def saige_file(self, tmp_path):
+        """Create a temporary SAIGE file with both p.value columns."""
+        content = """CHR\tPOS\tMarkerID\tp.value\tp.value.NA
+1\t1000000\trs123\t0.01\t0.005
+1\t1001000\trs456\t0.05\t0.04
+1\t1002000\trs789\t1e-8\t1e-9
+"""
+        filepath = tmp_path / "test.saige"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def saige_file_no_spa(self, tmp_path):
+        """Create a SAIGE file with only p.value (no SPA-adjusted)."""
+        content = """CHR\tPOS\tMarkerID\tp.value
+1\t1000000\trs123\t0.01
+1\t1001000\trs456\t0.05
+"""
+        filepath = tmp_path / "test_nospa.saige"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_saige_prefers_spa_adjusted(self, saige_file):
+        """Test that SAIGE loader prefers p.value.NA (SPA-adjusted) over p.value."""
+        df = load_saige(saige_file)
+
+        assert "p_wald" in df.columns
+        # Should use SPA-adjusted p-values (p.value.NA column)
+        assert df["p_wald"].iloc[0] == 0.005  # Not 0.01
+        assert df["p_wald"].iloc[2] == pytest.approx(1e-9, rel=0.01)
+
+    def test_load_saige_fallback_to_pvalue(self, saige_file_no_spa):
+        """Test that SAIGE loader falls back to p.value when p.value.NA missing."""
+        df = load_saige(saige_file_no_spa)
+
+        assert "p_wald" in df.columns
+        assert df["p_wald"].iloc[0] == 0.01
+
+    def test_load_saige_basic(self, saige_file):
+        """Test basic SAIGE file loading."""
+        df = load_saige(saige_file)
+
+        assert "ps" in df.columns
+        assert "p_wald" in df.columns
+        assert "rs" in df.columns
+        assert len(df) == 3
+
+
+class TestGTExEQTLLoader:
+    """Tests for GTEx eQTL file loader."""
+
+    @pytest.fixture
+    def gtex_file(self, tmp_path):
+        """Create a temporary GTEx eQTL file."""
+        content = """variant_id\tgene_id\tpval_nominal\tslope
+chr1_1000000_A_G_b38\tENSG00001\t1e-6\t0.5
+chr1_1001000_C_T_b38\tENSG00001\t0.01\t-0.3
+"""
+        filepath = tmp_path / "gtex.txt"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_gtex_effect_size_column(self, gtex_file):
+        """Test that GTEx loader outputs effect_size column (not effect)."""
+        df = load_gtex_eqtl(gtex_file)
+
+        # Should standardize to effect_size for compatibility with plotter
+        assert "effect_size" in df.columns
+        assert df["effect_size"].iloc[0] == 0.5
+
+
 class TestAutoFormatDetection:
     """Tests for automatic format detection."""
 
@@ -202,6 +279,39 @@ class TestBEDLoader:
 
         # "chr1" should become "1"
         assert df["chr"].iloc[0] == "1"
+
+    def test_load_bed12_format(self, tmp_path):
+        """Test BED12 format with extra columns doesn't break."""
+        # BED12 has: chr, start, end, name, score, strand, thickStart, thickEnd,
+        #            itemRgb, blockCount, blockSizes, blockStarts
+        content = """chr1\t1000000\t1020000\tGENE1\t100\t+\t1000500\t1019500\t0\t3\t100,200,300\t0,5000,19700
+chr1\t1050000\t1080000\tGENE2\t200\t-\t1050000\t1080000\t0\t2\t500,600\t0,29400
+"""
+        filepath = tmp_path / "genes.bed12"
+        filepath.write_text(content)
+
+        df = load_bed(filepath)
+
+        assert len(df) == 2
+        assert "chr" in df.columns
+        assert "start" in df.columns
+        assert "end" in df.columns
+        assert "gene_name" in df.columns
+        assert df["gene_name"].iloc[0] == "GENE1"
+
+    def test_load_bed_7_columns(self, tmp_path):
+        """Test BED with 7 columns (more than 6)."""
+        content = """chr1\t1000000\t1020000\tGENE1\t100\t+\textra_col
+chr1\t1050000\t1080000\tGENE2\t200\t-\tmore_data
+"""
+        filepath = tmp_path / "genes.bed7"
+        filepath.write_text(content)
+
+        df = load_bed(filepath)
+
+        assert len(df) == 2
+        assert "gene_name" in df.columns
+        assert df["gene_name"].iloc[0] == "GENE1"
 
 
 # =============================================================================
@@ -295,6 +405,30 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match="missing values"):
+            validate_gwas_dataframe(df)
+
+    def test_non_numeric_pvalue_fails(self):
+        """Test that non-numeric p-values raise clear validation error."""
+        df = pd.DataFrame(
+            {
+                "ps": [1000000, 1001000],
+                "p_wald": ["0.01", "significant"],  # Strings, not numbers
+            }
+        )
+
+        with pytest.raises(LoaderValidationError, match="must be numeric"):
+            validate_gwas_dataframe(df)
+
+    def test_non_numeric_position_fails(self):
+        """Test that non-numeric positions raise clear validation error."""
+        df = pd.DataFrame(
+            {
+                "ps": ["chr1:1000", "chr1:2000"],  # Strings, not numbers
+                "p_wald": [0.01, 0.001],
+            }
+        )
+
+        with pytest.raises(LoaderValidationError, match="must be numeric"):
             validate_gwas_dataframe(df)
 
 

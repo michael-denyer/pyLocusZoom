@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backend methods: `axvline()`, `hbar()`, `errorbar_h()` for new plot types
 - Example plots for PheWAS and forest plots
 
+### Changed
+- Bumped minimum Plotly version to 5.15.0 (required for multiple legends feature)
+- eQTL loaders now output `effect_size` column instead of `effect` for plotter compatibility
+
+### Fixed
+- SAIGE loader now prefers SPA-adjusted p-values (`p.value.NA`) over raw p-values when both present
+- BED loader now handles BED12 format and files with more than 6 columns
+- eQTL panel in `plot_stacked()` now filters by chromosome in addition to position
+- Validation errors for non-numeric p-values or positions now show clear "must be numeric" message instead of runtime errors
+
 ## [0.5.0] - 2026-01-27
 
 ### Added

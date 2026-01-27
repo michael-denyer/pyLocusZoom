@@ -1033,11 +1033,17 @@ class LocusZoomPlotter:
             if eqtl_gene and "gene" in eqtl_data.columns:
                 eqtl_data = eqtl_data[eqtl_data["gene"] == eqtl_gene]
 
-            # Filter by region
+            # Filter by region (position and chromosome)
             if "pos" in eqtl_data.columns:
-                eqtl_data = eqtl_data[
-                    (eqtl_data["pos"] >= start) & (eqtl_data["pos"] <= end)
-                ]
+                mask = (eqtl_data["pos"] >= start) & (eqtl_data["pos"] <= end)
+                # Also filter by chromosome if column exists
+                if "chr" in eqtl_data.columns:
+                    chrom_str = str(chrom).replace("chr", "")
+                    eqtl_chrom = (
+                        eqtl_data["chr"].astype(str).str.replace("chr", "", regex=False)
+                    )
+                    mask = mask & (eqtl_chrom == chrom_str)
+                eqtl_data = eqtl_data[mask]
 
             if not eqtl_data.empty:
                 eqtl_data["neglog10p"] = -np.log10(

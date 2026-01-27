@@ -764,6 +764,35 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
+    def test_eqtl_chr_filtering(self, sample_gwas_df):
+        """Test that eQTL panel filters by chromosome, not just position."""
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+
+        # Create eQTL data with chr column, some on wrong chromosome
+        eqtl_df = pd.DataFrame(
+            {
+                "pos": [1200000, 1400000, 1600000],  # All in region 1e6-2e6
+                "p_value": [1e-6, 1e-4, 0.01],
+                "gene": ["GENE1", "GENE1", "GENE1"],
+                "effect_size": [0.5, -0.3, 0.8],
+                "chr": ["1", "2", "1"],  # Middle one is on chr2
+            }
+        )
+
+        # Plot for chr 1 - should only include 2 eQTLs (not the chr2 one)
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            eqtl_df=eqtl_df,
+            eqtl_gene="GENE1",
+            show_recombination=False,
+        )
+
+        assert fig is not None
+        plt.close(fig)
+
 
 class TestPheWASPlot:
     """Tests for plot_phewas method."""

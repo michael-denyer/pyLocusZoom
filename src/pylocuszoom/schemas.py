@@ -84,30 +84,36 @@ def validate_gwas_dataframe(
             "GWAS validation failed:\n  - " + "\n  - ".join(errors)
         )
 
-    # Check data types
-    if not pd.api.types.is_numeric_dtype(df[pos_col]):
+    # Check data types (must be numeric for range checks)
+    pos_is_numeric = pd.api.types.is_numeric_dtype(df[pos_col])
+    p_is_numeric = pd.api.types.is_numeric_dtype(df[p_col])
+
+    if not pos_is_numeric:
         errors.append(f"Column '{pos_col}' must be numeric, got {df[pos_col].dtype}")
 
-    if not pd.api.types.is_numeric_dtype(df[p_col]):
+    if not p_is_numeric:
         errors.append(f"Column '{p_col}' must be numeric, got {df[p_col].dtype}")
 
-    # Check value ranges
-    if (df[pos_col] <= 0).any():
-        n_invalid = (df[pos_col] <= 0).sum()
-        errors.append(f"Column '{pos_col}' has {n_invalid} non-positive values")
+    # Only check value ranges if columns are numeric (avoid confusing errors)
+    if pos_is_numeric:
+        if (df[pos_col] <= 0).any():
+            n_invalid = (df[pos_col] <= 0).sum()
+            errors.append(f"Column '{pos_col}' has {n_invalid} non-positive values")
 
-    if ((df[p_col] <= 0) | (df[p_col] > 1)).any():
-        n_invalid = ((df[p_col] <= 0) | (df[p_col] > 1)).sum()
-        errors.append(f"Column '{p_col}' has {n_invalid} values outside range (0, 1]")
+        if df[pos_col].isna().any():
+            n_na = df[pos_col].isna().sum()
+            errors.append(f"Column '{pos_col}' has {n_na} missing values")
 
-    # Check for NaN in required columns
-    if df[pos_col].isna().any():
-        n_na = df[pos_col].isna().sum()
-        errors.append(f"Column '{pos_col}' has {n_na} missing values")
+    if p_is_numeric:
+        if ((df[p_col] <= 0) | (df[p_col] > 1)).any():
+            n_invalid = ((df[p_col] <= 0) | (df[p_col] > 1)).sum()
+            errors.append(
+                f"Column '{p_col}' has {n_invalid} values outside range (0, 1]"
+            )
 
-    if df[p_col].isna().any():
-        n_na = df[p_col].isna().sum()
-        errors.append(f"Column '{p_col}' has {n_na} missing values")
+        if df[p_col].isna().any():
+            n_na = df[p_col].isna().sum()
+            errors.append(f"Column '{p_col}' has {n_na} missing values")
 
     if errors:
         raise LoaderValidationError(
@@ -344,20 +350,25 @@ def validate_genes_dataframe(
         )
 
     # Check data types
-    if not pd.api.types.is_numeric_dtype(df["start"]):
+    start_is_numeric = pd.api.types.is_numeric_dtype(df["start"])
+    end_is_numeric = pd.api.types.is_numeric_dtype(df["end"])
+
+    if not start_is_numeric:
         errors.append(f"Column 'start' must be numeric, got {df['start'].dtype}")
 
-    if not pd.api.types.is_numeric_dtype(df["end"]):
+    if not end_is_numeric:
         errors.append(f"Column 'end' must be numeric, got {df['end'].dtype}")
 
-    # Check ranges
-    if (df["start"] < 0).any():
-        n_invalid = (df["start"] < 0).sum()
-        errors.append(f"Column 'start' has {n_invalid} negative values")
+    # Only check ranges if columns are numeric (avoid confusing errors)
+    if start_is_numeric:
+        if (df["start"] < 0).any():
+            n_invalid = (df["start"] < 0).sum()
+            errors.append(f"Column 'start' has {n_invalid} negative values")
 
-    if (df["end"] < df["start"]).any():
-        n_invalid = (df["end"] < df["start"]).sum()
-        errors.append(f"Found {n_invalid} genes where end < start")
+    if start_is_numeric and end_is_numeric:
+        if (df["end"] < df["start"]).any():
+            n_invalid = (df["end"] < df["start"]).sum()
+            errors.append(f"Found {n_invalid} genes where end < start")
 
     if errors:
         raise LoaderValidationError(

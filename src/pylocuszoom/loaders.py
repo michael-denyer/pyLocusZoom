@@ -260,9 +260,13 @@ def load_saige(
         "POS": pos_col,
         "MarkerID": rs_col,
         "CHR": "chr",
-        "p.value": p_col,
-        "p.value.NA": p_col,  # SPA-adjusted
     }
+
+    # Prefer SPA-adjusted p-value (p.value.NA) over raw p.value when both present
+    if "p.value.NA" in df.columns:
+        col_map["p.value.NA"] = p_col
+    elif "p.value" in df.columns:
+        col_map["p.value"] = p_col
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded SAIGE file with {len(df)} variants")
@@ -318,7 +322,7 @@ def load_gtex_eqtl(
         gene: Optional gene to filter to (ENSG ID or gene symbol).
 
     Returns:
-        DataFrame with columns: pos, p_value, gene, effect.
+        DataFrame with columns: pos, p_value, gene, effect_size.
 
     Example:
         >>> eqtl_df = load_gtex_eqtl("GTEx_Analysis.signif_pairs.txt.gz", gene="BRCA1")
@@ -351,10 +355,10 @@ def load_gtex_eqtl(
             col_map[col] = "gene"
             break
 
-    # Effect size (slope)
+    # Effect size (slope) - standardize to effect_size for plotting compatibility
     for col in ["slope", "beta", "effect_size"]:
         if col in df.columns:
-            col_map[col] = "effect"
+            col_map[col] = "effect_size"
             break
 
     df = df.rename(columns=col_map)
@@ -385,7 +389,7 @@ def load_eqtl_catalogue(
         gene: Optional gene to filter to.
 
     Returns:
-        DataFrame with columns: pos, p_value, gene, effect.
+        DataFrame with columns: pos, p_value, gene, effect_size.
     """
     df = pd.read_csv(filepath, sep="\t")
 
@@ -393,7 +397,7 @@ def load_eqtl_catalogue(
         "position": "pos",
         "pvalue": "p_value",
         "gene_id": "gene",
-        "beta": "effect",
+        "beta": "effect_size",  # Standardize to effect_size for plotter
         "chromosome": "chr",
     }
 
@@ -422,7 +426,7 @@ def load_matrixeqtl(
         gene: Optional gene to filter to.
 
     Returns:
-        DataFrame with columns: pos, p_value, gene, effect.
+        DataFrame with columns: pos, p_value, gene, effect_size.
 
     Note:
         MatrixEQTL output doesn't include position by default.
@@ -435,7 +439,7 @@ def load_matrixeqtl(
         "gene": "gene",
         "p-value": "p_value",
         "pvalue": "p_value",
-        "beta": "effect",
+        "beta": "effect_size",  # Standardize to effect_size for plotter
         "t-stat": "t_stat",
     }
 
@@ -725,14 +729,28 @@ def load_bed(
     # Assign column names if no header
     if not has_header:
         n_cols = len(df.columns)
-        col_names = ["chr", "start", "end"]
-        if n_cols >= 4:
-            col_names.append("gene_name")
-        if n_cols >= 5:
-            col_names.append("score")
-        if n_cols >= 6:
-            col_names.append("strand")
-        df.columns = col_names[:n_cols]
+        # Standard BED column names (up to BED12)
+        bed_col_names = [
+            "chr",
+            "start",
+            "end",
+            "gene_name",
+            "score",
+            "strand",
+            "thickStart",
+            "thickEnd",
+            "itemRgb",
+            "blockCount",
+            "blockSizes",
+            "blockStarts",
+        ]
+        # Use standard names for known columns, generic for extras
+        if n_cols <= len(bed_col_names):
+            df.columns = bed_col_names[:n_cols]
+        else:
+            # More columns than BED12 - use known names + generic
+            extra_cols = [f"col{i}" for i in range(len(bed_col_names), n_cols)]
+            df.columns = bed_col_names + extra_cols
 
     # Standardize column names if header was present
     col_map = {
