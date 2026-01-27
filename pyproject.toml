@@ -10,7 +10,7 @@ readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.10"
 authors = [
-    { name = "Michael Denyer" },
+    { name = "Michael Denyer", email = "code.denyer@gmail.com" },
 ]
 keywords = ["gwas", "genetics", "visualization", "locus-zoom", "regional-plot", "locuszoom"]
 classifiers = [
