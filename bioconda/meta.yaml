@@ -1,5 +1,5 @@
 {% set name = "pylocuszoom" %}
-{% set version = "0.5.0" %}
+{% set version = "0.6.0" %}
 
 package:
   name: {{ name|lower }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
-  sha256: 5aa46c51631e2c736867b85144f390da94f813146eeef5f943038a772820022e
+  sha256: 1597c2080e2e32019293aab67836d1b944c1cc0b2fe3e7cd94e82d9119175742
 
 build:
   noarch: python
@@ -26,10 +26,13 @@ requirements:
     - numpy >=1.21.0
     - loguru >=0.7.0
     - pyliftover >=0.4
-    - plotly >=5.0.0
+    - plotly >=5.15.0
     - bokeh >=3.8.2
     - python-kaleido >=0.2.0
     - adjusttext >=0.8
+    - pydantic >=2.0.0
+    - requests >=2.25.0
+    - tqdm >=4.60.0
 
 test:
   imports:
