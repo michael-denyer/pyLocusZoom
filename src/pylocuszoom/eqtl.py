@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 
 from .logging import logger
+from .utils import ValidationError
+from .validation import DataFrameValidator
 
 REQUIRED_EQTL_COLS = ["pos", "p_value"]
 OPTIONAL_EQTL_COLS = ["gene", "effect_size", "rs", "se"]
@@ -36,17 +38,14 @@ def validate_eqtl_df(
     Raises:
         EQTLValidationError: If required columns are missing.
     """
-    missing = []
-    if pos_col not in df.columns:
-        missing.append(pos_col)
-    if p_col not in df.columns:
-        missing.append(p_col)
-
-    if missing:
-        raise EQTLValidationError(
-            f"eQTL DataFrame missing required columns: {missing}. "
-            f"Required: {pos_col} (position), {p_col} (p-value)"
+    try:
+        (
+            DataFrameValidator(df, "eQTL DataFrame")
+            .require_columns([pos_col, p_col])
+            .validate()
         )
+    except ValidationError as e:
+        raise EQTLValidationError(str(e)) from e
 
 
 def filter_eqtl_by_gene(
