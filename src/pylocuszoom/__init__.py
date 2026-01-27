@@ -41,7 +41,15 @@ __version__ = "0.3.0"
 from .backends import BackendType, get_backend
 
 # Colors and LD
-from .colors import LEAD_SNP_COLOR, get_ld_bin, get_ld_color, get_ld_color_palette
+from .colors import (
+    LEAD_SNP_COLOR,
+    PHEWAS_CATEGORY_COLORS,
+    get_ld_bin,
+    get_ld_color,
+    get_ld_color_palette,
+    get_phewas_category_color,
+    get_phewas_category_palette,
+)
 
 # eQTL support
 from .eqtl import (
@@ -53,6 +61,9 @@ from .eqtl import (
     prepare_eqtl_for_plotting,
     validate_eqtl_df,
 )
+
+# Forest plot support
+from .forest import validate_forest_df
 
 # Fine-mapping/SuSiE support
 from .finemapping import (
@@ -101,6 +112,9 @@ from .loaders import (
 
 # Logging configuration
 from .logging import disable_logging, enable_logging
+
+# PheWAS support
+from .phewas import validate_phewas_df
 from .plotter import LocusZoomPlotter
 
 # Reference data management
@@ -130,7 +144,10 @@ __all__ = [
     "get_ld_color",
     "get_ld_bin",
     "get_ld_color_palette",
+    "get_phewas_category_color",
+    "get_phewas_category_palette",
     "LEAD_SNP_COLOR",
+    "PHEWAS_CATEGORY_COLORS",
     # Gene track
     "get_nearest_gene",
     "plot_gene_track",
@@ -164,6 +181,10 @@ __all__ = [
     # Validation & Utils
     "ValidationError",
     "to_pandas",
+    # PheWAS
+    "validate_phewas_df",
+    # Forest plot
+    "validate_forest_df",
     # GWAS loaders
     "load_gwas",
     "load_plink_assoc",
