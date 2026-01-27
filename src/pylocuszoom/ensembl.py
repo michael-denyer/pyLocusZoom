@@ -426,3 +426,39 @@ def get_genes_for_region(
         return genes_df, exons_df
 
     return genes_df
+
+
+def clear_ensembl_cache(
+    cache_dir: Path | None = None,
+    species: str | None = None,
+) -> int:
+    """Clear cached Ensembl data.
+
+    Args:
+        cache_dir: Cache directory (uses default if None).
+        species: If provided, only clear cache for this species.
+
+    Returns:
+        Number of files deleted.
+    """
+    if cache_dir is None:
+        cache_dir = get_ensembl_cache_dir()
+
+    deleted = 0
+
+    if species:
+        # Clear only specific species
+        ensembl_species = get_ensembl_species_name(species)
+        species_dir = cache_dir / ensembl_species
+        if species_dir.exists():
+            for cache_file in species_dir.glob("*.csv"):
+                cache_file.unlink()
+                deleted += 1
+    else:
+        # Clear all species
+        for cache_file in cache_dir.glob("**/*.csv"):
+            cache_file.unlink()
+            deleted += 1
+
+    logger.info(f"Cleared {deleted} cached Ensembl files from {cache_dir}")
+    return deleted

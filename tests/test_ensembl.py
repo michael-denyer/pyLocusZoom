@@ -379,3 +379,60 @@ def test_get_genes_for_region_include_exons():
 
         assert len(genes_df) == 1
         assert len(exons_df) == 1
+
+
+# --- clear_ensembl_cache tests ---
+
+
+def test_clear_ensembl_cache():
+    """Test clearing the Ensembl cache."""
+    from pylocuszoom.ensembl import clear_ensembl_cache, save_cached_genes
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+
+        # Create some cache files
+        df = pd.DataFrame({
+            "chr": ["1"],
+            "start": [100],
+            "end": [200],
+            "gene_name": ["X"],
+            "strand": ["+"],
+        })
+        save_cached_genes(df, cache_dir, "human", "1", 100, 200)
+        save_cached_genes(df, cache_dir, "mouse", "1", 100, 200)
+
+        # Should have 2 CSV files in species subdirs
+        csv_files = list(cache_dir.glob("**/*.csv"))
+        assert len(csv_files) == 2
+
+        # Clear cache
+        deleted = clear_ensembl_cache(cache_dir)
+
+        assert deleted == 2
+        assert len(list(cache_dir.glob("**/*.csv"))) == 0
+
+
+def test_clear_ensembl_cache_species_specific():
+    """Test clearing cache for specific species only."""
+    from pylocuszoom.ensembl import clear_ensembl_cache, save_cached_genes
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+
+        df = pd.DataFrame({
+            "chr": ["1"],
+            "start": [100],
+            "end": [200],
+            "gene_name": ["X"],
+            "strand": ["+"],
+        })
+        save_cached_genes(df, cache_dir, "human", "1", 100, 200)
+        save_cached_genes(df, cache_dir, "mouse", "1", 100, 200)
+
+        # Clear only human cache
+        deleted = clear_ensembl_cache(cache_dir, species="human")
+
+        assert deleted == 1
+        # Mouse cache should still exist
+        assert len(list(cache_dir.glob("**/*.csv"))) == 1
