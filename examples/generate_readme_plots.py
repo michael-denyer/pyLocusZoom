@@ -307,5 +307,55 @@ output_file("examples/finemapping_bokeh.html")
 save(fig)
 print("   Saved: examples/finemapping_bokeh.html")
 
+# 9. PheWAS plot
+print("9. PheWAS plot...")
+phewas_df = pd.DataFrame(
+    {
+        "phenotype": [
+            "Height",
+            "BMI",
+            "Weight",
+            "T2D",
+            "Fasting Glucose",
+            "HbA1c",
+            "CAD",
+            "Stroke",
+            "HDL",
+            "LDL",
+        ],
+        "p_value": [1e-15, 0.05, 1e-8, 1e-20, 1e-5, 1e-3, 1e-10, 0.1, 1e-12, 1e-6],
+        "category": [
+            "Anthropometric",
+            "Anthropometric",
+            "Anthropometric",
+            "Metabolic",
+            "Metabolic",
+            "Metabolic",
+            "Cardiovascular",
+            "Cardiovascular",
+            "Lipids",
+            "Lipids",
+        ],
+    }
+)
+fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
+fig.savefig("examples/phewas_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/phewas_plot.png")
+
+# 10. Forest plot
+print("10. Forest plot...")
+forest_df = pd.DataFrame(
+    {
+        "study": ["GWAS Study A", "GWAS Study B", "GWAS Study C", "Meta-analysis"],
+        "effect": [0.45, 0.52, 0.38, 0.46],
+        "ci_lower": [0.30, 0.35, 0.20, 0.40],
+        "ci_upper": [0.60, 0.69, 0.56, 0.52],
+        "weight": [25, 35, 20, 100],
+    }
+)
+fig = plotter.plot_forest(forest_df, variant_id="rs12345", weight_col="weight")
+fig.savefig("examples/forest_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/forest_plot.png")
+
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")
