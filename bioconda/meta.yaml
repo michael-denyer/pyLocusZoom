@@ -47,11 +47,12 @@ about:
   license: GPL-3.0-or-later
   license_family: GPL3
   license_file: LICENSE
-  summary: Regional association plots for GWAS results with LD coloring
+  summary: Publication-ready GWAS plots with LD coloring, gene tracks, PheWAS, and forest plots
   description: |
-    pyLocusZoom creates publication-quality regional association plots
-    for GWAS results with LD coloring, gene tracks, and recombination
-    rate overlays. Supports canine, feline, and custom species.
+    pyLocusZoom creates publication-quality genetic association visualizations:
+    regional plots with LD coloring, stacked multi-GWAS comparisons, eQTL overlays,
+    fine-mapping/SuSiE credible sets, PheWAS plots, and forest plots for meta-analysis.
+    Supports matplotlib (static), plotly (interactive), and bokeh (dashboard) backends.
   dev_url: https://github.com/michael-denyer/pylocuszoom
 
 extra:
