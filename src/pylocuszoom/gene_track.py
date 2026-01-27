@@ -28,6 +28,10 @@ GENE_AREA = 0.25  # Bottom portion for gene drawing
 EXON_HEIGHT = 0.20  # Exon rectangle height
 INTRON_HEIGHT = 0.02  # Thin intron line
 
+# Arrow dimensions (pre-computed for clarity)
+ARROW_HEIGHT_RATIO = 0.2625  # EXON_HEIGHT * 0.35 * 0.75 (75% of original height)
+ARROW_WIDTH_RATIO = 0.0066  # region_width * 0.006 * 1.1 (10% wider than original)
+
 
 def assign_gene_positions(genes_df: pd.DataFrame, start: int, end: int) -> List[int]:
     """Assign row indices to genes to minimize overlap.
@@ -111,6 +115,125 @@ def get_nearest_gene(
     return nearby.loc[nearby["dist"].idxmin(), "gene_name"]
 
 
+def _filter_genes_by_region(
+    df: pd.DataFrame, chrom: Union[int, str], start: int, end: int
+) -> pd.DataFrame:
+    """Filter a DataFrame to genes/exons within a genomic region."""
+    chrom_str = normalize_chrom(chrom)
+    return df[
+        (df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
+        & (df["end"] >= start)
+        & (df["start"] <= end)
+    ].copy()
+
+
+def _compute_arrow_geometry(
+    gene_start: int, gene_end: int, region_width: int, strand: str
+) -> tuple[list[float], float, float, str]:
+    """Compute arrow tip positions and dimensions for strand arrows.
+
+    Returns:
+        Tuple of (arrow_tip_positions, tri_height, tri_width, arrow_color).
+    """
+    tri_height = EXON_HEIGHT * ARROW_HEIGHT_RATIO
+    tri_width = region_width * ARROW_WIDTH_RATIO
+
+    tip_offset = tri_width / 2
+    tail_offset = tri_width * 1.5
+    gene_center = (gene_start + gene_end) / 2
+
+    if strand == "+":
+        arrow_tip_positions = [
+            gene_start + tail_offset,
+            gene_center + tri_width / 2,
+            gene_end - tip_offset,
+        ]
+        arrow_color = "#000000"
+    else:
+        arrow_tip_positions = [
+            gene_end - tail_offset,
+            gene_center - tri_width / 2,
+            gene_start + tip_offset,
+        ]
+        arrow_color = "#333333"
+
+    return arrow_tip_positions, tri_height, tri_width, arrow_color
+
+
+def _draw_strand_arrows_matplotlib(
+    ax: Axes,
+    gene: pd.Series,
+    gene_start: int,
+    gene_end: int,
+    y_gene: float,
+    region_width: int,
+) -> None:
+    """Draw strand direction arrows using matplotlib."""
+    strand = gene["strand"]
+    arrow_tip_positions, tri_height, tri_width, arrow_color = _compute_arrow_geometry(
+        gene_start, gene_end, region_width, strand
+    )
+
+    for tip_x in arrow_tip_positions:
+        if strand == "+":
+            base_x = tip_x - tri_width
+        else:
+            base_x = tip_x + tri_width
+
+        tri_points = [
+            [tip_x, y_gene],
+            [base_x, y_gene + tri_height],
+            [base_x, y_gene - tri_height],
+        ]
+
+        triangle = Polygon(
+            tri_points,
+            closed=True,
+            facecolor=arrow_color,
+            edgecolor=arrow_color,
+            linewidth=0.5,
+            zorder=5,
+        )
+        ax.add_patch(triangle)
+
+
+def _draw_strand_arrows_generic(
+    ax: Any,
+    backend: Any,
+    gene: pd.Series,
+    gene_start: int,
+    gene_end: int,
+    y_gene: float,
+    region_width: int,
+) -> None:
+    """Draw strand direction arrows using a generic backend."""
+    strand = gene["strand"]
+    arrow_tip_positions, tri_height, tri_width, arrow_color = _compute_arrow_geometry(
+        gene_start, gene_end, region_width, strand
+    )
+
+    for tip_x in arrow_tip_positions:
+        if strand == "+":
+            base_x = tip_x - tri_width
+        else:
+            base_x = tip_x + tri_width
+
+        tri_points = [
+            [tip_x, y_gene],
+            [base_x, y_gene + tri_height],
+            [base_x, y_gene - tri_height],
+        ]
+
+        backend.add_polygon(
+            ax,
+            tri_points,
+            facecolor=arrow_color,
+            edgecolor=arrow_color,
+            linewidth=0.5,
+            zorder=5,
+        )
+
+
 def plot_gene_track(
     ax: Axes,
     genes_df: pd.DataFrame,
@@ -137,12 +260,7 @@ def plot_gene_track(
         exons_df: Exon annotations with chr, start, end, gene_name
             columns for drawing exon structure. Optional.
     """
-    chrom_str = normalize_chrom(chrom)
-    region_genes = genes_df[
-        (genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
-        & (genes_df["end"] >= start)
-        & (genes_df["start"] <= end)
-    ].copy()
+    region_genes = _filter_genes_by_region(genes_df, chrom, start, end)
 
     ax.set_xlim(start, end)
     ax.set_ylabel("")
@@ -178,20 +296,13 @@ def plot_gene_track(
     top_margin = 0.05  # Minimal space above top label
     ax.set_ylim(
         -bottom_margin,
-        (max_row + 1) * ROW_HEIGHT - ROW_HEIGHT + GENE_AREA + top_margin,
+        max_row * ROW_HEIGHT + GENE_AREA + top_margin,
     )
 
     # Filter exons for this region if available
     region_exons = None
     if exons_df is not None and not exons_df.empty:
-        region_exons = exons_df[
-            (
-                exons_df["chr"].astype(str).str.replace("chr", "", regex=False)
-                == chrom_str
-            )
-            & (exons_df["end"] >= start)
-            & (exons_df["start"] <= end)
-        ].copy()
+        region_exons = _filter_genes_by_region(exons_df, chrom, start, end)
 
     region_width = end - start
 
@@ -257,59 +368,11 @@ def plot_gene_track(
                 )
             )
 
-        # Add strand direction triangles (tip, center, tail)
+        # Add strand direction triangles
         if "strand" in gene.index:
-            strand = gene["strand"]
-            arrow_dir = 1 if strand == "+" else -1
-
-            # Triangle dimensions (75% height, 10% wider than original)
-            tri_height = EXON_HEIGHT * 0.35 * 0.75  # 75% of original height
-            tri_width = region_width * 0.006 * 1.1  # 10% wider
-
-            # Arrow positions: front, middle, back (tip positions)
-            tip_offset = tri_width / 2  # Tiny offset to keep tip inside gene
-            tail_offset = tri_width * 1.5  # Offset for tail arrow from gene start/end
-            gene_center = (gene_start + gene_end) / 2
-            if arrow_dir == 1:  # Forward strand
-                arrow_tip_positions = [
-                    gene_start + tail_offset,  # Tail (tip inside gene)
-                    gene_center + tri_width / 2,  # Middle (arrow center at gene center)
-                    gene_end - tip_offset,  # Tip (near gene end)
-                ]
-                arrow_color = "#000000"  # Black for forward
-            else:  # Reverse strand
-                arrow_tip_positions = [
-                    gene_end - tail_offset,  # Tail (tip inside gene)
-                    gene_center - tri_width / 2,  # Middle (arrow center at gene center)
-                    gene_start + tip_offset,  # Tip (near gene start)
-                ]
-                arrow_color = "#333333"  # Dark grey for reverse
-
-            for tip_x in arrow_tip_positions:
-                if arrow_dir == 1:
-                    base_x = tip_x - tri_width
-                    tri_points = [
-                        [tip_x, y_gene],  # Tip pointing right
-                        [base_x, y_gene + tri_height],
-                        [base_x, y_gene - tri_height],
-                    ]
-                else:
-                    base_x = tip_x + tri_width
-                    tri_points = [
-                        [tip_x, y_gene],  # Tip pointing left
-                        [base_x, y_gene + tri_height],
-                        [base_x, y_gene - tri_height],
-                    ]
-
-                triangle = Polygon(
-                    tri_points,
-                    closed=True,
-                    facecolor=arrow_color,
-                    edgecolor=arrow_color,
-                    linewidth=0.5,
-                    zorder=5,
-                )
-                ax.add_patch(triangle)
+            _draw_strand_arrows_matplotlib(
+                ax, gene, gene_start, gene_end, y_gene, region_width
+            )
 
         # Add gene name label in the gap above gene
         if gene_name:
@@ -353,12 +416,7 @@ def plot_gene_track_generic(
         exons_df: Exon annotations with chr, start, end, gene_name
             columns for drawing exon structure. Optional.
     """
-    chrom_str = normalize_chrom(chrom)
-    region_genes = genes_df[
-        (genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
-        & (genes_df["end"] >= start)
-        & (genes_df["start"] <= end)
-    ].copy()
+    region_genes = _filter_genes_by_region(genes_df, chrom, start, end)
 
     backend.set_xlim(ax, start, end)
     backend.set_ylabel(ax, "", fontsize=10)
@@ -389,20 +447,13 @@ def plot_gene_track_generic(
     backend.set_ylim(
         ax,
         -bottom_margin,
-        (max_row + 1) * ROW_HEIGHT - ROW_HEIGHT + GENE_AREA + top_margin,
+        max_row * ROW_HEIGHT + GENE_AREA + top_margin,
     )
 
     # Filter exons for this region if available
     region_exons = None
     if exons_df is not None and not exons_df.empty:
-        region_exons = exons_df[
-            (
-                exons_df["chr"].astype(str).str.replace("chr", "", regex=False)
-                == chrom_str
-            )
-            & (exons_df["end"] >= start)
-            & (exons_df["start"] <= end)
-        ].copy()
+        region_exons = _filter_genes_by_region(exons_df, chrom, start, end)
 
     region_width = end - start
 
@@ -465,58 +516,11 @@ def plot_gene_track_generic(
                 zorder=2,
             )
 
-        # Add strand direction triangles (tip, center, tail)
+        # Add strand direction triangles
         if "strand" in gene.index:
-            strand = gene["strand"]
-            arrow_dir = 1 if strand == "+" else -1
-
-            # Triangle dimensions (75% height, 10% wider than original)
-            tri_height = EXON_HEIGHT * 0.35 * 0.75  # 75% of original height
-            tri_width = region_width * 0.006 * 1.1  # 10% wider
-
-            # Arrow positions: front, middle, back (tip positions)
-            tip_offset = tri_width / 2  # Tiny offset to keep tip inside gene
-            tail_offset = tri_width * 1.5  # Offset for tail arrow from gene start/end
-            gene_center = (gene_start + gene_end) / 2
-            if arrow_dir == 1:  # Forward strand
-                arrow_tip_positions = [
-                    gene_start + tail_offset,  # Tail (tip inside gene)
-                    gene_center + tri_width / 2,  # Middle (arrow center at gene center)
-                    gene_end - tip_offset,  # Tip (near gene end)
-                ]
-                arrow_color = "#000000"  # Black for forward
-            else:  # Reverse strand
-                arrow_tip_positions = [
-                    gene_end - tail_offset,  # Tail (tip inside gene)
-                    gene_center - tri_width / 2,  # Middle (arrow center at gene center)
-                    gene_start + tip_offset,  # Tip (near gene start)
-                ]
-                arrow_color = "#333333"  # Dark grey for reverse
-
-            for tip_x in arrow_tip_positions:
-                if arrow_dir == 1:
-                    base_x = tip_x - tri_width
-                    tri_points = [
-                        [tip_x, y_gene],  # Tip pointing right
-                        [base_x, y_gene + tri_height],
-                        [base_x, y_gene - tri_height],
-                    ]
-                else:
-                    base_x = tip_x + tri_width
-                    tri_points = [
-                        [tip_x, y_gene],  # Tip pointing left
-                        [base_x, y_gene + tri_height],
-                        [base_x, y_gene - tri_height],
-                    ]
-
-                backend.add_polygon(
-                    ax,
-                    tri_points,
-                    facecolor=arrow_color,
-                    edgecolor=arrow_color,
-                    linewidth=0.5,
-                    zorder=5,
-                )
+            _draw_strand_arrows_generic(
+                ax, backend, gene, gene_start, gene_end, y_gene, region_width
+            )
 
         # Add gene name label in the gap above gene
         if gene_name:
