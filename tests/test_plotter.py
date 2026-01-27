@@ -194,35 +194,41 @@ class TestAutoGenes:
     @pytest.fixture
     def sample_gwas_df(self):
         """Sample GWAS DataFrame for testing."""
-        return pd.DataFrame({
-            "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
-            "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
-            "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-        })
+        return pd.DataFrame(
+            {
+                "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
+                "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+            }
+        )
 
     @pytest.fixture
     def sample_genes_df(self):
         """Sample gene DataFrame for testing."""
-        return pd.DataFrame({
-            "chr": ["1", "1"],
-            "start": [1100000, 1300000],
-            "end": [1200000, 1400000],
-            "gene_name": ["GENE1", "GENE2"],
-            "strand": ["+", "-"],
-        })
+        return pd.DataFrame(
+            {
+                "chr": ["1", "1"],
+                "start": [1100000, 1300000],
+                "end": [1200000, 1400000],
+                "gene_name": ["GENE1", "GENE2"],
+                "strand": ["+", "-"],
+            }
+        )
 
     def test_plot_with_auto_genes_enabled(self, sample_gwas_df):
         """Test that auto_genes=True fetches genes from Ensembl."""
         from unittest.mock import patch
 
         # Mock the Ensembl API response
-        mock_genes = pd.DataFrame({
-            "chr": ["1", "1"],
-            "start": [1000000, 1500000],
-            "end": [1200000, 1700000],
-            "gene_name": ["GENE1", "GENE2"],
-            "strand": ["+", "-"],
-        })
+        mock_genes = pd.DataFrame(
+            {
+                "chr": ["1", "1"],
+                "start": [1000000, 1500000],
+                "end": [1200000, 1700000],
+                "gene_name": ["GENE1", "GENE2"],
+                "strand": ["+", "-"],
+            }
+        )
 
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
@@ -250,7 +256,9 @@ class TestAutoGenes:
 
         assert fig is not None
 
-    def test_plot_auto_genes_respects_explicit_genes_df(self, sample_gwas_df, sample_genes_df):
+    def test_plot_auto_genes_respects_explicit_genes_df(
+        self, sample_gwas_df, sample_genes_df
+    ):
         """Test that explicit genes_df is used even when auto_genes=True."""
         from unittest.mock import patch
 

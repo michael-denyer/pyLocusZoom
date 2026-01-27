@@ -266,7 +266,9 @@ class LocusZoomPlotter:
 
         # Auto-fetch genes if enabled and not provided
         if genes_df is None and self._auto_genes:
-            logger.debug(f"auto_genes enabled, fetching genes for chr{chrom}:{start}-{end}")
+            logger.debug(
+                f"auto_genes enabled, fetching genes for chr{chrom}:{start}-{end}"
+            )
             genes_df = get_genes_for_region(
                 species=self.species,
                 chrom=chrom,
