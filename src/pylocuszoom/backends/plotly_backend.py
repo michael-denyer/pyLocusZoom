@@ -530,7 +530,11 @@ class PlotlyBackend:
         ld_bins: List[Tuple[float, str, str]],
         lead_snp_color: str,
     ) -> None:
-        """Add LD color legend using invisible scatter traces."""
+        """Add LD color legend using invisible scatter traces.
+
+        Uses Plotly's separate legend feature (legend="legend") so LD legend
+        can be positioned independently from eQTL and fine-mapping legends.
+        """
         fig, row = ax
 
         # Add lead SNP marker first (diamond)
@@ -547,14 +551,13 @@ class PlotlyBackend:
                 ),
                 name="Lead SNP",
                 showlegend=True,
-                legendgroup="ld",
-                legendgrouptitle=dict(text="r²"),
+                legend="legend",
             ),
             row=row,
             col=1,
         )
 
-        # Add LD bin markers with legendgroup for separation from other legends
+        # Add LD bin markers
         for _, label, color in ld_bins:
             fig.add_trace(
                 go.Scatter(
@@ -569,15 +572,16 @@ class PlotlyBackend:
                     ),
                     name=label,
                     showlegend=True,
-                    legendgroup="ld",
+                    legend="legend",
                 ),
                 row=row,
                 col=1,
             )
 
-        # Position legend with group gap for separation
+        # Position LD legend (primary legend, top right)
         fig.update_layout(
             legend=dict(
+                title=dict(text="r²"),
                 x=0.99,
                 y=0.99,
                 xanchor="right",
@@ -585,7 +589,6 @@ class PlotlyBackend:
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,
-                tracegroupgap=10,
             )
         )
 
@@ -666,11 +669,15 @@ class PlotlyBackend:
         eqtl_positive_bins: List[Tuple[float, float, str, str]],
         eqtl_negative_bins: List[Tuple[float, float, str, str]],
     ) -> None:
-        """Add eQTL effect size legend using invisible scatter traces."""
+        """Add eQTL effect size legend using invisible scatter traces.
+
+        Uses Plotly's separate legend feature (legend="legend2") so eQTL legend
+        is positioned independently below the LD legend.
+        """
         fig, row = ax
 
-        # Positive effects (upward triangles) - first one gets the group title
-        for i, (_, _, label, color) in enumerate(eqtl_positive_bins):
+        # Positive effects (upward triangles)
+        for _, _, label, color in eqtl_positive_bins:
             fig.add_trace(
                 go.Scatter(
                     x=[None],
@@ -684,8 +691,7 @@ class PlotlyBackend:
                     ),
                     name=label,
                     showlegend=True,
-                    legendgroup="eqtl",
-                    legendgrouptitle=dict(text="eQTL effect") if i == 0 else None,
+                    legend="legend2",
                 ),
                 row=row,
                 col=1,
@@ -706,23 +712,23 @@ class PlotlyBackend:
                     ),
                     name=label,
                     showlegend=True,
-                    legendgroup="eqtl",
+                    legend="legend2",
                 ),
                 row=row,
                 col=1,
             )
 
-        # Position legend with group gap for separation
+        # Position eQTL legend (second legend, below LD legend)
         fig.update_layout(
-            legend=dict(
+            legend2=dict(
+                title=dict(text="eQTL effect"),
                 x=0.99,
-                y=0.99,
+                y=0.65,
                 xanchor="right",
                 yanchor="top",
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,
-                tracegroupgap=10,
             )
         )
 
@@ -732,13 +738,17 @@ class PlotlyBackend:
         credible_sets: List[int],
         get_color_func: Any,
     ) -> None:
-        """Add fine-mapping credible set legend using invisible scatter traces."""
+        """Add fine-mapping credible set legend using invisible scatter traces.
+
+        Uses Plotly's separate legend feature (legend="legend2") so fine-mapping
+        legend is positioned independently below the LD legend.
+        """
         if not credible_sets:
             return
 
         fig, row = ax
 
-        for i, cs_id in enumerate(credible_sets):
+        for cs_id in credible_sets:
             color = get_color_func(cs_id)
             fig.add_trace(
                 go.Scatter(
@@ -753,24 +763,24 @@ class PlotlyBackend:
                     ),
                     name=f"CS{cs_id}",
                     showlegend=True,
-                    legendgroup="finemapping",
-                    legendgrouptitle=dict(text="Credible sets") if i == 0 else None,
+                    legend="legend2",
                 ),
                 row=row,
                 col=1,
             )
 
-        # Position legend with group gap for separation
+        # Position fine-mapping legend (second legend, below LD legend)
+        # Uses legend2 like eQTL since they don't appear together
         fig.update_layout(
-            legend=dict(
+            legend2=dict(
+                title=dict(text="Credible sets"),
                 x=0.99,
-                y=0.99,
+                y=0.65,
                 xanchor="right",
                 yanchor="top",
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,
-                tracegroupgap=10,
             )
         )
 
