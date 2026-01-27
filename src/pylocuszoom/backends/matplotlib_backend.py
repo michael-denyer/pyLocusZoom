@@ -225,6 +225,17 @@ class MatplotlibBackend:
         """Set y-axis label."""
         ax.set_ylabel(label, fontsize=fontsize)
 
+    def set_yticks(
+        self,
+        ax: Axes,
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+    ) -> None:
+        """Set y-axis tick positions and labels."""
+        ax.set_yticks(positions)
+        ax.set_yticklabels(labels, fontsize=fontsize)
+
     def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
         """Set panel title."""
         ax.set_title(

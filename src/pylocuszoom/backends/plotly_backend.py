@@ -383,6 +383,26 @@ class PlotlyBackend:
             }
         )
 
+    def set_yticks(
+        self,
+        ax: Tuple[go.Figure, int],
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+    ) -> None:
+        """Set y-axis tick positions and labels."""
+        fig, row = ax
+        fig.update_layout(
+            **{
+                self._axis_name("yaxis", row): dict(
+                    tickmode="array",
+                    tickvals=positions,
+                    ticktext=labels,
+                    tickfont=dict(size=fontsize),
+                )
+            }
+        )
+
     def _axis_name(self, axis: str, row: int) -> str:
         """Get Plotly axis name for a given row.
 

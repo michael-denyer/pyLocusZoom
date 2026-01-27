@@ -356,6 +356,18 @@ class BokehBackend:
         ax.yaxis.axis_label = label
         ax.yaxis.axis_label_text_font_size = f"{fontsize}pt"
 
+    def set_yticks(
+        self,
+        ax: figure,
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+    ) -> None:
+        """Set y-axis tick positions and labels."""
+        ax.yaxis.ticker = positions
+        ax.yaxis.major_label_overrides = dict(zip(positions, labels))
+        ax.yaxis.major_label_text_font_size = f"{fontsize}pt"
+
     def _get_legend_location(self, loc: str, default: str = "top_left") -> str:
         """Map matplotlib-style legend location to Bokeh location."""
         loc_map = {

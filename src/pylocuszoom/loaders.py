@@ -877,4 +877,4 @@ def load_gwas(
     if format not in loaders:
         raise ValueError(f"Unknown format '{format}'. Options: {list(loaders.keys())}")
 
-    return loaders[format](filepath, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    return loaders[format](filepath, pos_col=pos_col, p_col=p_col, rs_col=rs_col, **kwargs)

@@ -15,7 +15,7 @@ def validate_forest_df(
     ci_lower_col: str = "ci_lower",
     ci_upper_col: str = "ci_upper",
 ) -> None:
-    """Validate forest plot DataFrame has required columns.
+    """Validate forest plot DataFrame has required columns and types.
 
     Args:
         df: Forest plot data DataFrame.
@@ -25,8 +25,11 @@ def validate_forest_df(
         ci_upper_col: Column name for upper confidence interval.
 
     Raises:
-        ValidationError: If required columns are missing.
+        ValidationError: If required columns are missing or have invalid types.
     """
+    errors = []
+
+    # Check required columns exist
     required = [study_col, effect_col, ci_lower_col, ci_upper_col]
     missing = [col for col in required if col not in df.columns]
 
@@ -34,4 +37,15 @@ def validate_forest_df(
         raise ValidationError(
             f"Forest plot DataFrame missing required columns: {missing}. "
             f"Required: {required}. Found: {list(df.columns)}"
+        )
+
+    # Check numeric columns are actually numeric
+    numeric_cols = [effect_col, ci_lower_col, ci_upper_col]
+    for col in numeric_cols:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            errors.append(f"Column '{col}' must be numeric, got {df[col].dtype}")
+
+    if errors:
+        raise ValidationError(
+            "Forest plot validation failed:\n  - " + "\n  - ".join(errors)
         )

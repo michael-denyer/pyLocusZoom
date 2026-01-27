@@ -1281,10 +1281,13 @@ class LocusZoomPlotter:
         self._backend.set_ylabel(ax, "Phenotype")
         self._backend.set_ylim(ax, -0.5, len(df) - 0.5)
 
-        # Set y-tick labels to phenotype names (matplotlib only)
-        if self.backend_name == "matplotlib":
-            ax.set_yticks(df["y_pos"])
-            ax.set_yticklabels(df[phenotype_col], fontsize=8)
+        # Set y-tick labels to phenotype names
+        self._backend.set_yticks(
+            ax,
+            positions=df["y_pos"].tolist(),
+            labels=df[phenotype_col].tolist(),
+            fontsize=8,
+        )
 
         self._backend.set_title(ax, f"PheWAS: {variant_id}")
         self._backend.hide_spines(ax, ["top", "right"])
@@ -1405,10 +1408,13 @@ class LocusZoomPlotter:
         x_padding = (x_max - x_min) * 0.1
         self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
 
-        # Set y-tick labels to study names (matplotlib only)
-        if self.backend_name == "matplotlib":
-            ax.set_yticks(df["y_pos"])
-            ax.set_yticklabels(df[study_col], fontsize=10)
+        # Set y-tick labels to study names
+        self._backend.set_yticks(
+            ax,
+            positions=df["y_pos"].tolist(),
+            labels=df[study_col].tolist(),
+            fontsize=10,
+        )
 
         self._backend.set_title(ax, f"Forest Plot: {variant_id}")
         self._backend.hide_spines(ax, ["top", "right"])

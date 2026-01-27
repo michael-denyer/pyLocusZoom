@@ -249,6 +249,23 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def set_yticks(
+        self,
+        ax: Any,
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+    ) -> None:
+        """Set y-axis tick positions and labels.
+
+        Args:
+            ax: Axes or panel.
+            positions: Tick positions.
+            labels: Tick labels.
+            fontsize: Font size.
+        """
+        ...
+
     def set_title(self, ax: Any, title: str, fontsize: int = 14) -> None:
         """Set panel title.
 
