@@ -1,7 +1,5 @@
 [![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/michael-denyer/pyLocusZoom/graph/badge.svg)](https://codecov.io/gh/michael-denyer/pyLocusZoom)
 [![PyPI](https://img.shields.io/pypi/v/pylocuszoom)](https://pypi.org/project/pylocuszoom/)
-[![Bioconda](https://img.shields.io/conda/vn/bioconda/pylocuszoom)](https://anaconda.org/bioconda/pylocuszoom)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-red.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
