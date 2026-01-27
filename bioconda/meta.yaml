@@ -1,5 +1,5 @@
 {% set name = "pylocuszoom" %}
-{% set version = "0.3.0" %}
+{% set version = "0.5.0" %}
 
 package:
   name: {{ name|lower }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
-  sha256: REPLACE_WITH_SHA256_AFTER_PYPI_PUBLISH
+  sha256: 5aa46c51631e2c736867b85144f390da94f813146eeef5f943038a772820022e
 
 build:
   noarch: python
