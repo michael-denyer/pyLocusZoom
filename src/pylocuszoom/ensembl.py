@@ -360,3 +360,69 @@ def fetch_exons_from_ensembl(
     df = pd.DataFrame(records)
     logger.debug(f"Fetched {len(df)} exons from Ensembl")
     return df
+
+
+def get_genes_for_region(
+    species: str,
+    chrom: str | int,
+    start: int,
+    end: int,
+    cache_dir: Path | None = None,
+    use_cache: bool = True,
+    include_exons: bool = False,
+    raise_on_error: bool = False,
+) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
+    """Get gene annotations for a genomic region.
+
+    Checks cache first, fetches from Ensembl API if not cached.
+
+    Args:
+        species: Species name or alias.
+        chrom: Chromosome name or number.
+        start: Region start position (1-based).
+        end: Region end position (1-based).
+        cache_dir: Cache directory (uses default if None).
+        use_cache: Whether to use disk cache.
+        include_exons: If True, also fetch exons and return tuple (genes_df, exons_df).
+        raise_on_error: If True, raise ValidationError on API errors.
+
+    Returns:
+        If include_exons=False: DataFrame with gene annotations.
+        If include_exons=True: Tuple of (genes_df, exons_df).
+
+    Raises:
+        ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
+    """
+    if cache_dir is None:
+        cache_dir = get_ensembl_cache_dir()
+
+    chrom_str = str(chrom).replace("chr", "")
+
+    # Check cache first
+    if use_cache:
+        cached = get_cached_genes(cache_dir, species, chrom_str, start, end)
+        if cached is not None:
+            if include_exons:
+                # Exons not cached separately (yet)
+                exons_df = fetch_exons_from_ensembl(
+                    species, chrom_str, start, end, raise_on_error=raise_on_error
+                )
+                return cached, exons_df
+            return cached
+
+    # Fetch from Ensembl API
+    genes_df = fetch_genes_from_ensembl(
+        species, chrom_str, start, end, raise_on_error=raise_on_error
+    )
+
+    # Cache the result (even if empty, to avoid repeated failed requests)
+    if use_cache and not genes_df.empty:
+        save_cached_genes(genes_df, cache_dir, species, chrom_str, start, end)
+
+    if include_exons:
+        exons_df = fetch_exons_from_ensembl(
+            species, chrom_str, start, end, raise_on_error=raise_on_error
+        )
+        return genes_df, exons_df
+
+    return genes_df

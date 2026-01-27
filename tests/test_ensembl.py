@@ -253,3 +253,129 @@ def test_save_and_load_cached_genes():
         # Sort for deterministic comparison
         loaded_sorted = loaded.sort_values("start")
         assert loaded_sorted["gene_name"].tolist() == ["BRCA2", "TEST"]
+
+
+# --- get_genes_for_region tests ---
+
+
+def test_get_genes_for_region_uses_cache():
+    """Test that get_genes_for_region uses cache when available."""
+    from pylocuszoom.ensembl import get_genes_for_region, save_cached_genes
+
+    # Pre-populate cache
+    cached_df = pd.DataFrame({
+        "chr": ["13"],
+        "start": [32315474],
+        "end": [32400266],
+        "gene_name": ["CACHED_GENE"],
+        "strand": ["+"],
+    })
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+        save_cached_genes(cached_df, cache_dir, "human", "13", 32000000, 33000000)
+
+        # Mock the API call - should NOT be called due to cache hit
+        with patch("pylocuszoom.ensembl.requests.get") as mock_get:
+            result = get_genes_for_region(
+                species="human",
+                chrom="13",
+                start=32000000,
+                end=33000000,
+                cache_dir=cache_dir,
+            )
+
+            # API should not have been called
+            mock_get.assert_not_called()
+
+        assert len(result) == 1
+        assert result["gene_name"].iloc[0] == "CACHED_GENE"
+
+
+def test_get_genes_for_region_fetches_and_caches():
+    """Test that get_genes_for_region fetches from API and caches result."""
+    from pylocuszoom.ensembl import get_genes_for_region
+
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.json.return_value = [
+        {
+            "id": "ENSG00000139618",
+            "external_name": "BRCA2",
+            "seq_region_name": "13",
+            "start": 32315474,
+            "end": 32400266,
+            "strand": 1,
+            "biotype": "protein_coding",
+            "feature_type": "gene",
+        },
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+
+        with patch("pylocuszoom.ensembl.requests.get", return_value=mock_response):
+            result = get_genes_for_region(
+                species="human",
+                chrom="13",
+                start=32000000,
+                end=33000000,
+                cache_dir=cache_dir,
+            )
+
+        assert len(result) == 1
+        assert result["gene_name"].iloc[0] == "BRCA2"
+
+        # Verify cache file was created (CSV, not parquet)
+        csv_files = list(cache_dir.glob("**/*.csv"))
+        assert len(csv_files) == 1
+
+
+def test_get_genes_for_region_include_exons():
+    """Test fetching genes with exons included."""
+    from pylocuszoom.ensembl import get_genes_for_region
+
+    mock_genes = Mock()
+    mock_genes.ok = True
+    mock_genes.json.return_value = [
+        {
+            "id": "ENSG00000139618",
+            "external_name": "BRCA2",
+            "seq_region_name": "13",
+            "start": 32315474,
+            "end": 32400266,
+            "strand": 1,
+            "biotype": "protein_coding",
+            "feature_type": "gene",
+        },
+    ]
+
+    mock_exons = Mock()
+    mock_exons.ok = True
+    mock_exons.json.return_value = [
+        {
+            "id": "ENSE00003659301",
+            "Parent": "ENST00000380152",
+            "seq_region_name": "13",
+            "start": 32315474,
+            "end": 32315667,
+            "strand": 1,
+            "feature_type": "exon",
+        },
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+
+        with patch("pylocuszoom.ensembl.requests.get", side_effect=[mock_genes, mock_exons]):
+            genes_df, exons_df = get_genes_for_region(
+                species="human",
+                chrom="13",
+                start=32000000,
+                end=33000000,
+                cache_dir=cache_dir,
+                include_exons=True,
+            )
+
+        assert len(genes_df) == 1
+        assert len(exons_df) == 1
