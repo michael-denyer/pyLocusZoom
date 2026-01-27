@@ -177,6 +177,99 @@ class TestLocusZoomPlotterInit:
         plotter = LocusZoomPlotter(genomewide_threshold=5e-8)
         assert plotter.genomewide_threshold == 5e-8
 
+    def test_auto_genes_default_false(self):
+        """auto_genes should be False by default for backward compatibility."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        assert plotter._auto_genes is False
+
+    def test_auto_genes_can_be_enabled(self):
+        """auto_genes=True should be accepted."""
+        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
+        assert plotter._auto_genes is True
+
+
+class TestAutoGenes:
+    """Tests for automatic gene fetching from Ensembl."""
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS DataFrame for testing."""
+        return pd.DataFrame({
+            "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
+            "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
+            "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+        })
+
+    @pytest.fixture
+    def sample_genes_df(self):
+        """Sample gene DataFrame for testing."""
+        return pd.DataFrame({
+            "chr": ["1", "1"],
+            "start": [1100000, 1300000],
+            "end": [1200000, 1400000],
+            "gene_name": ["GENE1", "GENE2"],
+            "strand": ["+", "-"],
+        })
+
+    def test_plot_with_auto_genes_enabled(self, sample_gwas_df):
+        """Test that auto_genes=True fetches genes from Ensembl."""
+        from unittest.mock import patch
+
+        # Mock the Ensembl API response
+        mock_genes = pd.DataFrame({
+            "chr": ["1", "1"],
+            "start": [1000000, 1500000],
+            "end": [1200000, 1700000],
+            "gene_name": ["GENE1", "GENE2"],
+            "strand": ["+", "-"],
+        })
+
+        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
+
+        with patch("pylocuszoom.plotter.get_genes_for_region", return_value=mock_genes):
+            fig = plotter.plot(
+                sample_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+            )
+
+        assert fig is not None
+
+    def test_plot_auto_genes_disabled_by_default(self, sample_gwas_df):
+        """Test that auto_genes=False by default (backward compatible)."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        # Should work without genes_df and without calling Ensembl
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+        )
+
+        assert fig is not None
+
+    def test_plot_auto_genes_respects_explicit_genes_df(self, sample_gwas_df, sample_genes_df):
+        """Test that explicit genes_df is used even when auto_genes=True."""
+        from unittest.mock import patch
+
+        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
+
+        with patch("pylocuszoom.plotter.get_genes_for_region") as mock_fetch:
+            fig = plotter.plot(
+                sample_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                genes_df=sample_genes_df,
+            )
+
+            # Ensembl should NOT be called when genes_df is provided
+            mock_fetch.assert_not_called()
+
+        assert fig is not None
+
 
 class TestLocusZoomPlotterPlot:
     """Tests for LocusZoomPlotter.plot() method."""
