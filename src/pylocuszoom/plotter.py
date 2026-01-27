@@ -31,8 +31,11 @@ from .colors import (
     get_eqtl_color,
     get_ld_bin,
     get_ld_color_palette,
+    get_phewas_category_palette,
 )
 from .eqtl import validate_eqtl_df
+from .forest import validate_forest_df
+from .phewas import validate_phewas_df
 from .finemapping import (
     get_credible_sets,
     prepare_finemapping_for_plotting,
@@ -1153,5 +1156,132 @@ class LocusZoomPlotter:
 
         # Adjust layout
         self._backend.finalize_layout(fig, hspace=0.1)
+
+        return fig
+
+    def plot_phewas(
+        self,
+        phewas_df: pd.DataFrame,
+        variant_id: str,
+        phenotype_col: str = "phenotype",
+        p_col: str = "p_value",
+        category_col: str = "category",
+        effect_col: Optional[str] = None,
+        significance_threshold: float = 5e-8,
+        figsize: Tuple[float, float] = (10, 8),
+    ) -> Any:
+        """Create a PheWAS (Phenome-Wide Association Study) plot.
+
+        Shows associations of a single variant across multiple phenotypes,
+        with phenotypes grouped by category and colored accordingly.
+
+        Args:
+            phewas_df: DataFrame with phenotype associations.
+            variant_id: Variant identifier (e.g., "rs12345") for plot title.
+            phenotype_col: Column name for phenotype names.
+            p_col: Column name for p-values.
+            category_col: Column name for phenotype categories.
+            effect_col: Optional column name for effect direction (beta/OR).
+            significance_threshold: P-value threshold for significance line.
+            figsize: Figure size as (width, height).
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Example:
+            >>> fig = plotter.plot_phewas(
+            ...     phewas_df,
+            ...     variant_id="rs12345",
+            ...     category_col="category",
+            ... )
+        """
+        validate_phewas_df(phewas_df, phenotype_col, p_col, category_col)
+
+        df = phewas_df.copy()
+        df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
+
+        # Sort by category then by p-value for consistent ordering
+        if category_col in df.columns:
+            df = df.sort_values([category_col, p_col])
+            categories = df[category_col].unique().tolist()
+            palette = get_phewas_category_palette(categories)
+        else:
+            df = df.sort_values(p_col)
+            categories = []
+            palette = {}
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=1,
+            height_ratios=[1.0],
+            figsize=figsize,
+        )
+        ax = axes[0]
+
+        # Assign y-positions (one per phenotype)
+        df["y_pos"] = range(len(df))
+
+        # Plot points by category
+        if categories:
+            for cat in categories:
+                cat_data = df[df[category_col] == cat]
+                # Use upward triangles for positive effects, circles otherwise
+                if effect_col and effect_col in cat_data.columns:
+                    for _, row in cat_data.iterrows():
+                        marker = "^" if row[effect_col] >= 0 else "v"
+                        self._backend.scatter(
+                            ax,
+                            pd.Series([row["neglog10p"]]),
+                            pd.Series([row["y_pos"]]),
+                            colors=palette[cat],
+                            sizes=60,
+                            marker=marker,
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                        )
+                else:
+                    self._backend.scatter(
+                        ax,
+                        cat_data["neglog10p"],
+                        cat_data["y_pos"],
+                        colors=palette[cat],
+                        sizes=60,
+                        marker="o",
+                        edgecolor="black",
+                        linewidth=0.5,
+                        zorder=2,
+                    )
+        else:
+            self._backend.scatter(
+                ax,
+                df["neglog10p"],
+                df["y_pos"],
+                colors="#4169E1",
+                sizes=60,
+                edgecolor="black",
+                linewidth=0.5,
+                zorder=2,
+            )
+
+        # Add significance threshold line
+        sig_line = -np.log10(significance_threshold)
+        self._backend.axvline(
+            ax, x=sig_line, color="red", linestyle="--", linewidth=1, alpha=0.7
+        )
+
+        # Set axis labels and limits
+        self._backend.set_xlabel(ax, r"$-\log_{10}$ P")
+        self._backend.set_ylabel(ax, "Phenotype")
+        self._backend.set_ylim(ax, -0.5, len(df) - 0.5)
+
+        # Set y-tick labels to phenotype names (matplotlib only)
+        if self.backend_name == "matplotlib":
+            ax.set_yticks(df["y_pos"])
+            ax.set_yticklabels(df[phenotype_col], fontsize=8)
+
+        self._backend.set_title(ax, f"PheWAS: {variant_id}")
+        self._backend.hide_spines(ax, ["top", "right"])
+        self._backend.finalize_layout(fig)
 
         return fig
