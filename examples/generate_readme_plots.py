@@ -342,18 +342,24 @@ fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
 fig.savefig("examples/phewas_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/phewas_plot.png")
 
-# 10. Forest plot
+# 10. Forest plot (odds ratios with null at 1.0)
 print("10. Forest plot...")
 forest_df = pd.DataFrame(
     {
         "study": ["GWAS Study A", "GWAS Study B", "GWAS Study C", "Meta-analysis"],
-        "effect": [0.45, 0.52, 0.38, 0.46],
-        "ci_lower": [0.30, 0.35, 0.20, 0.40],
-        "ci_upper": [0.60, 0.69, 0.56, 0.52],
+        "effect": [1.25, 1.42, 1.18, 1.28],
+        "ci_lower": [1.05, 1.15, 0.92, 1.18],
+        "ci_upper": [1.48, 1.75, 1.51, 1.39],
         "weight": [25, 35, 20, 100],
     }
 )
-fig = plotter.plot_forest(forest_df, variant_id="rs12345", weight_col="weight")
+fig = plotter.plot_forest(
+    forest_df,
+    variant_id="rs12345",
+    weight_col="weight",
+    null_value=1.0,
+    effect_label="Odds Ratio",
+)
 fig.savefig("examples/forest_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/forest_plot.png")
 
