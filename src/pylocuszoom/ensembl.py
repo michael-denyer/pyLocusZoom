@@ -47,6 +47,30 @@ ENSEMBL_MAX_RETRIES = 3
 ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 
 
+def _normalize_chrom(chrom: str | int) -> str:
+    """Normalize chromosome name by removing 'chr' prefix."""
+    return str(chrom).replace("chr", "")
+
+
+def _validate_region_size(start: int, end: int, context: str) -> None:
+    """Validate region size is within Ensembl API limits.
+
+    Args:
+        start: Region start position.
+        end: Region end position.
+        context: Context for error message (e.g., "genes_df", "exons_df").
+
+    Raises:
+        ValidationError: If region exceeds 5Mb limit.
+    """
+    region_size = end - start
+    if region_size > ENSEMBL_MAX_REGION_SIZE:
+        raise ValidationError(
+            f"Region size {region_size:,} bp exceeds Ensembl API limit of 5Mb. "
+            f"Please use a smaller region or provide {context} directly."
+        )
+
+
 def get_ensembl_species_name(species: str) -> str:
     """Convert species alias to Ensembl species name.
 
@@ -105,18 +129,17 @@ def get_cached_genes(
         DataFrame if cache hit, None if cache miss.
     """
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = str(chrom).replace("chr", "")
+    chrom_str = _normalize_chrom(chrom)
     cache_key = _cache_key(ensembl_species, chrom_str, start, end)
 
-    # Species-specific subdirectory
     species_dir = cache_dir / ensembl_species
     cache_file = species_dir / f"genes_{cache_key}.csv"
 
-    if cache_file.exists():
-        logger.debug(f"Cache hit: {cache_file}")
-        return pd.read_csv(cache_file)
+    if not cache_file.exists():
+        return None
 
-    return None
+    logger.debug(f"Cache hit: {cache_file}")
+    return pd.read_csv(cache_file)
 
 
 def save_cached_genes(
@@ -138,10 +161,9 @@ def save_cached_genes(
         end: Region end position.
     """
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = str(chrom).replace("chr", "")
+    chrom_str = _normalize_chrom(chrom)
     cache_key = _cache_key(ensembl_species, chrom_str, start, end)
 
-    # Species-specific subdirectory
     species_dir = cache_dir / ensembl_species
     species_dir.mkdir(parents=True, exist_ok=True)
 
@@ -241,18 +263,10 @@ def fetch_genes_from_ensembl(
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
     """
-    # Validate region size
-    region_size = end - start
-    if region_size > ENSEMBL_MAX_REGION_SIZE:
-        raise ValidationError(
-            f"Region size {region_size:,} bp exceeds Ensembl API limit of 5Mb. "
-            f"Please use a smaller region or provide genes_df directly."
-        )
+    _validate_region_size(start, end, "genes_df")
 
     ensembl_species = get_ensembl_species_name(species)
-
-    # Normalize chromosome name (remove 'chr' prefix if present)
-    chrom_str = str(chrom).replace("chr", "")
+    chrom_str = _normalize_chrom(chrom)
 
     # Build region string
     region = f"{chrom_str}:{start}-{end}"
@@ -317,16 +331,10 @@ def fetch_exons_from_ensembl(
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
     """
-    # Validate region size
-    region_size = end - start
-    if region_size > ENSEMBL_MAX_REGION_SIZE:
-        raise ValidationError(
-            f"Region size {region_size:,} bp exceeds Ensembl API limit of 5Mb. "
-            f"Please use a smaller region or provide exons_df directly."
-        )
+    _validate_region_size(start, end, "exons_df")
 
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = str(chrom).replace("chr", "")
+    chrom_str = _normalize_chrom(chrom)
     region = f"{chrom_str}:{start}-{end}"
 
     url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
@@ -400,7 +408,7 @@ def get_genes_for_region(
     if cache_dir is None:
         cache_dir = get_ensembl_cache_dir()
 
-    chrom_str = str(chrom).replace("chr", "")
+    chrom_str = _normalize_chrom(chrom)
 
     # Check cache first
     if use_cache:
