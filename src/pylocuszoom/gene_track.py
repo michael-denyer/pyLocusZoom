@@ -262,9 +262,9 @@ def plot_gene_track(
             strand = gene["strand"]
             arrow_dir = 1 if strand == "+" else -1
 
-            # Triangle dimensions
-            tri_height = EXON_HEIGHT * 0.35
-            tri_width = region_width * 0.006
+            # Triangle dimensions (75% height, 10% wider than original)
+            tri_height = EXON_HEIGHT * 0.35 * 0.75  # 75% of original height
+            tri_width = region_width * 0.006 * 1.1  # 10% wider
 
             # Arrow positions: front, middle, back (tip positions)
             tip_offset = tri_width / 2  # Tiny offset to keep tip inside gene
@@ -320,7 +320,7 @@ def plot_gene_track(
                 gene_name,
                 ha="center",
                 va="bottom",
-                fontsize=5.5,
+                fontsize=7,
                 color="#000000",
                 fontweight="medium",
                 style="italic",
@@ -470,9 +470,9 @@ def plot_gene_track_generic(
             strand = gene["strand"]
             arrow_dir = 1 if strand == "+" else -1
 
-            # Triangle dimensions
-            tri_height = EXON_HEIGHT * 0.35
-            tri_width = region_width * 0.006
+            # Triangle dimensions (75% height, 10% wider than original)
+            tri_height = EXON_HEIGHT * 0.35 * 0.75  # 75% of original height
+            tri_width = region_width * 0.006 * 1.1  # 10% wider
 
             # Arrow positions: front, middle, back (tip positions)
             tip_offset = tri_width / 2  # Tiny offset to keep tip inside gene
@@ -526,7 +526,7 @@ def plot_gene_track_generic(
                 label_pos,
                 y_label,
                 gene_name,
-                fontsize=6,
+                fontsize=7,
                 ha="center",
                 va="bottom",
                 color="#000000",

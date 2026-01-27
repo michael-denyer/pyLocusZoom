@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Forest plot example now uses odds ratios with `null_value=1.0` (more representative)
 - PheWAS and forest plot y-axis labels now work correctly in Plotly and Bokeh backends
+- Gene track styling: arrows now 75% height and 10% wider for better proportions
+- Gene track labels increased from 5.5pt to 7pt for improved readability
 
 ### Fixed
 - `load_gwas()` now forwards `**kwargs` to format-specific loaders
