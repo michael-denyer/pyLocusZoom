@@ -252,10 +252,20 @@ def download_canine_recombination_maps(
 
         logger.debug(f"Downloaded {tar_path.stat().st_size / 1024:.1f} KB")
 
-        # Extract tar.gz
+        # Extract tar.gz with path traversal protection
         logger.debug("Extracting genetic maps...")
         with tarfile.open(tar_path, "r:gz") as tar:
-            tar.extractall(tmpdir)
+            # Filter to prevent path traversal attacks
+            safe_members = []
+            for member in tar.getmembers():
+                # Resolve the path and ensure it stays within tmpdir
+                member_path = Path(tmpdir) / member.name
+                try:
+                    member_path.resolve().relative_to(Path(tmpdir).resolve())
+                    safe_members.append(member)
+                except ValueError:
+                    logger.warning(f"Skipping unsafe path in archive: {member.name}")
+            tar.extractall(tmpdir, members=safe_members)
 
         # Find and process the extracted files
         extracted_dir = Path(tmpdir)
