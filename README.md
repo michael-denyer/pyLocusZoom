@@ -10,7 +10,7 @@
 <img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 # pyLocusZoom
 
-Publication-ready GWAS visualization library with regional association plots, gene tracks, eQTL, PheWAS, fine-mapping, and forest plots.
+Designed for publication-ready GWAS visualization with regional association plots, gene tracks, eQTL, PheWAS, fine-mapping, and forest plots.
 
 Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.com/myles-lewis/locuszoomr).
 
