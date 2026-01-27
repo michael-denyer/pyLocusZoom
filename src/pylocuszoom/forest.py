@@ -5,7 +5,7 @@ Validates and prepares meta-analysis/forest plot data for visualization.
 
 import pandas as pd
 
-from .utils import ValidationError
+from .validation import DataFrameValidator
 
 
 def validate_forest_df(
@@ -27,25 +27,9 @@ def validate_forest_df(
     Raises:
         ValidationError: If required columns are missing or have invalid types.
     """
-    errors = []
-
-    # Check required columns exist
-    required = [study_col, effect_col, ci_lower_col, ci_upper_col]
-    missing = [col for col in required if col not in df.columns]
-
-    if missing:
-        raise ValidationError(
-            f"Forest plot DataFrame missing required columns: {missing}. "
-            f"Required: {required}. Found: {list(df.columns)}"
-        )
-
-    # Check numeric columns are actually numeric
-    numeric_cols = [effect_col, ci_lower_col, ci_upper_col]
-    for col in numeric_cols:
-        if not pd.api.types.is_numeric_dtype(df[col]):
-            errors.append(f"Column '{col}' must be numeric, got {df[col].dtype}")
-
-    if errors:
-        raise ValidationError(
-            "Forest plot validation failed:\n  - " + "\n  - ".join(errors)
-        )
+    (
+        DataFrameValidator(df, "Forest plot DataFrame")
+        .require_columns([study_col, effect_col, ci_lower_col, ci_upper_col])
+        .require_numeric([effect_col, ci_lower_col, ci_upper_col])
+        .validate()
+    )
