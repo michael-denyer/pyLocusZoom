@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from . import convert_latex_to_unicode
+
 
 class PlotlyBackend:
     """Plotly backend for interactive plot generation.
@@ -423,19 +425,7 @@ class PlotlyBackend:
 
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Plotly display."""
-        conversions = [
-            (r"$-\log_{10}$ P", "-log₁₀(P)"),
-            (r"$-\log_{10}$", "-log₁₀"),
-            (r"\log_{10}", "log₁₀"),
-            (r"$r^2$", "r²"),
-            (r"$R^2$", "R²"),
-        ]
-        for latex, unicode_str in conversions:
-            if latex in label:
-                label = label.replace(latex, unicode_str)
-        # Remove any remaining $ markers
-        label = label.replace("$", "")
-        return label
+        return convert_latex_to_unicode(label)
 
     def set_title(
         self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14

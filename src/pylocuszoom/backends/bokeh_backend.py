@@ -11,6 +11,8 @@ from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
+from . import convert_latex_to_unicode
+
 
 class BokehBackend:
     """Bokeh backend for interactive plot generation.
@@ -380,18 +382,7 @@ class BokehBackend:
 
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Bokeh display."""
-        conversions = [
-            (r"$-\log_{10}$ P", "-log₁₀(P)"),
-            (r"$-\log_{10}$", "-log₁₀"),
-            (r"\log_{10}", "log₁₀"),
-            (r"$r^2$", "r²"),
-            (r"$R^2$", "R²"),
-        ]
-        for latex, unicode_str in conversions:
-            if latex in label:
-                label = label.replace(latex, unicode_str)
-        label = label.replace("$", "")
-        return label
+        return convert_latex_to_unicode(label)
 
     def set_title(self, ax: figure, title: str, fontsize: int = 14) -> None:
         """Set figure title."""
