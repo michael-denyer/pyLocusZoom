@@ -9,6 +9,8 @@ from typing import List, Optional
 import pandas as pd
 
 from .logging import logger
+from .utils import ValidationError
+from .validation import DataFrameValidator
 
 # Required columns for fine-mapping data
 REQUIRED_FINEMAPPING_COLS = ["pos", "pip"]
@@ -36,24 +38,16 @@ def validate_finemapping_df(
     Raises:
         FinemappingValidationError: If required columns are missing.
     """
-    missing = []
-    if pos_col not in df.columns:
-        missing.append(pos_col)
-    if pip_col not in df.columns:
-        missing.append(pip_col)
-
-    if missing:
-        raise FinemappingValidationError(
-            f"Fine-mapping DataFrame missing required columns: {missing}. "
-            f"Required: {pos_col} (position), {pip_col} (posterior inclusion probability)"
+    try:
+        (
+            DataFrameValidator(df, "Fine-mapping DataFrame")
+            .require_columns([pos_col, pip_col])
+            .require_numeric([pip_col])
+            .require_range(pip_col, min_val=0, max_val=1)
+            .validate()
         )
-
-    # Validate PIP values are in [0, 1]
-    if not df[pip_col].between(0, 1).all():
-        invalid_count = (~df[pip_col].between(0, 1)).sum()
-        raise FinemappingValidationError(
-            f"PIP values must be between 0 and 1. Found {invalid_count} invalid values."
-        )
+    except ValidationError as e:
+        raise FinemappingValidationError(str(e)) from e
 
 
 def filter_finemapping_by_region(

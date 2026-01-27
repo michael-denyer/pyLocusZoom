@@ -38,7 +38,7 @@ class TestValidateFinemappingDf:
         """Should raise for missing position column."""
         df = finemapping_df.drop(columns=["pos"])
         with pytest.raises(
-            FinemappingValidationError, match="missing required columns"
+            FinemappingValidationError, match="Missing columns"
         ):
             validate_finemapping_df(df)
 
@@ -46,7 +46,7 @@ class TestValidateFinemappingDf:
         """Should raise for missing PIP column."""
         df = finemapping_df.drop(columns=["pip"])
         with pytest.raises(
-            FinemappingValidationError, match="missing required columns"
+            FinemappingValidationError, match="Missing columns"
         ):
             validate_finemapping_df(df)
 
@@ -54,7 +54,7 @@ class TestValidateFinemappingDf:
         """Should raise for PIP values outside [0, 1]."""
         df = finemapping_df.copy()
         df.loc[0, "pip"] = 1.5
-        with pytest.raises(FinemappingValidationError, match="must be between 0 and 1"):
+        with pytest.raises(FinemappingValidationError, match="values > 1"):
             validate_finemapping_df(df)
 
     def test_custom_column_names(self):
