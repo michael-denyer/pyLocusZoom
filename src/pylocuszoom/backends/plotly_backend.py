@@ -533,9 +533,58 @@ class PlotlyBackend:
         yaxis_name = f"yaxis{row}" if row > 1 else "yaxis"
         yaxis = getattr(fig.layout, yaxis_name, None)
         if yaxis and yaxis.domain:
-            return yaxis.domain[1]  # Top of domain
-        # Fallback: estimate based on row count
+            return yaxis.domain[1]
         return 0.99
+
+    def _add_legend_item(
+        self,
+        fig: go.Figure,
+        row: int,
+        name: str,
+        color: str,
+        symbol: str,
+        size: int,
+        legend_group: str,
+    ) -> None:
+        """Add an invisible scatter trace for a legend entry."""
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(
+                    symbol=symbol,
+                    size=size,
+                    color=color,
+                    line=dict(color="black", width=0.5),
+                ),
+                name=name,
+                showlegend=True,
+                legend=legend_group,
+            ),
+            row=row,
+            col=1,
+        )
+
+    def _configure_legend(
+        self, fig: go.Figure, row: int, legend_key: str, title: str
+    ) -> None:
+        """Configure legend position and styling."""
+        y_pos = self._get_panel_y_top(fig, row)
+        fig.update_layout(
+            **{
+                legend_key: dict(
+                    title=dict(text=title),
+                    x=0.99,
+                    y=y_pos,
+                    xanchor="right",
+                    yanchor="top",
+                    bgcolor="rgba(255,255,255,0.9)",
+                    bordercolor="black",
+                    borderwidth=1,
+                )
+            }
+        )
 
     def add_ld_legend(
         self,
@@ -547,65 +596,16 @@ class PlotlyBackend:
 
         Uses Plotly's separate legend feature (legend="legend") so LD legend
         can be positioned independently from eQTL and fine-mapping legends.
-        Legend is positioned at top-right of its associated panel.
         """
         fig, row = ax
 
-        # Add lead SNP marker first (diamond)
-        fig.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                mode="markers",
-                marker=dict(
-                    symbol="diamond",
-                    size=12,
-                    color=lead_snp_color,
-                    line=dict(color="black", width=0.5),
-                ),
-                name="Lead SNP",
-                showlegend=True,
-                legend="legend",
-            ),
-            row=row,
-            col=1,
+        self._add_legend_item(
+            fig, row, "Lead SNP", lead_snp_color, "diamond", 12, "legend"
         )
-
-        # Add LD bin markers
         for _, label, color in ld_bins:
-            fig.add_trace(
-                go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode="markers",
-                    marker=dict(
-                        symbol="square",
-                        size=10,
-                        color=color,
-                        line=dict(color="black", width=0.5),
-                    ),
-                    name=label,
-                    showlegend=True,
-                    legend="legend",
-                ),
-                row=row,
-                col=1,
-            )
+            self._add_legend_item(fig, row, label, color, "square", 10, "legend")
 
-        # Position LD legend at top-right of its panel
-        y_pos = self._get_panel_y_top(fig, row)
-        fig.update_layout(
-            legend=dict(
-                title=dict(text="r²"),
-                x=0.99,
-                y=y_pos,
-                xanchor="right",
-                yanchor="top",
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
-            )
-        )
+        self._configure_legend(fig, row, "legend", "r²")
 
     def add_legend(
         self,
@@ -691,62 +691,14 @@ class PlotlyBackend:
         """
         fig, row = ax
 
-        # Positive effects (upward triangles)
         for _, _, label, color in eqtl_positive_bins:
-            fig.add_trace(
-                go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode="markers",
-                    marker=dict(
-                        symbol="triangle-up",
-                        size=10,
-                        color=color,
-                        line=dict(color="black", width=0.5),
-                    ),
-                    name=label,
-                    showlegend=True,
-                    legend="legend2",
-                ),
-                row=row,
-                col=1,
-            )
-
-        # Negative effects (downward triangles)
+            self._add_legend_item(fig, row, label, color, "triangle-up", 10, "legend2")
         for _, _, label, color in eqtl_negative_bins:
-            fig.add_trace(
-                go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode="markers",
-                    marker=dict(
-                        symbol="triangle-down",
-                        size=10,
-                        color=color,
-                        line=dict(color="black", width=0.5),
-                    ),
-                    name=label,
-                    showlegend=True,
-                    legend="legend2",
-                ),
-                row=row,
-                col=1,
+            self._add_legend_item(
+                fig, row, label, color, "triangle-down", 10, "legend2"
             )
 
-        # Position eQTL legend at top-right of its panel
-        y_pos = self._get_panel_y_top(fig, row)
-        fig.update_layout(
-            legend2=dict(
-                title=dict(text="eQTL effect"),
-                x=0.99,
-                y=y_pos,
-                xanchor="right",
-                yanchor="top",
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
-            )
-        )
+        self._configure_legend(fig, row, "legend2", "eQTL effect")
 
     def add_finemapping_legend(
         self,
@@ -765,40 +717,11 @@ class PlotlyBackend:
         fig, row = ax
 
         for cs_id in credible_sets:
-            color = get_color_func(cs_id)
-            fig.add_trace(
-                go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode="markers",
-                    marker=dict(
-                        symbol="circle",
-                        size=10,
-                        color=color,
-                        line=dict(color="black", width=0.5),
-                    ),
-                    name=f"CS{cs_id}",
-                    showlegend=True,
-                    legend="legend2",
-                ),
-                row=row,
-                col=1,
+            self._add_legend_item(
+                fig, row, f"CS{cs_id}", get_color_func(cs_id), "circle", 10, "legend2"
             )
 
-        # Position fine-mapping legend at top-right of its panel
-        y_pos = self._get_panel_y_top(fig, row)
-        fig.update_layout(
-            legend2=dict(
-                title=dict(text="Credible sets"),
-                x=0.99,
-                y=y_pos,
-                xanchor="right",
-                yanchor="top",
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
-            )
-        )
+        self._configure_legend(fig, row, "legend2", "Credible sets")
 
     def add_simple_legend(
         self,
