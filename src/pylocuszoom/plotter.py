@@ -1399,6 +1399,12 @@ class LocusZoomPlotter:
         self._backend.set_xlabel(ax, effect_label)
         self._backend.set_ylim(ax, -0.5, len(df) - 0.5)
 
+        # Ensure x-axis includes the null value with some padding
+        x_min = min(df[ci_lower_col].min(), null_value)
+        x_max = max(df[ci_upper_col].max(), null_value)
+        x_padding = (x_max - x_min) * 0.1
+        self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
+
         # Set y-tick labels to study names (matplotlib only)
         if self.backend_name == "matplotlib":
             ax.set_yticks(df["y_pos"])
