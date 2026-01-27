@@ -1285,3 +1285,122 @@ class LocusZoomPlotter:
         self._backend.finalize_layout(fig)
 
         return fig
+
+    def plot_forest(
+        self,
+        forest_df: pd.DataFrame,
+        variant_id: str,
+        study_col: str = "study",
+        effect_col: str = "effect",
+        ci_lower_col: str = "ci_lower",
+        ci_upper_col: str = "ci_upper",
+        weight_col: Optional[str] = None,
+        null_value: float = 0.0,
+        effect_label: str = "Effect Size",
+        figsize: Tuple[float, float] = (8, 6),
+    ) -> Any:
+        """Create a forest plot showing effect sizes with confidence intervals.
+
+        Args:
+            forest_df: DataFrame with effect sizes and confidence intervals.
+            variant_id: Variant identifier for plot title.
+            study_col: Column name for study/phenotype names.
+            effect_col: Column name for effect sizes.
+            ci_lower_col: Column name for lower confidence interval.
+            ci_upper_col: Column name for upper confidence interval.
+            weight_col: Optional column for study weights (affects marker size).
+            null_value: Reference value for null effect (0 for beta, 1 for OR).
+            effect_label: X-axis label.
+            figsize: Figure size as (width, height).
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Example:
+            >>> fig = plotter.plot_forest(
+            ...     forest_df,
+            ...     variant_id="rs12345",
+            ...     effect_label="Odds Ratio",
+            ...     null_value=1.0,
+            ... )
+        """
+        validate_forest_df(forest_df, study_col, effect_col, ci_lower_col, ci_upper_col)
+
+        df = forest_df.copy()
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=1,
+            height_ratios=[1.0],
+            figsize=figsize,
+        )
+        ax = axes[0]
+
+        # Assign y-positions (reverse so first study is at top)
+        df["y_pos"] = range(len(df) - 1, -1, -1)
+
+        # Calculate marker sizes from weights
+        if weight_col and weight_col in df.columns:
+            # Scale weights to marker sizes (min 40, max 200)
+            weights = df[weight_col]
+            min_size, max_size = 40, 200
+            weight_range = weights.max() - weights.min()
+            if weight_range > 0:
+                sizes = (
+                    min_size
+                    + (weights - weights.min()) / weight_range * (max_size - min_size)
+                )
+            else:
+                sizes = (min_size + max_size) / 2
+        else:
+            sizes = 80
+
+        # Calculate error bar extents
+        xerr_lower = df[effect_col] - df[ci_lower_col]
+        xerr_upper = df[ci_upper_col] - df[effect_col]
+
+        # Plot error bars (confidence intervals)
+        self._backend.errorbar_h(
+            ax,
+            x=df[effect_col],
+            y=df["y_pos"],
+            xerr_lower=xerr_lower,
+            xerr_upper=xerr_upper,
+            color="black",
+            linewidth=1.5,
+            capsize=3,
+            zorder=2,
+        )
+
+        # Plot effect size markers
+        self._backend.scatter(
+            ax,
+            df[effect_col],
+            df["y_pos"],
+            colors="#4169E1",
+            sizes=sizes,
+            marker="s",  # square markers typical for forest plots
+            edgecolor="black",
+            linewidth=0.5,
+            zorder=3,
+        )
+
+        # Add null effect line
+        self._backend.axvline(
+            ax, x=null_value, color="grey", linestyle="--", linewidth=1, alpha=0.7
+        )
+
+        # Set axis labels and limits
+        self._backend.set_xlabel(ax, effect_label)
+        self._backend.set_ylim(ax, -0.5, len(df) - 0.5)
+
+        # Set y-tick labels to study names (matplotlib only)
+        if self.backend_name == "matplotlib":
+            ax.set_yticks(df["y_pos"])
+            ax.set_yticklabels(df[study_col], fontsize=10)
+
+        self._backend.set_title(ax, f"Forest Plot: {variant_id}")
+        self._backend.hide_spines(ax, ["top", "right"])
+        self._backend.finalize_layout(fig)
+
+        return fig
