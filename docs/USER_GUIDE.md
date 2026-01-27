@@ -11,6 +11,8 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [Stacked Plots](#stacked-plots)
   - [eQTL Overlay](#eqtl-overlay)
   - [Fine-mapping Visualization](#fine-mapping-visualization)
+  - [PheWAS Plots](#phewas-plots)
+  - [Forest Plots](#forest-plots)
 - [Backends](#backends)
   - [Matplotlib (Static)](#matplotlib-static)
   - [Plotly (Interactive)](#plotly-interactive)
@@ -19,6 +21,8 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [LocusZoomPlotter](#locuszoomplotter)
   - [plot() Method](#plot-method)
   - [plot_stacked() Method](#plot_stacked-method)
+  - [plot_phewas() Method](#plot_phewas-method)
+  - [plot_forest() Method](#plot_forest-method)
 - [File Loaders](#file-loaders)
   - [GWAS Loaders](#gwas-loaders)
   - [eQTL Loaders](#eqtl-loaders)
@@ -209,6 +213,63 @@ fig = plotter.plot_stacked(
 - Credible sets colored distinctly (CS1 = red, CS2 = blue, etc.)
 - Variants not in credible sets shown in gray
 
+### PheWAS Plots
+
+Visualize associations of a single variant across multiple phenotypes in a phenome-wide association study.
+
+![PheWAS plot](../examples/phewas_plot.png)
+
+```python
+phewas_df = pd.DataFrame({
+    "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
+    "p_value": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
+    "category": ["Anthropometric", "Anthropometric", "Metabolic", "Cardiovascular", "Lipids"],
+})
+
+fig = plotter.plot_phewas(
+    phewas_df,
+    variant_id="rs12345",
+    category_col="category",
+    significance_threshold=5e-8,
+)
+```
+
+**Features:**
+- Phenotypes grouped and colored by category
+- Genome-wide significance line (red dashed)
+- Optional effect direction markers (triangles for +/-)
+- 12-color palette for distinct categories
+
+### Forest Plots
+
+Create forest plots for meta-analysis visualization showing effect sizes with confidence intervals.
+
+![Forest plot](../examples/forest_plot.png)
+
+```python
+forest_df = pd.DataFrame({
+    "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
+    "effect": [0.45, 0.52, 0.38, 0.46],
+    "ci_lower": [0.30, 0.35, 0.20, 0.40],
+    "ci_upper": [0.60, 0.69, 0.56, 0.52],
+    "weight": [25, 35, 20, 100],  # Optional: affects marker size
+})
+
+fig = plotter.plot_forest(
+    forest_df,
+    variant_id="rs12345",
+    weight_col="weight",
+    null_value=0.0,  # Reference line (0 for beta, 1 for OR)
+    effect_label="Effect Size",
+)
+```
+
+**Features:**
+- Effect sizes as squares with confidence interval whiskers
+- Marker size scaled by study weight (optional)
+- Null effect reference line
+- Study names as y-axis labels
+
 ---
 
 ## Backends
@@ -391,6 +452,66 @@ fig = plotter.plot_stacked(
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
 
+### plot_phewas() Method
+
+Create a PheWAS (Phenome-Wide Association Study) plot.
+
+```python
+fig = plotter.plot_phewas(
+    phewas_df,                      # Required: PheWAS results
+    variant_id="rs12345",           # Required: variant ID for title
+    phenotype_col="phenotype",      # Phenotype name column
+    p_col="p_value",                # P-value column
+    category_col="category",        # Category for grouping/coloring
+    effect_col=None,                # Effect column for direction markers
+    significance_threshold=5e-8,    # Significance line threshold
+    figsize=(10, 8),                # Figure dimensions
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `phewas_df` | DataFrame | Required | PheWAS results with phenotype and p-value. |
+| `variant_id` | str | Required | Variant ID for plot title. |
+| `phenotype_col` | str | `"phenotype"` | Column with phenotype names. |
+| `p_col` | str | `"p_value"` | Column with p-values. |
+| `category_col` | str | `"category"` | Column for phenotype categories. |
+| `effect_col` | str | None | Column with effect sizes for direction markers. |
+| `significance_threshold` | float | `5e-8` | P-value for significance line. |
+| `figsize` | tuple | `(10, 8)` | Figure dimensions (width, height). |
+
+### plot_forest() Method
+
+Create a forest plot for meta-analysis visualization.
+
+```python
+fig = plotter.plot_forest(
+    forest_df,                      # Required: meta-analysis data
+    variant_id="rs12345",           # Required: variant ID for title
+    study_col="study",              # Study/phenotype name column
+    effect_col="effect",            # Effect size column
+    ci_lower_col="ci_lower",        # Lower CI column
+    ci_upper_col="ci_upper",        # Upper CI column
+    weight_col=None,                # Optional weight column for marker sizes
+    null_value=0.0,                 # Null effect value (0 for beta, 1 for OR)
+    effect_label="Effect Size",     # X-axis label
+    figsize=(8, 6),                 # Figure dimensions
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `forest_df` | DataFrame | Required | Forest plot data with effects and CIs. |
+| `variant_id` | str | Required | Variant ID for plot title. |
+| `study_col` | str | `"study"` | Column with study/phenotype names. |
+| `effect_col` | str | `"effect"` | Column with effect sizes. |
+| `ci_lower_col` | str | `"ci_lower"` | Column with lower confidence interval. |
+| `ci_upper_col` | str | `"ci_upper"` | Column with upper confidence interval. |
+| `weight_col` | str | None | Column with study weights (affects marker size). |
+| `null_value` | float | `0.0` | Reference value for null effect line. |
+| `effect_label` | str | `"Effect Size"` | X-axis label. |
+| `figsize` | tuple | `(8, 6)` | Figure dimensions (width, height). |
+
 ---
 
 ## File Loaders
@@ -568,7 +689,44 @@ gwas_df = pd.DataFrame({
 | `pos` | int | Yes | Variant position. |
 | `p_value` | float | Yes | Association p-value. |
 | `gene` | str | Yes | Target gene symbol. |
-| `effect` | float | No | Effect size for color coding. |
+| `effect_size` | float | No | Effect size for color coding. |
+
+### PheWAS DataFrame
+
+| Column | Type | Required | Description |
+|--------|------|----------|-------------|
+| `phenotype` | str | Yes | Phenotype name. |
+| `p_value` | float | Yes | Association p-value. |
+| `category` | str | No | Phenotype category for grouping/coloring. |
+| `effect_size` | float | No | Effect size for direction markers. |
+
+```python
+phewas_df = pd.DataFrame({
+    "phenotype": ["Height", "BMI", "T2D"],
+    "p_value": [1e-15, 0.05, 1e-8],
+    "category": ["Anthropometric", "Anthropometric", "Metabolic"],
+})
+```
+
+### Forest Plot DataFrame
+
+| Column | Type | Required | Description |
+|--------|------|----------|-------------|
+| `study` | str | Yes | Study or phenotype name. |
+| `effect` | float | Yes | Effect size (beta, OR, HR). |
+| `ci_lower` | float | Yes | Lower confidence interval bound. |
+| `ci_upper` | float | Yes | Upper confidence interval bound. |
+| `weight` | float | No | Study weight (affects marker size). |
+
+```python
+forest_df = pd.DataFrame({
+    "study": ["Study A", "Study B", "Meta-analysis"],
+    "effect": [0.45, 0.52, 0.46],
+    "ci_lower": [0.30, 0.35, 0.40],
+    "ci_upper": [0.60, 0.69, 0.52],
+    "weight": [25, 35, 100],
+})
+```
 
 ---
 

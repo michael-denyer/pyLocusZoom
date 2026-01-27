@@ -20,15 +20,24 @@ class PlotlyBackend:
     - Nearest gene
     """
 
+    # Class constants for style mappings
+    _MARKER_SYMBOLS = {
+        "o": "circle",
+        "D": "diamond",
+        "s": "square",
+        "^": "triangle-up",
+        "v": "triangle-down",
+    }
+    _DASH_MAP = {
+        "-": "solid",
+        "--": "dash",
+        ":": "dot",
+        "-.": "dashdot",
+    }
+
     def __init__(self) -> None:
         """Initialize the plotly backend."""
-        self._marker_symbols = {
-            "o": "circle",
-            "D": "diamond",
-            "s": "square",
-            "^": "triangle-up",
-            "v": "triangle-down",
-        }
+        pass
 
     def create_figure(
         self,
@@ -111,7 +120,7 @@ class PlotlyBackend:
         fig, row = ax
 
         # Convert matplotlib marker to plotly symbol
-        symbol = self._marker_symbols.get(marker, "circle")
+        symbol = self._MARKER_SYMBOLS.get(marker, "circle")
 
         # Convert size (matplotlib uses area, plotly uses diameter)
         if isinstance(sizes, (int, float)):
@@ -178,15 +187,7 @@ class PlotlyBackend:
     ) -> Any:
         """Create a line plot on the given panel."""
         fig, row = ax
-
-        # Convert linestyle
-        dash_map = {
-            "-": "solid",
-            "--": "dash",
-            ":": "dot",
-            "-.": "dashdot",
-        }
-        dash = dash_map.get(linestyle, "solid")
+        dash = self._DASH_MAP.get(linestyle, "solid")
 
         trace = go.Scatter(
             x=x,
@@ -244,9 +245,7 @@ class PlotlyBackend:
     ) -> Any:
         """Add a horizontal line across the panel."""
         fig, row = ax
-
-        dash_map = {"-": "solid", "--": "dash", ":": "dot", "-.": "dashdot"}
-        dash = dash_map.get(linestyle, "dash")
+        dash = self._DASH_MAP.get(linestyle, "dash")
 
         fig.add_hline(
             y=y,
@@ -461,9 +460,7 @@ class PlotlyBackend:
     ) -> Any:
         """Create a line plot on secondary y-axis."""
         fig, row = ax
-
-        dash_map = {"-": "solid", "--": "dash", ":": "dot", "-.": "dashdot"}
-        dash = dash_map.get(linestyle, "solid")
+        dash = self._DASH_MAP.get(linestyle, "solid")
 
         trace = go.Scatter(
             x=x,
@@ -794,9 +791,7 @@ class PlotlyBackend:
     ) -> Any:
         """Add a vertical line across the panel."""
         fig, row = ax
-
-        dash_map = {"-": "solid", "--": "dash", ":": "dot", "-.": "dashdot"}
-        dash = dash_map.get(linestyle, "dash")
+        dash = self._DASH_MAP.get(linestyle, "dash")
 
         fig.add_vline(
             x=x,

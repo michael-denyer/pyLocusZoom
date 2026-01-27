@@ -19,15 +19,24 @@ class BokehBackend:
     applications and dashboards.
     """
 
+    # Class constants for style mappings
+    _MARKER_MAP = {
+        "o": "circle",
+        "D": "diamond",
+        "s": "square",
+        "^": "triangle",
+        "v": "inverted_triangle",
+    }
+    _DASH_MAP = {
+        "-": "solid",
+        "--": "dashed",
+        ":": "dotted",
+        "-.": "dashdot",
+    }
+
     def __init__(self) -> None:
         """Initialize the bokeh backend."""
-        self._marker_map = {
-            "o": "circle",
-            "D": "diamond",
-            "s": "square",
-            "^": "triangle",
-            "v": "inverted_triangle",
-        }
+        pass
 
     def create_figure(
         self,
@@ -131,7 +140,7 @@ class BokehBackend:
         source = ColumnDataSource(data)
 
         # Get marker type for scatter()
-        marker_type = self._marker_map.get(marker, "circle")
+        marker_type = self._MARKER_MAP.get(marker, "circle")
 
         # Create scatter using scatter() method (Bokeh 3.4+ preferred API)
         scatter_kwargs = {
@@ -171,14 +180,7 @@ class BokehBackend:
         label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given figure."""
-        # Convert linestyle
-        dash_map = {
-            "-": "solid",
-            "--": "dashed",
-            ":": "dotted",
-            "-.": "dashdot",
-        }
-        line_dash = dash_map.get(linestyle, "solid")
+        line_dash = self._DASH_MAP.get(linestyle, "solid")
 
         line_kwargs = {
             "line_color": color,
@@ -233,8 +235,7 @@ class BokehBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the figure."""
-        dash_map = {"-": "solid", "--": "dashed", ":": "dotted", "-.": "dashdot"}
-        line_dash = dash_map.get(linestyle, "dashed")
+        line_dash = self._DASH_MAP.get(linestyle, "dashed")
 
         span = Span(
             location=y,
@@ -411,8 +412,7 @@ class BokehBackend:
         yaxis_name: str = "secondary",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
-        dash_map = {"-": "solid", "--": "dashed", ":": "dotted", "-.": "dashdot"}
-        line_dash = dash_map.get(linestyle, "solid")
+        line_dash = self._DASH_MAP.get(linestyle, "solid")
 
         return ax.line(
             x.values,
@@ -694,8 +694,7 @@ class BokehBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a vertical line across the figure."""
-        dash_map = {"-": "solid", "--": "dashed", ":": "dotted", "-.": "dashdot"}
-        line_dash = dash_map.get(linestyle, "dashed")
+        line_dash = self._DASH_MAP.get(linestyle, "dashed")
 
         span = Span(
             location=x,

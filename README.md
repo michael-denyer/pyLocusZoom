@@ -32,9 +32,11 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
 3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
 4. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
-5. **Multiple charting libraries**: matplotlib (static), plotly (interactive), bokeh (dashboards)
-6. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
-7. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
+5. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
+6. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
+7. **Multiple charting libraries**: matplotlib (static), plotly (interactive), bokeh (dashboards)
+8. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
+9. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
 
 ## Installation
 
@@ -219,6 +221,48 @@ fig = plotter.plot_stacked(
 ```
 
 ![Example fine-mapping plot](examples/finemapping_plot.png)
+
+## PheWAS Plots
+
+Visualize associations of a single variant across multiple phenotypes:
+
+```python
+phewas_df = pd.DataFrame({
+    "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
+    "p_value": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
+    "category": ["Anthropometric", "Anthropometric", "Metabolic", "Cardiovascular", "Lipids"],
+})
+
+fig = plotter.plot_phewas(
+    phewas_df,
+    variant_id="rs12345",
+    category_col="category",
+)
+```
+
+![Example PheWAS plot](examples/phewas_plot.png)
+
+## Forest Plots
+
+Create forest plots for meta-analysis visualization:
+
+```python
+forest_df = pd.DataFrame({
+    "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
+    "effect": [0.45, 0.52, 0.38, 0.46],
+    "ci_lower": [0.30, 0.35, 0.20, 0.40],
+    "ci_upper": [0.60, 0.69, 0.56, 0.52],
+    "weight": [25, 35, 20, 100],
+})
+
+fig = plotter.plot_forest(
+    forest_df,
+    variant_id="rs12345",
+    weight_col="weight",
+)
+```
+
+![Example forest plot](examples/forest_plot.png)
 
 ## PySpark Support
 
