@@ -40,6 +40,15 @@ __version__ = "0.6.0"
 # Backend types
 from .backends import BackendType, get_backend
 
+# Ensembl integration
+from .ensembl import (
+    clear_ensembl_cache,
+    fetch_exons_from_ensembl,
+    fetch_genes_from_ensembl,
+    get_ensembl_species_name,
+    get_genes_for_region,
+)
+
 # Colors and LD
 from .colors import (
     LEAD_SNP_COLOR,
@@ -208,4 +217,10 @@ __all__ = [
     "load_ensembl_genes",
     # Schema validation
     "LoaderValidationError",
+    # Ensembl integration
+    "get_genes_for_region",
+    "fetch_genes_from_ensembl",
+    "fetch_exons_from_ensembl",
+    "get_ensembl_species_name",
+    "clear_ensembl_cache",
 ]

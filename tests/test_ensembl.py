@@ -436,3 +436,19 @@ def test_clear_ensembl_cache_species_specific():
         assert deleted == 1
         # Mouse cache should still exist
         assert len(list(cache_dir.glob("**/*.csv"))) == 1
+
+
+# --- Export tests ---
+
+
+def test_ensembl_functions_exported():
+    """Test that Ensembl functions are exported from main package."""
+    from pylocuszoom import (
+        get_genes_for_region,
+        fetch_genes_from_ensembl,
+        clear_ensembl_cache,
+    )
+
+    assert callable(get_genes_for_region)
+    assert callable(fetch_genes_from_ensembl)
+    assert callable(clear_ensembl_cache)
