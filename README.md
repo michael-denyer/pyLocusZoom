@@ -21,18 +21,19 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
     - **Multi-species support**: Built-in reference data for *Canis lupus familiaris* (CanFam3.1/CanFam4) and *Felis catus* (FelCat9), or optionally provide your own for any species
     - **LD coloring**: SNPs colored by linkage disequilibrium (R²) with lead variant
     - **Gene tracks**: Annotated gene/exon positions below the association plot
-    - **Recombination rate**: Overlay showing recombination rate across region (*Canis lupus familiaris* only)
-    - **SNP labels (matplotlib)**: Automatic labeling of lead SNPs with RS ID
-    - **Tooltips (Bokeh and Plotly)**: Mouseover for detailed SNP data
+    - **Recombination rate**: Optional overlay across region (*Canis lupus familiaris* built-in, not shown in example image)
+    - **SNP labels (matplotlib)**: Automatic labeling of top SNPs by p-value (RS IDs)
+    - **Hover tooltips (Plotly and Bokeh)**: Detailed SNP data on hover
 
-![Example regional association plot](examples/regional_plot.png)
+![Example regional association plot with LD coloring and gene track](examples/regional_plot.png)
+*Regional association plot with LD coloring, gene/exon track, and top SNP labels (recombination overlay disabled in example).*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
 3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
 4. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
 5. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
 6. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
-7. **Multiple charting libraries**: matplotlib (static), plotly (interactive), bokeh (dashboards)
+7. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
 8. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
 9. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
 
@@ -136,26 +137,29 @@ fig = plotter.plot(
 
 ## Backends
 
-pyLocusZoom supports multiple rendering backends:
+pyLocusZoom supports multiple rendering backends (set at initialization):
 
 ```python
 # Static publication-quality plot (default)
-fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="matplotlib")
+plotter = LocusZoomPlotter(species="canine", backend="matplotlib")
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 fig.savefig("plot.png", dpi=150)
 
 # Interactive Plotly (hover tooltips, pan/zoom)
-fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="plotly")
+plotter = LocusZoomPlotter(species="canine", backend="plotly")
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 fig.write_html("plot.html")
 
 # Interactive Bokeh (dashboard-ready)
-fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000, backend="bokeh")
+plotter = LocusZoomPlotter(species="canine", backend="bokeh")
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 ```
 
 | Backend | Output | Best For | Features |
 |---------|--------|----------|----------|
-| `matplotlib` | Static PNG/PDF/SVG | Publications, presentations | Full feature set with SNP labels |
-| `plotly` | Interactive HTML | Web reports, data exploration | Hover tooltips, pan/zoom |
-| `bokeh` | Interactive HTML | Dashboards, web apps | Hover tooltips, pan/zoom |
+| `matplotlib` | Static PNG/PDF/SVG | Publication-ready figures | Full feature set with SNP labels |
+| `plotly` | Interactive HTML | Web reports, exploration | Hover tooltips, pan/zoom |
+| `bokeh` | Interactive HTML | Dashboard integration | Hover tooltips, pan/zoom |
 
 > **Note:** All backends support scatter plots, gene tracks, recombination overlay, and LD legend. SNP labels (auto-positioned with adjustText) are matplotlib-only; interactive backends use hover tooltips instead.
 
@@ -174,7 +178,8 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example stacked plot](examples/stacked_plot.png)
+![Example stacked plot comparing two phenotypes](examples/stacked_plot.png)
+*Stacked plot comparing two phenotypes with LD coloring and shared gene track.*
 
 ## eQTL Overlay
 
@@ -197,6 +202,7 @@ fig = plotter.plot_stacked(
 ```
 
 ![Example eQTL overlay plot](examples/eqtl_overlay.png)
+*eQTL overlay with effect direction (up/down triangles) and magnitude binning.*
 
 ## Fine-mapping Visualization
 
@@ -219,6 +225,7 @@ fig = plotter.plot_stacked(
 ```
 
 ![Example fine-mapping plot](examples/finemapping_plot.png)
+*Fine-mapping visualization with PIP line and credible set coloring (CS1/CS2).*
 
 ## PheWAS Plots
 
@@ -239,6 +246,7 @@ fig = plotter.plot_phewas(
 ```
 
 ![Example PheWAS plot](examples/phewas_plot.png)
+*PheWAS plot showing associations across phenotype categories with significance threshold.*
 
 ## Forest Plots
 
@@ -261,19 +269,18 @@ fig = plotter.plot_forest(
 ```
 
 ![Example forest plot](examples/forest_plot.png)
+*Forest plot with effect sizes, confidence intervals, and weight-proportional markers.*
 
 ## PySpark Support
 
-For large-scale genomics data, pass PySpark DataFrames directly:
+For large-scale genomics data, convert PySpark DataFrames with `to_pandas()` before plotting:
 
 ```python
 from pylocuszoom import LocusZoomPlotter, to_pandas
 
-# PySpark DataFrame (automatically converted)
-fig = plotter.plot(spark_gwas_df, chrom=1, start=1000000, end=2000000)
-
-# Or convert manually with sampling for very large data
+# Convert PySpark DataFrame (optionally sampled for very large data)
 pandas_df = to_pandas(spark_gwas_df, sample_size=100000)
+fig = plotter.plot(pandas_df, chrom=1, start=1000000, end=2000000)
 ```
 
 Install PySpark support: `uv add pylocuszoom[spark]`
