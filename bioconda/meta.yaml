@@ -47,7 +47,7 @@ about:
   license: GPL-3.0-or-later
   license_family: GPL3
   license_file: LICENSE
-  summary: Publication-ready GWAS visualizations with LD coloring, gene tracks, PheWAS, and forest plots
+  summary: Publication-ready GWAS plot library with LD coloring, gene tracks, PheWAS, and forest plots
   description: |
     pyLocusZoom creates publication-quality genetic association visualizations:
     regional association plots with LD coloring and recombination overlays,
