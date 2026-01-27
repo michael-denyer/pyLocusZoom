@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `plot_phewas()` method for phenome-wide association study plots
+- `plot_forest()` method for forest plots (meta-analysis visualization)
+- PheWAS category color palette with 12 distinct colors
+- Forest plot and PheWAS validation utilities
+- Backend methods: `axvline()`, `hbar()`, `errorbar_h()` for new plot types
+- Example plots for PheWAS and forest plots
+
 ## [0.5.0] - 2026-01-27
 
 ### Added
