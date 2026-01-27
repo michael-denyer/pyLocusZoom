@@ -67,9 +67,13 @@ class BokehBackend:
                 toolbar_location="above" if i == 0 else None,
             )
 
-            # Style
-            p.grid.grid_line_alpha = 0.3
+            # Style - no grid lines, black axes for clean LocusZoom appearance
+            p.grid.visible = False
             p.outline_line_color = None
+            p.xaxis.axis_line_color = "black"
+            p.yaxis.axis_line_color = "black"
+            p.xaxis.minor_tick_line_color = None
+            p.yaxis.minor_tick_line_color = None
 
             figures.append(p)
 
@@ -485,6 +489,61 @@ class BokehBackend:
                 renderer.major_label_text_color = color
                 break
 
+    def _ensure_legend_range(self, ax: figure) -> Any:
+        """Ensure legend range exists and return a dummy data source.
+
+        Creates a separate y-range for legend glyphs so they don't affect
+        the main plot's axis scaling.
+        """
+        from bokeh.models import ColumnDataSource, Range1d
+
+        if "legend_range" not in ax.extra_y_ranges:
+            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
+        return ColumnDataSource(data={"x": [0], "y": [0]})
+
+    def _add_legend_item(
+        self,
+        ax: figure,
+        source: Any,
+        label: str,
+        color: str,
+        marker: str,
+        size: int = 10,
+    ) -> Any:
+        """Create an invisible scatter renderer for a legend entry."""
+        from bokeh.models import LegendItem
+
+        renderer = ax.scatter(
+            x="x",
+            y="y",
+            source=source,
+            marker=marker,
+            size=size,
+            fill_color=color,
+            line_color="black",
+            line_width=0.5,
+            y_range_name="legend_range",
+            visible=False,
+        )
+        return LegendItem(label=label, renderers=[renderer])
+
+    def _create_legend(self, ax: figure, items: List[Any], title: str) -> None:
+        """Create and add a styled legend to the figure."""
+        from bokeh.models import Legend
+
+        legend = Legend(
+            items=items,
+            location="top_right",
+            title=title,
+            background_fill_alpha=0.9,
+            border_line_color="black",
+            spacing=0,
+            padding=4,
+            label_height=12,
+            glyph_height=12,
+        )
+        ax.add_layout(legend)
+
     def add_ld_legend(
         self,
         ax: figure,
@@ -496,60 +555,13 @@ class BokehBackend:
         Creates legend entries with dummy renderers that are excluded from
         the data range calculation to avoid affecting axis scaling.
         """
-        from bokeh.models import ColumnDataSource, Legend, LegendItem, Range1d, Scatter
-
-        legend_items = []
-
-        # Create a separate range for legend glyphs that won't affect the main plot
-        if "legend_range" not in ax.extra_y_ranges:
-            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
-
-        # Use coordinates within the legend range
-        dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
-
-        # Add lead SNP marker first (diamond)
-        lead_glyph = Scatter(
-            x="x",
-            y="y",
-            marker="diamond",
-            size=12,
-            fill_color=lead_snp_color,
-            line_color="black",
-            line_width=0.5,
-        )
-        lead_renderer = ax.add_glyph(dummy_source, lead_glyph)
-        lead_renderer.y_range_name = "legend_range"
-        lead_renderer.visible = False
-        legend_items.append(LegendItem(label="Lead SNP", renderers=[lead_renderer]))
-
-        # Add LD bin markers
+        source = self._ensure_legend_range(ax)
+        items = [
+            self._add_legend_item(ax, source, "Lead SNP", lead_snp_color, "diamond", 12)
+        ]
         for _, label, color in ld_bins:
-            glyph = Scatter(
-                x="x",
-                y="y",
-                marker="square",
-                size=10,
-                fill_color=color,
-                line_color="black",
-                line_width=0.5,
-            )
-            renderer = ax.add_glyph(dummy_source, glyph)
-            renderer.y_range_name = "legend_range"
-            renderer.visible = False
-            legend_items.append(LegendItem(label=label, renderers=[renderer]))
-
-        legend = Legend(
-            items=legend_items,
-            location="top_right",
-            title="r²",
-            background_fill_alpha=0.9,
-            border_line_color="black",
-            spacing=0,
-            padding=4,
-            label_height=12,
-            glyph_height=12,
-        )
-        ax.add_layout(legend)
+            items.append(self._add_legend_item(ax, source, label, color, "square"))
+        self._create_legend(ax, items, "r²")
 
     def add_legend(
         self,
@@ -575,6 +587,11 @@ class BokehBackend:
         for interface compatibility but has no visual effect.
         """
         pass
+
+    def hide_yaxis(self, ax: figure) -> None:
+        """Hide y-axis ticks, labels, line, and grid for gene track panels."""
+        ax.yaxis.visible = False
+        ax.ygrid.visible = False
 
     def format_xaxis_mb(self, ax: figure) -> None:
         """Format x-axis to show megabase values."""
@@ -622,60 +639,15 @@ class BokehBackend:
         eqtl_negative_bins: List[Tuple[float, float, str, str]],
     ) -> None:
         """Add eQTL effect size legend using invisible dummy glyphs."""
-        from bokeh.models import ColumnDataSource, Legend, LegendItem, Range1d
-
-        legend_items = []
-
-        # Create a separate range for legend glyphs that won't affect the main plot
-        if "legend_range" not in ax.extra_y_ranges:
-            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
-
-        dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
-
-        # Positive effects (upward triangles)
+        source = self._ensure_legend_range(ax)
+        items = []
         for _, _, label, color in eqtl_positive_bins:
-            renderer = ax.scatter(
-                x="x",
-                y="y",
-                source=dummy_source,
-                marker="triangle",
-                size=10,
-                fill_color=color,
-                line_color="black",
-                line_width=0.5,
-                y_range_name="legend_range",
-                visible=False,
-            )
-            legend_items.append(LegendItem(label=label, renderers=[renderer]))
-
-        # Negative effects (downward triangles)
+            items.append(self._add_legend_item(ax, source, label, color, "triangle"))
         for _, _, label, color in eqtl_negative_bins:
-            renderer = ax.scatter(
-                x="x",
-                y="y",
-                source=dummy_source,
-                marker="inverted_triangle",
-                size=10,
-                fill_color=color,
-                line_color="black",
-                line_width=0.5,
-                y_range_name="legend_range",
-                visible=False,
+            items.append(
+                self._add_legend_item(ax, source, label, color, "inverted_triangle")
             )
-            legend_items.append(LegendItem(label=label, renderers=[renderer]))
-
-        legend = Legend(
-            items=legend_items,
-            location="top_right",
-            title="eQTL effect",
-            background_fill_alpha=0.9,
-            border_line_color="black",
-            spacing=0,
-            padding=4,
-            label_height=12,
-            glyph_height=12,
-        )
-        ax.add_layout(legend)
+        self._create_legend(ax, items, "eQTL effect")
 
     def add_finemapping_legend(
         self,
@@ -687,44 +659,14 @@ class BokehBackend:
         if not credible_sets:
             return
 
-        from bokeh.models import ColumnDataSource, Legend, LegendItem, Range1d
-
-        legend_items = []
-
-        # Create a separate range for legend glyphs that won't affect the main plot
-        if "legend_range" not in ax.extra_y_ranges:
-            ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
-
-        dummy_source = ColumnDataSource(data={"x": [0], "y": [0]})
-
-        for cs_id in credible_sets:
-            color = get_color_func(cs_id)
-            renderer = ax.scatter(
-                x="x",
-                y="y",
-                source=dummy_source,
-                marker="circle",
-                size=10,
-                fill_color=color,
-                line_color="black",
-                line_width=0.5,
-                y_range_name="legend_range",
-                visible=False,
+        source = self._ensure_legend_range(ax)
+        items = [
+            self._add_legend_item(
+                ax, source, f"CS{cs_id}", get_color_func(cs_id), "circle"
             )
-            legend_items.append(LegendItem(label=f"CS{cs_id}", renderers=[renderer]))
-
-        legend = Legend(
-            items=legend_items,
-            location="top_right",
-            title="Credible sets",
-            background_fill_alpha=0.9,
-            border_line_color="black",
-            spacing=0,
-            padding=4,
-            label_height=12,
-            glyph_height=12,
-        )
-        ax.add_layout(legend)
+            for cs_id in credible_sets
+        ]
+        self._create_legend(ax, items, "Credible sets")
 
     def add_simple_legend(
         self,

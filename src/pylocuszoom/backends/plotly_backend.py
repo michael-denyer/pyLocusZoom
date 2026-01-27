@@ -71,6 +71,20 @@ class PlotlyBackend:
             template="plotly_white",
         )
 
+        # Style all panels for clean LocusZoom appearance
+        axis_style = dict(
+            showgrid=False,
+            showline=True,
+            linecolor="black",
+            ticks="outside",
+            minor_ticks="",
+            zeroline=False,
+        )
+        for row in range(1, n_panels + 1):
+            xaxis = self._axis_name("xaxis", row)
+            yaxis = self._axis_name("yaxis", row)
+            fig.update_layout(**{xaxis: axis_style, yaxis: axis_style})
+
         # Return (fig, row) tuples for each panel
         # This matches the expected ax parameter format for all methods
         panel_refs = [(fig, row) for row in range(1, n_panels + 1)]
@@ -335,25 +349,25 @@ class PlotlyBackend:
     def set_xlim(self, ax: Tuple[go.Figure, int], left: float, right: float) -> None:
         """Set x-axis limits."""
         fig, row = ax
-        xaxis = f"xaxis{row}" if row > 1 else "xaxis"
-        fig.update_layout(**{xaxis: dict(range=[left, right])})
+        fig.update_layout(**{self._axis_name("xaxis", row): dict(range=[left, right])})
 
     def set_ylim(self, ax: Tuple[go.Figure, int], bottom: float, top: float) -> None:
         """Set y-axis limits."""
         fig, row = ax
-        yaxis = f"yaxis{row}" if row > 1 else "yaxis"
-        fig.update_layout(**{yaxis: dict(range=[bottom, top])})
+        fig.update_layout(**{self._axis_name("yaxis", row): dict(range=[bottom, top])})
 
     def set_xlabel(
         self, ax: Tuple[go.Figure, int], label: str, fontsize: int = 12
     ) -> None:
         """Set x-axis label."""
         fig, row = ax
-        xaxis = f"xaxis{row}" if row > 1 else "xaxis"
-        # Convert LaTeX-style labels to Unicode for Plotly
         label = self._convert_label(label)
         fig.update_layout(
-            **{xaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
+            **{
+                self._axis_name("xaxis", row): dict(
+                    title=dict(text=label, font=dict(size=fontsize))
+                )
+            }
         )
 
     def set_ylabel(
@@ -361,12 +375,22 @@ class PlotlyBackend:
     ) -> None:
         """Set y-axis label."""
         fig, row = ax
-        yaxis = f"yaxis{row}" if row > 1 else "yaxis"
-        # Convert LaTeX-style labels to Unicode for Plotly
         label = self._convert_label(label)
         fig.update_layout(
-            **{yaxis: dict(title=dict(text=label, font=dict(size=fontsize)))}
+            **{
+                self._axis_name("yaxis", row): dict(
+                    title=dict(text=label, font=dict(size=fontsize))
+                )
+            }
         )
+
+    def _axis_name(self, axis: str, row: int) -> str:
+        """Get Plotly axis name for a given row.
+
+        Plotly names axes as 'xaxis', 'yaxis' for row 1, and
+        'xaxis2', 'yaxis2', etc. for subsequent rows.
+        """
+        return f"{axis}{row}" if row > 1 else axis
 
     def _get_legend_position(self, loc: str) -> dict:
         """Map matplotlib-style legend location to Plotly position dict."""
@@ -530,8 +554,7 @@ class PlotlyBackend:
         Plotly subplots have y-axis domains that define their vertical position.
         This returns the top of the domain for positioning legends.
         """
-        yaxis_name = f"yaxis{row}" if row > 1 else "yaxis"
-        yaxis = getattr(fig.layout, yaxis_name, None)
+        yaxis = getattr(fig.layout, self._axis_name("yaxis", row), None)
         if yaxis and yaxis.domain:
             return yaxis.domain[1]
         return 0.99
@@ -640,6 +663,20 @@ class PlotlyBackend:
         # Plotly's template "plotly_white" already hides top/right lines
         # No action needed - method exists for API compatibility
         pass
+
+    def hide_yaxis(self, ax: Tuple[go.Figure, int]) -> None:
+        """Hide y-axis ticks, labels, line, and grid for gene track panels."""
+        fig, row = ax
+        fig.update_layout(
+            **{
+                self._axis_name("yaxis", row): dict(
+                    showticklabels=False,
+                    showline=False,
+                    showgrid=False,
+                    ticks="",
+                )
+            }
+        )
 
     def format_xaxis_mb(self, ax: Tuple[go.Figure, int]) -> None:
         """Format x-axis to show megabase values.
@@ -775,7 +812,7 @@ class PlotlyBackend:
             import numpy as np
 
             for row in fig._mb_format_rows:
-                xaxis_name = f"xaxis{row}" if row > 1 else "xaxis"
+                xaxis_name = self._axis_name("xaxis", row)
                 xaxis = getattr(fig.layout, xaxis_name, None)
 
                 # Get x-range from the axis or compute from data
@@ -792,9 +829,7 @@ class PlotlyBackend:
                         x_range = [min(x_vals), max(x_vals)]
 
                 if x_range:
-                    # Create nice tick values in Mb
-                    x_min_mb = x_range[0] / 1e6
-                    x_max_mb = x_range[1] / 1e6
+                    x_min_mb, x_max_mb = x_range[0] / 1e6, x_range[1] / 1e6
                     span_mb = x_max_mb - x_min_mb
 
                     # Choose tick spacing based on range

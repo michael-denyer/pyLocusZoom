@@ -362,6 +362,7 @@ def plot_gene_track_generic(
 
     backend.set_xlim(ax, start, end)
     backend.set_ylabel(ax, "", fontsize=10)
+    backend.hide_yaxis(ax)
 
     if region_genes.empty:
         backend.set_ylim(ax, 0, 1)
