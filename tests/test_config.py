@@ -402,14 +402,21 @@ class TestStackedPlotConfig:
         assert config.ld_reference_files == ["/path/to/file1", "/path/to/file2"]
 
     def test_stacked_config_single_ld_reference_file(self):
-        """StackedPlotConfig should support single ld_reference_file for broadcast."""
+        """StackedPlotConfig should support single ld_reference_file for broadcast.
+
+        Note: LDConfig requires lead_pos when ld_reference_file is provided.
+        In practice, lead_positions list is used with stacked plots.
+        """
         from pylocuszoom.config import LDConfig, RegionConfig, StackedPlotConfig
 
+        # When using ld_reference_file in LDConfig, lead_pos is still required
+        # This is because LD calculation needs a reference SNP
         config = StackedPlotConfig(
             region=RegionConfig(chrom=1, start=1000, end=2000),
-            ld=LDConfig(ld_reference_file="/shared/file"),
+            ld=LDConfig(ld_reference_file="/shared/file", lead_pos=1500),
         )
         assert config.ld.ld_reference_file == "/shared/file"
+        assert config.ld.lead_pos == 1500
 
     def test_stacked_config_is_frozen(self):
         """StackedPlotConfig should be immutable."""
