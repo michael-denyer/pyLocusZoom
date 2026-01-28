@@ -159,6 +159,57 @@ class DataFrameValidator:
 
         return self
 
+    def require_ci_ordering(
+        self,
+        ci_lower_col: str,
+        effect_col: str,
+        ci_upper_col: str,
+    ) -> "DataFrameValidator":
+        """Check that confidence intervals are properly ordered.
+
+        Validates that ci_lower <= effect <= ci_upper for all rows.
+        Invalid ordering would produce negative error bar lengths.
+
+        Args:
+            ci_lower_col: Column name for lower CI bound.
+            effect_col: Column name for effect size (point estimate).
+            ci_upper_col: Column name for upper CI bound.
+
+        Returns:
+            Self for method chaining.
+        """
+        # Skip if any column is missing
+        for col in [ci_lower_col, effect_col, ci_upper_col]:
+            if col not in self._df.columns:
+                return self
+
+        lower = self._df[ci_lower_col]
+        effect = self._df[effect_col]
+        upper = self._df[ci_upper_col]
+
+        # Check ci_lower <= effect
+        lower_gt_effect = (lower > effect).sum()
+        if lower_gt_effect > 0:
+            self._errors.append(
+                f"{lower_gt_effect} rows have {ci_lower_col} > {effect_col}"
+            )
+
+        # Check effect <= ci_upper
+        effect_gt_upper = (effect > upper).sum()
+        if effect_gt_upper > 0:
+            self._errors.append(
+                f"{effect_gt_upper} rows have {effect_col} > {ci_upper_col}"
+            )
+
+        # Check ci_lower <= ci_upper (implicit from above, but explicit is clearer)
+        lower_gt_upper = (lower > upper).sum()
+        if lower_gt_upper > 0:
+            self._errors.append(
+                f"{lower_gt_upper} rows have {ci_lower_col} > {ci_upper_col}"
+            )
+
+        return self
+
     def validate(self) -> None:
         """Raise ValidationError if any validation rules failed.
 

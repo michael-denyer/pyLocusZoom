@@ -315,6 +315,23 @@ class LocusZoomPlotter:
 
         # Prepare data
         df = gwas_df.copy()
+
+        # Validate p-values and warn about issues
+        p_values = df[p_col]
+        nan_count = p_values.isna().sum()
+        if nan_count > 0:
+            logger.warning(
+                f"GWAS data contains {nan_count} NaN p-values which will be excluded"
+            )
+        invalid_count = ((p_values < 0) | (p_values > 1)).sum()
+        if invalid_count > 0:
+            logger.warning(
+                f"GWAS data contains {invalid_count} p-values outside [0, 1] range"
+            )
+        clipped_count = (p_values < 1e-300).sum()
+        if clipped_count > 0:
+            logger.debug(f"Clipping {clipped_count} p-values below 1e-300 to 1e-300")
+
         df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
 
         # Calculate LD if reference file provided
@@ -397,10 +414,12 @@ class LocusZoomPlotter:
             )
             self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
             self._backend.hide_spines(gene_ax, ["top", "right", "left"])
+            # Format both axes for interactive backends (they don't share x-axis)
+            self._backend.format_xaxis_mb(gene_ax)
         else:
             self._backend.set_xlabel(ax, f"Chromosome {chrom} (Mb)")
 
-        # Format x-axis with Mb labels
+        # Format x-axis with Mb labels (association axis always needs formatting)
         self._backend.format_xaxis_mb(ax)
 
         # Adjust layout
@@ -549,18 +568,29 @@ class LocusZoomPlotter:
             return
 
         # Create secondary y-axis
-        yaxis_name = self._backend.create_twin_axis(ax)
+        twin_result = self._backend.create_twin_axis(ax)
 
-        # For plotly, yaxis_name is a tuple (fig, row, secondary_y)
-        # For bokeh, yaxis_name is just a string
-        if isinstance(yaxis_name, tuple):
-            _, _, secondary_y = yaxis_name
+        # Matplotlib returns the twin Axes object itself - use it for drawing
+        # Plotly returns tuple (fig, row, secondary_y_name)
+        # Bokeh returns string "secondary"
+        from matplotlib.axes import Axes
+
+        if isinstance(twin_result, Axes):
+            # Matplotlib: use the twin axis for all secondary axis operations
+            secondary_ax = twin_result
+            secondary_y = None  # Not used for matplotlib
+        elif isinstance(twin_result, tuple):
+            # Plotly: use original ax, specify y-axis via yaxis_name
+            secondary_ax = ax
+            _, _, secondary_y = twin_result
         else:
-            secondary_y = yaxis_name
+            # Bokeh: use original ax, specify y-axis via yaxis_name
+            secondary_ax = ax
+            secondary_y = twin_result
 
         # Plot fill under curve
         self._backend.fill_between_secondary(
-            ax,
+            secondary_ax,
             region_recomb["pos"],
             0,
             region_recomb["rate"],
@@ -571,7 +601,7 @@ class LocusZoomPlotter:
 
         # Plot recombination rate line
         self._backend.line_secondary(
-            ax,
+            secondary_ax,
             region_recomb["pos"],
             region_recomb["rate"],
             color=RECOMB_COLOR,
@@ -583,10 +613,10 @@ class LocusZoomPlotter:
         # Set y-axis limits and label
         max_rate = region_recomb["rate"].max()
         self._backend.set_secondary_ylim(
-            ax, 0, max(max_rate * 1.2, 20), yaxis_name=secondary_y
+            secondary_ax, 0, max(max_rate * 1.2, 20), yaxis_name=secondary_y
         )
         self._backend.set_secondary_ylabel(
-            ax,
+            secondary_ax,
             "Recombination rate (cM/Mb)",
             color=RECOMB_COLOR,
             fontsize=9,
@@ -816,8 +846,16 @@ class LocusZoomPlotter:
             for df in gwas_dfs:
                 region_df = df[(df[pos_col] >= start) & (df[pos_col] <= end)]
                 if not region_df.empty:
-                    lead_idx = region_df[p_col].idxmin()
-                    lead_positions.append(int(region_df.loc[lead_idx, pos_col]))
+                    # Filter out NaN p-values for lead SNP detection
+                    valid_p = region_df[p_col].dropna()
+                    if valid_p.empty:
+                        logger.warning(
+                            "All p-values in region are NaN, cannot determine lead SNP"
+                        )
+                        lead_positions.append(None)
+                    else:
+                        lead_idx = valid_p.idxmin()
+                        lead_positions.append(int(region_df.loc[lead_idx, pos_col]))
                 else:
                     lead_positions.append(None)
 
@@ -1040,40 +1078,41 @@ class LocusZoomPlotter:
                 has_effect = "effect_size" in eqtl_data.columns
 
                 if has_effect:
-                    # Plot triangles by effect direction (batch by sign for efficiency)
+                    # Vectorized plotting: split by sign, assign colors in bulk
                     pos_effects = eqtl_data[eqtl_data["effect_size"] >= 0]
                     neg_effects = eqtl_data[eqtl_data["effect_size"] < 0]
 
-                    # Plot positive effects (up triangles)
-                    for _, row in pos_effects.iterrows():
-                        row_df = pd.DataFrame([row])
+                    # Vectorized color assignment using apply
+                    if not pos_effects.empty:
+                        pos_colors = pos_effects["effect_size"].apply(get_eqtl_color)
                         self._backend.scatter(
                             ax,
-                            pd.Series([row["pos"]]),
-                            pd.Series([row["neglog10p"]]),
-                            colors=get_eqtl_color(row["effect_size"]),
+                            pos_effects["pos"],
+                            pos_effects["neglog10p"],
+                            colors=pos_colors.tolist(),
                             sizes=50,
                             marker="^",
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
-                            hover_data=eqtl_hover_builder.build_dataframe(row_df),
+                            hover_data=eqtl_hover_builder.build_dataframe(pos_effects),
                         )
-                    # Plot negative effects (down triangles)
-                    for _, row in neg_effects.iterrows():
-                        row_df = pd.DataFrame([row])
+
+                    if not neg_effects.empty:
+                        neg_colors = neg_effects["effect_size"].apply(get_eqtl_color)
                         self._backend.scatter(
                             ax,
-                            pd.Series([row["pos"]]),
-                            pd.Series([row["neglog10p"]]),
-                            colors=get_eqtl_color(row["effect_size"]),
+                            neg_effects["pos"],
+                            neg_effects["neglog10p"],
+                            colors=neg_colors.tolist(),
                             sizes=50,
                             marker="v",
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
-                            hover_data=eqtl_hover_builder.build_dataframe(row_df),
+                            hover_data=eqtl_hover_builder.build_dataframe(neg_effects),
                         )
+
                     # Add eQTL effect legend (all backends)
                     self._backend.add_eqtl_legend(
                         ax, EQTL_POSITIVE_BINS, EQTL_NEGATIVE_BINS
@@ -1201,15 +1240,30 @@ class LocusZoomPlotter:
                     cat_data = df[df[category_col] == cat]
                 # Use upward triangles for positive effects, circles otherwise
                 if effect_col and effect_col in cat_data.columns:
-                    for _, row in cat_data.iterrows():
-                        marker = "^" if row[effect_col] >= 0 else "v"
+                    # Vectorized: split by effect sign, 2 scatter calls per category
+                    pos_data = cat_data[cat_data[effect_col] >= 0]
+                    neg_data = cat_data[cat_data[effect_col] < 0]
+
+                    if not pos_data.empty:
                         self._backend.scatter(
                             ax,
-                            pd.Series([row["neglog10p"]]),
-                            pd.Series([row["y_pos"]]),
+                            pos_data["neglog10p"],
+                            pos_data["y_pos"],
                             colors=palette[cat],
                             sizes=60,
-                            marker=marker,
+                            marker="^",
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                        )
+                    if not neg_data.empty:
+                        self._backend.scatter(
+                            ax,
+                            neg_data["neglog10p"],
+                            neg_data["y_pos"],
+                            colors=palette[cat],
+                            sizes=60,
+                            marker="v",
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
