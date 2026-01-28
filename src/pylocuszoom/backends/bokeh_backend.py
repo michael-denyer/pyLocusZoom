@@ -40,6 +40,21 @@ class BokehBackend:
         """Initialize the bokeh backend."""
         pass
 
+    @property
+    def supports_snp_labels(self) -> bool:
+        """Bokeh uses hover tooltips instead of labels."""
+        return False
+
+    @property
+    def supports_hover(self) -> bool:
+        """Bokeh supports hover tooltips."""
+        return True
+
+    @property
+    def supports_secondary_axis(self) -> bool:
+        """Bokeh supports secondary y-axis."""
+        return True
+
     def create_figure(
         self,
         n_panels: int,
@@ -491,6 +506,53 @@ class BokehBackend:
                 renderer.axis_label_text_color = color
                 renderer.major_label_text_color = color
                 break
+
+    def add_snp_labels(
+        self,
+        ax: figure,
+        df: pd.DataFrame,
+        pos_col: str,
+        neglog10p_col: str,
+        rs_col: str,
+        label_top_n: int,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+    ) -> None:
+        """No-op: Bokeh uses hover tooltips instead of text labels."""
+        pass
+
+    def add_panel_label(
+        self,
+        ax: figure,
+        label: str,
+        x_frac: float = 0.02,
+        y_frac: float = 0.95,
+    ) -> None:
+        """Add label text at fractional position in panel."""
+        from bokeh.models import Label
+
+        # Convert fraction to data coordinates using axis ranges
+        x_range = ax.x_range
+        y_range = ax.y_range
+        x = (
+            x_range.start + x_frac * (x_range.end - x_range.start)
+            if hasattr(x_range, "start") and x_range.start is not None
+            else 0
+        )
+        y = (
+            y_range.start + y_frac * (y_range.end - y_range.start)
+            if hasattr(y_range, "start") and y_range.start is not None
+            else 0
+        )
+
+        label_obj = Label(
+            x=x,
+            y=y,
+            text=label,
+            text_font_size="12px",
+            text_font_style="bold",
+        )
+        ax.add_layout(label_obj)
 
     def _ensure_legend_range(self, ax: figure) -> Any:
         """Ensure legend range exists and return a dummy data source.
