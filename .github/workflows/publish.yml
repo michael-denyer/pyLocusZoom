@@ -55,63 +55,32 @@ jobs:
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
           echo "SHA256: $SHA256"
 
-  update-bioconda:
+  submit-bioconda-pr:
     needs: publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout pyLocusZoom
+        uses: actions/checkout@v4
         with:
           ref: main
+          path: pylocuszoom
 
-      - name: Update bioconda/meta.yaml
+      - name: Update local bioconda/meta.yaml
         env:
           PKG_VERSION: ${{ needs.publish.outputs.version }}
           PKG_SHA256: ${{ needs.publish.outputs.sha256 }}
         run: |
+          cd pylocuszoom
+
           # Update version
           sed -i "s/{% set version = \".*\" %}/{% set version = \"$PKG_VERSION\" %}/" bioconda/meta.yaml
 
           # Update sha256
           sed -i "s/sha256: .*/sha256: $PKG_SHA256/" bioconda/meta.yaml
 
-          # Update plotly version requirement
-          sed -i "s/plotly >=5.0.0/plotly >=5.15.0/" bioconda/meta.yaml
-
-          # Add new dependencies if missing
-          if ! grep -q "pydantic" bioconda/meta.yaml; then
-            sed -i '/adjusttext/a\    - pydantic >=2.0.0' bioconda/meta.yaml
-          fi
-          if ! grep -q "requests" bioconda/meta.yaml; then
-            sed -i '/pydantic/a\    - requests >=2.25.0' bioconda/meta.yaml
-          fi
-          if ! grep -q "tqdm" bioconda/meta.yaml; then
-            sed -i '/requests/a\    - tqdm >=4.60.0' bioconda/meta.yaml
-          fi
-
+          echo "Updated bioconda/meta.yaml:"
           cat bioconda/meta.yaml
 
-      - name: Create local PR for bioconda/meta.yaml
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update bioconda recipe for v${{ needs.publish.outputs.version }}"
-          branch: bioconda-update
-          title: "Update bioconda recipe for v${{ needs.publish.outputs.version }}"
-          body: |
-            Automated update of bioconda/meta.yaml after PyPI release.
-
-            This PR updates the local recipe. The bioconda-recipes PR is created automatically below.
-          labels: |
-            bioconda
-            automated
-
-  submit-bioconda-pr:
-    needs: [publish, update-bioconda]
-    runs-on: ubuntu-latest
-    steps:
       - name: Checkout bioconda-recipes fork
         uses: actions/checkout@v4
         with:
@@ -119,18 +88,16 @@ jobs:
           token: ${{ secrets.BIOCONDA_PAT }}
           path: bioconda-recipes
 
-      - name: Checkout pyLocusZoom
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          path: pylocuszoom
-
-      - name: Update recipe and create PR
+      - name: Create PR to bioconda-recipes
         env:
           GH_TOKEN: ${{ secrets.BIOCONDA_PAT }}
           PKG_VERSION: ${{ needs.publish.outputs.version }}
         run: |
           cd bioconda-recipes
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Sync fork with upstream
           git remote add upstream https://github.com/bioconda/bioconda-recipes.git
