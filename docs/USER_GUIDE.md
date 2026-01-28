@@ -71,7 +71,7 @@ pip install pylocuszoom[spark]
 
 ```python
 import pandas as pd
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LocusZoomPlotter, PlotConfig
 
 # Sample GWAS data
 gwas_df = pd.DataFrame({
@@ -83,14 +83,22 @@ gwas_df = pd.DataFrame({
 # Create plotter
 plotter = LocusZoomPlotter(species="canine")
 
-# Generate plot
-fig = plotter.plot(
-    gwas_df,
+# Option 1: Config object (recommended)
+config = PlotConfig.from_kwargs(
     chrom=1,
     start=999000,
     end=1003000,
     lead_pos=1001000,  # Highlight the most significant SNP
 )
+fig = plotter.plot(gwas_df, config)
+
+# Option 2: Inline config construction
+from pylocuszoom import RegionConfig, LDConfig
+config = PlotConfig(
+    region=RegionConfig(chrom=1, start=999000, end=1003000),
+    ld=LDConfig(lead_pos=1001000),
+)
+fig = plotter.plot(gwas_df, config)
 
 # Save
 fig.savefig("my_plot.png", dpi=150, bbox_inches="tight")
@@ -107,18 +115,25 @@ The basic single-panel plot showing association signals with LD coloring.
 ![Regional association plot](../examples/regional_plot.png)
 
 ```python
-fig = plotter.plot(
-    gwas_df,
+from pylocuszoom import PlotConfig
+
+# Using from_kwargs() factory (most convenient)
+config = PlotConfig.from_kwargs(
     chrom=1,
     start=1000000,
     end=2000000,
     lead_pos=1500000,           # Lead SNP position
     ld_reference_file="geno",   # PLINK fileset for LD calculation
-    genes_df=genes_df,          # Gene annotations
-    exons_df=exons_df,          # Exon structure (optional)
     show_recombination=True,    # Recombination rate overlay
     snp_labels=True,            # Label top SNPs (matplotlib only)
     label_top_n=5,              # How many to label
+)
+
+fig = plotter.plot(
+    gwas_df,
+    config,
+    genes_df=genes_df,          # Gene annotations
+    exons_df=exons_df,          # Exon structure (optional)
 )
 ```
 
@@ -137,13 +152,19 @@ Compare multiple GWAS results vertically with a shared x-axis.
 ![Stacked plot](../examples/stacked_plot.png)
 
 ```python
-fig = plotter.plot_stacked(
-    [gwas_height, gwas_bmi, gwas_whr],
+from pylocuszoom import StackedPlotConfig
+
+config = StackedPlotConfig.from_kwargs(
     chrom=1,
     start=1000000,
     end=2000000,
     lead_positions=[1500000, 1480000, 1520000],  # Per-panel leads
     panel_labels=["Height", "BMI", "WHR"],
+)
+
+fig = plotter.plot_stacked(
+    [gwas_height, gwas_bmi, gwas_whr],
+    config,
     genes_df=genes_df,
 )
 ```
@@ -161,18 +182,24 @@ Add expression QTL data as a separate panel below GWAS results.
 ![eQTL overlay](../examples/eqtl_overlay.png)
 
 ```python
+from pylocuszoom import StackedPlotConfig
+
 eqtl_df = pd.DataFrame({
     "pos": [1000500, 1001200, 1002000],
     "p_value": [1e-6, 1e-4, 0.01],
     "gene": ["BRCA1", "BRCA1", "BRCA1"],
-    "effect": [0.5, -0.3, 0.1],  # Optional: colors by effect direction
+    "effect_size": [0.5, -0.3, 0.1],  # Optional: colors by effect direction
 })
 
-fig = plotter.plot_stacked(
-    [gwas_df],
+config = StackedPlotConfig.from_kwargs(
     chrom=1,
     start=1000000,
     end=2000000,
+)
+
+fig = plotter.plot_stacked(
+    [gwas_df],
+    config,
     eqtl_df=eqtl_df,
     eqtl_gene="BRCA1",  # Filter to specific gene
     genes_df=genes_df,
@@ -191,17 +218,23 @@ Visualize SuSiE or other fine-mapping results with credible set coloring.
 ![Fine-mapping plot](../examples/finemapping_plot.png)
 
 ```python
+from pylocuszoom import StackedPlotConfig
+
 finemapping_df = pd.DataFrame({
     "pos": [1000500, 1001200, 1002000, 1003500],
     "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
     "cs": [1, 1, 0, 2],               # Credible set (0 = not in CS)
 })
 
-fig = plotter.plot_stacked(
-    [gwas_df],
+config = StackedPlotConfig.from_kwargs(
     chrom=1,
     start=1000000,
     end=2000000,
+)
+
+fig = plotter.plot_stacked(
+    [gwas_df],
+    config,
     finemapping_df=finemapping_df,
     finemapping_cs_col="cs",
     genes_df=genes_df,
@@ -367,17 +400,16 @@ plotter = LocusZoomPlotter(
 Create a single regional association plot.
 
 ```python
-fig = plotter.plot(
-    gwas_df,                    # Required: GWAS results
+from pylocuszoom import PlotConfig
+
+# Create config with from_kwargs() factory
+config = PlotConfig.from_kwargs(
     chrom=1,                    # Required: chromosome
     start=1000000,              # Required: start position
     end=2000000,                # Required: end position
     lead_pos=1500000,           # Lead SNP to highlight
     ld_reference_file=None,     # PLINK fileset for LD
     ld_col=None,                # Column with pre-computed LD
-    genes_df=None,              # Gene annotations
-    exons_df=None,              # Exon annotations
-    recomb_df=None,             # Custom recombination data
     show_recombination=True,    # Show recomb overlay
     snp_labels=True,            # Label top SNPs
     label_top_n=5,              # Number to label
@@ -386,20 +418,26 @@ fig = plotter.plot(
     rs_col="rs",                # SNP ID column name
     figsize=(12, 8),            # Figure dimensions
 )
+
+fig = plotter.plot(
+    gwas_df,                    # Required: GWAS results
+    config,                     # Required: PlotConfig object
+    genes_df=None,              # Gene annotations
+    exons_df=None,              # Exon annotations
+    recomb_df=None,             # Custom recombination data
+)
 ```
+
+#### PlotConfig Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `gwas_df` | DataFrame | Required | GWAS results with position and p-value columns. |
 | `chrom` | int | Required | Chromosome number. |
 | `start` | int | Required | Region start position (bp). |
 | `end` | int | Required | Region end position (bp). |
 | `lead_pos` | int | None | Lead SNP position to highlight. |
 | `ld_reference_file` | str | None | PLINK fileset (without extension) for LD calculation. |
 | `ld_col` | str | None | Column name if LD is pre-computed in gwas_df. |
-| `genes_df` | DataFrame | None | Gene annotations for track. |
-| `exons_df` | DataFrame | None | Exon annotations for gene structure. |
-| `recomb_df` | DataFrame | None | Custom recombination rate data. |
 | `show_recombination` | bool | True | Whether to show recombination overlay. |
 | `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
 | `label_top_n` | int | 5 | Number of top SNPs to label. |
@@ -408,28 +446,33 @@ fig = plotter.plot(
 | `rs_col` | str | `"rs"` | SNP ID column name in gwas_df. |
 | `figsize` | tuple | `(12, 8)` | Figure size (width, height) in inches. |
 
+#### plot() Method Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gwas_df` | DataFrame | Required | GWAS results with position and p-value columns. |
+| `config` | PlotConfig | Required | Configuration object (use `PlotConfig.from_kwargs()`). |
+| `genes_df` | DataFrame | None | Gene annotations for track. |
+| `exons_df` | DataFrame | None | Exon annotations for gene structure. |
+| `recomb_df` | DataFrame | None | Custom recombination rate data. |
+
 ### plot_stacked() Method
 
 Create stacked plots for comparing multiple GWAS or adding eQTL/fine-mapping panels.
 
 ```python
-fig = plotter.plot_stacked(
-    gwas_dfs,                   # Required: list of GWAS DataFrames
+from pylocuszoom import StackedPlotConfig
+
+# Create config with from_kwargs() factory
+config = StackedPlotConfig.from_kwargs(
     chrom=1,                    # Required: chromosome
     start=1000000,              # Required: start position
     end=2000000,                # Required: end position
     lead_positions=None,        # Per-panel lead SNP positions
     panel_labels=None,          # Labels for each panel
-    ld_reference_file=None,     # Single PLINK fileset for all
+    ld_reference_file=None,     # Single PLINK fileset (broadcast to all panels)
     ld_reference_files=None,    # Per-panel PLINK filesets
     ld_col=None,                # Pre-computed LD column
-    genes_df=None,              # Gene annotations
-    exons_df=None,              # Exon annotations
-    eqtl_df=None,               # eQTL data
-    eqtl_gene=None,             # Filter eQTL to gene
-    finemapping_df=None,        # Fine-mapping results
-    finemapping_cs_col="cs",    # Credible set column
-    recomb_df=None,             # Recombination data
     show_recombination=True,    # Show recomb overlay
     snp_labels=True,            # Label top SNPs
     label_top_n=3,              # SNPs to label per panel
@@ -438,19 +481,49 @@ fig = plotter.plot_stacked(
     rs_col="rs",                # SNP ID column
     figsize=(12, None),         # Width, auto-height
 )
+
+fig = plotter.plot_stacked(
+    gwas_dfs,                   # Required: list of GWAS DataFrames
+    config,                     # Required: StackedPlotConfig object
+    genes_df=None,              # Gene annotations
+    exons_df=None,              # Exon annotations
+    eqtl_df=None,               # eQTL data
+    eqtl_gene=None,             # Filter eQTL to gene
+    finemapping_df=None,        # Fine-mapping results
+    finemapping_cs_col="cs",    # Credible set column
+    recomb_df=None,             # Recombination data
+)
 ```
+
+#### StackedPlotConfig Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `chrom` | int | Required | Chromosome number. |
+| `start` | int | Required | Region start position (bp). |
+| `end` | int | Required | Region end position (bp). |
+| `lead_positions` | list | None | Lead SNP positions per panel. |
+| `panel_labels` | list | None | Labels for each panel. |
+| `ld_reference_file` | str | None | Single PLINK fileset (broadcast to all panels with lead_positions). |
+| `ld_reference_files` | list | None | Per-panel PLINK filesets. |
+| `ld_col` | str | None | Pre-computed LD column name. |
+| `show_recombination` | bool | True | Whether to show recombination overlay. |
+| `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
+| `label_top_n` | int | 3 | Number of top SNPs to label per panel. |
+
+#### plot_stacked() Method Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `gwas_dfs` | list | Required | List of GWAS DataFrames. |
-| `lead_positions` | list | None | Lead SNP positions per panel. |
-| `panel_labels` | list | None | Labels for each panel. |
-| `ld_reference_file` | str | None | Single PLINK fileset for all panels. |
-| `ld_reference_files` | list | None | Per-panel PLINK filesets. |
+| `config` | StackedPlotConfig | Required | Configuration object. |
+| `genes_df` | DataFrame | None | Gene annotations for track. |
+| `exons_df` | DataFrame | None | Exon annotations. |
 | `eqtl_df` | DataFrame | None | eQTL data for additional panel. |
 | `eqtl_gene` | str | None | Filter eQTL to specific gene. |
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
+| `recomb_df` | DataFrame | None | Custom recombination data. |
 
 ### plot_phewas() Method
 
@@ -818,12 +891,13 @@ clear_ensembl_cache(species="human")  # Clear specific species
 ### Plot Without LD (No PLINK)
 
 ```python
-fig = plotter.plot(
-    gwas_df,
+from pylocuszoom import PlotConfig
+
+config = PlotConfig.from_kwargs(
     chrom=1, start=1e6, end=2e6,
-    lead_pos=None,  # No lead SNP
-    # No ld_reference_file
+    # No lead_pos or ld_reference_file
 )
+fig = plotter.plot(gwas_df, config)
 ```
 
 All SNPs will be gray.
@@ -831,15 +905,17 @@ All SNPs will be gray.
 ### Pre-computed LD
 
 ```python
+from pylocuszoom import PlotConfig
+
 # LD already in DataFrame
 gwas_df["r2"] = [1.0, 0.8, 0.5, 0.2, 0.0]
 
-fig = plotter.plot(
-    gwas_df,
+config = PlotConfig.from_kwargs(
     chrom=1, start=1e6, end=2e6,
     lead_pos=1500000,
     ld_col="r2",  # Use pre-computed LD
 )
+fig = plotter.plot(gwas_df, config)
 ```
 
 ### Save in Multiple Formats
@@ -929,8 +1005,85 @@ Ensure:
 
 ---
 
+---
+
+## Migration from v0.x to v1.0
+
+### Breaking Change: Config Objects Required
+
+In v1.0, `plot()` and `plot_stacked()` require configuration objects instead of keyword arguments.
+
+**Before (v0.x):**
+```python
+fig = plotter.plot(
+    gwas_df,
+    chrom=1,
+    start=1000000,
+    end=2000000,
+    lead_pos=1500000,
+    show_recombination=True,
+)
+```
+
+**After (v1.0):**
+```python
+from pylocuszoom import PlotConfig
+
+config = PlotConfig.from_kwargs(
+    chrom=1,
+    start=1000000,
+    end=2000000,
+    lead_pos=1500000,
+    show_recombination=True,
+)
+fig = plotter.plot(gwas_df, config)
+```
+
+### Migration Steps
+
+1. **Import config classes:**
+   ```python
+   from pylocuszoom import PlotConfig, StackedPlotConfig
+   ```
+
+2. **Use `from_kwargs()` factory:**
+   - Move region/display/LD parameters to config
+   - Keep data parameters (genes_df, exons_df, recomb_df) in method call
+
+3. **Parameter mapping:**
+
+   | Old (kwargs) | New (config) |
+   |--------------|--------------|
+   | `chrom`, `start`, `end` | `PlotConfig.from_kwargs(chrom=, start=, end=)` |
+   | `lead_pos` | `PlotConfig.from_kwargs(lead_pos=)` |
+   | `ld_reference_file` | `PlotConfig.from_kwargs(ld_reference_file=)` |
+   | `ld_col` | `PlotConfig.from_kwargs(ld_col=)` |
+   | `show_recombination` | `PlotConfig.from_kwargs(show_recombination=)` |
+   | `snp_labels`, `label_top_n` | `PlotConfig.from_kwargs(snp_labels=, label_top_n=)` |
+   | `pos_col`, `p_col`, `rs_col` | `PlotConfig.from_kwargs(pos_col=, p_col=, rs_col=)` |
+   | `figsize` | `PlotConfig.from_kwargs(figsize=)` |
+   | `genes_df`, `exons_df` | Remain as method parameters |
+
+### Benefits of Config Objects
+
+- **Validation at construction:** Errors caught early with clear messages
+- **Immutable:** Configs are frozen, preventing accidental modification
+- **Reusable:** Create once, use for multiple plots
+- **IDE support:** Full autocomplete and type hints
+- **Composable:** Build complex configs from sub-configs
+
+```python
+# Reuse config for multiple plots
+config = PlotConfig.from_kwargs(chrom=1, start=1e6, end=2e6)
+fig1 = plotter.plot(gwas1, config)
+fig2 = plotter.plot(gwas2, config)
+```
+
+---
+
 ## See Also
 
+- [Code Map](CODEMAP.md) - Architecture and source code navigation
 - [Example Notebook](../examples/getting_started.ipynb) - Interactive tutorial
 - [GitHub Issues](https://github.com/michael-denyer/pylocuszoom/issues) - Bug reports
 - [CHANGELOG](../CHANGELOG.md) - Version history
