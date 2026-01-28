@@ -8,19 +8,14 @@ from typing import List, Optional
 
 import pandas as pd
 
+from .exceptions import FinemappingValidationError, ValidationError
 from .logging import logger
-from .utils import ValidationError, filter_by_region
+from .utils import filter_by_region
 from .validation import DataFrameValidator
 
 # Required columns for fine-mapping data
 REQUIRED_FINEMAPPING_COLS = ["pos", "pip"]
 OPTIONAL_FINEMAPPING_COLS = ["rs", "cs", "cs_id", "effect", "se"]
-
-
-class FinemappingValidationError(ValueError):
-    """Raised when fine-mapping DataFrame validation fails."""
-
-    pass
 
 
 def validate_finemapping_df(

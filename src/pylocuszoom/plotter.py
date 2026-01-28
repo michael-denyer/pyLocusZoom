@@ -15,6 +15,7 @@ from typing import Any, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import requests
 
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig, HoverDataBuilder
@@ -30,6 +31,7 @@ from .colors import (
     get_ld_color_palette,
     get_phewas_category_palette,
 )
+from .config import PlotConfig, StackedPlotConfig
 from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import (
@@ -171,8 +173,16 @@ class LocusZoomPlotter:
             # Download
             try:
                 return download_canine_recombination_maps()
-            except Exception as e:
+            except (requests.RequestException, OSError, IOError) as e:
+                # Expected network/file errors - graceful fallback
                 logger.warning(f"Could not download recombination maps: {e}")
+                return None
+            except Exception as e:
+                # JUSTIFICATION: Download failure should not prevent plotting.
+                # We catch broadly here because graceful degradation is acceptable
+                # for optional recombination map downloads. Error-level logging
+                # ensures the issue is visible.
+                logger.error(f"Unexpected error downloading recombination maps: {e}")
                 return None
         elif self.recomb_data_dir:
             return Path(self.recomb_data_dir)
@@ -207,53 +217,55 @@ class LocusZoomPlotter:
     def plot(
         self,
         gwas_df: pd.DataFrame,
-        chrom: int,
-        start: int,
-        end: int,
-        lead_pos: Optional[int] = None,
-        ld_reference_file: Optional[str] = None,
-        ld_col: Optional[str] = None,
+        config: PlotConfig,
+        *,
         genes_df: Optional[pd.DataFrame] = None,
         exons_df: Optional[pd.DataFrame] = None,
         recomb_df: Optional[pd.DataFrame] = None,
-        show_recombination: bool = True,
-        snp_labels: bool = True,
-        label_top_n: int = 5,
-        pos_col: str = "ps",
-        p_col: str = "p_wald",
-        rs_col: str = "rs",
-        figsize: Tuple[int, int] = (12, 8),
     ) -> Any:
         """Create a regional association plot.
 
         Args:
             gwas_df: GWAS results DataFrame.
-            chrom: Chromosome number.
-            start: Start position of the region.
-            end: End position of the region.
-            lead_pos: Position of the lead/index SNP to highlight.
-            ld_reference_file: PLINK binary fileset for LD calculation.
-                If provided with lead_pos, calculates LD on the fly.
-            ld_col: Column name for pre-computed LD (R²) values.
-                Use this if LD was calculated externally.
+            config: PlotConfig object containing all plot configuration:
+                - region: RegionConfig with chrom, start, end
+                - columns: ColumnConfig with pos_col, p_col, rs_col
+                - display: DisplayConfig with snp_labels, label_top_n,
+                    show_recombination, figsize
+                - ld: LDConfig with lead_pos, ld_reference_file, ld_col
             genes_df: Gene annotations with chr, start, end, gene_name.
             exons_df: Exon annotations with chr, start, end, gene_name.
             recomb_df: Pre-loaded recombination rate data.
                 If None and show_recombination=True, loads from species default.
-            show_recombination: Whether to show recombination rate overlay.
-            snp_labels: Whether to label top SNPs.
-            label_top_n: Number of top SNPs to label.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            rs_col: Column name for SNP ID.
-            figsize: Figure size.
 
         Returns:
-            Matplotlib Figure object.
+            Figure object (type depends on backend).
 
         Raises:
             ValidationError: If required DataFrame columns are missing.
+
+        Example:
+            >>> config = PlotConfig.from_kwargs(
+            ...     chrom=1, start=1000000, end=2000000,
+            ...     lead_pos=1500000, snp_labels=True,
+            ... )
+            >>> fig = plotter.plot(gwas_df, config)
         """
+        # Extract config values for convenience
+        chrom = config.region.chrom
+        start = config.region.start
+        end = config.region.end
+        pos_col = config.columns.pos_col
+        p_col = config.columns.p_col
+        rs_col = config.columns.rs_col
+        snp_labels = config.display.snp_labels
+        label_top_n = config.display.label_top_n
+        show_recombination = config.display.show_recombination
+        figsize = config.display.figsize
+        lead_pos = config.ld.lead_pos
+        ld_reference_file = config.ld.ld_reference_file
+        ld_col = config.ld.ld_col
+
         # Validate inputs
         validate_gwas_df(gwas_df, pos_col=pos_col, p_col=p_col)
 
@@ -664,14 +676,8 @@ class LocusZoomPlotter:
     def plot_stacked(
         self,
         gwas_dfs: List[pd.DataFrame],
-        chrom: int,
-        start: int,
-        end: int,
-        lead_positions: Optional[List[int]] = None,
-        panel_labels: Optional[List[str]] = None,
-        ld_reference_file: Optional[str] = None,
-        ld_reference_files: Optional[List[str]] = None,
-        ld_col: Optional[str] = None,
+        config: StackedPlotConfig,
+        *,
         genes_df: Optional[pd.DataFrame] = None,
         exons_df: Optional[pd.DataFrame] = None,
         eqtl_df: Optional[pd.DataFrame] = None,
@@ -679,13 +685,6 @@ class LocusZoomPlotter:
         finemapping_df: Optional[pd.DataFrame] = None,
         finemapping_cs_col: Optional[str] = "cs",
         recomb_df: Optional[pd.DataFrame] = None,
-        show_recombination: bool = True,
-        snp_labels: bool = True,
-        label_top_n: int = 3,
-        pos_col: str = "ps",
-        p_col: str = "p_wald",
-        rs_col: str = "rs",
-        figsize: Tuple[float, Optional[float]] = (12, None),
     ) -> Any:
         """Create stacked regional association plots for multiple GWAS.
 
@@ -694,16 +693,15 @@ class LocusZoomPlotter:
 
         Args:
             gwas_dfs: List of GWAS results DataFrames to stack.
-            chrom: Chromosome number.
-            start: Start position of the region.
-            end: End position of the region.
-            lead_positions: List of lead SNP positions (one per GWAS).
-                If None, auto-detects from lowest p-value.
-            panel_labels: Labels for each panel (e.g., phenotype names).
-            ld_reference_file: Single PLINK fileset for all panels.
-            ld_reference_files: List of PLINK filesets (one per panel).
-            ld_col: Column name for pre-computed LD (R²) values in each DataFrame.
-                Use this if LD was calculated externally.
+            config: StackedPlotConfig object containing all plot configuration:
+                - region: RegionConfig with chrom, start, end
+                - columns: ColumnConfig with pos_col, p_col, rs_col
+                - display: DisplayConfig with snp_labels, label_top_n,
+                    show_recombination, figsize
+                - ld: LDConfig with ld_reference_file, ld_col
+                - lead_positions: List of lead SNP positions (one per panel)
+                - panel_labels: List of panel labels
+                - ld_reference_files: List of PLINK filesets (one per panel)
             genes_df: Gene annotations for bottom track.
             exons_df: Exon annotations for gene track.
             eqtl_df: eQTL data to display as additional panel.
@@ -712,25 +710,34 @@ class LocusZoomPlotter:
                 Displayed as PIP line with optional credible set coloring.
             finemapping_cs_col: Column name for credible set assignment in finemapping_df.
             recomb_df: Pre-loaded recombination rate data.
-            show_recombination: Whether to show recombination overlay.
-            snp_labels: Whether to label top SNPs.
-            label_top_n: Number of top SNPs to label per panel.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            rs_col: Column name for SNP ID.
-            figsize: Figure size (width, height). If height is None, auto-calculates.
 
         Returns:
             Figure object (type depends on backend).
 
         Example:
-            >>> fig = plotter.plot_stacked(
-            ...     [gwas_height, gwas_bmi, gwas_whr],
+            >>> config = StackedPlotConfig.from_kwargs(
             ...     chrom=1, start=1000000, end=2000000,
             ...     panel_labels=["Height", "BMI", "WHR"],
-            ...     genes_df=genes_df,
             ... )
+            >>> fig = plotter.plot_stacked([gwas_height, gwas_bmi, gwas_whr], config)
         """
+        # Extract config values for convenience
+        chrom = config.region.chrom
+        start = config.region.start
+        end = config.region.end
+        pos_col = config.columns.pos_col
+        p_col = config.columns.p_col
+        rs_col = config.columns.rs_col
+        snp_labels = config.display.snp_labels
+        label_top_n = config.display.label_top_n
+        show_recombination = config.display.show_recombination
+        figsize = config.display.figsize
+        ld_reference_file = config.ld.ld_reference_file
+        ld_col = config.ld.ld_col
+        lead_positions = config.lead_positions
+        panel_labels = config.panel_labels
+        ld_reference_files = config.ld_reference_files
+
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")

@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+import requests
 
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
+from pylocuszoom.config import PlotConfig, StackedPlotConfig
 from pylocuszoom.plotter import LocusZoomPlotter
 
 
@@ -35,13 +37,13 @@ class TestBackendIntegration:
         original_create_figure = plotter._backend.create_figure
         plotter._backend.create_figure = MagicMock(side_effect=original_create_figure)
 
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
 
         # Backend's create_figure should have been called
         plotter._backend.create_figure.assert_called()
@@ -54,12 +56,15 @@ class TestBackendIntegration:
         original_create_figure = plotter._backend.create_figure
         plotter._backend.create_figure = MagicMock(side_effect=original_create_figure)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df, sample_gwas_df.copy()],
+            config,
         )
 
         plotter._backend.create_figure.assert_called()
@@ -86,13 +91,13 @@ class TestBackendIntegration:
 
         plotter = LocusZoomPlotter(species="canine", backend="plotly")
 
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
 
         assert isinstance(fig, go.Figure)
 
@@ -103,13 +108,13 @@ class TestBackendIntegration:
         original_scatter = plotter._backend.scatter
         plotter._backend.scatter = MagicMock(side_effect=original_scatter)
 
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
 
         plotter._backend.scatter.assert_called()
         plt.close(fig)
@@ -121,13 +126,13 @@ class TestBackendIntegration:
         original_axhline = plotter._backend.axhline
         plotter._backend.axhline = MagicMock(side_effect=original_axhline)
 
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
 
         plotter._backend.axhline.assert_called()
         plt.close(fig)
@@ -141,13 +146,13 @@ class TestBackendIntegration:
         plotter._backend.set_ylabel = MagicMock(side_effect=original_set_ylabel)
         plotter._backend.set_xlim = MagicMock(side_effect=original_set_xlim)
 
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
 
         plotter._backend.set_ylabel.assert_called()
         plotter._backend.set_xlim.assert_called()
@@ -233,12 +238,12 @@ class TestAutoGenes:
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
         with patch("pylocuszoom.plotter.get_genes_for_region", return_value=mock_genes):
-            fig = plotter.plot(
-                sample_gwas_df,
+            config = PlotConfig.from_kwargs(
                 chrom=1,
                 start=1000000,
                 end=2000000,
             )
+            fig = plotter.plot(sample_gwas_df, config)
 
         assert fig is not None
 
@@ -247,12 +252,12 @@ class TestAutoGenes:
         plotter = LocusZoomPlotter(species="canine", log_level=None)
 
         # Should work without genes_df and without calling Ensembl
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
         )
+        fig = plotter.plot(sample_gwas_df, config)
 
         assert fig is not None
 
@@ -265,11 +270,14 @@ class TestAutoGenes:
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
         with patch("pylocuszoom.plotter.get_genes_for_region") as mock_fetch:
-            fig = plotter.plot(
-                sample_gwas_df,
+            config = PlotConfig.from_kwargs(
                 chrom=1,
                 start=1000000,
                 end=2000000,
+            )
+            fig = plotter.plot(
+                sample_gwas_df,
+                config,
                 genes_df=sample_genes_df,
             )
 
@@ -317,24 +325,23 @@ class TestLocusZoomPlotterPlot:
 
     def test_creates_figure(self, plotter, sample_gwas_df):
         """Should create a matplotlib figure."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
         )
+        fig = plotter.plot(sample_gwas_df, config)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
     def test_plots_with_gene_track(self, plotter, sample_gwas_df, sample_genes_df):
         """Should create plot with gene track when genes_df provided."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
-            genes_df=sample_genes_df,
         )
+        fig = plotter.plot(sample_gwas_df, config, genes_df=sample_genes_df)
         # Should have 2 axes (association + gene track)
         assert len(fig.axes) >= 2
         plt.close(fig)
@@ -342,25 +349,25 @@ class TestLocusZoomPlotterPlot:
     def test_highlights_lead_snp(self, plotter, sample_gwas_df):
         """Should highlight lead SNP when lead_pos provided."""
         lead_pos = sample_gwas_df["ps"].iloc[0]
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             lead_pos=lead_pos,
         )
+        fig = plotter.plot(sample_gwas_df, config)
         plt.close(fig)
         # Test passes if no exception
 
     def test_handles_empty_dataframe(self, plotter):
         """Should handle empty GWAS DataFrame."""
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
-        fig = plotter.plot(
-            empty_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
         )
+        fig = plotter.plot(empty_df, config)
         plt.close(fig)
 
     def test_custom_column_names(self, plotter):
@@ -372,8 +379,7 @@ class TestLocusZoomPlotterPlot:
                 "pvalue": [1e-8, 1e-5, 1e-3],
             }
         )
-        fig = plotter.plot(
-            df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
@@ -381,6 +387,7 @@ class TestLocusZoomPlotterPlot:
             p_col="pvalue",
             rs_col="snp_id",
         )
+        fig = plotter.plot(df, config)
         plt.close(fig)
 
     def test_with_precomputed_ld(self, plotter, sample_gwas_df):
@@ -388,13 +395,13 @@ class TestLocusZoomPlotterPlot:
         df = sample_gwas_df.copy()
         df["R2"] = np.random.uniform(0, 1, len(df))
 
-        fig = plotter.plot(
-            df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             ld_col="R2",
         )
+        fig = plotter.plot(df, config)
         plt.close(fig)
 
     def test_with_recombination_data(self, plotter, sample_gwas_df):
@@ -405,35 +412,34 @@ class TestLocusZoomPlotterPlot:
                 "rate": [0.5, 1.2, 2.5, 1.8, 0.8, 0.3],
             }
         )
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
-            recomb_df=recomb_df,
         )
+        fig = plotter.plot(sample_gwas_df, config, recomb_df=recomb_df)
         plt.close(fig)
 
     def test_disables_snp_labels(self, plotter, sample_gwas_df):
         """Should not add labels when snp_labels=False."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             snp_labels=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
         plt.close(fig)
 
     def test_disables_recombination(self, plotter, sample_gwas_df):
         """Should not show recombination when show_recombination=False."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        config = PlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
+        fig = plotter.plot(sample_gwas_df, config)
         plt.close(fig)
 
 
@@ -463,14 +469,14 @@ class TestLocusZoomPlotterLdCalculation:
                 }
             )
 
-            fig = plotter.plot(
-                df,
+            config = PlotConfig.from_kwargs(
                 chrom=1,
                 start=1000000,
                 end=2000000,
                 lead_pos=1100000,
                 ld_reference_file="/path/to/genotypes",
             )
+            fig = plotter.plot(df, config)
 
             mock_ld.assert_called_once()
             plt.close(fig)
@@ -531,14 +537,14 @@ class TestPlotEdgeCases:
 
             # This should NOT raise KeyError - should handle gracefully
             # Currently fails with: KeyError: 'rs'
-            fig = plotter.plot(
-                df,
+            config = PlotConfig.from_kwargs(
                 chrom=1,
                 start=1000000,
                 end=2000000,
                 lead_pos=1500000,
                 ld_reference_file="/path/to/genotypes",
             )
+            fig = plotter.plot(df, config)
             plt.close(fig)
 
 
@@ -580,14 +586,17 @@ class TestPlotStackedEdgeCases:
 
         # Should raise EQTLValidationError with helpful message
         # Currently raises KeyError: 'pos'
+        config = StackedPlotConfig.from_kwargs(
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
         with pytest.raises(EQTLValidationError):
             plotter.plot_stacked(
                 [sample_gwas_df],
-                chrom=1,
-                start=1000000,
-                end=2000000,
+                config,
                 eqtl_df=bad_eqtl_df,
-                show_recombination=False,
             )
 
     def test_plot_stacked_validates_list_lengths(self, plotter, sample_gwas_df):
@@ -602,15 +611,15 @@ class TestPlotStackedEdgeCases:
 
         # Should raise ValueError about mismatched lengths
         # Currently silently truncates - third GWAS has no lead SNP
+        config = StackedPlotConfig.from_kwargs(
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            lead_positions=lead_positions,
+            show_recombination=False,
+        )
         with pytest.raises(ValueError, match="lead_positions"):
-            plotter.plot_stacked(
-                gwas_dfs,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                lead_positions=lead_positions,
-                show_recombination=False,
-            )
+            plotter.plot_stacked(gwas_dfs, config)
 
     def test_plot_stacked_validates_panel_labels_length(self, plotter, sample_gwas_df):
         """Bug: panel_labels length should match gwas_dfs length."""
@@ -619,15 +628,15 @@ class TestPlotStackedEdgeCases:
 
         # Should raise ValueError about mismatched lengths
         # Currently silently ignores - second panel has no label
+        config = StackedPlotConfig.from_kwargs(
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            panel_labels=panel_labels,
+            show_recombination=False,
+        )
         with pytest.raises(ValueError, match="panel_labels"):
-            plotter.plot_stacked(
-                gwas_dfs,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                panel_labels=panel_labels,
-                show_recombination=False,
-            )
+            plotter.plot_stacked(gwas_dfs, config)
 
 
 class TestBackendEQTLFinemapping:
@@ -682,14 +691,17 @@ class TestBackendEQTLFinemapping:
         """Matplotlib backend should handle eQTL panel with effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -701,14 +713,17 @@ class TestBackendEQTLFinemapping:
         """Matplotlib backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df_no_effect,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -718,13 +733,16 @@ class TestBackendEQTLFinemapping:
         """Matplotlib backend should handle fine-mapping panel."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
-            finemapping_df=sample_finemapping_df,
             show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
+            finemapping_df=sample_finemapping_df,
         )
 
         assert fig is not None
@@ -734,14 +752,17 @@ class TestBackendEQTLFinemapping:
         """Plotly backend should handle eQTL panel with effect sizes without error."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -753,14 +774,17 @@ class TestBackendEQTLFinemapping:
         """Plotly backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df_no_effect,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -769,13 +793,16 @@ class TestBackendEQTLFinemapping:
         """Plotly backend should handle fine-mapping panel without error."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
-            finemapping_df=sample_finemapping_df,
             show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
+            finemapping_df=sample_finemapping_df,
         )
 
         assert fig is not None
@@ -784,14 +811,17 @@ class TestBackendEQTLFinemapping:
         """Bokeh backend should handle eQTL panel with effect sizes without error."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -800,14 +830,17 @@ class TestBackendEQTLFinemapping:
         """Bokeh backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df_no_effect,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -816,13 +849,16 @@ class TestBackendEQTLFinemapping:
         """Bokeh backend should handle fine-mapping panel without error."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
-            finemapping_df=sample_finemapping_df,
             show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
+            finemapping_df=sample_finemapping_df,
         )
 
         assert fig is not None
@@ -833,15 +869,18 @@ class TestBackendEQTLFinemapping:
         """Plotly backend should handle both eQTL and fine-mapping panels together."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE1",
             finemapping_df=sample_finemapping_df,
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -852,15 +891,18 @@ class TestBackendEQTLFinemapping:
         """Bokeh backend should handle both eQTL and fine-mapping panels together."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE1",
             finemapping_df=sample_finemapping_df,
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -881,14 +923,17 @@ class TestBackendEQTLFinemapping:
         )
 
         # Plot for chr 1 - should only include 2 eQTLs (not the chr2 one)
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        config = StackedPlotConfig.from_kwargs(
             chrom=1,
             start=1000000,
             end=2000000,
+            show_recombination=False,
+        )
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            config,
             eqtl_df=eqtl_df,
             eqtl_gene="GENE1",
-            show_recombination=False,
         )
 
         assert fig is not None
@@ -1020,3 +1065,63 @@ class TestForestPlot:
 
         assert fig is not None
         plt.close(fig)
+
+
+class TestRecombinationDownloadErrors:
+    """Tests for recombination map download error handling.
+
+    These tests verify that download errors are handled gracefully:
+    - Expected errors (network, I/O) return None without crashing
+    - Unexpected errors also return None (graceful degradation)
+    - All error types allow plotting to continue without recombination overlay
+
+    Note: Log level verification is done visually in "Captured stderr call" output.
+    loguru doesn't integrate with pytest's caplog/capsys fixtures directly.
+    """
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a plotter instance for testing download errors."""
+        return LocusZoomPlotter(species="canine", log_level="DEBUG")
+
+    def test_network_error_returns_none(self, plotter):
+        """Network errors (requests.RequestException) should return None."""
+
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = requests.RequestException("Network unreachable")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            # Verify the download was attempted
+            mock_download.assert_called_once()
+
+    def test_io_error_returns_none(self, plotter):
+        """IO errors (IOError) should return None."""
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = IOError("Disk full")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            mock_download.assert_called_once()
+
+    def test_os_error_returns_none(self, plotter):
+        """OSError should return None."""
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = OSError("Permission denied")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            mock_download.assert_called_once()
+
+    def test_unexpected_error_returns_none(self, plotter):
+        """Unexpected errors should still return None (graceful degradation)."""
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = ValueError("Unexpected parsing error")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            mock_download.assert_called_once()

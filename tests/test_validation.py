@@ -341,3 +341,95 @@ class TestCustomName:
             validator.validate()
 
         assert "DataFrame validation failed" in str(exc_info.value)
+
+
+class TestErrorPathCoverage:
+    """Test error message content for validation failures.
+
+    These tests ensure validation errors provide actionable information
+    for debugging. Error messages should include context needed to fix
+    the issue without additional investigation.
+    """
+
+    def test_missing_columns_error_shows_available(self):
+        """Error message should list both missing and available columns."""
+        df = pd.DataFrame({"a": [1], "b": [2]})
+
+        with pytest.raises(ValidationError, match=r"Available.*\['a', 'b'\]"):
+            DataFrameValidator(df, "test").require_columns(["x", "y"]).validate()
+
+    def test_require_numeric_non_numeric_column_shows_dtype(self):
+        """Non-numeric column error should show actual dtype."""
+        df = pd.DataFrame({"val": ["a", "b", "c"]})
+
+        # dtype may be 'object' or 'str' depending on pandas version
+        with pytest.raises(ValidationError, match=r"must be numeric, got (object|str)"):
+            DataFrameValidator(df, "test").require_numeric(["val"]).validate()
+
+    def test_require_range_out_of_bounds_shows_count(self):
+        """Out-of-range error should report count and bound violated."""
+        df = pd.DataFrame({"pval": [0.1, -0.5, 1.5]})
+
+        with pytest.raises(ValidationError) as exc_info:
+            DataFrameValidator(df, "test").require_range("pval", 0, 1).validate()
+
+        error_msg = str(exc_info.value)
+        # Should report both bound violations with counts
+        assert "1 values < 0" in error_msg
+        assert "1 values > 1" in error_msg
+
+    def test_error_includes_dataframe_name(self):
+        """Error header should include DataFrame name for context."""
+        df = pd.DataFrame({"x": [1]})
+
+        with pytest.raises(ValidationError, match=r"GWAS DataFrame validation failed"):
+            DataFrameValidator(df, "GWAS DataFrame").require_columns(["pos"]).validate()
+
+    def test_multiple_errors_all_reported(self):
+        """All validation errors should be accumulated and reported."""
+        df = pd.DataFrame(
+            {
+                "numeric_col": [1, 2, 3],
+                "string_col": ["a", "b", "c"],
+                "range_col": [0.5, 1.5, 2.5],
+            }
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            (
+                DataFrameValidator(df, "test")
+                .require_columns(["missing_col"])
+                .require_numeric(["string_col"])
+                .require_range("range_col", max_val=1)
+                .validate()
+            )
+
+        error_msg = str(exc_info.value)
+        # All three issues reported
+        assert "Missing columns: ['missing_col']" in error_msg
+        assert "Column 'string_col' must be numeric" in error_msg
+        assert "2 values > 1" in error_msg
+
+    def test_null_check_reports_exact_count(self):
+        """Null check should report exact count of nulls."""
+        df = pd.DataFrame({"val": [1, np.nan, np.nan, np.nan, 5]})
+
+        with pytest.raises(ValidationError, match=r"has 3 null values"):
+            DataFrameValidator(df, "test").require_not_null(["val"]).validate()
+
+    def test_error_message_formatted_as_list(self):
+        """Error message should format issues as readable list."""
+        df = pd.DataFrame({"a": ["x"]})
+
+        with pytest.raises(ValidationError) as exc_info:
+            (
+                DataFrameValidator(df, "test")
+                .require_columns(["b"])
+                .require_numeric(["a"])
+                .validate()
+            )
+
+        error_msg = str(exc_info.value)
+        # Each error on its own line with bullet
+        assert "  - Missing columns:" in error_msg
+        assert "  - Column 'a' must be numeric" in error_msg
