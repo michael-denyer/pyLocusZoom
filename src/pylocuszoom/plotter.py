@@ -1041,8 +1041,16 @@ class LocusZoomPlotter:
             eqtl_data = eqtl_df.copy()
 
             # Filter by gene if specified
-            if eqtl_gene and "gene" in eqtl_data.columns:
-                eqtl_data = eqtl_data[eqtl_data["gene"] == eqtl_gene]
+            eqtl_gene_filtered = False
+            if eqtl_gene:
+                if "gene" in eqtl_data.columns:
+                    eqtl_data = eqtl_data[eqtl_data["gene"] == eqtl_gene]
+                    eqtl_gene_filtered = True
+                else:
+                    logger.warning(
+                        f"eqtl_gene='{eqtl_gene}' specified but eQTL data has no 'gene' column; "
+                        "showing all eQTL data unfiltered"
+                    )
 
             # Filter by region (position and chromosome)
             if "pos" in eqtl_data.columns:
@@ -1119,7 +1127,8 @@ class LocusZoomPlotter:
                     )
                 else:
                     # No effect sizes - plot as diamonds
-                    label = f"eQTL ({eqtl_gene})" if eqtl_gene else "eQTL"
+                    # Only show gene in label if filtering was actually applied
+                    label = f"eQTL ({eqtl_gene})" if eqtl_gene_filtered else "eQTL"
                     self._backend.scatter(
                         ax,
                         eqtl_data["pos"],

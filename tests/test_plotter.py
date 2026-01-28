@@ -1026,6 +1026,52 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
         plt.close(fig)
 
+    def test_eqtl_gene_without_gene_column_no_gene_in_label(self, sample_gwas_df):
+        """Test that eqtl_gene without 'gene' column doesn't label as gene-filtered.
+
+        Bug fix: Previously, label would show "eQTL (GENE1)" even when filtering
+        didn't occur because the DataFrame lacked a 'gene' column.
+
+        Warning is logged to stderr (see "Captured stderr call" in test output).
+        loguru doesn't integrate with pytest's caplog/capsys fixtures directly.
+        """
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+
+        # Create eQTL data WITHOUT gene column
+        eqtl_df_no_gene_col = pd.DataFrame(
+            {
+                "pos": [1200000, 1400000, 1600000],
+                "p_value": [1e-6, 1e-4, 0.01],
+                # No "gene" column - so filtering can't occur
+            }
+        )
+
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+            eqtl_df=eqtl_df_no_gene_col,
+            eqtl_gene="GENE1",  # Specified but can't filter
+        )
+
+        # Verify the eQTL panel axes don't have "(GENE1)" in any labels
+        # The panel is axes[1] (after GWAS panel at axes[0])
+        axes = fig.get_axes()
+        eqtl_ax = axes[1]  # eQTL panel
+
+        # Check that no legend entry contains "(GENE1)"
+        legend = eqtl_ax.get_legend()
+        if legend:
+            for text in legend.get_texts():
+                assert "(GENE1)" not in text.get_text(), (
+                    f"Label incorrectly shows gene filter: {text.get_text()}"
+                )
+
+        assert fig is not None
+        plt.close(fig)
+
 
 class TestPheWASPlot:
     """Tests for plot_phewas method."""
