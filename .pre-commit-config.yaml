@@ -10,7 +10,7 @@ repos:
     hooks:
       - id: pytest-cov
         name: pytest with coverage
-        entry: uv run python -m pytest -q
+        entry: uv run python -m pytest -n auto -q
         language: system
         types: [python]
         pass_filenames: false
