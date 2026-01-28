@@ -46,7 +46,6 @@ from .gene_track import (
     plot_gene_track,
     plot_gene_track_generic,
 )
-from .labels import add_snp_labels
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
 from .phewas import validate_phewas_df
@@ -337,10 +336,10 @@ class LocusZoomPlotter:
             zorder=1,
         )
 
-        # Add SNP labels (matplotlib only - interactive backends use hover tooltips)
+        # Add SNP labels (capability check - interactive backends use hover tooltips)
         if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
-            if self.backend_name == "matplotlib":
-                add_snp_labels(
+            if self._backend.supports_snp_labels:
+                self._backend.add_snp_labels(
                     ax,
                     df,
                     pos_col=pos_col,
@@ -928,10 +927,10 @@ class LocusZoomPlotter:
                 zorder=1,
             )
 
-            # Add SNP labels (matplotlib only - interactive backends use hover tooltips)
+            # Add SNP labels (capability check - interactive backends use hover tooltips)
             if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
-                if self.backend_name == "matplotlib":
-                    add_snp_labels(
+                if self._backend.supports_snp_labels:
+                    self._backend.add_snp_labels(
                         ax,
                         df,
                         pos_col=pos_col,
