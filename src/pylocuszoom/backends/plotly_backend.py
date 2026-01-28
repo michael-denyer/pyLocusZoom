@@ -41,6 +41,21 @@ class PlotlyBackend:
         """Initialize the plotly backend."""
         pass
 
+    @property
+    def supports_snp_labels(self) -> bool:
+        """Plotly uses hover tooltips instead of labels."""
+        return False
+
+    @property
+    def supports_hover(self) -> bool:
+        """Plotly supports hover tooltips."""
+        return True
+
+    @property
+    def supports_secondary_axis(self) -> bool:
+        """Plotly supports secondary y-axis."""
+        return True
+
     def create_figure(
         self,
         n_panels: int,
@@ -614,6 +629,41 @@ class PlotlyBackend:
                     borderwidth=1,
                 )
             }
+        )
+
+    def add_snp_labels(
+        self,
+        ax: Tuple[go.Figure, int],
+        df: pd.DataFrame,
+        pos_col: str,
+        neglog10p_col: str,
+        rs_col: str,
+        label_top_n: int,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+    ) -> None:
+        """No-op: Plotly uses hover tooltips instead of text labels."""
+        pass
+
+    def add_panel_label(
+        self,
+        ax: Tuple[go.Figure, int],
+        label: str,
+        x_frac: float = 0.02,
+        y_frac: float = 0.95,
+    ) -> None:
+        """Add label text at fractional position in panel."""
+        fig, row = ax
+        fig.add_annotation(
+            text=f"<b>{label}</b>",
+            xref="x domain",
+            yref="y domain",
+            x=x_frac,
+            y=y_frac,
+            showarrow=False,
+            font=dict(size=12),
+            row=row,
+            col=1,
         )
 
     def add_ld_legend(
