@@ -80,7 +80,9 @@ class TestFilterByRegion:
 
     def test_chromosome_chr_prefix_in_dataframe(self):
         """Region chrom=1 matches df['chrom']='chr1'."""
-        df = pd.DataFrame({"chrom": ["chr1", "chr1", "chr2"], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame(
+            {"chrom": ["chr1", "chr1", "chr2"], "pos": [1000, 2000, 1000]}
+        )
         result = filter_by_region(df, region=(1, 500, 2500), pos_col="pos")
 
         assert len(result) == 2

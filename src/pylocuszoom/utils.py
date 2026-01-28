@@ -106,6 +106,58 @@ def normalize_chrom(chrom: Union[int, str]) -> str:
     return str(chrom).replace("chr", "")
 
 
+def filter_by_region(
+    df: pd.DataFrame,
+    region: tuple,
+    chrom_col: str = "chrom",
+    pos_col: str = "pos",
+) -> pd.DataFrame:
+    """Filter DataFrame to genomic region with inclusive bounds.
+
+    Filters rows where position is within [start, end] (inclusive).
+    If chrom_col exists in DataFrame, also filters by chromosome.
+    Chromosome comparison normalizes types (int/str, chr prefix).
+
+    Args:
+        df: DataFrame to filter.
+        region: Tuple of (chrom, start, end) defining the region.
+        chrom_col: Column name for chromosome (default: "chrom").
+            If column doesn't exist, filters by position only.
+        pos_col: Column name for position (default: "pos").
+
+    Returns:
+        Filtered DataFrame (copy, not view).
+
+    Raises:
+        KeyError: If pos_col is not found in DataFrame.
+
+    Example:
+        >>> filtered = filter_by_region(df, region=(1, 1000000, 2000000))
+        >>> filtered = filter_by_region(df, region=("chr1", 1e6, 2e6), pos_col="position")
+    """
+    chrom, start, end = region
+
+    # Validate position column exists
+    if pos_col not in df.columns:
+        raise KeyError(
+            f"Position column '{pos_col}' not found in DataFrame. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    # Position filtering (inclusive bounds)
+    mask = (df[pos_col] >= start) & (df[pos_col] <= end)
+
+    # Chromosome filtering (if column exists)
+    if chrom_col in df.columns:
+        chrom_normalized = normalize_chrom(chrom)
+        df_chrom_normalized = (
+            df[chrom_col].astype(str).str.replace("chr", "", regex=False)
+        )
+        mask = mask & (df_chrom_normalized == chrom_normalized)
+
+    return df[mask].copy()
+
+
 def validate_dataframe(
     df: pd.DataFrame,
     required_cols: List[str],
