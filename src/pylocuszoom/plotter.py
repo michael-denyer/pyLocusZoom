@@ -21,6 +21,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 from .backends import BackendType, get_backend
+from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
     EQTL_NEGATIVE_BINS,
     EQTL_POSITIVE_BINS,
@@ -450,23 +451,14 @@ class LocusZoomPlotter:
         p_col: Optional[str] = None,
     ) -> None:
         """Plot association scatter with LD coloring."""
-
-        def _build_hover_data(subset_df: pd.DataFrame) -> Optional[pd.DataFrame]:
-            """Build hover data for interactive backends."""
-            hover_cols = {}
-            # RS ID first (will be bold in hover)
-            if rs_col and rs_col in subset_df.columns:
-                hover_cols["SNP"] = subset_df[rs_col].values
-            # Position
-            if pos_col in subset_df.columns:
-                hover_cols["Position"] = subset_df[pos_col].values
-            # P-value
-            if p_col and p_col in subset_df.columns:
-                hover_cols["P-value"] = subset_df[p_col].values
-            # LD
-            if ld_col and ld_col in subset_df.columns:
-                hover_cols["R²"] = subset_df[ld_col].values
-            return pd.DataFrame(hover_cols) if hover_cols else None
+        # Build hover data using HoverDataBuilder
+        hover_config = HoverConfig(
+            snp_col=rs_col if rs_col and rs_col in df.columns else None,
+            pos_col=pos_col if pos_col in df.columns else None,
+            p_col=p_col if p_col and p_col in df.columns else None,
+            ld_col=ld_col if ld_col and ld_col in df.columns else None,
+        )
+        hover_builder = HoverDataBuilder(hover_config)
 
         # LD-based coloring
         if ld_col is not None and ld_col in df.columns:
@@ -485,7 +477,7 @@ class LocusZoomPlotter:
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=2,
-                    hover_data=_build_hover_data(bin_data),
+                    hover_data=hover_builder.build_dataframe(bin_data),
                 )
         else:
             # Default: grey points
@@ -498,7 +490,7 @@ class LocusZoomPlotter:
                 edgecolor="black",
                 linewidth=0.5,
                 zorder=2,
-                hover_data=_build_hover_data(df),
+                hover_data=hover_builder.build_dataframe(df),
             )
 
         # Highlight lead SNP with larger, more prominent marker
@@ -515,7 +507,7 @@ class LocusZoomPlotter:
                     edgecolor="black",
                     linewidth=1.5,
                     zorder=10,
-                    hover_data=_build_hover_data(lead_snp),
+                    hover_data=hover_builder.build_dataframe(lead_snp),
                 )
 
     def _add_ld_legend(self, ax: Axes) -> None:
@@ -641,22 +633,15 @@ class LocusZoomPlotter:
             show_credible_sets: Whether to color points by credible set.
             pip_threshold: Minimum PIP to display as scatter point.
         """
-
-        def _build_finemapping_hover_data(
-            subset_df: pd.DataFrame,
-        ) -> Optional[pd.DataFrame]:
-            """Build hover data for interactive backends."""
-            hover_cols = {}
-            # Position
-            if pos_col in subset_df.columns:
-                hover_cols["Position"] = subset_df[pos_col].values
-            # PIP
-            if pip_col in subset_df.columns:
-                hover_cols["PIP"] = subset_df[pip_col].values
-            # Credible set
-            if cs_col and cs_col in subset_df.columns:
-                hover_cols["Credible Set"] = subset_df[cs_col].values
-            return pd.DataFrame(hover_cols) if hover_cols else None
+        # Build hover data using HoverDataBuilder
+        extra_cols = {pip_col: "PIP"}
+        if cs_col and cs_col in df.columns:
+            extra_cols[cs_col] = "Credible Set"
+        hover_config = HoverConfig(
+            pos_col=pos_col if pos_col in df.columns else None,
+            extra_cols=extra_cols,
+        )
+        hover_builder = HoverDataBuilder(hover_config)
 
         # Sort by position for line plotting
         df = df.sort_values(pos_col)
@@ -691,7 +676,7 @@ class LocusZoomPlotter:
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=3,
-                    hover_data=_build_finemapping_hover_data(cs_data),
+                    hover_data=hover_builder.build_dataframe(cs_data),
                 )
             # Plot variants not in any credible set
             non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
@@ -708,7 +693,7 @@ class LocusZoomPlotter:
                         edgecolor="black",
                         linewidth=0.3,
                         zorder=2,
-                        hover_data=_build_finemapping_hover_data(non_cs_data),
+                        hover_data=hover_builder.build_dataframe(non_cs_data),
                     )
         else:
             # No credible sets - show all points above threshold
@@ -725,7 +710,7 @@ class LocusZoomPlotter:
                         edgecolor="black",
                         linewidth=0.5,
                         zorder=3,
-                        hover_data=_build_finemapping_hover_data(high_pip),
+                        hover_data=hover_builder.build_dataframe(high_pip),
                     )
 
     def plot_stacked(
@@ -1081,24 +1066,18 @@ class LocusZoomPlotter:
                     eqtl_data["p_value"].clip(lower=1e-300)
                 )
 
-                def _build_eqtl_hover_data(
-                    subset_df: pd.DataFrame,
-                ) -> Optional[pd.DataFrame]:
-                    """Build hover data for eQTL interactive backends."""
-                    hover_cols = {}
-                    # Position
-                    if "pos" in subset_df.columns:
-                        hover_cols["Position"] = subset_df["pos"].values
-                    # P-value
-                    if "p_value" in subset_df.columns:
-                        hover_cols["P-value"] = subset_df["p_value"].values
-                    # Effect size
-                    if "effect_size" in subset_df.columns:
-                        hover_cols["Effect"] = subset_df["effect_size"].values
-                    # Gene
-                    if "gene" in subset_df.columns:
-                        hover_cols["Gene"] = subset_df["gene"].values
-                    return pd.DataFrame(hover_cols) if hover_cols else None
+                # Build hover data using HoverDataBuilder
+                eqtl_extra_cols = {}
+                if "effect_size" in eqtl_data.columns:
+                    eqtl_extra_cols["effect_size"] = "Effect"
+                if "gene" in eqtl_data.columns:
+                    eqtl_extra_cols["gene"] = "Gene"
+                eqtl_hover_config = HoverConfig(
+                    pos_col="pos" if "pos" in eqtl_data.columns else None,
+                    p_col="p_value" if "p_value" in eqtl_data.columns else None,
+                    extra_cols=eqtl_extra_cols,
+                )
+                eqtl_hover_builder = HoverDataBuilder(eqtl_hover_config)
 
                 # Check if effect_size column exists for directional coloring
                 has_effect = "effect_size" in eqtl_data.columns
@@ -1121,7 +1100,7 @@ class LocusZoomPlotter:
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
-                            hover_data=_build_eqtl_hover_data(row_df),
+                            hover_data=eqtl_hover_builder.build_dataframe(row_df),
                         )
                     # Plot negative effects (down triangles)
                     for _, row in neg_effects.iterrows():
@@ -1136,7 +1115,7 @@ class LocusZoomPlotter:
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
-                            hover_data=_build_eqtl_hover_data(row_df),
+                            hover_data=eqtl_hover_builder.build_dataframe(row_df),
                         )
                     # Add eQTL effect legend (all backends)
                     self._backend.add_eqtl_legend(
@@ -1156,7 +1135,7 @@ class LocusZoomPlotter:
                         linewidth=0.5,
                         zorder=2,
                         label=label,
-                        hover_data=_build_eqtl_hover_data(eqtl_data),
+                        hover_data=eqtl_hover_builder.build_dataframe(eqtl_data),
                     )
                     self._backend.add_simple_legend(ax, label, loc="upper right")
 
