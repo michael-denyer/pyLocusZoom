@@ -93,21 +93,71 @@ jobs:
 
           cat bioconda/meta.yaml
 
-      - name: Create Pull Request
+      - name: Create local PR for bioconda/meta.yaml
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update bioconda recipe for new release"
+          commit-message: "chore: update bioconda recipe for v${{ needs.publish.outputs.version }}"
           branch: bioconda-update
-          title: "Update bioconda recipe"
+          title: "Update bioconda recipe for v${{ needs.publish.outputs.version }}"
           body: |
             Automated update of bioconda/meta.yaml after PyPI release.
 
-            **Next steps:**
-            1. Review this PR
-            2. Merge to main
-            3. Copy `bioconda/meta.yaml` to your fork of bioconda-recipes
-            4. Submit PR to bioconda-recipes
+            This PR updates the local recipe. The bioconda-recipes PR is created automatically below.
           labels: |
             bioconda
             automated
+
+  submit-bioconda-pr:
+    needs: [publish, update-bioconda]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bioconda-recipes fork
+        uses: actions/checkout@v4
+        with:
+          repository: michael-denyer/bioconda-recipes
+          token: ${{ secrets.BIOCONDA_PAT }}
+          path: bioconda-recipes
+
+      - name: Checkout pyLocusZoom
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: pylocuszoom
+
+      - name: Update recipe and create PR
+        env:
+          GH_TOKEN: ${{ secrets.BIOCONDA_PAT }}
+          PKG_VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          cd bioconda-recipes
+
+          # Sync fork with upstream
+          git remote add upstream https://github.com/bioconda/bioconda-recipes.git
+          git fetch upstream
+          git checkout master
+          git reset --hard upstream/master
+          git push origin master --force
+
+          # Create branch for this version
+          BRANCH="pylocuszoom-$PKG_VERSION"
+          git checkout -b "$BRANCH"
+
+          # Copy updated recipe
+          mkdir -p recipes/pylocuszoom
+          cp ../pylocuszoom/bioconda/meta.yaml recipes/pylocuszoom/meta.yaml
+
+          # Commit and push
+          git add recipes/pylocuszoom/meta.yaml
+          git commit -m "Update pylocuszoom to $PKG_VERSION"
+          git push -u origin "$BRANCH" --force
+
+          # Create PR to bioconda/bioconda-recipes
+          gh pr create \
+            --repo bioconda/bioconda-recipes \
+            --title "Update pylocuszoom to $PKG_VERSION" \
+            --body "Automated update of pylocuszoom to version $PKG_VERSION.
+
+          Changes: https://github.com/michael-denyer/pyLocusZoom/releases/tag/v$PKG_VERSION" \
+            --head "michael-denyer:$BRANCH" \
+            --base master || echo "PR may already exist"
