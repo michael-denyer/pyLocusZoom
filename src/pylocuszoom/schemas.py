@@ -10,12 +10,7 @@ from typing import Optional, Union
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-
-class LoaderValidationError(Exception):
-    """Raised when loaded data fails validation."""
-
-    pass
-
+from .exceptions import LoaderValidationError
 
 # =============================================================================
 # GWAS Validation

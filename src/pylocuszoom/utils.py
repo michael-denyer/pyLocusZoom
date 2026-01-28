@@ -8,15 +8,13 @@ from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 import pandas as pd
 
+from .exceptions import ValidationError
+
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame as SparkDataFrame
 
 # Type alias for DataFrames (pandas or PySpark)
 DataFrameLike = Union[pd.DataFrame, "SparkDataFrame", Any]
-
-
-class ValidationError(ValueError):
-    """Raised when input validation fails."""
 
 
 def is_spark_dataframe(df: Any) -> bool:

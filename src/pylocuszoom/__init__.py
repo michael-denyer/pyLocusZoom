@@ -72,7 +72,6 @@ from .ensembl import (
 
 # eQTL support
 from .eqtl import (
-    EQTLValidationError,
     calculate_colocalization_overlap,
     filter_eqtl_by_gene,
     filter_eqtl_by_region,
@@ -81,9 +80,19 @@ from .eqtl import (
     validate_eqtl_df,
 )
 
+# Exception hierarchy
+from .exceptions import (
+    BackendError,
+    DataDownloadError,
+    EQTLValidationError,
+    FinemappingValidationError,
+    LoaderValidationError,
+    PyLocusZoomError,
+    ValidationError,
+)
+
 # Fine-mapping/SuSiE support
 from .finemapping import (
-    FinemappingValidationError,
     filter_by_credible_set,
     filter_finemapping_by_region,
     get_credible_sets,
@@ -144,11 +153,8 @@ from .recombination import (
     load_recombination_map,
 )
 
-# Schema validation
-from .schemas import LoaderValidationError
-
 # Validation utilities
-from .utils import ValidationError, to_pandas
+from .utils import to_pandas
 
 __all__ = [
     # Core
@@ -204,8 +210,12 @@ __all__ = [
     # Logging
     "enable_logging",
     "disable_logging",
-    # Validation & Utils
+    # Exceptions
+    "PyLocusZoomError",
     "ValidationError",
+    "BackendError",
+    "DataDownloadError",
+    # Utils
     "to_pandas",
     # PheWAS
     "validate_phewas_df",

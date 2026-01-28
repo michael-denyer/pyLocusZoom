@@ -9,18 +9,13 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+from .exceptions import EQTLValidationError, ValidationError
 from .logging import logger
-from .utils import ValidationError, filter_by_region
+from .utils import filter_by_region
 from .validation import DataFrameValidator
 
 REQUIRED_EQTL_COLS = ["pos", "p_value"]
 OPTIONAL_EQTL_COLS = ["gene", "effect_size", "rs", "se"]
-
-
-class EQTLValidationError(ValueError):
-    """Raised when eQTL DataFrame validation fails."""
-
-    pass
 
 
 def validate_eqtl_df(
