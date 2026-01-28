@@ -51,16 +51,8 @@ from .colors import (
     get_phewas_category_palette,
 )
 
-# Configuration classes
-from .config import (
-    ColumnConfig,
-    DisplayConfig,
-    LDConfig,
-    PlotConfig,
-    RegionConfig,
-    StackedPlotConfig,
-)
-
+# Configuration classes (internal - use kwargs directly on plot()/plot_stacked())
+# from .config import PlotConfig, StackedPlotConfig  # Internal use only
 # Ensembl integration
 from .ensembl import (
     clear_ensembl_cache,
@@ -160,13 +152,6 @@ __all__ = [
     # Core
     "__version__",
     "LocusZoomPlotter",
-    # Configuration
-    "PlotConfig",
-    "StackedPlotConfig",
-    "RegionConfig",
-    "ColumnConfig",
-    "DisplayConfig",
-    "LDConfig",
     # Backends
     "BackendType",
     "get_backend",

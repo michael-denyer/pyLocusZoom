@@ -14,7 +14,6 @@ import pytest
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
-from pylocuszoom.config import PlotConfig, StackedPlotConfig
 from pylocuszoom.plotter import LocusZoomPlotter
 
 
@@ -187,13 +186,13 @@ class TestPlotlyNotebookCompatibility:
     def test_plotly_figure_has_repr_html(self, sample_gwas_df):
         """Plotly figures must have _repr_html_() for notebook display."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # Plotly figures have _repr_html_ for notebook rendering
         assert hasattr(fig, "_repr_html_")
@@ -208,13 +207,13 @@ class TestPlotlyNotebookCompatibility:
     def test_plotly_figure_to_json(self, sample_gwas_df):
         """Plotly figures must be JSON-serializable for Databricks."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # Databricks uses JSON serialization
         json_str = fig.to_json()
@@ -228,13 +227,13 @@ class TestPlotlyNotebookCompatibility:
     def test_plotly_figure_to_html(self, sample_gwas_df):
         """Plotly figures must save to HTML for notebook export."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
             fig.write_html(f.name)
@@ -246,13 +245,13 @@ class TestPlotlyNotebookCompatibility:
     def test_plotly_figure_has_data(self, sample_gwas_df):
         """Plotly figures must contain scatter data."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # Should have at least one trace
         assert len(fig.data) >= 1
@@ -263,13 +262,13 @@ class TestPlotlyNotebookCompatibility:
     def test_plotly_hover_data(self, sample_gwas_df):
         """Plotly figures should have hover text for interactive exploration."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # Check that traces have hovertemplate (plotly's hover mechanism)
         assert len(fig.data) > 0
@@ -283,16 +282,13 @@ class TestPlotlyNotebookCompatibility:
     def test_plotly_stacked_figure(self, sample_gwas_df):
         """Plotly backend should work with plot_stacked()."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df, sample_gwas_df.copy()],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-            snp_labels=False,  # SNP labels are matplotlib-only
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
-            config,
+            snp_labels=False,
         )
 
         # Should have data from both panels
@@ -311,13 +307,13 @@ class TestBokehNotebookCompatibility:
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
 
         # Should complete without errors
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         assert fig is not None
 
@@ -326,13 +322,13 @@ class TestBokehNotebookCompatibility:
         from bokeh.io import output_file, save
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
             output_file(f.name)
@@ -348,13 +344,13 @@ class TestBokehNotebookCompatibility:
         from bokeh.embed import json_item
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # Bokeh uses json_item for embedding
         json_data = json_item(fig)
@@ -426,16 +422,13 @@ class TestBokehNotebookCompatibility:
         from bokeh.io import output_file, save
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df, sample_gwas_df.copy()],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-            snp_labels=False,  # SNP labels are matplotlib-only
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
-            config,
+            snp_labels=False,
         )
 
         # Should save to HTML without errors
@@ -452,69 +445,69 @@ class TestBackendConsistency:
 
     def test_all_backends_return_figure(self, sample_gwas_df):
         """All backends should return a figure object."""
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            show_recombination=False,
-        )
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
-            fig = plotter.plot(sample_gwas_df, config)
+            fig = plotter.plot(
+                sample_gwas_df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+                show_recombination=False,
+            )
             assert fig is not None, f"{backend_name} returned None"
 
     def test_all_backends_handle_empty_dataframe(self):
         """All backends should handle empty DataFrames gracefully."""
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            show_recombination=False,
-        )
 
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
-            fig = plotter.plot(empty_df, config)
+            fig = plotter.plot(
+                empty_df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+                show_recombination=False,
+            )
             assert fig is not None, f"{backend_name} failed with empty DataFrame"
 
     def test_all_backends_handle_lead_position(self, sample_gwas_df):
         """All backends should handle lead_pos parameter."""
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            lead_pos=1_500_000,
-            show_recombination=False,
-        )
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
-            fig = plotter.plot(sample_gwas_df, config)
+            fig = plotter.plot(
+                sample_gwas_df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+                lead_pos=1_500_000,
+                show_recombination=False,
+            )
             assert fig is not None, f"{backend_name} failed with lead_pos"
 
     def test_all_backends_handle_precomputed_ld(self, sample_gwas_df):
         """All backends should handle pre-computed LD column."""
         df = sample_gwas_df.copy()
         df["R2"] = np.random.uniform(0, 1, len(df))
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            ld_col="R2",
-            show_recombination=False,
-        )
 
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
-            fig = plotter.plot(df, config)
+            fig = plotter.plot(
+                df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+                ld_col="R2",
+                show_recombination=False,
+            )
             assert fig is not None, f"{backend_name} failed with ld_col"
 
 
@@ -562,13 +555,13 @@ class TestDatabricksSpecific:
     def test_plotly_displayhtml_compatible(self, sample_gwas_df):
         """Plotly output should be compatible with Databricks displayHTML()."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # Databricks displayHTML() expects a complete HTML string
         html = fig.to_html(include_plotlyjs=True, full_html=True)
@@ -581,13 +574,13 @@ class TestDatabricksSpecific:
         from bokeh.embed import components
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = PlotConfig.from_kwargs(
+        fig = plotter.plot(
+            sample_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
         )
-        fig = plotter.plot(sample_gwas_df, config)
 
         # components() returns (script, div) for embedding
         script, div = components(fig)
@@ -642,15 +635,12 @@ class TestPlotlyEQTLFinemappingMarkers:
     ):
         """Plotly eQTL positive effects should render as triangle-up markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -671,15 +661,12 @@ class TestPlotlyEQTLFinemappingMarkers:
     ):
         """Plotly eQTL negative effects should render as triangle-down markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -700,15 +687,12 @@ class TestPlotlyEQTLFinemappingMarkers:
     ):
         """Plotly eQTL without effect sizes should render as diamond markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_no_effect_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -727,15 +711,12 @@ class TestPlotlyEQTLFinemappingMarkers:
     ):
         """Plotly fine-mapping should render as circle markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             finemapping_df=sample_finemapping_df,
             genes_df=sample_genes_df,
         )
@@ -751,15 +732,12 @@ class TestPlotlyEQTLFinemappingMarkers:
     ):
         """Plotly eQTL scatter should have hover data with position, p-value, effect."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -786,15 +764,12 @@ class TestPlotlyEQTLFinemappingMarkers:
     ):
         """Plotly fine-mapping scatter should have hover data with position, PIP, CS."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             finemapping_df=sample_finemapping_df,
             genes_df=sample_genes_df,
         )
@@ -819,15 +794,12 @@ class TestBokehEQTLFinemappingMarkers:
     ):
         """Bokeh eQTL with effect sizes should create scatter renderers."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -845,15 +817,12 @@ class TestBokehEQTLFinemappingMarkers:
     ):
         """Bokeh eQTL should use triangle markers for directional effects."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -879,15 +848,12 @@ class TestBokehEQTLFinemappingMarkers:
     ):
         """Bokeh fine-mapping should use circle markers."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             finemapping_df=sample_finemapping_df,
             genes_df=sample_genes_df,
         )
@@ -914,15 +880,12 @@ class TestBokehEQTLFinemappingMarkers:
         from bokeh.models import HoverTool
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             eqtl_df=sample_eqtl_df,
             eqtl_gene="GENE_A",
             genes_df=sample_genes_df,
@@ -946,15 +909,12 @@ class TestBokehEQTLFinemappingMarkers:
         from bokeh.models import HoverTool
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        config = StackedPlotConfig.from_kwargs(
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
             show_recombination=False,
-        )
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
-            config,
             finemapping_df=sample_finemapping_df,
             genes_df=sample_genes_df,
         )

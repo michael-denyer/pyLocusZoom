@@ -8,13 +8,13 @@ Bidirectional navigation between architecture diagram and source code.
 flowchart TB
     subgraph Input["Input Layer [1]"]
         A["LocusZoomPlotter [1a]"]
-        B["PlotConfig [1b]"]
-        C["File Loaders [1c]"]
+        C["File Loaders [1b]"]
     end
 
     subgraph Validation["Validation Layer [2]"]
-        D["DataFrameValidator [2a]"]
-        E["Pydantic Schemas [2b]"]
+        B["Config Validation [2a]"]
+        D["DataFrameValidator [2b]"]
+        E["Pydantic Schemas [2c]"]
     end
 
     subgraph Core["Core Processing [3]"]
@@ -68,22 +68,11 @@ User-facing API for creating plots.
 | ID | Component | Description | File:Line |
 |----|-----------|-------------|-----------|
 | 1a | LocusZoomPlotter | Main plotter class with plot methods | [plotter.py:62](../src/pylocuszoom/plotter.py#L62) |
-| 1b | PlotConfig | Pydantic configuration for plot() | [config.py:122](../src/pylocuszoom/config.py#L122) |
-| 1b | StackedPlotConfig | Configuration for plot_stacked() | [config.py:233](../src/pylocuszoom/config.py#L233) |
-| 1c | load_gwas | Auto-detect GWAS format loader | [loaders.py:45](../src/pylocuszoom/loaders.py#L45) |
-| 1c | load_susie | SuSiE fine-mapping loader | [loaders.py:520](../src/pylocuszoom/loaders.py#L520) |
-| 1c | load_gtex_eqtl | GTEx eQTL loader | [loaders.py:380](../src/pylocuszoom/loaders.py#L380) |
+| 1b | load_gwas | Auto-detect GWAS format loader | [loaders.py:45](../src/pylocuszoom/loaders.py#L45) |
+| 1b | load_susie | SuSiE fine-mapping loader | [loaders.py:520](../src/pylocuszoom/loaders.py#L520) |
+| 1b | load_gtex_eqtl | GTEx eQTL loader | [loaders.py:380](../src/pylocuszoom/loaders.py#L380) |
 
-### Config Components [1b]
-
-| Config | Purpose | File:Line |
-|--------|---------|-----------|
-| RegionConfig | chrom, start, end validation | [config.py:21](../src/pylocuszoom/config.py#L21) |
-| ColumnConfig | pos_col, p_col, rs_col mapping | [config.py:44](../src/pylocuszoom/config.py#L44) |
-| DisplayConfig | snp_labels, figsize, show_recomb | [config.py:60](../src/pylocuszoom/config.py#L60) |
-| LDConfig | lead_pos, ld_reference_file | [config.py:82](../src/pylocuszoom/config.py#L82) |
-
-### File Loaders [1c]
+### File Loaders [1b]
 
 | Module | Formats | File |
 |--------|---------|------|
@@ -210,13 +199,12 @@ PyLocusZoomError (base)
 sequenceDiagram
     participant User
     participant Plotter as LocusZoomPlotter [1a]
-    participant Config as PlotConfig [1b]
     participant Valid as DataFrameValidator [2a]
     participant LD as calculate_ld [3a]
     participant Backend as PlotBackend [4a]
 
-    User->>Plotter: plot(gwas_df, config)
-    Plotter->>Config: validate configuration
+    User->>Plotter: plot(gwas_df, chrom=1, start=1e6, end=2e6, ...)
+    Note over Plotter: Validate kwargs via Pydantic (internal)
     Plotter->>Valid: validate_gwas_df()
     Valid-->>Plotter: validated DataFrame
 
@@ -247,7 +235,7 @@ sequenceDiagram
 | Area | Entry Point |
 |------|-------------|
 | Main API | [plotter.py](../src/pylocuszoom/plotter.py) |
-| Configuration | [config.py](../src/pylocuszoom/config.py) |
+| Internal validation | [config.py](../src/pylocuszoom/config.py) |
 | Validation | [validation.py](../src/pylocuszoom/validation.py) |
 | All loaders | [loaders.py](../src/pylocuszoom/loaders.py) |
 | Backend protocol | [backends/base.py](../src/pylocuszoom/backends/base.py) |

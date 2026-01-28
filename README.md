@@ -59,34 +59,34 @@ conda install -c bioconda pylocuszoom
 ## Quick Start
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PlotConfig
+from pylocuszoom import LocusZoomPlotter
 
 # Initialize plotter (loads reference data for canine)
 plotter = LocusZoomPlotter(species="canine")
 
-# Create config and plot
-config = PlotConfig.from_kwargs(
+# Plot with parameters passed directly
+fig = plotter.plot(
+    gwas_df,                        # DataFrame with ps, p_wald, rs columns
     chrom=1,
     start=1000000,
     end=2000000,
-    lead_pos=1500000,           # Highlight lead SNP
+    lead_pos=1500000,               # Highlight lead SNP
 )
-
-fig = plotter.plot(gwas_df, config)  # DataFrame with ps, p_wald, rs columns
 fig.savefig("regional_plot.png", dpi=150)
 ```
 
 ## Full Example
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PlotConfig
+from pylocuszoom import LocusZoomPlotter
 
 plotter = LocusZoomPlotter(
     species="canine",                   # or "feline", or None for custom
     plink_path="/path/to/plink",        # Optional, auto-detects if on PATH
 )
 
-config = PlotConfig.from_kwargs(
+fig = plotter.plot(
+    gwas_df,
     chrom=1,
     start=1000000,
     end=2000000,
@@ -99,11 +99,6 @@ config = PlotConfig.from_kwargs(
     p_col="p_wald",                     # Column name for p-value
     rs_col="rs",                        # Column name for SNP ID
     figsize=(12, 8),
-)
-
-fig = plotter.plot(
-    gwas_df,
-    config,
     genes_df=genes_df,                  # Gene annotations
     exons_df=exons_df,                  # Exon annotations
 )
@@ -122,7 +117,7 @@ Recombination maps are automatically lifted over from CanFam3.1 to CanFam4 coord
 ## Using with Other Species
 
 ```python
-from pylocuszoom import PlotConfig
+from pylocuszoom import LocusZoomPlotter
 
 # Feline (LD and gene tracks, user provides recombination data)
 plotter = LocusZoomPlotter(species="feline")
@@ -134,10 +129,11 @@ plotter = LocusZoomPlotter(
 )
 
 # Provide data per-plot
-config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
 fig = plotter.plot(
     gwas_df,
-    config,
+    chrom=1,
+    start=1000000,
+    end=2000000,
     recomb_df=my_recomb_dataframe,
     genes_df=my_genes_df,
 )
@@ -148,14 +144,13 @@ fig = plotter.plot(
 pyLocusZoom can automatically fetch gene annotations from Ensembl for any species:
 
 ```python
-from pylocuszoom import PlotConfig
+from pylocuszoom import LocusZoomPlotter
 
 # Enable automatic gene fetching
 plotter = LocusZoomPlotter(species="human", auto_genes=True)
 
 # No need to provide genes_df - fetched automatically
-config = PlotConfig.from_kwargs(chrom=13, start=32000000, end=33000000)
-fig = plotter.plot(gwas_df, config)
+fig = plotter.plot(gwas_df, chrom=13, start=32000000, end=33000000)
 ```
 
 Supported species aliases: `human`, `mouse`, `rat`, `canine`/`dog`, `feline`/`cat`, or any Ensembl species name.
@@ -166,23 +161,21 @@ Data is cached locally for fast subsequent plots. Maximum region size is 5Mb (En
 pyLocusZoom supports multiple rendering backends (set at initialization):
 
 ```python
-from pylocuszoom import PlotConfig
-
-config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
+from pylocuszoom import LocusZoomPlotter
 
 # Static publication-quality plot (default)
 plotter = LocusZoomPlotter(species="canine", backend="matplotlib")
-fig = plotter.plot(gwas_df, config)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 fig.savefig("plot.png", dpi=150)
 
 # Interactive Plotly (hover tooltips, pan/zoom)
 plotter = LocusZoomPlotter(species="canine", backend="plotly")
-fig = plotter.plot(gwas_df, config)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 fig.write_html("plot.html")
 
 # Interactive Bokeh (dashboard-ready)
 plotter = LocusZoomPlotter(species="canine", backend="bokeh")
-fig = plotter.plot(gwas_df, config)
+fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 ```
 
 | Backend | Output | Best For | Features |
@@ -198,18 +191,16 @@ fig = plotter.plot(gwas_df, config)
 Compare multiple GWAS results vertically with shared x-axis:
 
 ```python
-from pylocuszoom import StackedPlotConfig
+from pylocuszoom import LocusZoomPlotter
 
-config = StackedPlotConfig.from_kwargs(
+plotter = LocusZoomPlotter(species="canine")
+
+fig = plotter.plot_stacked(
+    [gwas_height, gwas_bmi, gwas_whr],
     chrom=1,
     start=1000000,
     end=2000000,
     panel_labels=["Height", "BMI", "WHR"],
-)
-
-fig = plotter.plot_stacked(
-    [gwas_height, gwas_bmi, gwas_whr],
-    config,
     genes_df=genes_df,
 )
 ```
@@ -222,7 +213,7 @@ fig = plotter.plot_stacked(
 Add expression QTL data as a separate panel:
 
 ```python
-from pylocuszoom import StackedPlotConfig
+from pylocuszoom import LocusZoomPlotter
 
 eqtl_df = pd.DataFrame({
     "pos": [1000500, 1001200, 1002000],
@@ -230,11 +221,13 @@ eqtl_df = pd.DataFrame({
     "gene": ["BRCA1", "BRCA1", "BRCA1"],
 })
 
-config = StackedPlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
+plotter = LocusZoomPlotter(species="canine")
 
 fig = plotter.plot_stacked(
     [gwas_df],
-    config,
+    chrom=1,
+    start=1000000,
+    end=2000000,
     eqtl_df=eqtl_df,
     eqtl_gene="BRCA1",
     genes_df=genes_df,
@@ -249,7 +242,7 @@ fig = plotter.plot_stacked(
 Visualize SuSiE or other fine-mapping results with credible set coloring:
 
 ```python
-from pylocuszoom import StackedPlotConfig
+from pylocuszoom import LocusZoomPlotter
 
 finemapping_df = pd.DataFrame({
     "pos": [1000500, 1001200, 1002000, 1003500],
@@ -257,11 +250,13 @@ finemapping_df = pd.DataFrame({
     "cs": [1, 1, 0, 2],               # Credible set assignment (0 = not in CS)
 })
 
-config = StackedPlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
+plotter = LocusZoomPlotter(species="canine")
 
 fig = plotter.plot_stacked(
     [gwas_df],
-    config,
+    chrom=1,
+    start=1000000,
+    end=2000000,
     finemapping_df=finemapping_df,
     finemapping_cs_col="cs",
     genes_df=genes_df,
@@ -320,12 +315,11 @@ fig = plotter.plot_forest(
 For large-scale genomics data, convert PySpark DataFrames with `to_pandas()` before plotting:
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PlotConfig, to_pandas
+from pylocuszoom import LocusZoomPlotter, to_pandas
 
 # Convert PySpark DataFrame (optionally sampled for very large data)
 pandas_df = to_pandas(spark_gwas_df, sample_size=100000)
-config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
-fig = plotter.plot(pandas_df, config)
+fig = plotter.plot(pandas_df, chrom=1, start=1000000, end=2000000)
 ```
 
 Install PySpark support: `uv add pylocuszoom[spark]`
@@ -398,7 +392,7 @@ gwas_df = pd.DataFrame({
 |--------|------|----------|-------------|
 | `chr` | str or int | Yes | Chromosome identifier. Accepts "1", "chr1", or 1. The "chr" prefix is stripped for matching. |
 | `start` | int | Yes | Gene start position (bp, 1-based). Transcript start for strand-aware genes. |
-| `end` | int | Yes | Gene end position (bp, 1-based). Must be ≥ start. |
+| `end` | int | Yes | Gene end position (bp, 1-based). Must be >= start. |
 | `gene_name` | str | Yes | Gene symbol displayed in track (e.g., "BRCA1", "TP53"). Keep short for readability. |
 
 Example:

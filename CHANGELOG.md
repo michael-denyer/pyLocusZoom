@@ -10,14 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Unified exception hierarchy with `PyLocusZoomError` base class
 - Custom exceptions: `ValidationError`, `DownloadError`, `LiftoverError`, `DataError`, `PLINKError`, `ConfigurationError`
-- Pydantic configuration classes: `PlotConfig`, `StackedPlotConfig`, `RegionConfig`, `ColumnConfig`, `DisplayConfig`, `LDConfig`
-- `from_kwargs()` factory methods for convenient config creation
+- Internal Pydantic validation for plot parameters (validates kwargs at call time)
 - Error path tests for download failures and validation edge cases
 
 ### Changed
-- `plot()` and `plot_stacked()` now require config objects instead of keyword arguments
 - All validation errors now raise `ValidationError` (also a `ValueError` for backward compatibility)
 - Test randomization enabled via pytest-randomly (visible in CI output)
+- Config classes (`PlotConfig`, `StackedPlotConfig`) are now internal implementation details, not part of public API
 
 ### Fixed
 - Replaced broad `except Exception` blocks with specific exception types (only 1 justified fallback remains)
