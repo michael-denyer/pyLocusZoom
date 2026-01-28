@@ -70,6 +70,67 @@ class TestAssignGenePositions:
         positions = assign_gene_positions(genes_df, 0, 10000)
         assert positions == []
 
+    def test_complex_overlaps_no_same_row_collision(self):
+        """Genes with complex overlaps should never share a row if they overlap.
+
+        Regression test: the algorithm was incrementing row once per conflict
+        without rechecking earlier rows, which could place overlapping genes
+        in the same row.
+        """
+        # Create a scenario where naive single-pass would fail:
+        # - Gene A: 100-300 (row 0)
+        # - Gene B: 200-400 (row 1, conflicts with A)
+        # - Gene C: 250-450 (row 2, conflicts with both A and B)
+        # - Gene D: 150-350 (should be row 3, conflicts with all three)
+        # BUT sorted by start: A, D, B, C - different order
+        genes_df = pd.DataFrame(
+            {
+                "start": [100, 150, 200, 250],
+                "end": [300, 350, 400, 450],
+                "gene_name": ["GENE_A", "GENE_D", "GENE_B", "GENE_C"],
+            }
+        )
+        # Must be sorted by start for algorithm
+        genes_df = genes_df.sort_values("start")
+
+        # Use a small region to ensure label buffer doesn't affect test
+        positions = assign_gene_positions(genes_df, 0, 100000)
+
+        # Verify no two overlapping genes share a row
+        genes_with_rows = list(zip(genes_df["start"], genes_df["end"], positions))
+        for i, (s1, e1, r1) in enumerate(genes_with_rows):
+            for s2, e2, r2 in genes_with_rows[i + 1 :]:
+                if r1 == r2:
+                    # If same row, they shouldn't overlap
+                    overlaps = not (e1 <= s2 or e2 <= s1)
+                    assert not overlaps, (
+                        f"Overlapping genes placed in same row {r1}: "
+                        f"({s1}-{e1}) and ({s2}-{e2})"
+                    )
+
+    def test_three_overlapping_genes_correct_rows(self):
+        """Three overlapping genes that would fail naive single-pass.
+
+        Regression test: previous algorithm only incremented row counter
+        without rechecking all occupied entries after increment.
+        """
+        # All three genes overlap each other significantly
+        genes_df = pd.DataFrame(
+            {
+                "start": [1000, 1500, 2000],
+                "end": [4000, 4500, 5000],
+                "gene_name": ["GENE_A", "GENE_B", "GENE_C"],
+            }
+        )
+        positions = assign_gene_positions(genes_df, 0, 100000)
+
+        # Each gene should be in a different row
+        assert len(set(positions)) == 3, (
+            f"Three overlapping genes should be in 3 different rows, got {positions}"
+        )
+        # They should be in rows 0, 1, 2
+        assert sorted(positions) == [0, 1, 2]
+
 
 class TestGetNearestGene:
     """Tests for get_nearest_gene function."""

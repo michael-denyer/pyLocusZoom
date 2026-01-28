@@ -929,3 +929,56 @@ class TestBokehEQTLFinemappingMarkers:
                         break
 
         assert has_hover, "No HoverTool found in Bokeh fine-mapping plot"
+
+
+class TestGeneTrackMbFormatting:
+    """Tests for Mb formatting on gene track axis in interactive backends."""
+
+    def test_plotly_gene_track_has_mb_formatting(self, sample_gwas_df, sample_genes_df):
+        """Plotly gene track axis should have Mb formatting (not raw bp).
+
+        Regression test: gene track axis showed raw bp ticks while label said "Mb".
+        """
+        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # With gene track, row 2 is the gene track axis
+        # Check that _mb_format_rows includes the gene track row
+        assert hasattr(fig, "_mb_format_rows"), "Plotly figure missing _mb_format_rows"
+        assert 2 in fig._mb_format_rows, (
+            f"Gene track axis (row 2) not in _mb_format_rows: {fig._mb_format_rows}"
+        )
+
+    def test_bokeh_gene_track_has_mb_formatting(self, sample_gwas_df, sample_genes_df):
+        """Bokeh gene track axis should have Mb formatting (not raw bp).
+
+        Regression test: gene track axis showed raw bp ticks while label said "Mb".
+        """
+        from bokeh.models import CustomJSTickFormatter
+
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            genes_df=sample_genes_df,
+            show_recombination=False,
+        )
+
+        # Bokeh layout contains multiple figures - find the gene track figure
+        # The gene track is typically the second figure (index 1)
+        gene_track_fig = fig.children[1] if len(fig.children) > 1 else fig.children[0]
+
+        # Check that the x-axis has CustomJSTickFormatter for Mb formatting
+        assert isinstance(gene_track_fig.xaxis.formatter, CustomJSTickFormatter), (
+            f"Gene track x-axis formatter is {type(gene_track_fig.xaxis.formatter)}, "
+            "expected CustomJSTickFormatter for Mb formatting"
+        )

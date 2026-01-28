@@ -48,22 +48,23 @@ def assign_gene_positions(genes_df: pd.DataFrame, start: int, end: int) -> List[
         List of integer row indices (0, 1, 2, ...) for each gene.
     """
     positions = []
-    occupied = []  # List of (end_pos, row)
+    # Track the rightmost end position for each row (including label buffer)
+    row_ends: dict[int, int] = {}  # row -> rightmost end position
     region_width = end - start
+    label_buffer = region_width * 0.08  # Extra space for labels
 
     for _, gene in genes_df.iterrows():
         gene_start = max(gene["start"], start)
         gene_end = min(gene["end"], end)
 
-        # Find first available row with buffer for label spacing
+        # Find first available row where gene doesn't overlap
         row = 0
-        label_buffer = region_width * 0.08  # Extra space for labels
-        for occ_end, occ_row in occupied:
-            if occ_row == row and occ_end > gene_start - label_buffer:
-                row = occ_row + 1
+        while row in row_ends and row_ends[row] > gene_start - label_buffer:
+            row += 1
 
         positions.append(row)
-        occupied.append((gene_end, row))
+        # Update the row's end position (including buffer for next gene check)
+        row_ends[row] = gene_end
 
     return positions
 

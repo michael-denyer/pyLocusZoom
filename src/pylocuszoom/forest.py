@@ -31,5 +31,6 @@ def validate_forest_df(
         DataFrameValidator(df, "Forest plot DataFrame")
         .require_columns([study_col, effect_col, ci_lower_col, ci_upper_col])
         .require_numeric([effect_col, ci_lower_col, ci_upper_col])
+        .require_ci_ordering(ci_lower_col, effect_col, ci_upper_col)
         .validate()
     )

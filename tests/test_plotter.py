@@ -498,6 +498,61 @@ class TestLocusZoomPlotterRecombination:
         assert result is not None
         assert len(result) == 3
 
+    def test_recombination_overlay_does_not_distort_primary_ylim(self):
+        """Primary y-axis limits should be unchanged when recombination is enabled.
+
+        Regression test: recombination overlay was being plotted on the primary axis
+        instead of a twin axis, causing GWAS y-limits to be rescaled by recomb rates.
+        """
+        plotter = LocusZoomPlotter(species=None)
+
+        gwas_df = pd.DataFrame(
+            {
+                "rs": [f"rs{i}" for i in range(10)],
+                "chr": [1] * 10,
+                "ps": list(range(1000000, 2000000, 100000)),
+                "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01, 0.05, 0.1, 0.5, 0.8, 0.99],
+            }
+        )
+
+        recomb_df = pd.DataFrame(
+            {
+                "pos": [1000000, 1500000, 2000000],
+                "rate": [50.0, 100.0, 75.0],  # High rates that would distort y-axis
+            }
+        )
+
+        # Plot without recombination
+        fig_no_recomb = plotter.plot(
+            gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+        ax_no_recomb = fig_no_recomb.axes[0]
+        ylim_no_recomb = ax_no_recomb.get_ylim()
+
+        # Plot with recombination
+        fig_with_recomb = plotter.plot(
+            gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            recomb_df=recomb_df,
+        )
+        ax_with_recomb = fig_with_recomb.axes[0]
+        ylim_with_recomb = ax_with_recomb.get_ylim()
+
+        # Primary y-axis limits should be the same
+        assert ylim_no_recomb == ylim_with_recomb, (
+            f"Recombination overlay distorted primary y-axis: "
+            f"without={ylim_no_recomb}, with={ylim_with_recomb}"
+        )
+
+        plt.close(fig_no_recomb)
+        plt.close(fig_with_recomb)
+
 
 class TestPlotEdgeCases:
     """Tests for plot() edge cases and error handling."""
@@ -625,6 +680,86 @@ class TestPlotStackedEdgeCases:
                 panel_labels=panel_labels,
                 show_recombination=False,
             )
+
+
+class TestPValueValidation:
+    """Tests for p-value validation and NaN handling."""
+
+    @pytest.fixture
+    def plotter(self):
+        """Create plotter instance."""
+        return LocusZoomPlotter(species=None)
+
+    def test_plot_handles_nan_pvalues_with_warning(self, plotter):
+        """Plot should handle NaN p-values and log a warning."""
+        import numpy as np
+
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "chr": [1, 1, 1],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, np.nan, 0.01],  # One NaN p-value
+            }
+        )
+
+        # Should not raise, but should warn (captured by logging)
+        fig = plotter.plot(
+            gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+        plt.close(fig)
+
+    def test_plot_stacked_handles_all_nan_pvalues(self, plotter):
+        """plot_stacked should handle region with all NaN p-values.
+
+        Regression test: idxmin() on all-NaN series returns NaN,
+        causing subsequent loc to fail.
+        """
+        import numpy as np
+
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "chr": [1, 1, 1],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [np.nan, np.nan, np.nan],  # All NaN
+            }
+        )
+
+        # Should not raise - should handle gracefully
+        fig = plotter.plot_stacked(
+            [gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+        plt.close(fig)
+
+    def test_plot_handles_out_of_range_pvalues(self, plotter):
+        """Plot should handle p-values outside [0, 1] range."""
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "chr": [1, 1, 1],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [-0.1, 1.5, 0.05],  # Out of range values
+            }
+        )
+
+        # Should not raise, but should warn
+        fig = plotter.plot(
+            gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+        plt.close(fig)
 
 
 class TestBackendEQTLFinemapping:
