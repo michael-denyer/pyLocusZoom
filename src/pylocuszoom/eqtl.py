@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .logging import logger
-from .utils import ValidationError
+from .utils import ValidationError, filter_by_region
 from .validation import DataFrameValidator
 
 REQUIRED_EQTL_COLS = ["pos", "p_value"]
@@ -98,15 +98,12 @@ def filter_eqtl_by_region(
     Returns:
         Filtered DataFrame containing only eQTLs in the region.
     """
-    mask = (df[pos_col] >= start) & (df[pos_col] <= end)
-
-    # Filter by chromosome if column exists
-    if chrom_col and chrom_col in df.columns:
-        chrom_str = str(chrom).replace("chr", "")
-        df_chrom = df[chrom_col].astype(str).str.replace("chr", "", regex=False)
-        mask = mask & (df_chrom == chrom_str)
-
-    filtered = df[mask].copy()
+    filtered = filter_by_region(
+        df,
+        region=(chrom, start, end),
+        chrom_col=chrom_col or "",
+        pos_col=pos_col,
+    )
     logger.debug(
         f"Filtered eQTL data to {len(filtered)} variants in region chr{chrom}:{start}-{end}"
     )
