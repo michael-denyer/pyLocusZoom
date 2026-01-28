@@ -18,11 +18,35 @@ class MatplotlibBackend:
 
     This is the default backend, producing publication-quality static plots
     suitable for papers and presentations.
+
+    Capability Properties:
+        supports_snp_labels: True - uses adjustText for automatic label positioning.
+        supports_hover: False - static plots don't support hover tooltips.
+        supports_secondary_axis: True - supports twin y-axis via twinx().
     """
 
     def __init__(self) -> None:
         """Initialize the matplotlib backend."""
         pass
+
+    # =========================================================================
+    # Capability Properties
+    # =========================================================================
+
+    @property
+    def supports_snp_labels(self) -> bool:
+        """Matplotlib supports SNP labels via adjustText."""
+        return True
+
+    @property
+    def supports_hover(self) -> bool:
+        """Matplotlib does not support hover tooltips."""
+        return False
+
+    @property
+    def supports_secondary_axis(self) -> bool:
+        """Matplotlib supports twin y-axis."""
+        return True
 
     def create_figure(
         self,
@@ -164,6 +188,67 @@ class MatplotlibBackend:
             x, y, text, fontsize=fontsize, ha=ha, va=va, rotation=rotation, color=color
         )
 
+    def add_panel_label(
+        self,
+        ax: Axes,
+        label: str,
+        x_frac: float = 0.02,
+        y_frac: float = 0.95,
+    ) -> None:
+        """Add label text at fractional position in panel.
+
+        Args:
+            ax: Matplotlib axes.
+            label: Label text (e.g., "A", "B").
+            x_frac: Horizontal position as fraction of axes (0-1).
+            y_frac: Vertical position as fraction of axes (0-1).
+        """
+        ax.annotate(
+            label,
+            xy=(x_frac, y_frac),
+            xycoords="axes fraction",
+            fontsize=10,
+            fontweight="bold",
+            ha="left",
+            va="top",
+        )
+
+    def add_snp_labels(
+        self,
+        ax: Axes,
+        df: pd.DataFrame,
+        pos_col: str,
+        neglog10p_col: str,
+        rs_col: str,
+        label_top_n: int,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+    ) -> None:
+        """Add SNP labels using adjustText.
+
+        Args:
+            ax: Matplotlib axes.
+            df: DataFrame with SNP data.
+            pos_col: Column name for position.
+            neglog10p_col: Column name for -log10(p-value).
+            rs_col: Column name for SNP ID.
+            label_top_n: Number of top SNPs to label.
+            genes_df: Gene annotations (unused, for signature compatibility).
+            chrom: Chromosome number (unused, for signature compatibility).
+        """
+        from ..labels import add_snp_labels as _add_snp_labels
+
+        _add_snp_labels(
+            ax,
+            df,
+            pos_col=pos_col,
+            neglog10p_col=neglog10p_col,
+            rs_col=rs_col,
+            label_top_n=label_top_n,
+            genes_df=genes_df,
+            chrom=chrom,
+        )
+
     def add_rectangle(
         self,
         ax: Axes,
@@ -249,6 +334,119 @@ class MatplotlibBackend:
         """Create a secondary y-axis sharing the same x-axis."""
         return ax.twinx()
 
+    def line_secondary(
+        self,
+        ax: Axes,
+        x: pd.Series,
+        y: pd.Series,
+        color: str = "blue",
+        linewidth: float = 1.5,
+        alpha: float = 1.0,
+        linestyle: str = "-",
+        label: Optional[str] = None,
+        yaxis_name: Any = None,
+    ) -> Any:
+        """Create line on secondary y-axis.
+
+        For matplotlib, the ax should already be a twin axis from create_twin_axis().
+        The yaxis_name parameter is ignored (provided for interface compatibility).
+
+        Args:
+            ax: Secondary axes from create_twin_axis().
+            x: X-axis values.
+            y: Y-axis values.
+            color: Line color.
+            linewidth: Line width.
+            alpha: Transparency.
+            linestyle: Line style.
+            label: Legend label.
+            yaxis_name: Ignored for matplotlib.
+
+        Returns:
+            The line object.
+        """
+        return self.line(
+            ax,
+            x,
+            y,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            linestyle=linestyle,
+            label=label,
+        )
+
+    def fill_between_secondary(
+        self,
+        ax: Axes,
+        x: pd.Series,
+        y1: Union[float, pd.Series],
+        y2: Union[float, pd.Series],
+        color: str = "blue",
+        alpha: float = 0.3,
+        yaxis_name: Any = None,
+    ) -> Any:
+        """Fill area on secondary y-axis.
+
+        For matplotlib, the ax should already be a twin axis from create_twin_axis().
+        The yaxis_name parameter is ignored (provided for interface compatibility).
+
+        Args:
+            ax: Secondary axes from create_twin_axis().
+            x: X-axis values.
+            y1: Lower y boundary.
+            y2: Upper y boundary.
+            color: Fill color.
+            alpha: Transparency.
+            yaxis_name: Ignored for matplotlib.
+
+        Returns:
+            The fill object.
+        """
+        return self.fill_between(ax, x, y1, y2, color=color, alpha=alpha)
+
+    def set_secondary_ylim(
+        self,
+        ax: Axes,
+        bottom: float,
+        top: float,
+        yaxis_name: Any = None,
+    ) -> None:
+        """Set secondary y-axis limits.
+
+        For matplotlib, the ax should already be a twin axis from create_twin_axis().
+        The yaxis_name parameter is ignored (provided for interface compatibility).
+
+        Args:
+            ax: Secondary axes from create_twin_axis().
+            bottom: Minimum y value.
+            top: Maximum y value.
+            yaxis_name: Ignored for matplotlib.
+        """
+        self.set_ylim(ax, bottom, top)
+
+    def set_secondary_ylabel(
+        self,
+        ax: Axes,
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+        yaxis_name: Any = None,
+    ) -> None:
+        """Set secondary y-axis label.
+
+        For matplotlib, the ax should already be a twin axis from create_twin_axis().
+        The yaxis_name parameter is ignored (provided for interface compatibility).
+
+        Args:
+            ax: Secondary axes from create_twin_axis().
+            label: Label text.
+            color: Label color.
+            fontsize: Font size.
+            yaxis_name: Ignored for matplotlib.
+        """
+        ax.set_ylabel(label, fontsize=fontsize, color=color)
+
     def add_legend(
         self,
         ax: Axes,
@@ -276,6 +474,10 @@ class MatplotlibBackend:
         """Hide specified axis spines."""
         for spine in spines:
             ax.spines[spine].set_visible(False)
+
+    def hide_yaxis(self, ax: Axes) -> None:
+        """Hide y-axis ticks, labels, and line."""
+        ax.yaxis.set_visible(False)
 
     def format_xaxis_mb(self, ax: Axes) -> None:
         """Format x-axis to show megabase values."""
@@ -404,6 +606,54 @@ class MatplotlibBackend:
     ) -> None:
         """Add simple legend for labeled scatter data."""
         ax.legend(loc=loc, fontsize=9)
+
+    def add_ld_legend(
+        self,
+        ax: Axes,
+        ld_bins: List[Tuple[float, str, str]],
+        lead_snp_color: str,
+    ) -> None:
+        """Add LD color legend using matplotlib patches.
+
+        Args:
+            ax: Matplotlib axes.
+            ld_bins: List of (threshold, label, color) tuples defining LD bins.
+            lead_snp_color: Color for lead SNP marker in legend.
+        """
+        from matplotlib.lines import Line2D
+        from matplotlib.patches import Patch
+
+        from ..colors import get_ld_color_palette
+
+        palette = get_ld_color_palette()
+        legend_elements = [
+            Line2D(
+                [0],
+                [0],
+                marker="D",
+                color="w",
+                markerfacecolor=lead_snp_color,
+                markeredgecolor="black",
+                markersize=6,
+                label="Lead SNP",
+            ),
+        ]
+        for _threshold, label, _color in ld_bins:
+            legend_elements.append(
+                Patch(facecolor=palette[label], edgecolor="black", label=label)
+            )
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=9,
+            frameon=True,
+            framealpha=0.9,
+            title=r"$r^2$",
+            title_fontsize=10,
+            handlelength=1.5,
+            handleheight=1.0,
+            labelspacing=0.4,
+        )
 
     def axvline(
         self,
