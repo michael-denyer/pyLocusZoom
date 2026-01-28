@@ -11,9 +11,10 @@ from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
-from . import convert_latex_to_unicode
+from . import convert_latex_to_unicode, register_backend
 
 
+@register_backend("bokeh")
 class BokehBackend:
     """Bokeh backend for interactive plot generation.
 

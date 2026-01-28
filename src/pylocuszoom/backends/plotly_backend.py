@@ -9,9 +9,10 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from . import convert_latex_to_unicode
+from . import convert_latex_to_unicode, register_backend
 
 
+@register_backend("plotly")
 class PlotlyBackend:
     """Plotly backend for interactive plot generation.
 

@@ -12,7 +12,10 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
+from . import register_backend
 
+
+@register_backend("matplotlib")
 class MatplotlibBackend:
     """Matplotlib backend for static plot generation.
 
