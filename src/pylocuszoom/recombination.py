@@ -18,6 +18,7 @@ from matplotlib.axes import Axes
 from tqdm import tqdm
 
 from .logging import logger
+from .utils import filter_by_region
 
 # Recombination overlay color
 RECOMB_COLOR = "#7FCDFF"  # Light blue
@@ -384,7 +385,12 @@ def get_recombination_rate_for_region(
         )
 
     # Filter to region
-    region_df = df[(df["pos"] >= start) & (df["pos"] <= end)].copy()
+    region_df = filter_by_region(
+        df,
+        region=(chrom, start, end),
+        chrom_col="",  # Recomb maps don't have chromosome column
+        pos_col="pos",
+    )
 
     return region_df[["pos", "rate"]]
 
