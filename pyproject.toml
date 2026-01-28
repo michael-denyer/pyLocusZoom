@@ -68,7 +68,7 @@ testpaths = ["tests"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
-addopts = "-n auto --cov=pylocuszoom --cov-report=term-missing -v"
+addopts = "-n 8 --cov=pylocuszoom --cov-report=term-missing -v"
 
 [tool.coverage.run]
 source = ["src/pylocuszoom"]
