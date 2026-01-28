@@ -38,10 +38,6 @@ class PlotlyBackend:
         "-.": "dashdot",
     }
 
-    def __init__(self) -> None:
-        """Initialize the plotly backend."""
-        pass
-
     @property
     def supports_snp_labels(self) -> bool:
         """Plotly uses hover tooltips instead of labels."""

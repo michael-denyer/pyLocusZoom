@@ -28,10 +28,6 @@ class MatplotlibBackend:
         supports_secondary_axis: True - supports twin y-axis via twinx().
     """
 
-    def __init__(self) -> None:
-        """Initialize the matplotlib backend."""
-        pass
-
     # =========================================================================
     # Capability Properties
     # =========================================================================

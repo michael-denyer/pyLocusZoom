@@ -44,7 +44,7 @@ jobs:
         run: uv sync --extra dev --extra all
 
       - name: Run tests
-        run: uv run pytest --cov=pylocuszoom --cov-report=xml
+        run: uv run pytest --cov=pylocuszoom --cov-report=term-missing
 
   build:
     runs-on: ubuntu-latest

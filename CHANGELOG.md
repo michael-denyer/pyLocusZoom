@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-28
+
 ### Added
 - `set_yticks()` backend method for consistent y-axis labels across all backends
 - Shared `convert_latex_to_unicode()` utility for interactive backends
@@ -17,12 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for human, mouse, rat, and any Ensembl species
 - Retry logic with exponential backoff for Ensembl API resilience
 - 5Mb region size validation (Ensembl API limit)
+- `DataFrameValidator` builder class for consistent validation across modules
+- `filter_by_region()` shared utility for chromosome/position filtering
+- `HoverDataBuilder` for constructing hover tooltips across backends
+- Backend capability system with `supports_*` properties for feature detection
+- Backend registration system with `get_backend()` and automatic fallback
+- Pre-commit hook for pytest with coverage enforcement (70% minimum)
 
 ### Changed
 - Forest plot example now uses odds ratios with `null_value=1.0` (more representative)
 - PheWAS and forest plot y-axis labels now work correctly in Plotly and Bokeh backends
 - Gene track styling: arrows now 75% height and 10% wider for better proportions
 - Gene track labels increased from 5.5pt to 7pt for improved readability
+- Migrated eQTL, finemapping, phewas, and forest validation to `DataFrameValidator`
+- Plotter now uses capability-based dispatch instead of backend name checks
+- Removed empty `__init__` methods from backend classes
+- Removed unused matplotlib imports from plotter (now backend-agnostic)
 
 ### Fixed
 - `load_gwas()` now forwards `**kwargs` to format-specific loaders
@@ -31,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Tar extraction now includes path traversal protection for recombination map downloads
+
+## [0.7.0] - 2026-01-27
 
 ## [0.6.0] - 2026-01-27
 
@@ -167,7 +181,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 
-[Unreleased]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.3.0...v0.4.0

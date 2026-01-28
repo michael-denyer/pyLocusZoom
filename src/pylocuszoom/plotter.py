@@ -15,8 +15,6 @@ from typing import Any, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig, HoverDataBuilder
@@ -384,7 +382,7 @@ class LocusZoomPlotter:
         start: int,
         end: int,
         figsize: Tuple[int, int],
-    ) -> Tuple[Figure, Axes, Optional[Axes]]:
+    ) -> Tuple[Any, Any, Optional[Any]]:
         """Create figure with optional gene track."""
         if genes_df is not None:
             # Calculate dynamic height based on gene rows
@@ -428,7 +426,7 @@ class LocusZoomPlotter:
 
     def _plot_association(
         self,
-        ax: Axes,
+        ax: Any,
         df: pd.DataFrame,
         pos_col: str,
         ld_col: Optional[str],
@@ -564,7 +562,7 @@ class LocusZoomPlotter:
 
     def _plot_finemapping(
         self,
-        ax: Axes,
+        ax: Any,
         df: pd.DataFrame,
         pos_col: str = "pos",
         pip_col: str = "pip",

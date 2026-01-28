@@ -37,10 +37,6 @@ class BokehBackend:
         "-.": "dashdot",
     }
 
-    def __init__(self) -> None:
-        """Initialize the bokeh backend."""
-        pass
-
     @property
     def supports_snp_labels(self) -> bool:
         """Bokeh uses hover tooltips instead of labels."""

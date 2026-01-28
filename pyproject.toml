@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pylocuszoom"
-version = "0.7.0"
+version = "0.8.0"
 description = "Publication-ready regional association plots with LD coloring, gene tracks, and recombination overlays"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -67,6 +67,18 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+addopts = "--cov=pylocuszoom --cov-report=term-missing --cov-fail-under=70"
+
+[tool.coverage.run]
+source = ["src/pylocuszoom"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
 ]
 
 [tool.ruff]

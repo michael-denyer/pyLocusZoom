@@ -17,12 +17,9 @@ Fallback Behavior:
 """
 
 import warnings
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from .base import PlotBackend
-
-if TYPE_CHECKING:
-    pass
 
 BackendType = Literal["matplotlib", "plotly", "bokeh"]
 
