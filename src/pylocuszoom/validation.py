@@ -53,9 +53,7 @@ class DataFrameValidator:
         missing = [col for col in columns if col not in self._df.columns]
         if missing:
             available = list(self._df.columns)
-            self._errors.append(
-                f"Missing columns: {missing}. Available: {available}"
-            )
+            self._errors.append(f"Missing columns: {missing}. Available: {available}")
 
         return self
 
