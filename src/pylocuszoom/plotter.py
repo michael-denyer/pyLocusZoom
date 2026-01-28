@@ -15,6 +15,7 @@ from typing import Any, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import requests
 
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig, HoverDataBuilder
@@ -172,8 +173,16 @@ class LocusZoomPlotter:
             # Download
             try:
                 return download_canine_recombination_maps()
-            except Exception as e:
+            except (requests.RequestException, OSError, IOError) as e:
+                # Expected network/file errors - graceful fallback
                 logger.warning(f"Could not download recombination maps: {e}")
+                return None
+            except Exception as e:
+                # JUSTIFICATION: Download failure should not prevent plotting.
+                # We catch broadly here because graceful degradation is acceptable
+                # for optional recombination map downloads. Error-level logging
+                # ensures the issue is visible.
+                logger.error(f"Unexpected error downloading recombination maps: {e}")
                 return None
         elif self.recomb_data_dir:
             return Path(self.recomb_data_dir)
