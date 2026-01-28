@@ -3,7 +3,7 @@
 Defines the interface that matplotlib, plotly, and bokeh backends must implement.
 """
 
-from typing import Any, List, Optional, Protocol, Tuple, Union
+from typing import Any, Callable, List, Optional, Protocol, Tuple, Union
 
 import pandas as pd
 
@@ -13,7 +13,47 @@ class PlotBackend(Protocol):
 
     All backends (matplotlib, plotly, bokeh) must implement these methods
     to enable consistent plotting across different rendering engines.
+
+    Capability Properties:
+        supports_snp_labels: Whether backend supports text labels via adjustText.
+        supports_hover: Whether backend supports hover tooltips.
+        supports_secondary_axis: Whether backend supports twin y-axis for overlays.
     """
+
+    # =========================================================================
+    # Capability Properties
+    # =========================================================================
+
+    @property
+    def supports_snp_labels(self) -> bool:
+        """Whether backend supports text labels via adjustText.
+
+        Matplotlib supports SNP labels using adjustText for automatic repositioning.
+        Interactive backends (Plotly, Bokeh) use hover tooltips instead.
+        """
+        ...
+
+    @property
+    def supports_hover(self) -> bool:
+        """Whether backend supports hover tooltips.
+
+        Interactive backends (Plotly, Bokeh) support hover tooltips.
+        Matplotlib does not support hover - use SNP labels instead.
+        """
+        ...
+
+    @property
+    def supports_secondary_axis(self) -> bool:
+        """Whether backend supports twin y-axis for recombination overlay.
+
+        All current backends support secondary axes, but this allows for
+        future backends that may not.
+        """
+        ...
+
+    # =========================================================================
+    # Figure Creation
+    # =========================================================================
 
     def create_figure(
         self,
@@ -34,6 +74,31 @@ class PlotBackend(Protocol):
             Tuple of (figure, list of axes/panels).
         """
         ...
+
+    def finalize_layout(
+        self,
+        fig: Any,
+        left: float = 0.08,
+        right: float = 0.95,
+        top: float = 0.95,
+        bottom: float = 0.1,
+        hspace: float = 0.08,
+    ) -> None:
+        """Finalize figure layout with margins and spacing.
+
+        Args:
+            fig: Figure object.
+            left: Left margin fraction.
+            right: Right margin fraction.
+            top: Top margin fraction.
+            bottom: Bottom margin fraction.
+            hspace: Vertical space between subplots.
+        """
+        ...
+
+    # =========================================================================
+    # Basic Plotting
+    # =========================================================================
 
     def scatter(
         self,
@@ -151,6 +216,36 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def axvline(
+        self,
+        ax: Any,
+        x: float,
+        color: str = "grey",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        alpha: float = 1.0,
+        zorder: int = 1,
+    ) -> Any:
+        """Add a vertical line across the axes.
+
+        Args:
+            ax: Axes or panel.
+            x: X-value for the line.
+            color: Line color.
+            linestyle: Line style.
+            linewidth: Line width.
+            alpha: Line transparency (0-1).
+            zorder: Drawing order.
+
+        Returns:
+            The line object.
+        """
+        ...
+
+    # =========================================================================
+    # Text and Annotations
+    # =========================================================================
+
     def add_text(
         self,
         ax: Any,
@@ -181,6 +276,57 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def add_panel_label(
+        self,
+        ax: Any,
+        label: str,
+        x_frac: float = 0.02,
+        y_frac: float = 0.95,
+    ) -> None:
+        """Add label text at fractional position in panel.
+
+        Used for panel letters (A, B, C) in multi-panel figures.
+
+        Args:
+            ax: Axes or panel.
+            label: Label text (e.g., "A", "B").
+            x_frac: Horizontal position as fraction of axes (0-1).
+            y_frac: Vertical position as fraction of axes (0-1).
+        """
+        ...
+
+    def add_snp_labels(
+        self,
+        ax: Any,
+        df: pd.DataFrame,
+        pos_col: str,
+        neglog10p_col: str,
+        rs_col: str,
+        label_top_n: int,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+    ) -> None:
+        """Add SNP labels to plot.
+
+        No-op if supports_snp_labels=False. Matplotlib uses adjustText
+        for automatic label repositioning to avoid overlaps.
+
+        Args:
+            ax: Axes or panel.
+            df: DataFrame with SNP data.
+            pos_col: Column name for position.
+            neglog10p_col: Column name for -log10(p-value).
+            rs_col: Column name for SNP ID.
+            label_top_n: Number of top SNPs to label.
+            genes_df: Gene annotations (unused, for signature compatibility).
+            chrom: Chromosome number (unused, for signature compatibility).
+        """
+        ...
+
+    # =========================================================================
+    # Shapes and Patches
+    # =========================================================================
+
     def add_rectangle(
         self,
         ax: Any,
@@ -208,6 +354,36 @@ class PlotBackend(Protocol):
             The rectangle object.
         """
         ...
+
+    def add_polygon(
+        self,
+        ax: Any,
+        points: List[List[float]],
+        facecolor: str = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Add polygon patch to axes.
+
+        Used for gene track directional arrows.
+
+        Args:
+            ax: Axes or panel.
+            points: List of [x, y] coordinate pairs forming the polygon.
+            facecolor: Fill color.
+            edgecolor: Edge color.
+            linewidth: Edge width.
+            zorder: Drawing order.
+
+        Returns:
+            The polygon object.
+        """
+        ...
+
+    # =========================================================================
+    # Axis Configuration
+    # =========================================================================
 
     def set_xlim(self, ax: Any, left: float, right: float) -> None:
         """Set x-axis limits.
@@ -276,6 +452,38 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def hide_spines(self, ax: Any, spines: List[str]) -> None:
+        """Hide specified axis spines.
+
+        Args:
+            ax: Axes or panel.
+            spines: List of spine names ('top', 'right', 'bottom', 'left').
+        """
+        ...
+
+    def hide_yaxis(self, ax: Any) -> None:
+        """Hide y-axis for gene track panels.
+
+        Hides y-axis ticks, labels, and line. Gene tracks don't need
+        a y-axis since the vertical position is just for layout.
+
+        Args:
+            ax: Axes or panel.
+        """
+        ...
+
+    def format_xaxis_mb(self, ax: Any) -> None:
+        """Format x-axis to show megabase values.
+
+        Args:
+            ax: Axes or panel.
+        """
+        ...
+
+    # =========================================================================
+    # Secondary Y-Axis (for recombination overlay)
+    # =========================================================================
+
     def create_twin_axis(self, ax: Any) -> Any:
         """Create a secondary y-axis sharing the same x-axis.
 
@@ -286,6 +494,102 @@ class PlotBackend(Protocol):
             Secondary axes for overlay (e.g., recombination rate).
         """
         ...
+
+    def line_secondary(
+        self,
+        ax: Any,
+        x: pd.Series,
+        y: pd.Series,
+        color: str = "blue",
+        linewidth: float = 1.5,
+        alpha: float = 1.0,
+        linestyle: str = "-",
+        label: Optional[str] = None,
+        yaxis_name: Any = None,
+    ) -> Any:
+        """Create line on secondary y-axis.
+
+        Args:
+            ax: Axes or panel (may be tuple for Plotly).
+            x: X-axis values.
+            y: Y-axis values.
+            color: Line color.
+            linewidth: Line width.
+            alpha: Transparency.
+            linestyle: Line style.
+            label: Legend label.
+            yaxis_name: Backend-specific secondary axis identifier.
+
+        Returns:
+            The line object.
+        """
+        ...
+
+    def fill_between_secondary(
+        self,
+        ax: Any,
+        x: pd.Series,
+        y1: Union[float, pd.Series],
+        y2: Union[float, pd.Series],
+        color: str = "blue",
+        alpha: float = 0.3,
+        yaxis_name: Any = None,
+    ) -> Any:
+        """Fill area on secondary y-axis.
+
+        Args:
+            ax: Axes or panel.
+            x: X-axis values.
+            y1: Lower y boundary.
+            y2: Upper y boundary.
+            color: Fill color.
+            alpha: Transparency.
+            yaxis_name: Backend-specific secondary axis identifier.
+
+        Returns:
+            The fill object.
+        """
+        ...
+
+    def set_secondary_ylim(
+        self,
+        ax: Any,
+        bottom: float,
+        top: float,
+        yaxis_name: Any = None,
+    ) -> None:
+        """Set secondary y-axis limits.
+
+        Args:
+            ax: Axes or panel.
+            bottom: Minimum y value.
+            top: Maximum y value.
+            yaxis_name: Backend-specific secondary axis identifier.
+        """
+        ...
+
+    def set_secondary_ylabel(
+        self,
+        ax: Any,
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+        yaxis_name: Any = None,
+    ) -> None:
+        """Set secondary y-axis label.
+
+        Args:
+            ax: Axes or panel.
+            label: Label text.
+            color: Label color.
+            fontsize: Font size.
+            yaxis_name: Backend-specific secondary axis identifier.
+        """
+        ...
+
+    # =========================================================================
+    # Legends
+    # =========================================================================
 
     def add_legend(
         self,
@@ -309,53 +613,20 @@ class PlotBackend(Protocol):
         """
         ...
 
-    def hide_spines(self, ax: Any, spines: List[str]) -> None:
-        """Hide specified axis spines.
-
-        Args:
-            ax: Axes or panel.
-            spines: List of spine names ('top', 'right', 'bottom', 'left').
-        """
-        ...
-
-    def format_xaxis_mb(self, ax: Any) -> None:
-        """Format x-axis to show megabase values.
-
-        Args:
-            ax: Axes or panel.
-        """
-        ...
-
-    def save(
+    def add_ld_legend(
         self,
-        fig: Any,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
+        ax: Any,
+        ld_bins: List[Tuple[float, str, str]],
+        lead_snp_color: str,
     ) -> None:
-        """Save figure to file.
+        """Add LD color legend.
+
+        Shows the linkage disequilibrium (r^2) color scale and lead SNP marker.
 
         Args:
-            fig: Figure object.
-            path: Output file path (.png, .pdf, .html).
-            dpi: Resolution for raster formats.
-            bbox_inches: Bounding box adjustment.
-        """
-        ...
-
-    def show(self, fig: Any) -> None:
-        """Display the figure.
-
-        Args:
-            fig: Figure object.
-        """
-        ...
-
-    def close(self, fig: Any) -> None:
-        """Close the figure and free resources.
-
-        Args:
-            fig: Figure object.
+            ax: Axes or panel.
+            ld_bins: List of (threshold, label, color) tuples defining LD bins.
+            lead_snp_color: Color for lead SNP marker in legend.
         """
         ...
 
@@ -378,7 +649,7 @@ class PlotBackend(Protocol):
         self,
         ax: Any,
         credible_sets: List[int],
-        get_color_func: Any,
+        get_color_func: Callable[[int], str],
     ) -> None:
         """Add fine-mapping credible set legend to the axes.
 
@@ -404,31 +675,9 @@ class PlotBackend(Protocol):
         """
         ...
 
-    def axvline(
-        self,
-        ax: Any,
-        x: float,
-        color: str = "grey",
-        linestyle: str = "--",
-        linewidth: float = 1.0,
-        alpha: float = 1.0,
-        zorder: int = 1,
-    ) -> Any:
-        """Add a vertical line across the axes.
-
-        Args:
-            ax: Axes or panel.
-            x: X-value for the line.
-            color: Line color.
-            linestyle: Line style.
-            linewidth: Line width.
-            alpha: Line transparency (0-1).
-            zorder: Drawing order.
-
-        Returns:
-            The line object.
-        """
-        ...
+    # =========================================================================
+    # Specialized Charts
+    # =========================================================================
 
     def hbar(
         self,
@@ -487,5 +736,42 @@ class PlotBackend(Protocol):
 
         Returns:
             The errorbar object.
+        """
+        ...
+
+    # =========================================================================
+    # File Operations
+    # =========================================================================
+
+    def save(
+        self,
+        fig: Any,
+        path: str,
+        dpi: int = 150,
+        bbox_inches: str = "tight",
+    ) -> None:
+        """Save figure to file.
+
+        Args:
+            fig: Figure object.
+            path: Output file path (.png, .pdf, .html).
+            dpi: Resolution for raster formats.
+            bbox_inches: Bounding box adjustment.
+        """
+        ...
+
+    def show(self, fig: Any) -> None:
+        """Display the figure.
+
+        Args:
+            fig: Figure object.
+        """
+        ...
+
+    def close(self, fig: Any) -> None:
+        """Close the figure and free resources.
+
+        Args:
+            fig: Figure object.
         """
         ...
