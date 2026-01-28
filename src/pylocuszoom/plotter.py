@@ -17,8 +17,6 @@ import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig, HoverDataBuilder
@@ -43,7 +41,6 @@ from .finemapping import (
 from .forest import validate_forest_df
 from .gene_track import (
     assign_gene_positions,
-    plot_gene_track,
     plot_gene_track_generic,
 )
 from .ld import calculate_ld, find_plink
@@ -51,7 +48,6 @@ from .logging import enable_logging, logger
 from .phewas import validate_phewas_df
 from .recombination import (
     RECOMB_COLOR,
-    add_recombination_overlay,
     download_canine_recombination_maps,
     get_default_data_dir,
     get_recombination_rate_for_region,
@@ -143,7 +139,6 @@ class LocusZoomPlotter:
         self.genome_build = (
             genome_build if genome_build else self._default_build(species)
         )
-        self.backend_name = backend
         self._backend = get_backend(backend)
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
@@ -350,12 +345,10 @@ class LocusZoomPlotter:
                     chrom=chrom,
                 )
 
-        # Add recombination overlay (all backends)
+        # Add recombination overlay (all backends with secondary axis support)
         if recomb_df is not None and not recomb_df.empty:
-            if self.backend_name == "matplotlib":
-                add_recombination_overlay(ax, recomb_df, start, end)
-            else:
-                self._add_recombination_overlay_generic(ax, recomb_df, start, end)
+            if self._backend.supports_secondary_axis:
+                self._add_recombination_overlay(ax, recomb_df, start, end)
 
         # Format axes
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
@@ -364,19 +357,13 @@ class LocusZoomPlotter:
 
         # Add LD legend (all backends)
         if ld_col is not None and ld_col in df.columns:
-            if self.backend_name == "matplotlib":
-                self._add_ld_legend(ax)
-            else:
-                self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
+            self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
 
-        # Plot gene track (all backends)
+        # Plot gene track (all backends use generic function)
         if genes_df is not None and gene_ax is not None:
-            if self.backend_name == "matplotlib":
-                plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
-            else:
-                plot_gene_track_generic(
-                    gene_ax, self._backend, genes_df, chrom, start, end, exons_df
-                )
+            plot_gene_track_generic(
+                gene_ax, self._backend, genes_df, chrom, start, end, exons_df
+            )
             self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
             self._backend.hide_spines(gene_ax, ["top", "right", "left"])
         else:
@@ -509,54 +496,18 @@ class LocusZoomPlotter:
                     hover_data=hover_builder.build_dataframe(lead_snp),
                 )
 
-    def _add_ld_legend(self, ax: Axes) -> None:
-        """Add LD color legend to plot."""
-        palette = get_ld_color_palette()
-        legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="D",
-                color="w",
-                markerfacecolor=LEAD_SNP_COLOR,
-                markeredgecolor="black",
-                markersize=6,
-                label="Lead SNP",
-            ),
-        ]
-
-        for threshold, label, _ in LD_BINS:
-            legend_elements.append(
-                Patch(
-                    facecolor=palette[label],
-                    edgecolor="black",
-                    label=label,
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=9,
-            frameon=True,
-            framealpha=0.9,
-            title=r"$r^2$",
-            title_fontsize=10,
-            handlelength=1.5,
-            handleheight=1.0,
-            labelspacing=0.4,
-        )
-
-    def _add_recombination_overlay_generic(
+    def _add_recombination_overlay(
         self,
         ax: Any,
         recomb_df: pd.DataFrame,
         start: int,
         end: int,
     ) -> None:
-        """Add recombination overlay for interactive backends (plotly/bokeh).
+        """Add recombination overlay for all backends.
 
         Creates a secondary y-axis with recombination rate line and fill.
+        Uses backend-agnostic secondary axis methods that work across
+        matplotlib, plotly, and bokeh.
         """
         # Filter to region
         region_recomb = recomb_df[
@@ -943,10 +894,8 @@ class LocusZoomPlotter:
 
             # Add recombination overlay (only on first panel, all backends)
             if i == 0 and recomb_df is not None and not recomb_df.empty:
-                if self.backend_name == "matplotlib":
-                    add_recombination_overlay(ax, recomb_df, start, end)
-                else:
-                    self._add_recombination_overlay_generic(ax, recomb_df, start, end)
+                if self._backend.supports_secondary_axis:
+                    self._add_recombination_overlay(ax, recomb_df, start, end)
 
             # Format axes
             self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
@@ -955,50 +904,11 @@ class LocusZoomPlotter:
 
             # Add panel label
             if panel_labels and i < len(panel_labels):
-                if self.backend_name == "matplotlib":
-                    ax.annotate(
-                        panel_labels[i],
-                        xy=(0.02, 0.95),
-                        xycoords="axes fraction",
-                        fontsize=11,
-                        fontweight="bold",
-                        va="top",
-                        ha="left",
-                    )
-                elif self.backend_name == "plotly":
-                    fig, row = ax
-                    fig.add_annotation(
-                        text=f"<b>{panel_labels[i]}</b>",
-                        xref=f"x{row} domain" if row > 1 else "x domain",
-                        yref=f"y{row} domain" if row > 1 else "y domain",
-                        x=0.02,
-                        y=0.95,
-                        showarrow=False,
-                        font=dict(size=11),
-                        xanchor="left",
-                        yanchor="top",
-                    )
-                elif self.backend_name == "bokeh":
-                    from bokeh.models import Label
-
-                    # Get y-axis range for positioning
-                    y_max = ax.y_range.end if ax.y_range.end else 10
-                    x_min = ax.x_range.start if ax.x_range.start else start
-                    label = Label(
-                        x=x_min + (end - start) * 0.02,
-                        y=y_max * 0.95,
-                        text=panel_labels[i],
-                        text_font_size="11pt",
-                        text_font_style="bold",
-                    )
-                    ax.add_layout(label)
+                self._backend.add_panel_label(ax, panel_labels[i])
 
             # Add LD legend (only on first panel, all backends)
             if i == 0 and panel_ld_col is not None and panel_ld_col in df.columns:
-                if self.backend_name == "matplotlib":
-                    self._add_ld_legend(ax)
-                else:
-                    self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
+                self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
 
         # Track current panel index
         panel_idx = n_gwas
@@ -1150,15 +1060,12 @@ class LocusZoomPlotter:
             self._backend.hide_spines(ax, ["top", "right"])
             panel_idx += 1
 
-        # Plot gene track (all backends)
+        # Plot gene track (all backends use generic function)
         if genes_df is not None:
             gene_ax = axes[panel_idx]
-            if self.backend_name == "matplotlib":
-                plot_gene_track(gene_ax, genes_df, chrom, start, end, exons_df)
-            else:
-                plot_gene_track_generic(
-                    gene_ax, self._backend, genes_df, chrom, start, end, exons_df
-                )
+            plot_gene_track_generic(
+                gene_ax, self._backend, genes_df, chrom, start, end, exons_df
+            )
             self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
             self._backend.hide_spines(gene_ax, ["top", "right", "left"])
         else:
