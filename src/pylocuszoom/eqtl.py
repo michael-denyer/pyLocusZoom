@@ -37,6 +37,7 @@ def validate_eqtl_df(
         (
             DataFrameValidator(df, "eQTL DataFrame")
             .require_columns([pos_col, p_col])
+            .require_numeric([p_col])
             .validate()
         )
     except ValidationError as e:

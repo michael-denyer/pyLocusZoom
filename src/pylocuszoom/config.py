@@ -109,9 +109,13 @@ class LDConfig(BaseModel):
 
         When ld_reference_file is provided, lead_pos is required to identify
         the index SNP for LD calculation.
+
+        Note: For StackedPlotConfig, ld_reference_file may be provided without
+        lead_pos when lead_positions list is used (broadcast mode). This is
+        validated at the StackedPlotConfig level, not here.
         """
-        if self.ld_reference_file is not None and self.lead_pos is None:
-            raise ValueError("lead_pos is required when ld_reference_file is provided")
+        # Validation moved to StackedPlotConfig.validate_broadcast_ld
+        # to allow broadcast mode where lead_positions list is used instead
         return self
 
 
@@ -148,6 +152,13 @@ class PlotConfig(BaseModel):
     columns: ColumnConfig = Field(default_factory=ColumnConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     ld: LDConfig = Field(default_factory=LDConfig)
+
+    @model_validator(mode="after")
+    def validate_ld_requires_lead_pos(self) -> "PlotConfig":
+        """Validate that LD reference file has lead_pos for single plots."""
+        if self.ld.ld_reference_file is not None and self.ld.lead_pos is None:
+            raise ValueError("lead_pos is required when ld_reference_file is provided")
+        return self
 
     @classmethod
     def from_kwargs(
@@ -254,6 +265,23 @@ class StackedPlotConfig(BaseModel):
     ld_reference_files: Optional[List[str]] = Field(
         default=None, description="PLINK filesets (one per panel)"
     )
+
+    @model_validator(mode="after")
+    def validate_broadcast_ld(self) -> "StackedPlotConfig":
+        """Validate broadcast LD configuration for stacked plots.
+
+        When ld_reference_file is provided for broadcast, lead_positions must
+        be provided to specify the reference SNP for each panel.
+        """
+        if self.ld.ld_reference_file is not None and self.ld.lead_pos is None:
+            # Broadcast mode: ld_reference_file without lead_pos in LDConfig
+            # Requires lead_positions list instead
+            if self.lead_positions is None:
+                raise ValueError(
+                    "lead_positions is required when ld_reference_file is provided "
+                    "for broadcast (one lead position per panel)"
+                )
+        return self
 
     @classmethod
     def from_kwargs(

@@ -152,12 +152,26 @@ class TestLDConfig:
         assert config.ld_reference_file is None
         assert config.ld_col is None
 
-    def test_ld_reference_file_requires_lead_pos(self):
-        """ld_reference_file without lead_pos should raise ValidationError."""
-        from pylocuszoom.config import LDConfig
+    def test_ld_reference_file_requires_lead_pos_in_plot_config(self):
+        """ld_reference_file without lead_pos should raise in PlotConfig.
 
+        Note: LDConfig itself doesn't validate because StackedPlotConfig needs
+        to allow broadcast mode where lead_positions list is used instead.
+        Validation happens at the composite config level.
+        """
+        from pylocuszoom.config import LDConfig, PlotConfig, RegionConfig
+
+        # LDConfig alone doesn't raise (needed for broadcast mode)
+        ld = LDConfig(ld_reference_file="/path/to/file")
+        assert ld.ld_reference_file == "/path/to/file"
+        assert ld.lead_pos is None
+
+        # But PlotConfig should raise since single plots need lead_pos
         with pytest.raises(ValidationError, match="lead_pos.*required"):
-            LDConfig(ld_reference_file="/path/to/file")
+            PlotConfig(
+                region=RegionConfig(chrom=1, start=1000, end=2000),
+                ld=ld,
+            )
 
     def test_ld_reference_file_with_lead_pos_valid(self):
         """ld_reference_file with lead_pos should work."""
@@ -484,3 +498,43 @@ class TestStackedPlotConfig:
         assert config.lead_positions is None
         assert config.panel_labels is None
         assert config.ld_reference_files is None
+
+    def test_stacked_config_from_kwargs_broadcast_ld_reference_file(self):
+        """from_kwargs should accept broadcast ld_reference_file with lead_positions.
+
+        Bug fix: pyLocusZoom-vtf
+        When ld_reference_file is provided for broadcast and lead_positions list
+        is provided, it should not require lead_pos in LDConfig.
+        """
+        from pylocuszoom.config import StackedPlotConfig
+
+        # This should NOT raise - LD calculation will use lead_positions per panel
+        config = StackedPlotConfig.from_kwargs(
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            ld_reference_file="/shared/plink_file",  # broadcast to all panels
+            lead_positions=[1500000, 1600000],  # per-panel lead positions
+        )
+        assert config.ld.ld_reference_file == "/shared/plink_file"
+        assert config.ld.lead_pos is None  # Not set at LDConfig level
+        assert config.lead_positions == [1500000, 1600000]
+
+    def test_stacked_config_from_kwargs_broadcast_ld_without_lead_positions_fails(self):
+        """Broadcast ld_reference_file without lead_positions should still fail.
+
+        If no lead_positions provided, there's no way to know which SNP to use
+        as the LD reference for each panel.
+        """
+        from pydantic import ValidationError
+
+        from pylocuszoom.config import StackedPlotConfig
+
+        with pytest.raises(ValidationError, match="lead_pos.*required|lead_positions"):
+            StackedPlotConfig.from_kwargs(
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                ld_reference_file="/shared/plink_file",  # broadcast
+                # No lead_positions - should fail
+            )

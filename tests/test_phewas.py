@@ -49,3 +49,50 @@ def test_validate_phewas_df_optional_effect():
     )
     # Should not raise
     validate_phewas_df(df)
+
+
+class TestPheWASNaNCategory:
+    """Tests for PheWAS NaN category handling.
+
+    Bug fix: pyLocusZoom-wej
+    PheWAS rows with NaN category values were silently dropped because
+    NaN == NaN is False in pandas.
+    """
+
+    def test_phewas_nan_category_included_in_plot(self, tmp_path):
+        """Rows with NaN category should be included, not silently dropped."""
+        import numpy as np
+
+        from pylocuszoom.plotter import LocusZoomPlotter
+
+        # Create PheWAS data with NaN category
+        phewas_df = pd.DataFrame(
+            {
+                "phenotype": ["Phenotype_A", "Phenotype_B", "Phenotype_C"],
+                "p_value": [0.01, 0.001, 0.05],
+                "category": ["cat1", np.nan, "cat2"],  # Row B has NaN
+            }
+        )
+
+        plotter = LocusZoomPlotter()
+        fig = plotter.plot_phewas(
+            phewas_df,
+            variant_id="rs12345",  # Required argument
+            phenotype_col="phenotype",
+            p_col="p_value",
+            category_col="category",
+        )
+
+        # Get all scatter points from the figure
+        # Each phenotype should have exactly one point
+        ax = fig.axes[0]
+        all_y_data = []
+        for collection in ax.collections:
+            offsets = collection.get_offsets()
+            if len(offsets) > 0:
+                all_y_data.extend(offsets[:, 1].tolist())
+
+        # Should have 3 points (one for each phenotype including NaN category)
+        assert len(all_y_data) == 3, (
+            f"Expected 3 points (including NaN category row), got {len(all_y_data)}"
+        )

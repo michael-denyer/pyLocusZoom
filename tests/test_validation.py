@@ -433,3 +433,40 @@ class TestErrorPathCoverage:
         # Each error on its own line with bullet
         assert "  - Missing columns:" in error_msg
         assert "  - Column 'a' must be numeric" in error_msg
+
+
+class TestEQTLValidation:
+    """Tests for eQTL-specific validation.
+
+    Bug fix: pyLocusZoom-7a5
+    validate_eqtl_df should enforce numeric p_value column.
+    """
+
+    def test_validate_eqtl_df_requires_numeric_pvalue(self):
+        """eQTL validation should fail for non-numeric p_value."""
+        from pylocuszoom.eqtl import validate_eqtl_df
+        from pylocuszoom.exceptions import EQTLValidationError
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000, 2000, 3000],
+                "p_value": ["0.01", "0.05", "0.001"],  # Strings, not floats
+            }
+        )
+
+        with pytest.raises(EQTLValidationError, match="numeric"):
+            validate_eqtl_df(df, pos_col="pos", p_col="p_value")
+
+    def test_validate_eqtl_df_accepts_numeric_pvalue(self):
+        """eQTL validation should pass for numeric p_value."""
+        from pylocuszoom.eqtl import validate_eqtl_df
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000, 2000, 3000],
+                "p_value": [0.01, 0.05, 0.001],  # Numeric
+            }
+        )
+
+        # Should not raise
+        validate_eqtl_df(df, pos_col="pos", p_col="p_value")

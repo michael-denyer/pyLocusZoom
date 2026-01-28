@@ -1151,7 +1151,11 @@ class LocusZoomPlotter:
         # Plot points by category
         if categories:
             for cat in categories:
-                cat_data = df[df[category_col] == cat]
+                # Handle NaN category: NaN == NaN is False in pandas
+                if pd.isna(cat):
+                    cat_data = df[df[category_col].isna()]
+                else:
+                    cat_data = df[df[category_col] == cat]
                 # Use upward triangles for positive effects, circles otherwise
                 if effect_col and effect_col in cat_data.columns:
                     for _, row in cat_data.iterrows():
