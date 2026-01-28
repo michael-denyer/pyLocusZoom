@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+import requests
 
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
@@ -1064,3 +1065,63 @@ class TestForestPlot:
 
         assert fig is not None
         plt.close(fig)
+
+
+class TestRecombinationDownloadErrors:
+    """Tests for recombination map download error handling.
+
+    These tests verify that download errors are handled gracefully:
+    - Expected errors (network, I/O) return None without crashing
+    - Unexpected errors also return None (graceful degradation)
+    - All error types allow plotting to continue without recombination overlay
+
+    Note: Log level verification is done visually in "Captured stderr call" output.
+    loguru doesn't integrate with pytest's caplog/capsys fixtures directly.
+    """
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a plotter instance for testing download errors."""
+        return LocusZoomPlotter(species="canine", log_level="DEBUG")
+
+    def test_network_error_returns_none(self, plotter):
+        """Network errors (requests.RequestException) should return None."""
+
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = requests.RequestException("Network unreachable")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            # Verify the download was attempted
+            mock_download.assert_called_once()
+
+    def test_io_error_returns_none(self, plotter):
+        """IO errors (IOError) should return None."""
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = IOError("Disk full")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            mock_download.assert_called_once()
+
+    def test_os_error_returns_none(self, plotter):
+        """OSError should return None."""
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = OSError("Permission denied")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            mock_download.assert_called_once()
+
+    def test_unexpected_error_returns_none(self, plotter):
+        """Unexpected errors should still return None (graceful degradation)."""
+        with patch(
+            "pylocuszoom.plotter.download_canine_recombination_maps"
+        ) as mock_download:
+            mock_download.side_effect = ValueError("Unexpected parsing error")
+            result = plotter._ensure_recomb_maps()
+            assert result is None
+            mock_download.assert_called_once()
