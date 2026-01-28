@@ -7,18 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-01-28
+
 ### Added
 - Unified exception hierarchy with `PyLocusZoomError` base class
 - Custom exceptions: `ValidationError`, `DownloadError`, `LiftoverError`, `DataError`, `PLINKError`, `ConfigurationError`
 - Internal Pydantic validation for plot parameters (validates kwargs at call time)
 - Error path tests for download failures and validation edge cases
+- CI ordering validation for forest plots (`ci_lower <= effect <= ci_upper`)
+- P-value validation warnings for NaN and out-of-range values
+- Vectorized eQTL/PheWAS scatter calls for better performance
 
 ### Changed
 - All validation errors now raise `ValidationError` (also a `ValueError` for backward compatibility)
 - Test randomization enabled via pytest-randomly (visible in CI output)
 - Config classes (`PlotConfig`, `StackedPlotConfig`) are now internal implementation details, not part of public API
+- Capped pytest-xdist workers at 8 to prevent terminal issues
 
 ### Fixed
+- Recombination overlay now uses correct twin axis for matplotlib (no longer distorts GWAS y-limits)
+- Mb formatting now applied to gene track axis for interactive backends (Plotly/Bokeh)
+- Gene track row assignment algorithm now correctly prevents overlapping genes in same row
+- Handle all-NaN p-values in stacked plot lead SNP detection
 - Replaced broad `except Exception` blocks with specific exception types (only 1 justified fallback remains)
 - Download error handling now catches specific HTTP/network errors
 
