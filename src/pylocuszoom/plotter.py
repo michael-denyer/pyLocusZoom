@@ -2176,7 +2176,7 @@ class LocusZoomPlotter:
             self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=10)
             self._backend.hide_spines(manhattan_ax, ["top", "right"])
 
-            # X-axis: set chromosome ticks for all rows
+            # X-axis: set chromosome ticks for all panels (consistent with plot_manhattan_stacked)
             positions = [
                 chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
             ]
