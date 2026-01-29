@@ -846,5 +846,57 @@ fig = plotter.plot_forest(
 fig.savefig("examples/forest_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/forest_plot.png")
 
+# Manhattan plot - genome-wide view
+print("18. Manhattan plot...")
+np.random.seed(42)
+manhattan_data = []
+for chrom in range(1, 23):
+    n_variants = np.random.randint(300, 600)
+    chrom_positions = np.sort(np.random.randint(1e6, 2e8, n_variants))
+    chrom_pvalues = np.random.uniform(0, 1, n_variants)
+    # Add some significant hits
+    if chrom in [6, 11, 17]:  # Chromosomes with GWAS hits
+        n_hits = np.random.randint(5, 15)
+        hit_indices = np.random.choice(n_variants, n_hits, replace=False)
+        chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-12, -8, n_hits)
+    for i in range(n_variants):
+        manhattan_data.append(
+            {"chrom": str(chrom), "pos": chrom_positions[i], "p": chrom_pvalues[i]}
+        )
+
+manhattan_df = pd.DataFrame(manhattan_data)
+
+manhattan_plotter = LocusZoomPlotter(species="human", log_level=None)
+fig = manhattan_plotter.plot_manhattan(
+    manhattan_df,
+    significance_threshold=5e-8,
+    figsize=(14, 4),
+    title="Genome-wide Association Study",
+)
+fig.savefig("examples/manhattan_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/manhattan_plot.png")
+
+# QQ plot
+print("19. QQ plot...")
+np.random.seed(42)
+# Create inflated p-value distribution (lambda ~ 1.1)
+n_pvalues = 5000
+qq_pvalues = np.random.uniform(0, 1, n_pvalues)
+# Add some true associations to create deviation at tail
+n_true = 50
+qq_pvalues[:n_true] = 10 ** np.random.uniform(-10, -5, n_true)
+
+qq_df = pd.DataFrame({"p": qq_pvalues})
+
+qq_plotter = LocusZoomPlotter(log_level=None)
+fig = qq_plotter.plot_qq(
+    qq_df,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(5, 5),
+)
+fig.savefig("examples/qq_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/qq_plot.png")
+
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")

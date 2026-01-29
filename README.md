@@ -333,6 +333,9 @@ fig = plotter.plot_manhattan(
 fig.savefig("manhattan.png", dpi=150)
 ```
 
+![Example Manhattan plot](examples/manhattan_plot.png)
+*Manhattan plot showing genome-wide associations with chromosome coloring and significance threshold.*
+
 Categorical Manhattan plots (PheWAS-style) are also supported:
 
 ```python
@@ -361,6 +364,9 @@ fig = plotter.plot_qq(
 )
 fig.savefig("qq_plot.png", dpi=150)
 ```
+
+![Example QQ plot](examples/qq_plot.png)
+*QQ plot with 95% confidence band and genomic inflation factor (λ).*
 
 ## PySpark Support
 
