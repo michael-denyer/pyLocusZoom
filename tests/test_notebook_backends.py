@@ -951,8 +951,12 @@ class TestGeneTrackMbFormatting:
 
         # With gene track, row 2 is the gene track axis
         # Check that _mb_format_rows includes the gene track row
+        # Format is (row, col, n_cols) tuples
         assert hasattr(fig, "_mb_format_rows"), "Plotly figure missing _mb_format_rows"
-        assert 2 in fig._mb_format_rows, (
+        rows_in_format = [
+            item[0] if isinstance(item, tuple) else item for item in fig._mb_format_rows
+        ]
+        assert 2 in rows_in_format, (
             f"Gene track axis (row 2) not in _mb_format_rows: {fig._mb_format_rows}"
         )
 

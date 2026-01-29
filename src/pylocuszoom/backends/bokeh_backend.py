@@ -444,6 +444,10 @@ class BokehBackend:
     ) -> None:
         """Set y-axis tick positions and labels."""
         ax.yaxis.ticker = positions
+        ax.yaxis.major_label_overrides = {
+            pos: label for pos, label in zip(positions, labels)
+        }
+        ax.yaxis.major_label_text_font_size = f"{fontsize}pt"
 
     def set_xticks(
         self,
@@ -464,8 +468,6 @@ class BokehBackend:
             ax.xaxis.major_label_orientation = (
                 rotation * 3.14159 / 180
             )  # Convert to radians
-        ax.yaxis.major_label_overrides = dict(zip(positions, labels))
-        ax.yaxis.major_label_text_font_size = f"{fontsize}pt"
 
     def _get_legend_location(self, loc: str, default: str = "top_left") -> str:
         """Map matplotlib-style legend location to Bokeh location."""

@@ -212,11 +212,17 @@ def prepare_categorical_data(
 
     # Get category order
     if category_order is None:
-        category_order = sorted(result[category_col].unique())
+        # Get unique values, drop NaN, convert to strings for consistent sorting
+        unique_vals = result[category_col].dropna().unique()
+        # Convert all to strings and sort to handle mixed types safely
+        category_order = sorted([str(v) for v in unique_vals])
 
-    # Map categories to index
+    # Convert category column to string for consistent handling
+    result["_cat_str"] = result[category_col].astype(str)
+
+    # Map categories to index (use string values for lookup)
     cat_to_idx = {cat: i for i, cat in enumerate(category_order)}
-    result["_cat_idx"] = result[category_col].map(
+    result["_cat_idx"] = result["_cat_str"].map(
         lambda x: cat_to_idx.get(x, len(category_order))
     )
 
@@ -229,10 +235,10 @@ def prepare_categorical_data(
     # Calculate -log10(p)
     result["_neg_log_p"] = -np.log10(result[p_col].clip(lower=1e-300))
 
-    # Assign colors
+    # Assign colors (use string values for lookup)
     colors = get_chromosome_colors(len(category_order))
     cat_to_color = {cat: colors[i] for i, cat in enumerate(category_order)}
-    result["_color"] = result[category_col].map(cat_to_color)
+    result["_color"] = result["_cat_str"].map(cat_to_color)
 
     result.attrs["category_order"] = category_order
     result.attrs["category_centers"] = {cat: i for i, cat in enumerate(category_order)}
