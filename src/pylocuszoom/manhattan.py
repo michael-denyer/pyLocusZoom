@@ -77,7 +77,9 @@ def get_chromosome_order(
 def get_chromosome_colors(n_chromosomes: int) -> list[str]:
     """Get perceptually distinct colors for chromosomes.
 
-    Uses colorcet glasbey_dark palette for good visual separation.
+    Uses colorcet b_glasbey_bw_minc_20_minl_30 palette for good visual
+    separation with mid-range luminance (visible on both light and dark
+    backgrounds).
 
     Args:
         n_chromosomes: Number of chromosomes to color.
@@ -85,7 +87,7 @@ def get_chromosome_colors(n_chromosomes: int) -> list[str]:
     Returns:
         List of hex color strings.
     """
-    palette = cc.glasbey_dark
+    palette = cc.b_glasbey_bw_minc_20_minl_30
     return [palette[i % len(palette)] for i in range(n_chromosomes)]
 
 
