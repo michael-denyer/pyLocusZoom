@@ -1756,7 +1756,7 @@ class LocusZoomPlotter:
             sizes=20,
             marker="o",
             edgecolor="black",
-            linewidth=0.2,
+            linewidth=0.02,
             zorder=3,
         )
 
@@ -2070,7 +2070,7 @@ class LocusZoomPlotter:
             sizes=20,
             marker="o",
             edgecolor="black",
-            linewidth=0.2,
+            linewidth=0.02,
             zorder=3,
         )
 
@@ -2264,7 +2264,7 @@ class LocusZoomPlotter:
                 sizes=20,
                 marker="o",
                 edgecolor="black",
-                linewidth=0.2,
+                linewidth=0.02,
                 zorder=3,
             )
 
