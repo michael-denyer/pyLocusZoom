@@ -11,6 +11,8 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.text import Annotation
 
+from pylocuszoom.logging import logger
+
 
 def add_snp_labels(
     ax: Axes,
@@ -111,7 +113,9 @@ def add_snp_labels(
                 expand_points=(1.5, 1.5),
             )
         except ImportError:
-            # adjustText not installed, labels may overlap
-            pass
+            logger.warning(
+                "adjustText not installed - SNP labels may overlap. "
+                "Install with: pip install adjustText"
+            )
 
     return texts

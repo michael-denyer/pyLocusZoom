@@ -165,3 +165,72 @@ class TestAddSnpLabels:
 
         assert len(texts) == 0
         plt.close(fig)
+
+
+class TestAdjustTextWarning:
+    """Test warning is logged when adjustText is unavailable."""
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS results with neglog10p calculated."""
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+                "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
+                "neglog10p": [8, 5, 3, 6, 9],
+            }
+        )
+
+    def test_warning_logged_when_adjusttext_unavailable(self, sample_gwas_df):
+        """Verify warning is logged when adjustText import fails."""
+        import builtins
+        import io
+        from unittest.mock import patch
+
+        from loguru import logger as loguru_logger
+
+        from pylocuszoom.logging import logger
+
+        fig, ax = plt.subplots()
+        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+
+        # Capture log output with a custom sink
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        # Store the original __import__
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "adjustText":
+                raise ImportError("No module named 'adjustText'")
+            return original_import(name, *args, **kwargs)
+
+        # Ensure logging is enabled and patch __import__ to fail for adjustText
+        logger.enable("WARNING")
+        try:
+            with patch.object(builtins, "__import__", side_effect=mock_import):
+                # Need multiple labels to trigger the adjustText code path
+                texts = add_snp_labels(
+                    ax=ax,
+                    df=sample_gwas_df,
+                    label_top_n=3,
+                )
+        finally:
+            loguru_logger.remove(handler_id)
+            plt.close(fig)
+
+        # Should still return labels even without adjustText
+        assert len(texts) == 3
+
+        # Check that warning was logged about adjustText
+        log_output = log_capture.getvalue()
+        assert "adjustText" in log_output, (
+            f"Expected warning about adjustText, got: {log_output}"
+        )
