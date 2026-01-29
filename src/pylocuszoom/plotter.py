@@ -1557,6 +1557,8 @@ class LocusZoomPlotter:
                     colors=chrom_data["_color"].iloc[0],
                     sizes=15,
                     marker="o",
+                    edgecolor="#888888",
+                    linewidth=0.3,
                     zorder=2,
                 )
 
@@ -1640,8 +1642,8 @@ class LocusZoomPlotter:
                     colors=cat_data["_color"].iloc[0],
                     sizes=30,
                     marker="o",
-                    edgecolor="black",
-                    linewidth=0.5,
+                    edgecolor="#888888",
+                    linewidth=0.3,
                     zorder=2,
                 )
 
@@ -1878,6 +1880,8 @@ class LocusZoomPlotter:
                         colors=chrom_data["_color"].iloc[0],
                         sizes=15,
                         marker="o",
+                        edgecolor="#888888",
+                        linewidth=0.3,
                         zorder=2,
                     )
 
@@ -2000,6 +2004,8 @@ class LocusZoomPlotter:
                     colors=chrom_data["_color"].iloc[0],
                     sizes=15,
                     marker="o",
+                    edgecolor="#888888",
+                    linewidth=0.3,
                     zorder=2,
                 )
 
