@@ -45,7 +45,12 @@ from .gene_track import (
 )
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
+from .manhattan import (
+    prepare_categorical_data,
+    prepare_manhattan_data,
+)
 from .phewas import validate_phewas_df
+from .qq import prepare_qq_data
 from .recombination import (
     RECOMB_COLOR,
     download_canine_recombination_maps,
@@ -1457,6 +1462,320 @@ class LocusZoomPlotter:
         )
 
         self._backend.set_title(ax, f"Forest Plot: {variant_id}")
+        self._backend.hide_spines(ax, ["top", "right"])
+        self._backend.finalize_layout(fig)
+
+        return fig
+
+    def plot_manhattan(
+        self,
+        df: pd.DataFrame,
+        chrom_col: str = "chrom",
+        pos_col: str = "pos",
+        p_col: str = "p",
+        custom_chrom_order: Optional[List[str]] = None,
+        category_col: Optional[str] = None,
+        category_order: Optional[List[str]] = None,
+        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        figsize: Tuple[float, float] = (12, 5),
+        title: Optional[str] = None,
+    ) -> Any:
+        """Create a Manhattan plot.
+
+        Shows associations across the genome with points colored by chromosome.
+        Supports both standard Manhattan plots (genomic positions) and
+        categorical Manhattan plots (PheWAS-style).
+
+        Args:
+            df: DataFrame with GWAS results.
+            chrom_col: Column name for chromosome.
+            pos_col: Column name for position.
+            p_col: Column name for p-value.
+            custom_chrom_order: Custom chromosome order (overrides species).
+            category_col: If provided, creates a categorical Manhattan plot
+                (like PheWAS) using this column instead of genomic positions.
+            category_order: Custom category order for categorical plots.
+            significance_threshold: P-value threshold for genome-wide significance
+                line. Set to None to disable.
+            figsize: Figure size as (width, height).
+            title: Plot title. Defaults to "Manhattan Plot".
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Example:
+            >>> # Standard Manhattan plot
+            >>> fig = plotter.plot_manhattan(gwas_df, species="human")
+            >>>
+            >>> # Categorical Manhattan (PheWAS-style)
+            >>> fig = plotter.plot_manhattan(
+            ...     phewas_df,
+            ...     category_col="phenotype_category",
+            ...     p_col="pvalue",
+            ... )
+        """
+        # Categorical Manhattan plot
+        if category_col is not None:
+            return self._plot_manhattan_categorical(
+                df=df,
+                category_col=category_col,
+                p_col=p_col,
+                category_order=category_order,
+                significance_threshold=significance_threshold,
+                figsize=figsize,
+                title=title,
+            )
+
+        # Standard Manhattan plot
+        # Prepare data with cumulative positions and colors
+        prepared_df = prepare_manhattan_data(
+            df=df,
+            chrom_col=chrom_col,
+            pos_col=pos_col,
+            p_col=p_col,
+            species=self.species,
+            custom_order=custom_chrom_order,
+        )
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=1,
+            height_ratios=[1.0],
+            figsize=figsize,
+        )
+        ax = axes[0]
+
+        # Plot points by chromosome for proper coloring
+        chrom_order = prepared_df.attrs["chrom_order"]
+        for chrom in chrom_order:
+            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
+            if len(chrom_data) > 0:
+                self._backend.scatter(
+                    ax,
+                    chrom_data["_cumulative_pos"],
+                    chrom_data["_neg_log_p"],
+                    colors=chrom_data["_color"].iloc[0],
+                    sizes=15,
+                    marker="o",
+                    zorder=2,
+                )
+
+        # Add significance line
+        if significance_threshold is not None:
+            threshold_line = -np.log10(significance_threshold)
+            self._backend.axhline(
+                ax,
+                y=threshold_line,
+                color="red",
+                linestyle="--",
+                linewidth=1,
+                zorder=1,
+            )
+
+        # Set x-axis ticks to chromosome centers
+        chrom_centers = prepared_df.attrs["chrom_centers"]
+        positions = [
+            chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
+        ]
+        labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
+        self._backend.set_xticks(ax, positions, labels, fontsize=8)
+
+        # Set limits
+        x_min = prepared_df["_cumulative_pos"].min()
+        x_max = prepared_df["_cumulative_pos"].max()
+        x_padding = (x_max - x_min) * 0.01
+        self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
+
+        y_max = prepared_df["_neg_log_p"].max()
+        self._backend.set_ylim(ax, 0, y_max * 1.1)
+
+        # Labels and title
+        self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
+        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
+        self._backend.set_title(ax, title or "Manhattan Plot", fontsize=14)
+        self._backend.hide_spines(ax, ["top", "right"])
+        self._backend.finalize_layout(fig)
+
+        return fig
+
+    def _plot_manhattan_categorical(
+        self,
+        df: pd.DataFrame,
+        category_col: str,
+        p_col: str = "p",
+        category_order: Optional[List[str]] = None,
+        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        figsize: Tuple[float, float] = (12, 5),
+        title: Optional[str] = None,
+    ) -> Any:
+        """Create a categorical Manhattan plot (PheWAS-style).
+
+        Internal method called by plot_manhattan when category_col is provided.
+        """
+        # Prepare data
+        prepared_df = prepare_categorical_data(
+            df=df,
+            category_col=category_col,
+            p_col=p_col,
+            category_order=category_order,
+        )
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=1,
+            height_ratios=[1.0],
+            figsize=figsize,
+        )
+        ax = axes[0]
+
+        # Plot points by category
+        cat_order = prepared_df.attrs["category_order"]
+        for cat in cat_order:
+            cat_data = prepared_df[prepared_df[category_col] == cat]
+            if len(cat_data) > 0:
+                self._backend.scatter(
+                    ax,
+                    cat_data["_x_pos"],
+                    cat_data["_neg_log_p"],
+                    colors=cat_data["_color"].iloc[0],
+                    sizes=30,
+                    marker="o",
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=2,
+                )
+
+        # Add significance line
+        if significance_threshold is not None:
+            threshold_line = -np.log10(significance_threshold)
+            self._backend.axhline(
+                ax,
+                y=threshold_line,
+                color="red",
+                linestyle="--",
+                linewidth=1,
+                zorder=1,
+            )
+
+        # Set x-axis ticks
+        cat_centers = prepared_df.attrs["category_centers"]
+        positions = [cat_centers[cat] for cat in cat_order]
+        self._backend.set_xticks(
+            ax, positions, cat_order, fontsize=10, rotation=45, ha="right"
+        )
+
+        # Set limits
+        self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
+
+        y_max = prepared_df["_neg_log_p"].max()
+        self._backend.set_ylim(ax, 0, y_max * 1.1)
+
+        # Labels and title
+        self._backend.set_xlabel(ax, "Category", fontsize=12)
+        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
+        self._backend.set_title(ax, title or "Categorical Manhattan Plot", fontsize=14)
+        self._backend.hide_spines(ax, ["top", "right"])
+        self._backend.finalize_layout(fig)
+
+        return fig
+
+    def plot_qq(
+        self,
+        df: pd.DataFrame,
+        p_col: str = "p",
+        show_confidence_band: bool = True,
+        show_lambda: bool = True,
+        figsize: Tuple[float, float] = (6, 6),
+        title: Optional[str] = None,
+    ) -> Any:
+        """Create a QQ (quantile-quantile) plot.
+
+        Shows observed vs expected -log10(p) distribution with optional
+        95% confidence band and genomic inflation factor (lambda).
+
+        Args:
+            df: DataFrame with p-values.
+            p_col: Column name for p-value.
+            show_confidence_band: If True, show 95% confidence band.
+            show_lambda: If True, show genomic inflation factor in title.
+            figsize: Figure size as (width, height).
+            title: Plot title. If None and show_lambda is True, shows lambda.
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Example:
+            >>> fig = plotter.plot_qq(gwas_df, p_col="pvalue")
+        """
+        # Prepare data
+        prepared_df = prepare_qq_data(df, p_col=p_col)
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=1,
+            height_ratios=[1.0],
+            figsize=figsize,
+        )
+        ax = axes[0]
+
+        # Plot confidence band first (behind points)
+        if show_confidence_band:
+            self._backend.fill_between(
+                ax,
+                x=prepared_df["_expected"],
+                y1=prepared_df["_ci_lower"],
+                y2=prepared_df["_ci_upper"],
+                color="#CCCCCC",
+                alpha=0.5,
+                zorder=1,
+            )
+
+        # Plot y=x diagonal
+        max_val = max(
+            prepared_df["_expected"].max(),
+            prepared_df["_observed"].max(),
+        )
+        self._backend.line(
+            ax,
+            x=pd.Series([0, max_val]),
+            y=pd.Series([0, max_val]),
+            color="red",
+            linestyle="--",
+            linewidth=1,
+            zorder=2,
+        )
+
+        # Plot points
+        self._backend.scatter(
+            ax,
+            prepared_df["_expected"],
+            prepared_df["_observed"],
+            colors="#1f77b4",
+            sizes=20,
+            marker="o",
+            edgecolor="black",
+            linewidth=0.5,
+            zorder=3,
+        )
+
+        # Set limits
+        self._backend.set_xlim(ax, 0, max_val * 1.05)
+        self._backend.set_ylim(ax, 0, max_val * 1.05)
+
+        # Labels
+        self._backend.set_xlabel(ax, r"Expected $-\log_{10}(p)$", fontsize=12)
+        self._backend.set_ylabel(ax, r"Observed $-\log_{10}(p)$", fontsize=12)
+
+        # Title with lambda
+        if title:
+            plot_title = title
+        elif show_lambda:
+            lambda_gc = prepared_df.attrs["lambda_gc"]
+            plot_title = f"QQ Plot (λ = {lambda_gc:.3f})"
+        else:
+            plot_title = "QQ Plot"
+        self._backend.set_title(ax, plot_title, fontsize=14)
+
         self._backend.hide_spines(ax, ["top", "right"])
         self._backend.finalize_layout(fig)
 
