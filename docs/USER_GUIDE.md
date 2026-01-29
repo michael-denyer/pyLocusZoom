@@ -786,6 +786,16 @@ fig = plotter.plot_forest(
 | `effect_label` | str | `"Effect Size"` | X-axis label. |
 | `figsize` | tuple | `(8, 6)` | Figure dimensions (width, height). |
 
+### Parameter Naming Conventions
+
+Note the difference in parameter naming between single-region and multi-region methods:
+
+- `plot()` uses `lead_pos` (singular) - for single region plots
+- `plot_stacked()` uses `lead_positions` (plural list) - one per region
+
+This naming convention distinguishes between methods that take a single value
+versus those that take a list matching the number of regions/panels.
+
 ---
 
 ## File Loaders

@@ -281,7 +281,8 @@ class LocusZoomPlotter:
             label_top_n: Number of top SNPs to label.
             show_recombination: Whether to show recombination rate overlay.
             figsize: Figure size as (width, height) in inches.
-            lead_pos: Position of lead/index SNP to highlight.
+            lead_pos: Position of lead SNP to highlight. For stacked plots with
+                multiple regions, use plot_stacked() with lead_positions (plural).
             ld_reference_file: Path to PLINK binary fileset for LD calculation.
             ld_col: Column name for pre-computed LD (R^2) values.
             genes_df: Gene annotations with chr, start, end, gene_name.
@@ -811,7 +812,8 @@ class LocusZoomPlotter:
             figsize: Figure size as (width, height) in inches.
             ld_reference_file: Single PLINK fileset (broadcast to all panels).
             ld_col: Column name for pre-computed LD (R^2) values.
-            lead_positions: List of lead SNP positions (one per panel).
+            lead_positions: List of lead SNP positions, one per region. For single
+                region plots, use plot() with lead_pos (singular).
             panel_labels: List of panel labels (one per panel).
             ld_reference_files: List of PLINK filesets (one per panel).
             genes_df: Gene annotations for bottom track.
