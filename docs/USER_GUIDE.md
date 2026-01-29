@@ -1,5 +1,7 @@
 # pyLocusZoom User Guide
 
+[![PyPI version](https://img.shields.io/pypi/v/pylocuszoom.svg)](https://pypi.org/project/pylocuszoom/)
+
 Comprehensive documentation for pyLocusZoom - regional association plots for GWAS results with LD coloring, gene tracks, and recombination rate overlays.
 
 ## Table of Contents

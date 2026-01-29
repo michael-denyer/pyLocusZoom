@@ -63,6 +63,18 @@ from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
+# Manhattan/QQ plot styling constants
+MANHATTAN_POINT_SIZE = 10
+MANHATTAN_CATEGORICAL_POINT_SIZE = 30
+QQ_POINT_SIZE = 20
+POINT_EDGE_COLOR = "black"
+MANHATTAN_EDGE_WIDTH = 0.1
+QQ_EDGE_WIDTH = 0.02
+SIGNIFICANCE_LINE_COLOR = "red"
+QQ_POINT_COLOR = "#1f77b4"
+QQ_CI_COLOR = "#CCCCCC"
+QQ_CI_ALPHA = 0.5
+
 
 class LocusZoomPlotter:
     """Regional association plot generator with LD coloring and annotations.
@@ -1545,34 +1557,10 @@ class LocusZoomPlotter:
         )
         ax = axes[0]
 
-        # Plot points by chromosome for proper coloring
+        # Plot points and significance line
         chrom_order = prepared_df.attrs["chrom_order"]
-        for chrom in chrom_order:
-            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
-            if len(chrom_data) > 0:
-                self._backend.scatter(
-                    ax,
-                    chrom_data["_cumulative_pos"],
-                    chrom_data["_neg_log_p"],
-                    colors=chrom_data["_color"].iloc[0],
-                    sizes=15,
-                    marker="o",
-                    edgecolor="black",
-                    linewidth=0.2,
-                    zorder=2,
-                )
-
-        # Add significance line
-        if significance_threshold is not None:
-            threshold_line = -np.log10(significance_threshold)
-            self._backend.axhline(
-                ax,
-                y=threshold_line,
-                color="red",
-                linestyle="--",
-                linewidth=1,
-                zorder=1,
-            )
+        self._render_manhattan_points(ax, prepared_df, chrom_order)
+        self._add_significance_line(ax, significance_threshold)
 
         # Set x-axis ticks to chromosome centers
         chrom_centers = prepared_df.attrs["chrom_centers"]
@@ -1599,6 +1587,113 @@ class LocusZoomPlotter:
         self._backend.finalize_layout(fig)
 
         return fig
+
+    def _render_manhattan_points(
+        self,
+        ax: Any,
+        prepared_df: pd.DataFrame,
+        chrom_order: List[str],
+        point_size: int = MANHATTAN_POINT_SIZE,
+    ) -> None:
+        """Render Manhattan plot scatter points grouped by chromosome.
+
+        Args:
+            ax: Axes object from backend.
+            prepared_df: DataFrame with _chrom_str, _cumulative_pos, _neg_log_p, _color.
+            chrom_order: List of chromosome names in display order.
+            point_size: Size of scatter points.
+        """
+        for chrom in chrom_order:
+            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
+            if len(chrom_data) > 0:
+                self._backend.scatter(
+                    ax,
+                    chrom_data["_cumulative_pos"],
+                    chrom_data["_neg_log_p"],
+                    colors=chrom_data["_color"].iloc[0],
+                    sizes=point_size,
+                    marker="o",
+                    edgecolor=POINT_EDGE_COLOR,
+                    linewidth=MANHATTAN_EDGE_WIDTH,
+                    zorder=2,
+                )
+
+    def _add_significance_line(
+        self,
+        ax: Any,
+        threshold: Optional[float],
+    ) -> None:
+        """Add genome-wide significance threshold line.
+
+        Args:
+            ax: Axes object from backend.
+            threshold: P-value threshold (e.g., 5e-8). None to skip.
+        """
+        if threshold is None:
+            return
+        threshold_line = -np.log10(threshold)
+        self._backend.axhline(
+            ax,
+            y=threshold_line,
+            color=SIGNIFICANCE_LINE_COLOR,
+            linestyle="--",
+            linewidth=1,
+            zorder=1,
+        )
+
+    def _render_qq_plot(
+        self,
+        ax: Any,
+        qq_df: pd.DataFrame,
+        show_confidence_band: bool = True,
+    ) -> None:
+        """Render QQ plot elements on axes.
+
+        Args:
+            ax: Axes object from backend.
+            qq_df: Prepared QQ DataFrame with _expected, _observed, _ci_lower, _ci_upper.
+            show_confidence_band: Whether to show 95% confidence band.
+        """
+        if show_confidence_band:
+            self._backend.fill_between(
+                ax,
+                x=qq_df["_expected"],
+                y1=qq_df["_ci_lower"],
+                y2=qq_df["_ci_upper"],
+                color=QQ_CI_COLOR,
+                alpha=QQ_CI_ALPHA,
+                zorder=1,
+            )
+
+        max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
+
+        # Diagonal reference line
+        self._backend.line(
+            ax,
+            x=pd.Series([0, max_val]),
+            y=pd.Series([0, max_val]),
+            color=SIGNIFICANCE_LINE_COLOR,
+            linestyle="--",
+            linewidth=1,
+            zorder=2,
+        )
+
+        # QQ points
+        self._backend.scatter(
+            ax,
+            qq_df["_expected"],
+            qq_df["_observed"],
+            colors=QQ_POINT_COLOR,
+            sizes=QQ_POINT_SIZE,
+            marker="o",
+            edgecolor=POINT_EDGE_COLOR,
+            linewidth=QQ_EDGE_WIDTH,
+            zorder=3,
+        )
+
+        # Set limits
+        self._backend.set_xlim(ax, 0, max_val * 1.05)
+        self._backend.set_ylim(ax, 0, max_val * 1.05)
 
     def _plot_manhattan_categorical(
         self,
@@ -1640,24 +1735,14 @@ class LocusZoomPlotter:
                     cat_data["_x_pos"],
                     cat_data["_neg_log_p"],
                     colors=cat_data["_color"].iloc[0],
-                    sizes=30,
+                    sizes=MANHATTAN_CATEGORICAL_POINT_SIZE,
                     marker="o",
-                    edgecolor="black",
-                    linewidth=0.2,
+                    edgecolor=POINT_EDGE_COLOR,
+                    linewidth=MANHATTAN_EDGE_WIDTH,
                     zorder=2,
                 )
 
-        # Add significance line
-        if significance_threshold is not None:
-            threshold_line = -np.log10(significance_threshold)
-            self._backend.axhline(
-                ax,
-                y=threshold_line,
-                color="red",
-                linestyle="--",
-                linewidth=1,
-                zorder=1,
-            )
+        self._add_significance_line(ax, significance_threshold)
 
         # Set x-axis ticks
         cat_centers = prepared_df.attrs["category_centers"]
@@ -1720,49 +1805,8 @@ class LocusZoomPlotter:
         )
         ax = axes[0]
 
-        # Plot confidence band first (behind points)
-        if show_confidence_band:
-            self._backend.fill_between(
-                ax,
-                x=prepared_df["_expected"],
-                y1=prepared_df["_ci_lower"],
-                y2=prepared_df["_ci_upper"],
-                color="#CCCCCC",
-                alpha=0.5,
-                zorder=1,
-            )
-
-        # Plot y=x diagonal
-        max_val = max(
-            prepared_df["_expected"].max(),
-            prepared_df["_observed"].max(),
-        )
-        self._backend.line(
-            ax,
-            x=pd.Series([0, max_val]),
-            y=pd.Series([0, max_val]),
-            color="red",
-            linestyle="--",
-            linewidth=1,
-            zorder=2,
-        )
-
-        # Plot points
-        self._backend.scatter(
-            ax,
-            prepared_df["_expected"],
-            prepared_df["_observed"],
-            colors="#1f77b4",
-            sizes=20,
-            marker="o",
-            edgecolor="black",
-            linewidth=0.02,
-            zorder=3,
-        )
-
-        # Set limits
-        self._backend.set_xlim(ax, 0, max_val * 1.05)
-        self._backend.set_ylim(ax, 0, max_val * 1.05)
+        # Render QQ plot elements
+        self._render_qq_plot(ax, prepared_df, show_confidence_band)
 
         # Labels
         self._backend.set_xlabel(ax, r"Expected $-\log_{10}(p)$", fontsize=12)
@@ -1869,33 +1913,9 @@ class LocusZoomPlotter:
         for i, prepared_df in enumerate(prepared_dfs):
             ax = axes[i]
 
-            # Plot points by chromosome
-            for chrom in chrom_order:
-                chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
-                if len(chrom_data) > 0:
-                    self._backend.scatter(
-                        ax,
-                        chrom_data["_cumulative_pos"],
-                        chrom_data["_neg_log_p"],
-                        colors=chrom_data["_color"].iloc[0],
-                        sizes=15,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.3,
-                        zorder=2,
-                    )
-
-            # Add significance line
-            if significance_threshold is not None:
-                threshold_line = -np.log10(significance_threshold)
-                self._backend.axhline(
-                    ax,
-                    y=threshold_line,
-                    color="red",
-                    linestyle="--",
-                    linewidth=1,
-                    zorder=1,
-                )
+            # Plot points and significance line
+            self._render_manhattan_points(ax, prepared_df, chrom_order)
+            self._add_significance_line(ax, significance_threshold)
 
             # Set limits
             self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
@@ -1994,31 +2014,8 @@ class LocusZoomPlotter:
         chrom_order = manhattan_df.attrs["chrom_order"]
         chrom_centers = manhattan_df.attrs["chrom_centers"]
 
-        for chrom in chrom_order:
-            chrom_data = manhattan_df[manhattan_df["_chrom_str"] == chrom]
-            if len(chrom_data) > 0:
-                self._backend.scatter(
-                    manhattan_ax,
-                    chrom_data["_cumulative_pos"],
-                    chrom_data["_neg_log_p"],
-                    colors=chrom_data["_color"].iloc[0],
-                    sizes=15,
-                    marker="o",
-                    edgecolor="black",
-                    linewidth=0.2,
-                    zorder=2,
-                )
-
-        if significance_threshold is not None:
-            threshold_line = -np.log10(significance_threshold)
-            self._backend.axhline(
-                manhattan_ax,
-                y=threshold_line,
-                color="red",
-                linestyle="--",
-                linewidth=1,
-                zorder=1,
-            )
+        self._render_manhattan_points(manhattan_ax, manhattan_df, chrom_order)
+        self._add_significance_line(manhattan_ax, significance_threshold)
 
         x_min = manhattan_df["_cumulative_pos"].min()
         x_max = manhattan_df["_cumulative_pos"].max()
@@ -2040,42 +2037,7 @@ class LocusZoomPlotter:
         self._backend.hide_spines(manhattan_ax, ["top", "right"])
 
         # --- QQ plot ---
-        if show_confidence_band:
-            self._backend.fill_between(
-                qq_ax,
-                x=qq_df["_expected"],
-                y1=qq_df["_ci_lower"],
-                y2=qq_df["_ci_upper"],
-                color="#CCCCCC",
-                alpha=0.5,
-                zorder=1,
-            )
-
-        max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
-        self._backend.line(
-            qq_ax,
-            x=pd.Series([0, max_val]),
-            y=pd.Series([0, max_val]),
-            color="red",
-            linestyle="--",
-            linewidth=1,
-            zorder=2,
-        )
-
-        self._backend.scatter(
-            qq_ax,
-            qq_df["_expected"],
-            qq_df["_observed"],
-            colors="#1f77b4",
-            sizes=20,
-            marker="o",
-            edgecolor="black",
-            linewidth=0.02,
-            zorder=3,
-        )
-
-        self._backend.set_xlim(qq_ax, 0, max_val * 1.05)
-        self._backend.set_ylim(qq_ax, 0, max_val * 1.05)
+        self._render_qq_plot(qq_ax, qq_df, show_confidence_band)
 
         self._backend.set_xlabel(qq_ax, r"Expected $-\log_{10}(p)$", fontsize=12)
         self._backend.set_ylabel(qq_ax, r"Observed $-\log_{10}(p)$", fontsize=12)
@@ -2088,12 +2050,12 @@ class LocusZoomPlotter:
         self._backend.set_title(qq_ax, qq_title, fontsize=12)
         self._backend.hide_spines(qq_ax, ["top", "right"])
 
-        # Overall title
+        # Overall title - adjust top margin to leave room for suptitle
         if title:
-            # Add suptitle for the whole figure
             self._backend.set_suptitle(fig, title, fontsize=14)
-
-        self._backend.finalize_layout(fig)
+            self._backend.finalize_layout(fig, top=0.90)
+        else:
+            self._backend.finalize_layout(fig)
 
         return fig
 
@@ -2184,31 +2146,8 @@ class LocusZoomPlotter:
             qq_df = qq_dfs[i]
 
             # --- Manhattan plot ---
-            for chrom in chrom_order:
-                chrom_data = manhattan_df[manhattan_df["_chrom_str"] == chrom]
-                if len(chrom_data) > 0:
-                    self._backend.scatter(
-                        manhattan_ax,
-                        chrom_data["_cumulative_pos"],
-                        chrom_data["_neg_log_p"],
-                        colors=chrom_data["_color"].iloc[0],
-                        sizes=15,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.3,
-                        zorder=2,
-                    )
-
-            if significance_threshold is not None:
-                threshold_line = -np.log10(significance_threshold)
-                self._backend.axhline(
-                    manhattan_ax,
-                    y=threshold_line,
-                    color="red",
-                    linestyle="--",
-                    linewidth=1,
-                    zorder=1,
-                )
+            self._render_manhattan_points(manhattan_ax, manhattan_df, chrom_order)
+            self._add_significance_line(manhattan_ax, significance_threshold)
 
             self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
             y_max = manhattan_df["_neg_log_p"].max()
@@ -2234,42 +2173,7 @@ class LocusZoomPlotter:
                 self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=10)
 
             # --- QQ plot ---
-            if show_confidence_band:
-                self._backend.fill_between(
-                    qq_ax,
-                    x=qq_df["_expected"],
-                    y1=qq_df["_ci_lower"],
-                    y2=qq_df["_ci_upper"],
-                    color="#CCCCCC",
-                    alpha=0.5,
-                    zorder=1,
-                )
-
-            max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
-            self._backend.line(
-                qq_ax,
-                x=pd.Series([0, max_val]),
-                y=pd.Series([0, max_val]),
-                color="red",
-                linestyle="--",
-                linewidth=1,
-                zorder=2,
-            )
-
-            self._backend.scatter(
-                qq_ax,
-                qq_df["_expected"],
-                qq_df["_observed"],
-                colors="#1f77b4",
-                sizes=20,
-                marker="o",
-                edgecolor="black",
-                linewidth=0.02,
-                zorder=3,
-            )
-
-            self._backend.set_xlim(qq_ax, 0, max_val * 1.05)
-            self._backend.set_ylim(qq_ax, 0, max_val * 1.05)
+            self._render_qq_plot(qq_ax, qq_df, show_confidence_band)
 
             # Labels for QQ
             if i == n_gwas - 1:
@@ -2287,10 +2191,11 @@ class LocusZoomPlotter:
             self._backend.set_title(qq_ax, qq_title, fontsize=10)
             self._backend.hide_spines(qq_ax, ["top", "right"])
 
-        # Overall title
+        # Overall title - adjust top margin to leave room for suptitle
         if title:
             self._backend.set_suptitle(fig, title, fontsize=14)
-
-        self._backend.finalize_layout(fig, hspace=0.15)
+            self._backend.finalize_layout(fig, top=0.90, hspace=0.15)
+        else:
+            self._backend.finalize_layout(fig, hspace=0.15)
 
         return fig
