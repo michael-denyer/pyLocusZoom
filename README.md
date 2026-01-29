@@ -368,6 +368,57 @@ fig.savefig("qq_plot.png", dpi=150)
 ![Example QQ plot](examples/qq_plot.png)
 *QQ plot with 95% confidence band and genomic inflation factor (λ).*
 
+## Stacked Manhattan Plots
+
+Compare multiple GWAS results in vertically stacked Manhattan plots:
+
+```python
+from pylocuszoom import LocusZoomPlotter
+
+plotter = LocusZoomPlotter()
+
+fig = plotter.plot_manhattan_stacked(
+    [gwas_study1, gwas_study2, gwas_study3],
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    panel_labels=["Study 1", "Study 2", "Study 3"],
+    significance_threshold=5e-8,
+    figsize=(12, 8),
+    title="Multi-study GWAS Comparison",
+)
+fig.savefig("manhattan_stacked.png", dpi=150)
+```
+
+![Example stacked Manhattan plot](examples/manhattan_stacked.png)
+*Stacked Manhattan plots comparing three GWAS studies with shared chromosome axis.*
+
+## Manhattan and QQ Side-by-Side
+
+Create combined Manhattan and QQ plots in a single figure:
+
+```python
+from pylocuszoom import LocusZoomPlotter
+
+plotter = LocusZoomPlotter()
+
+fig = plotter.plot_manhattan_qq(
+    gwas_df,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(14, 5),
+    title="GWAS Results",
+)
+fig.savefig("manhattan_qq.png", dpi=150)
+```
+
+![Example Manhattan and QQ side-by-side](examples/manhattan_qq_sidebyside.png)
+*Combined Manhattan and QQ plot showing genome-wide associations and p-value distribution.*
+
 ## PySpark Support
 
 For large-scale genomics data, convert PySpark DataFrames with `to_pandas()` before plotting:

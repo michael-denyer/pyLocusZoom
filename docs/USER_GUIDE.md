@@ -13,6 +13,10 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [Fine-mapping Visualization](#fine-mapping-visualization)
   - [PheWAS Plots](#phewas-plots)
   - [Forest Plots](#forest-plots)
+  - [Manhattan Plots](#manhattan-plots)
+  - [QQ Plots](#qq-plots)
+  - [Stacked Manhattan Plots](#stacked-manhattan-plots)
+  - [Manhattan and QQ Side-by-Side](#manhattan-and-qq-side-by-side)
 - [Backends](#backends)
   - [Matplotlib (Static)](#matplotlib-static)
   - [Plotly (Interactive)](#plotly-interactive)
@@ -21,6 +25,10 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [LocusZoomPlotter](#locuszoomplotter)
   - [plot() Method](#plot-method)
   - [plot_stacked() Method](#plot_stacked-method)
+  - [plot_manhattan() Method](#plot_manhattan-method)
+  - [plot_qq() Method](#plot_qq-method)
+  - [plot_manhattan_stacked() Method](#plot_manhattan_stacked-method)
+  - [plot_manhattan_qq() Method](#plot_manhattan_qq-method)
   - [plot_phewas() Method](#plot_phewas-method)
   - [plot_forest() Method](#plot_forest-method)
 - [File Loaders](#file-loaders)
@@ -270,6 +278,107 @@ fig = plotter.plot_forest(
 - Null effect reference line
 - Study names as y-axis labels
 
+### Manhattan Plots
+
+Genome-wide Manhattan plots showing associations across all chromosomes.
+
+![Manhattan plot](../examples/manhattan_plot.png)
+
+```python
+fig = plotter.plot_manhattan(
+    gwas_df,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    significance_threshold=5e-8,
+    figsize=(12, 5),
+)
+fig.savefig("manhattan.png", dpi=150)
+```
+
+**Features:**
+- Chromosomes colored alternately for distinction
+- Genome-wide significance threshold line (red dashed)
+- Automatic cumulative position calculation
+- Chromosome labels on x-axis
+
+### QQ Plots
+
+Quantile-quantile plots for assessing p-value distribution and detecting systematic bias.
+
+![QQ plot](../examples/qq_plot.png)
+
+```python
+fig = plotter.plot_qq(
+    gwas_df,
+    p_col="p",
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(6, 6),
+)
+fig.savefig("qq_plot.png", dpi=150)
+```
+
+**Features:**
+- Expected vs observed -log10(p) values
+- 95% confidence band (beta distribution)
+- Genomic inflation factor (λ) in title
+- Identity line for reference
+
+### Stacked Manhattan Plots
+
+Compare multiple GWAS studies in vertically stacked Manhattan plots with shared chromosome axis.
+
+![Stacked Manhattan plot](../examples/manhattan_stacked.png)
+
+```python
+fig = plotter.plot_manhattan_stacked(
+    [gwas_study1, gwas_study2, gwas_study3],
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    panel_labels=["Study 1", "Study 2", "Study 3"],
+    significance_threshold=5e-8,
+    figsize=(12, 8),
+    title="Multi-study GWAS Comparison",
+)
+fig.savefig("manhattan_stacked.png", dpi=150)
+```
+
+**Features:**
+- Vertically stacked panels with aligned x-axes
+- Shared chromosome coloring across panels
+- Independent y-axes per panel
+- Panel labels for study identification
+- Optional overall figure title
+
+### Manhattan and QQ Side-by-Side
+
+Combined Manhattan and QQ plots in a single figure for comprehensive GWAS summary.
+
+![Manhattan and QQ side-by-side](../examples/manhattan_qq_sidebyside.png)
+
+```python
+fig = plotter.plot_manhattan_qq(
+    gwas_df,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(14, 5),
+    title="GWAS Results",
+)
+fig.savefig("manhattan_qq.png", dpi=150)
+```
+
+**Features:**
+- Manhattan plot on left (wider), QQ plot on right
+- Shared significance threshold line on Manhattan
+- Confidence band and λ on QQ plot
+- Optional overall figure title
+
 ---
 
 ## Backends
@@ -469,6 +578,116 @@ fig = plotter.plot_stacked(
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
 | `recomb_df` | DataFrame | None | Custom recombination data. |
+
+### plot_manhattan() Method
+
+Create a genome-wide Manhattan plot showing associations across all chromosomes.
+
+```python
+fig = plotter.plot_manhattan(
+    gwas_df,                        # Required: GWAS results
+    chrom_col="chrom",              # Chromosome column
+    pos_col="pos",                  # Position column
+    p_col="p",                      # P-value column
+    custom_chrom_order=None,        # Custom chromosome order
+    significance_threshold=5e-8,    # Genome-wide significance line
+    figsize=(12, 5),                # Figure dimensions
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gwas_df` | DataFrame | Required | GWAS results with chromosome, position, and p-value columns. |
+| `chrom_col` | str | `"chrom"` | Chromosome column name. |
+| `pos_col` | str | `"pos"` | Position column name. |
+| `p_col` | str | `"p"` | P-value column name. |
+| `custom_chrom_order` | list | None | Custom order for chromosomes (e.g., `["1", "2", ..., "X"]`). |
+| `significance_threshold` | float | `5e-8` | P-value threshold for significance line. |
+| `figsize` | tuple | `(12, 5)` | Figure dimensions (width, height). |
+
+### plot_qq() Method
+
+Create a quantile-quantile (QQ) plot to assess p-value distribution.
+
+```python
+fig = plotter.plot_qq(
+    gwas_df,                        # Required: GWAS results
+    p_col="p",                      # P-value column
+    show_confidence_band=True,      # 95% confidence band
+    show_lambda=True,               # Genomic inflation factor
+    figsize=(6, 6),                 # Figure dimensions
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gwas_df` | DataFrame | Required | GWAS results with p-value column. |
+| `p_col` | str | `"p"` | P-value column name. |
+| `show_confidence_band` | bool | `True` | Whether to show 95% confidence band. |
+| `show_lambda` | bool | `True` | Whether to show genomic inflation factor (λ) in title. |
+| `figsize` | tuple | `(6, 6)` | Figure dimensions (width, height). |
+
+### plot_manhattan_stacked() Method
+
+Create stacked Manhattan plots for comparing multiple GWAS studies.
+
+```python
+fig = plotter.plot_manhattan_stacked(
+    gwas_dfs,                       # Required: list of GWAS DataFrames
+    chrom_col="chrom",              # Chromosome column
+    pos_col="pos",                  # Position column
+    p_col="p",                      # P-value column
+    custom_chrom_order=None,        # Custom chromosome order
+    significance_threshold=5e-8,    # Genome-wide significance line
+    panel_labels=None,              # Labels for each panel
+    figsize=(12, 8),                # Figure dimensions
+    title=None,                     # Overall figure title
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gwas_dfs` | list | Required | List of GWAS DataFrames. |
+| `chrom_col` | str | `"chrom"` | Chromosome column name. |
+| `pos_col` | str | `"pos"` | Position column name. |
+| `p_col` | str | `"p"` | P-value column name. |
+| `custom_chrom_order` | list | None | Custom order for chromosomes. |
+| `significance_threshold` | float | `5e-8` | P-value threshold for significance line. |
+| `panel_labels` | list | None | Labels for each panel (defaults to "Study 1", "Study 2", etc.). |
+| `figsize` | tuple | `(12, 8)` | Figure dimensions (width, height). |
+| `title` | str | None | Overall figure title (suptitle). |
+
+### plot_manhattan_qq() Method
+
+Create a combined Manhattan and QQ plot side-by-side in a single figure.
+
+```python
+fig = plotter.plot_manhattan_qq(
+    gwas_df,                        # Required: GWAS results
+    chrom_col="chrom",              # Chromosome column
+    pos_col="pos",                  # Position column
+    p_col="p",                      # P-value column
+    custom_chrom_order=None,        # Custom chromosome order
+    significance_threshold=5e-8,    # Genome-wide significance line
+    show_confidence_band=True,      # 95% confidence band on QQ
+    show_lambda=True,               # Genomic inflation factor on QQ
+    figsize=(14, 5),                # Figure dimensions
+    title=None,                     # Overall figure title
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gwas_df` | DataFrame | Required | GWAS results with chromosome, position, and p-value columns. |
+| `chrom_col` | str | `"chrom"` | Chromosome column name. |
+| `pos_col` | str | `"pos"` | Position column name. |
+| `p_col` | str | `"p"` | P-value column name. |
+| `custom_chrom_order` | list | None | Custom order for chromosomes. |
+| `significance_threshold` | float | `5e-8` | P-value threshold for significance line. |
+| `show_confidence_band` | bool | `True` | Whether to show 95% confidence band on QQ plot. |
+| `show_lambda` | bool | `True` | Whether to show genomic inflation factor (λ) on QQ plot. |
+| `figsize` | tuple | `(14, 5)` | Figure dimensions (width, height). |
+| `title` | str | None | Overall figure title (suptitle). |
 
 ### plot_phewas() Method
 

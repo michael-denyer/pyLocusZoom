@@ -955,5 +955,120 @@ fig = qq_plotter_bokeh.plot_qq(
 save(fig, filename="examples/qq_bokeh.html", resources=CDN, title="QQ Plot")
 print("   Saved: examples/qq_bokeh.html")
 
+# Stacked Manhattan plot - multiple GWAS comparison
+print("24. Stacked Manhattan plot...")
+# Create 3 different GWAS datasets with different signal patterns
+np.random.seed(123)
+stacked_gwas_dfs = []
+panel_names = ["Discovery Cohort", "Replication Cohort", "Meta-analysis"]
+
+for i, name in enumerate(panel_names):
+    gwas_data = []
+    for chrom in range(1, 23):
+        n_variants = np.random.randint(200, 400)
+        chrom_positions = np.sort(np.random.randint(1e6, 2e8, n_variants))
+        chrom_pvalues = np.random.uniform(0, 1, n_variants)
+        # Add hits at different locations per cohort
+        if chrom == 6:
+            n_hits = np.random.randint(3, 8)
+            hit_indices = np.random.choice(n_variants, n_hits, replace=False)
+            chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-15, -8, n_hits)
+        if chrom == 11 and i >= 1:  # Replicated signal
+            n_hits = np.random.randint(2, 5)
+            hit_indices = np.random.choice(n_variants, n_hits, replace=False)
+            chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-12, -8, n_hits)
+        if chrom == 17 and i == 2:  # Meta-analysis only signal
+            n_hits = np.random.randint(2, 4)
+            hit_indices = np.random.choice(n_variants, n_hits, replace=False)
+            chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-10, -8, n_hits)
+        for j in range(n_variants):
+            gwas_data.append(
+                {"chrom": str(chrom), "pos": chrom_positions[j], "p": chrom_pvalues[j]}
+            )
+    stacked_gwas_dfs.append(pd.DataFrame(gwas_data))
+
+fig = manhattan_plotter.plot_manhattan_stacked(
+    stacked_gwas_dfs,
+    panel_labels=panel_names,
+    significance_threshold=5e-8,
+    figsize=(14, 9),
+    title="Multi-cohort GWAS Comparison",
+)
+fig.savefig("examples/manhattan_stacked.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/manhattan_stacked.png")
+
+# Interactive Plotly stacked Manhattan plot
+print("25. Interactive Plotly stacked Manhattan plot...")
+fig = manhattan_plotter_plotly.plot_manhattan_stacked(
+    stacked_gwas_dfs,
+    panel_labels=panel_names,
+    significance_threshold=5e-8,
+    figsize=(14, 9),
+    title="Multi-cohort GWAS Comparison",
+)
+fig.write_html("examples/manhattan_stacked_plotly.html")
+print("   Saved: examples/manhattan_stacked_plotly.html")
+
+# Interactive Bokeh stacked Manhattan plot
+print("26. Interactive Bokeh stacked Manhattan plot...")
+fig = manhattan_plotter_bokeh.plot_manhattan_stacked(
+    stacked_gwas_dfs,
+    panel_labels=panel_names,
+    significance_threshold=5e-8,
+    figsize=(14, 9),
+    title="Multi-cohort GWAS Comparison",
+)
+save(
+    fig,
+    filename="examples/manhattan_stacked_bokeh.html",
+    resources=CDN,
+    title="Stacked Manhattan Plot",
+)
+print("   Saved: examples/manhattan_stacked_bokeh.html")
+
+# Side-by-side Manhattan + QQ plot
+print("27. Side-by-side Manhattan + QQ plot...")
+fig = manhattan_plotter.plot_manhattan_qq(
+    manhattan_df,
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(16, 5),
+    title="GWAS Summary",
+)
+fig.savefig("examples/manhattan_qq_sidebyside.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/manhattan_qq_sidebyside.png")
+
+# Interactive Plotly side-by-side Manhattan + QQ plot
+print("28. Interactive Plotly side-by-side Manhattan + QQ plot...")
+fig = manhattan_plotter_plotly.plot_manhattan_qq(
+    manhattan_df,
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(16, 5),
+    title="GWAS Summary",
+)
+fig.write_html("examples/manhattan_qq_plotly.html")
+print("   Saved: examples/manhattan_qq_plotly.html")
+
+# Interactive Bokeh side-by-side Manhattan + QQ plot
+print("29. Interactive Bokeh side-by-side Manhattan + QQ plot...")
+fig = manhattan_plotter_bokeh.plot_manhattan_qq(
+    manhattan_df,
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(16, 5),
+    title="GWAS Summary",
+)
+save(
+    fig,
+    filename="examples/manhattan_qq_bokeh.html",
+    resources=CDN,
+    title="Manhattan + QQ Plot",
+)
+print("   Saved: examples/manhattan_qq_bokeh.html")
+
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")

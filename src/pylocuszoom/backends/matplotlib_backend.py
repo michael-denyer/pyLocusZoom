@@ -82,6 +82,48 @@ class MatplotlibBackend:
 
         return fig, list(axes)
 
+    def create_figure_grid(
+        self,
+        n_rows: int,
+        n_cols: int,
+        width_ratios: Optional[List[float]] = None,
+        height_ratios: Optional[List[float]] = None,
+        figsize: Tuple[float, float] = (12.0, 8.0),
+    ) -> Tuple[Figure, List[Axes]]:
+        """Create a figure with a grid of subplots.
+
+        Args:
+            n_rows: Number of rows.
+            n_cols: Number of columns.
+            width_ratios: Relative widths for columns.
+            height_ratios: Relative heights for rows.
+            figsize: Figure size as (width, height).
+
+        Returns:
+            Tuple of (figure, flattened list of axes).
+        """
+        plt.ioff()
+
+        gridspec_kw = {}
+        if width_ratios is not None:
+            gridspec_kw["width_ratios"] = width_ratios
+        if height_ratios is not None:
+            gridspec_kw["height_ratios"] = height_ratios
+
+        fig, axes = plt.subplots(
+            n_rows,
+            n_cols,
+            figsize=figsize,
+            gridspec_kw=gridspec_kw if gridspec_kw else None,
+        )
+
+        # Flatten axes to list
+        import numpy as np
+
+        if isinstance(axes, np.ndarray):
+            return fig, list(axes.flatten())
+        return fig, [axes]
+
     def scatter(
         self,
         ax: Axes,
@@ -341,6 +383,10 @@ class MatplotlibBackend:
             fontweight="bold",
             fontfamily="sans-serif",
         )
+
+    def set_suptitle(self, fig: Figure, title: str, fontsize: int = 14) -> None:
+        """Set overall figure title (super title)."""
+        fig.suptitle(title, fontsize=fontsize, fontweight="bold")
 
     def create_twin_axis(self, ax: Axes) -> Axes:
         """Create a secondary y-axis sharing the same x-axis."""

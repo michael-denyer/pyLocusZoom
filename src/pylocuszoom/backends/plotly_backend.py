@@ -113,6 +113,92 @@ class PlotlyBackend:
         panel_refs = [(fig, row) for row in range(1, n_panels + 1)]
         return fig, panel_refs
 
+    def create_figure_grid(
+        self,
+        n_rows: int,
+        n_cols: int,
+        width_ratios: Optional[List[float]] = None,
+        height_ratios: Optional[List[float]] = None,
+        figsize: Tuple[float, float] = (12.0, 8.0),
+    ) -> Tuple[go.Figure, List[Any]]:
+        """Create a figure with a grid of subplots.
+
+        Args:
+            n_rows: Number of rows.
+            n_cols: Number of columns.
+            width_ratios: Relative widths for columns.
+            height_ratios: Relative heights for rows.
+            figsize: Figure size as (width, height).
+
+        Returns:
+            Tuple of (figure, flattened list of (fig, row, col) tuples).
+        """
+        width_px = int(figsize[0] * 100)
+        height_px = int(figsize[1] * 100)
+
+        # Normalize ratios
+        if width_ratios is not None:
+            total = sum(width_ratios)
+            column_widths = [w / total for w in width_ratios]
+        else:
+            column_widths = None
+
+        if height_ratios is not None:
+            total = sum(height_ratios)
+            row_heights_norm = [h / total for h in height_ratios]
+        else:
+            row_heights_norm = None
+
+        fig = make_subplots(
+            rows=n_rows,
+            cols=n_cols,
+            column_widths=column_widths,
+            row_heights=row_heights_norm,
+            horizontal_spacing=0.08,
+            vertical_spacing=0.08,
+        )
+
+        fig.update_layout(
+            width=width_px,
+            height=height_px,
+            showlegend=True,
+            template="plotly_white",
+        )
+
+        # Style all panels
+        axis_style = dict(
+            showgrid=False,
+            showline=True,
+            linecolor="black",
+            ticks="outside",
+            zeroline=False,
+        )
+        for row in range(1, n_rows + 1):
+            for col in range(1, n_cols + 1):
+                subplot_idx = (row - 1) * n_cols + col
+                xaxis = f"xaxis{subplot_idx}" if subplot_idx > 1 else "xaxis"
+                yaxis = f"yaxis{subplot_idx}" if subplot_idx > 1 else "yaxis"
+                fig.update_layout(**{xaxis: axis_style, yaxis: axis_style})
+
+        # Return flattened list of (fig, row, col) tuples
+        panel_refs = []
+        for row in range(1, n_rows + 1):
+            for col in range(1, n_cols + 1):
+                panel_refs.append((fig, row, col))
+        return fig, panel_refs
+
+    def _extract_row_col(self, ax: Any) -> Tuple[go.Figure, int, int]:
+        """Extract figure, row, and col from ax tuple.
+
+        Handles both (fig, row) for create_figure and (fig, row, col) for create_figure_grid.
+        """
+        if len(ax) == 2:
+            fig, row = ax
+            col = 1
+        else:
+            fig, row, col = ax
+        return fig, row, col
+
     def scatter(
         self,
         ax: Tuple[go.Figure, int],
@@ -129,9 +215,9 @@ class PlotlyBackend:
     ) -> Any:
         """Create a scatter plot on the given panel.
 
-        For plotly, ax is a tuple of (figure, row_number).
+        For plotly, ax is a tuple of (figure, row_number) or (figure, row, col).
         """
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         # Convert matplotlib marker to plotly symbol
         symbol = _MARKER_SYMBOLS.get(marker, "circle")
@@ -147,16 +233,16 @@ class PlotlyBackend:
             customdata = hover_data.values
             hover_cols = hover_data.columns.tolist()
             hovertemplate = "<b>%{customdata[0]}</b><br>"
-            for i, col in enumerate(hover_cols[1:], 1):
-                col_lower = col.lower()
+            for i, col_name in enumerate(hover_cols[1:], 1):
+                col_lower = col_name.lower()
                 if col_lower in ("p-value", "pval", "p_value"):
-                    hovertemplate += f"{col}: %{{customdata[{i}]:.2e}}<br>"
+                    hovertemplate += f"{col_name}: %{{customdata[{i}]:.2e}}<br>"
                 elif any(x in col_lower for x in ("r2", "r²", "ld")):
-                    hovertemplate += f"{col}: %{{customdata[{i}]:.3f}}<br>"
+                    hovertemplate += f"{col_name}: %{{customdata[{i}]:.3f}}<br>"
                 elif "pos" in col_lower:
-                    hovertemplate += f"{col}: %{{customdata[{i}]:,.0f}}<br>"
+                    hovertemplate += f"{col_name}: %{{customdata[{i}]:,.0f}}<br>"
                 else:
-                    hovertemplate += f"{col}: %{{customdata[{i}]}}<br>"
+                    hovertemplate += f"{col_name}: %{{customdata[{i}]}}<br>"
             hovertemplate += "<extra></extra>"
         else:
             customdata = None
@@ -184,7 +270,7 @@ class PlotlyBackend:
             showlegend=label is not None,
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        fig.add_trace(trace, row=row, col=col)
         return trace
 
     def line(
@@ -200,7 +286,7 @@ class PlotlyBackend:
         label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         dash = _DASH_MAP.get(linestyle, "solid")
 
         trace = go.Scatter(
@@ -213,7 +299,7 @@ class PlotlyBackend:
             showlegend=label is not None,
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        fig.add_trace(trace, row=row, col=col)
         return trace
 
     def fill_between(
@@ -227,7 +313,7 @@ class PlotlyBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         # Convert y1 to series if scalar
         if isinstance(y1, (int, float)):
@@ -244,7 +330,7 @@ class PlotlyBackend:
             hoverinfo="skip",
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        fig.add_trace(trace, row=row, col=col)
         return trace
 
     def axhline(
@@ -258,7 +344,7 @@ class PlotlyBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         dash = _DASH_MAP.get(linestyle, "dash")
 
         fig.add_hline(
@@ -284,7 +370,7 @@ class PlotlyBackend:
         color: str = "black",
     ) -> Any:
         """Add text annotation to panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         # Map alignment
         xanchor_map = {"center": "center", "left": "left", "right": "right"}
@@ -315,7 +401,7 @@ class PlotlyBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a rectangle to the panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         x0, y0 = xy
         x1, y1 = x0 + width, y0 + height
@@ -342,7 +428,7 @@ class PlotlyBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a polygon (e.g., triangle for strand arrows) to the panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         # Build SVG path from points
         path = f"M {points[0][0]} {points[0][1]}"
@@ -361,19 +447,19 @@ class PlotlyBackend:
 
     def set_xlim(self, ax: Tuple[go.Figure, int], left: float, right: float) -> None:
         """Set x-axis limits."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         fig.update_layout(**{self._axis_name("xaxis", row): dict(range=[left, right])})
 
     def set_ylim(self, ax: Tuple[go.Figure, int], bottom: float, top: float) -> None:
         """Set y-axis limits."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         fig.update_layout(**{self._axis_name("yaxis", row): dict(range=[bottom, top])})
 
     def set_xlabel(
         self, ax: Tuple[go.Figure, int], label: str, fontsize: int = 12
     ) -> None:
         """Set x-axis label."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         label = self._convert_label(label)
         fig.update_layout(
             **{
@@ -387,7 +473,7 @@ class PlotlyBackend:
         self, ax: Tuple[go.Figure, int], label: str, fontsize: int = 12
     ) -> None:
         """Set y-axis label."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         label = self._convert_label(label)
         fig.update_layout(
             **{
@@ -405,7 +491,7 @@ class PlotlyBackend:
         fontsize: int = 10,
     ) -> None:
         """Set y-axis tick positions and labels."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         fig.update_layout(
             **{
                 self._axis_name("yaxis", row): dict(
@@ -427,7 +513,7 @@ class PlotlyBackend:
         ha: str = "center",
     ) -> None:
         """Set x-axis tick positions and labels."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         fig.update_layout(
             **{
                 self._axis_name("xaxis", row): dict(
@@ -466,9 +552,20 @@ class PlotlyBackend:
         self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14
     ) -> None:
         """Set figure title (only works for first panel)."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         if row == 1:
             fig.update_layout(title=dict(text=title, font=dict(size=fontsize)))
+
+    def set_suptitle(self, fig: go.Figure, title: str, fontsize: int = 14) -> None:
+        """Set overall figure title (super title)."""
+        fig.update_layout(
+            title=dict(
+                text=title,
+                font=dict(size=fontsize),
+                x=0.5,
+                xanchor="center",
+            )
+        )
 
     def create_twin_axis(self, ax: Tuple[go.Figure, int]) -> Tuple[go.Figure, int, str]:
         """Create a secondary y-axis.
@@ -478,7 +575,7 @@ class PlotlyBackend:
         For Plotly subplots, we need unique axis names that don't conflict
         with the subplot axes. We use a high number suffix to avoid conflicts.
         """
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         # Use a unique suffix that won't conflict with subplot axis numbering
         # yaxis10, yaxis11, etc. are unlikely to conflict with typical subplot counts
@@ -520,7 +617,7 @@ class PlotlyBackend:
         yaxis_name: str = "y2",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         dash = _DASH_MAP.get(linestyle, "solid")
 
         # For secondary axes, we need to set both xaxis and yaxis explicitly
@@ -555,7 +652,7 @@ class PlotlyBackend:
         yaxis_name: str = "y2",
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         if isinstance(y1, (int, float)):
             y1 = pd.Series([y1] * len(x))
@@ -589,7 +686,7 @@ class PlotlyBackend:
         yaxis_name: str = "y2",
     ) -> None:
         """Set secondary y-axis limits."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         yaxis_key = (
             "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
         )
@@ -604,7 +701,7 @@ class PlotlyBackend:
         yaxis_name: str = "y2",
     ) -> None:
         """Set secondary y-axis label."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         label = self._convert_label(label)
         yaxis_key = (
             "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
@@ -701,7 +798,7 @@ class PlotlyBackend:
         y_frac: float = 0.95,
     ) -> None:
         """Add label text at fractional position in panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         fig.add_annotation(
             text=f"<b>{label}</b>",
             xref="x domain",
@@ -725,7 +822,7 @@ class PlotlyBackend:
         Uses Plotly's separate legend feature (legend="legend") so LD legend
         can be positioned independently from eQTL and fine-mapping legends.
         """
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         self._add_legend_item(
             fig, row, "Lead SNP", lead_snp_color, "diamond", 12, "legend"
@@ -771,7 +868,7 @@ class PlotlyBackend:
 
     def hide_yaxis(self, ax: Tuple[go.Figure, int]) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         fig.update_layout(
             **{
                 self._axis_name("yaxis", row): dict(
@@ -788,7 +885,7 @@ class PlotlyBackend:
 
         Stores the row for later tick formatting in finalize_layout.
         """
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         # Store that this axis needs Mb formatting
         if not hasattr(fig, "_mb_format_rows"):
             fig._mb_format_rows = []
@@ -831,7 +928,7 @@ class PlotlyBackend:
         Uses Plotly's separate legend feature (legend="legend2") so eQTL legend
         is positioned independently below the LD legend.
         """
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         for _, _, label, color in eqtl_positive_bins:
             self._add_legend_item(fig, row, label, color, "triangle-up", 10, "legend2")
@@ -856,7 +953,7 @@ class PlotlyBackend:
         if not credible_sets:
             return
 
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         for cs_id in credible_sets:
             self._add_legend_item(
@@ -898,7 +995,7 @@ class PlotlyBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a vertical line across the panel."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
         dash = _DASH_MAP.get(linestyle, "dash")
 
         fig.add_vline(
@@ -924,7 +1021,7 @@ class PlotlyBackend:
         zorder: int = 2,
     ) -> Any:
         """Create horizontal bar chart."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         # Convert left to array if scalar
         if isinstance(left, (int, float)):
@@ -944,7 +1041,7 @@ class PlotlyBackend:
             showlegend=False,
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        fig.add_trace(trace, row=row, col=col)
         return trace
 
     def errorbar_h(
@@ -960,7 +1057,7 @@ class PlotlyBackend:
         zorder: int = 3,
     ) -> Any:
         """Add horizontal error bars."""
-        fig, row = ax
+        fig, row, col = self._extract_row_col(ax)
 
         trace = go.Scatter(
             x=x,
@@ -979,7 +1076,7 @@ class PlotlyBackend:
             showlegend=False,
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        fig.add_trace(trace, row=row, col=col)
         return trace
 
     def finalize_layout(

@@ -279,3 +279,185 @@ class TestPlotManhattanCategorical:
         )
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
+
+
+class TestPlotManhattanStacked:
+    """Tests for stacked Manhattan plots."""
+
+    @pytest.fixture
+    def sample_gwas_dfs(self):
+        """Multiple sample GWAS DataFrames for stacked testing."""
+        np.random.seed(42)
+        dfs = []
+        for i in range(3):
+            n_variants = 50
+            dfs.append(
+                pd.DataFrame(
+                    {
+                        "chrom": np.repeat([1, 2], [25, 25]),
+                        "pos": np.concatenate(
+                            [
+                                np.sort(np.random.randint(1e6, 1e8, 25)),
+                                np.sort(np.random.randint(1e6, 1e8, 25)),
+                            ]
+                        ),
+                        "p": np.random.uniform(1e-10, 1, n_variants),
+                    }
+                )
+            )
+        return dfs
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a plotter instance."""
+        return LocusZoomPlotter(species="human")
+
+    def test_plot_manhattan_stacked_returns_figure(self, plotter, sample_gwas_dfs):
+        """plot_manhattan_stacked should return a matplotlib figure."""
+        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_manhattan_stacked_creates_multiple_panels(
+        self, plotter, sample_gwas_dfs
+    ):
+        """plot_manhattan_stacked should create one panel per DataFrame."""
+        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        axes = fig.get_axes()
+        # Should have 3 panels
+        assert len(axes) == 3
+        plt.close(fig)
+
+    def test_plot_manhattan_stacked_with_panel_labels(self, plotter, sample_gwas_dfs):
+        """plot_manhattan_stacked should show panel labels when provided."""
+        labels = ["Study A", "Study B", "Study C"]
+        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs, panel_labels=labels)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_manhattan_stacked_validates_label_count(
+        self, plotter, sample_gwas_dfs
+    ):
+        """plot_manhattan_stacked should raise if panel_labels length mismatch."""
+        with pytest.raises(ValueError, match="length"):
+            plotter.plot_manhattan_stacked(sample_gwas_dfs, panel_labels=["A", "B"])
+
+    def test_plot_manhattan_stacked_with_figsize(self, plotter, sample_gwas_dfs):
+        """plot_manhattan_stacked should accept figsize parameter."""
+        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs, figsize=(14, 10))
+        assert fig.get_size_inches()[0] == pytest.approx(14, rel=0.1)
+        plt.close(fig)
+
+    def test_plot_manhattan_stacked_single_df(self, plotter, sample_gwas_dfs):
+        """plot_manhattan_stacked should work with single DataFrame."""
+        fig = plotter.plot_manhattan_stacked([sample_gwas_dfs[0]])
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_manhattan_stacked_empty_list_raises(self, plotter):
+        """plot_manhattan_stacked should raise on empty list."""
+        with pytest.raises(ValueError, match="At least one"):
+            plotter.plot_manhattan_stacked([])
+
+    def test_plot_manhattan_stacked_plotly_backend(self, sample_gwas_dfs):
+        """plot_manhattan_stacked should work with plotly backend."""
+        pytest.importorskip("plotly")
+        import plotly.graph_objects as go
+
+        plotter = LocusZoomPlotter(species="human", backend="plotly")
+        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        assert isinstance(fig, go.Figure)
+
+    def test_plot_manhattan_stacked_bokeh_backend(self, sample_gwas_dfs):
+        """plot_manhattan_stacked should work with bokeh backend."""
+        pytest.importorskip("bokeh")
+
+        plotter = LocusZoomPlotter(species="human", backend="bokeh")
+        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        assert fig is not None
+
+
+class TestPlotManhattanQQSideBySide:
+    """Tests for side-by-side Manhattan and QQ plots."""
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS DataFrame for testing."""
+        np.random.seed(42)
+        n_variants = 100
+        return pd.DataFrame(
+            {
+                "chrom": np.repeat([1, 2, 3], [40, 30, 30]),
+                "pos": np.concatenate(
+                    [
+                        np.sort(np.random.randint(1e6, 1e8, 40)),
+                        np.sort(np.random.randint(1e6, 1e8, 30)),
+                        np.sort(np.random.randint(1e6, 1e8, 30)),
+                    ]
+                ),
+                "p": np.random.uniform(1e-10, 1, n_variants),
+            }
+        )
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a plotter instance."""
+        return LocusZoomPlotter(species="human")
+
+    def test_plot_manhattan_qq_returns_figure(self, plotter, sample_gwas_df):
+        """plot_manhattan_qq should return a matplotlib figure."""
+        fig = plotter.plot_manhattan_qq(sample_gwas_df)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_creates_two_panels(self, plotter, sample_gwas_df):
+        """plot_manhattan_qq should create two side-by-side panels."""
+        fig = plotter.plot_manhattan_qq(sample_gwas_df)
+        axes = fig.get_axes()
+        # Should have 2 panels (Manhattan + QQ)
+        assert len(axes) == 2
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_with_title(self, plotter, sample_gwas_df):
+        """plot_manhattan_qq should accept title parameter."""
+        fig = plotter.plot_manhattan_qq(sample_gwas_df, title="Combined Plot")
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_with_figsize(self, plotter, sample_gwas_df):
+        """plot_manhattan_qq should accept figsize parameter."""
+        fig = plotter.plot_manhattan_qq(sample_gwas_df, figsize=(16, 5))
+        assert fig.get_size_inches()[0] == pytest.approx(16, rel=0.1)
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_custom_columns(self, plotter):
+        """plot_manhattan_qq should work with custom column names."""
+        df = pd.DataFrame(
+            {
+                "chromosome": [1, 1, 2],
+                "position": [1e6, 2e6, 1e6],
+                "pvalue": [1e-8, 0.01, 0.5],
+            }
+        )
+        fig = plotter.plot_manhattan_qq(
+            df, chrom_col="chromosome", pos_col="position", p_col="pvalue"
+        )
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_plotly_backend(self, sample_gwas_df):
+        """plot_manhattan_qq should work with plotly backend."""
+        pytest.importorskip("plotly")
+        import plotly.graph_objects as go
+
+        plotter = LocusZoomPlotter(species="human", backend="plotly")
+        fig = plotter.plot_manhattan_qq(sample_gwas_df)
+        assert isinstance(fig, go.Figure)
+
+    def test_plot_manhattan_qq_bokeh_backend(self, sample_gwas_df):
+        """plot_manhattan_qq should work with bokeh backend."""
+        pytest.importorskip("bokeh")
+
+        plotter = LocusZoomPlotter(species="human", backend="bokeh")
+        fig = plotter.plot_manhattan_qq(sample_gwas_df)
+        assert fig is not None

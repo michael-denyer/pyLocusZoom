@@ -6,7 +6,7 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
-from bokeh.layouts import column
+from bokeh.layouts import column, row
 from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
@@ -101,6 +101,73 @@ class BokehBackend:
 
         # Create column layout (use default sizing mode to avoid validation warnings)
         layout = column(*figures)
+
+        return layout, figures
+
+    def create_figure_grid(
+        self,
+        n_rows: int,
+        n_cols: int,
+        width_ratios: Optional[List[float]] = None,
+        height_ratios: Optional[List[float]] = None,
+        figsize: Tuple[float, float] = (12.0, 8.0),
+    ) -> Tuple[Any, List[figure]]:
+        """Create a layout with a grid of subplots.
+
+        Args:
+            n_rows: Number of rows.
+            n_cols: Number of columns.
+            width_ratios: Relative widths for columns.
+            height_ratios: Relative heights for rows.
+            figsize: Figure size as (width, height).
+
+        Returns:
+            Tuple of (layout, flattened list of figure objects).
+        """
+        width_px = int(figsize[0] * 100)
+        height_px = int(figsize[1] * 100)
+
+        # Calculate widths
+        if width_ratios is not None:
+            total_w = sum(width_ratios)
+            widths = [int(width_px * w / total_w) for w in width_ratios]
+        else:
+            widths = [width_px // n_cols] * n_cols
+
+        # Calculate heights
+        if height_ratios is not None:
+            total_h = sum(height_ratios)
+            heights = [int(height_px * h / total_h) for h in height_ratios]
+        else:
+            heights = [height_px // n_rows] * n_rows
+
+        figures = []
+        rows = []
+
+        for i in range(n_rows):
+            row_figures = []
+            for j in range(n_cols):
+                p = figure(
+                    width=widths[j],
+                    height=heights[i],
+                    tools="pan,wheel_zoom,box_zoom,reset,save",
+                    toolbar_location="above" if i == 0 and j == 0 else None,
+                )
+
+                # Style
+                p.grid.visible = False
+                p.outline_line_color = None
+                p.xaxis.axis_line_color = "black"
+                p.yaxis.axis_line_color = "black"
+                p.xaxis.minor_tick_line_color = None
+                p.yaxis.minor_tick_line_color = None
+
+                row_figures.append(p)
+                figures.append(p)
+
+            rows.append(row(*row_figures))
+
+        layout = column(*rows)
 
         return layout, figures
 
@@ -418,6 +485,22 @@ class BokehBackend:
         """Set figure title."""
         ax.title.text = title
         ax.title.text_font_size = f"{fontsize}pt"
+
+    def set_suptitle(self, fig: Any, title: str, fontsize: int = 14) -> None:
+        """Set overall figure title.
+
+        For Bokeh layouts, add title to the first figure in the layout.
+        """
+        from bokeh.models.layouts import Column
+
+        if isinstance(fig, Column) and len(fig.children) > 0:
+            first_child = fig.children[0]
+            if hasattr(first_child, "title"):
+                first_child.title.text = title
+                first_child.title.text_font_size = f"{fontsize}pt"
+        elif hasattr(fig, "title"):
+            fig.title.text = title
+            fig.title.text_font_size = f"{fontsize}pt"
 
     def create_twin_axis(self, ax: figure) -> Any:
         """Create a secondary y-axis.

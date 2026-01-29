@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `plot_manhattan()` method for genome-wide Manhattan plots with chromosome coloring
 - `plot_qq()` method for QQ plots with 95% confidence bands and genomic inflation factor (λ)
+- `plot_manhattan_stacked()` method for comparing multiple GWAS studies in stacked Manhattan plots
+- `plot_manhattan_qq()` method for side-by-side Manhattan and QQ plots in a single figure
+- `create_figure_grid()` backend method for side-by-side subplot layouts
+- `set_suptitle()` backend method for overall figure titles
 - `manhattan` module for Manhattan plot data preparation (chromosome ordering, colors, cumulative positions)
 - `qq` module for QQ plot data preparation (lambda calculation, confidence bands)
 - `set_xticks()` method for all backends (matplotlib, plotly, bokeh)

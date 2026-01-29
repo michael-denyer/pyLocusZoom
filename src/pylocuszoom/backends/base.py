@@ -96,6 +96,31 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def create_figure_grid(
+        self,
+        n_rows: int,
+        n_cols: int,
+        width_ratios: Optional[List[float]] = None,
+        height_ratios: Optional[List[float]] = None,
+        figsize: Tuple[float, float] = (12.0, 8.0),
+    ) -> Tuple[Any, List[Any]]:
+        """Create a figure with a grid of subplots.
+
+        Unlike create_figure which creates vertically stacked panels,
+        this creates a 2D grid of subplots.
+
+        Args:
+            n_rows: Number of rows.
+            n_cols: Number of columns.
+            width_ratios: Relative widths for columns.
+            height_ratios: Relative heights for rows.
+            figsize: Figure size as (width, height).
+
+        Returns:
+            Tuple of (figure, flattened list of axes).
+        """
+        ...
+
     # =========================================================================
     # Basic Plotting
     # =========================================================================
@@ -442,11 +467,42 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def set_xticks(
+        self,
+        ax: Any,
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+        rotation: int = 0,
+        ha: str = "center",
+    ) -> None:
+        """Set x-axis tick positions and labels.
+
+        Args:
+            ax: Axes or panel.
+            positions: Tick positions.
+            labels: Tick labels.
+            fontsize: Font size.
+            rotation: Label rotation in degrees.
+            ha: Horizontal alignment for rotated labels.
+        """
+        ...
+
     def set_title(self, ax: Any, title: str, fontsize: int = 14) -> None:
         """Set panel title.
 
         Args:
             ax: Axes or panel.
+            title: Title text.
+            fontsize: Font size.
+        """
+        ...
+
+    def set_suptitle(self, fig: Any, title: str, fontsize: int = 14) -> None:
+        """Set overall figure title (super title).
+
+        Args:
+            fig: Figure object.
             title: Title text.
             fontsize: Font size.
         """
