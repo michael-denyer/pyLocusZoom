@@ -29,6 +29,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [plot_qq() Method](#plot_qq-method)
   - [plot_manhattan_stacked() Method](#plot_manhattan_stacked-method)
   - [plot_manhattan_qq() Method](#plot_manhattan_qq-method)
+  - [plot_manhattan_qq_stacked() Method](#plot_manhattan_qq_stacked-method)
   - [plot_phewas() Method](#plot_phewas-method)
   - [plot_forest() Method](#plot_forest-method)
 - [File Loaders](#file-loaders)
@@ -687,6 +688,40 @@ fig = plotter.plot_manhattan_qq(
 | `show_confidence_band` | bool | `True` | Whether to show 95% confidence band on QQ plot. |
 | `show_lambda` | bool | `True` | Whether to show genomic inflation factor (λ) on QQ plot. |
 | `figsize` | tuple | `(14, 5)` | Figure dimensions (width, height). |
+| `title` | str | None | Overall figure title (suptitle). |
+
+### plot_manhattan_qq_stacked() Method
+
+Create stacked Manhattan+QQ plot pairs for comparing multiple GWAS studies.
+
+```python
+fig = plotter.plot_manhattan_qq_stacked(
+    gwas_dfs,                       # Required: list of GWAS DataFrames
+    chrom_col="chrom",              # Chromosome column
+    pos_col="pos",                  # Position column
+    p_col="p",                      # P-value column
+    custom_chrom_order=None,        # Custom chromosome order
+    significance_threshold=5e-8,    # Genome-wide significance line
+    show_confidence_band=True,      # 95% confidence band on QQ
+    show_lambda=True,               # Genomic inflation factor on QQ
+    panel_labels=None,              # Labels for each study
+    figsize=(14, 8),                # Figure dimensions
+    title=None,                     # Overall figure title
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gwas_dfs` | list | Required | List of GWAS DataFrames to compare. |
+| `chrom_col` | str | `"chrom"` | Chromosome column name. |
+| `pos_col` | str | `"pos"` | Position column name. |
+| `p_col` | str | `"p"` | P-value column name. |
+| `custom_chrom_order` | list | None | Custom order for chromosomes. |
+| `significance_threshold` | float | `5e-8` | P-value threshold for significance line. |
+| `show_confidence_band` | bool | `True` | Whether to show 95% confidence band on QQ plots. |
+| `show_lambda` | bool | `True` | Whether to show genomic inflation factor (λ) on QQ plots. |
+| `panel_labels` | list | None | Labels for each panel (defaults to "Study 1", "Study 2", etc.). |
+| `figsize` | tuple | `(14, 8)` | Figure dimensions (width, height). |
 | `title` | str | None | Overall figure title (suptitle). |
 
 ### plot_phewas() Method

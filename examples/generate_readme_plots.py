@@ -1070,5 +1070,52 @@ save(
 )
 print("   Saved: examples/manhattan_qq_bokeh.html")
 
+# Stacked Manhattan + QQ plot for multiple GWAS
+print("30. Stacked Manhattan + QQ plot...")
+fig = manhattan_plotter.plot_manhattan_qq_stacked(
+    stacked_gwas_dfs,
+    panel_labels=panel_names,
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(16, 12),
+    title="Multi-cohort GWAS Summary",
+)
+fig.savefig("examples/manhattan_qq_stacked.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/manhattan_qq_stacked.png")
+
+# Interactive Plotly stacked Manhattan + QQ plot
+print("31. Interactive Plotly stacked Manhattan + QQ plot...")
+fig = manhattan_plotter_plotly.plot_manhattan_qq_stacked(
+    stacked_gwas_dfs,
+    panel_labels=panel_names,
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(16, 12),
+    title="Multi-cohort GWAS Summary",
+)
+fig.write_html("examples/manhattan_qq_stacked_plotly.html")
+print("   Saved: examples/manhattan_qq_stacked_plotly.html")
+
+# Interactive Bokeh stacked Manhattan + QQ plot
+print("32. Interactive Bokeh stacked Manhattan + QQ plot...")
+fig = manhattan_plotter_bokeh.plot_manhattan_qq_stacked(
+    stacked_gwas_dfs,
+    panel_labels=panel_names,
+    significance_threshold=5e-8,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(16, 12),
+    title="Multi-cohort GWAS Summary",
+)
+save(
+    fig,
+    filename="examples/manhattan_qq_stacked_bokeh.html",
+    resources=CDN,
+    title="Stacked Manhattan + QQ Plot",
+)
+print("   Saved: examples/manhattan_qq_stacked_bokeh.html")
+
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")

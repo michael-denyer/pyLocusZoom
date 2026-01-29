@@ -1557,8 +1557,8 @@ class LocusZoomPlotter:
                     colors=chrom_data["_color"].iloc[0],
                     sizes=15,
                     marker="o",
-                    edgecolor="#888888",
-                    linewidth=0.3,
+                    edgecolor="black",
+                    linewidth=0.2,
                     zorder=2,
                 )
 
@@ -1642,8 +1642,8 @@ class LocusZoomPlotter:
                     colors=cat_data["_color"].iloc[0],
                     sizes=30,
                     marker="o",
-                    edgecolor="#888888",
-                    linewidth=0.3,
+                    edgecolor="black",
+                    linewidth=0.2,
                     zorder=2,
                 )
 
@@ -1756,7 +1756,7 @@ class LocusZoomPlotter:
             sizes=20,
             marker="o",
             edgecolor="black",
-            linewidth=0.5,
+            linewidth=0.2,
             zorder=3,
         )
 
@@ -1880,7 +1880,7 @@ class LocusZoomPlotter:
                         colors=chrom_data["_color"].iloc[0],
                         sizes=15,
                         marker="o",
-                        edgecolor="#888888",
+                        edgecolor="black",
                         linewidth=0.3,
                         zorder=2,
                     )
@@ -2004,8 +2004,8 @@ class LocusZoomPlotter:
                     colors=chrom_data["_color"].iloc[0],
                     sizes=15,
                     marker="o",
-                    edgecolor="#888888",
-                    linewidth=0.3,
+                    edgecolor="black",
+                    linewidth=0.2,
                     zorder=2,
                 )
 
@@ -2070,7 +2070,7 @@ class LocusZoomPlotter:
             sizes=20,
             marker="o",
             edgecolor="black",
-            linewidth=0.5,
+            linewidth=0.2,
             zorder=3,
         )
 
@@ -2094,5 +2094,203 @@ class LocusZoomPlotter:
             self._backend.set_suptitle(fig, title, fontsize=14)
 
         self._backend.finalize_layout(fig)
+
+        return fig
+
+    def plot_manhattan_qq_stacked(
+        self,
+        gwas_dfs: List[pd.DataFrame],
+        chrom_col: str = "chrom",
+        pos_col: str = "pos",
+        p_col: str = "p",
+        custom_chrom_order: Optional[List[str]] = None,
+        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        show_confidence_band: bool = True,
+        show_lambda: bool = True,
+        panel_labels: Optional[List[str]] = None,
+        figsize: Tuple[float, float] = (14, 8),
+        title: Optional[str] = None,
+    ) -> Any:
+        """Create stacked side-by-side Manhattan and QQ plots for multiple GWAS.
+
+        Displays Manhattan+QQ pairs for each GWAS dataset, stacked vertically
+        for easy comparison across studies.
+
+        Args:
+            gwas_dfs: List of GWAS results DataFrames.
+            chrom_col: Column name for chromosome.
+            pos_col: Column name for position.
+            p_col: Column name for p-value.
+            custom_chrom_order: Custom chromosome order (overrides species).
+            significance_threshold: P-value threshold for genome-wide significance.
+            show_confidence_band: If True, show 95% confidence band on QQ plots.
+            show_lambda: If True, show genomic inflation factor on QQ plots.
+            panel_labels: List of labels for each GWAS (one per dataset).
+            figsize: Figure size as (width, height).
+            title: Overall plot title.
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Example:
+            >>> fig = plotter.plot_manhattan_qq_stacked(
+            ...     [discovery_df, replication_df],
+            ...     panel_labels=["Discovery", "Replication"],
+            ... )
+        """
+        n_gwas = len(gwas_dfs)
+        if n_gwas == 0:
+            raise ValueError("At least one GWAS DataFrame required")
+
+        # Prepare all data
+        manhattan_dfs = []
+        qq_dfs = []
+        for df in gwas_dfs:
+            manhattan_dfs.append(
+                prepare_manhattan_data(
+                    df=df,
+                    chrom_col=chrom_col,
+                    pos_col=pos_col,
+                    p_col=p_col,
+                    species=self.species,
+                    custom_order=custom_chrom_order,
+                )
+            )
+            qq_dfs.append(prepare_qq_data(df, p_col=p_col))
+
+        # Use chromosome order from first dataset
+        chrom_order = manhattan_dfs[0].attrs["chrom_order"]
+        chrom_centers = manhattan_dfs[0].attrs["chrom_centers"]
+
+        # Create grid: n_gwas rows, 2 columns (Manhattan | QQ)
+        # Manhattan gets ~70% width, QQ gets ~30%
+        fig, axes = self._backend.create_figure_grid(
+            n_rows=n_gwas,
+            n_cols=2,
+            width_ratios=[2.5, 1],
+            figsize=figsize,
+        )
+
+        # Get consistent x limits for Manhattan plots
+        x_min = min(df["_cumulative_pos"].min() for df in manhattan_dfs)
+        x_max = max(df["_cumulative_pos"].max() for df in manhattan_dfs)
+        x_padding = (x_max - x_min) * 0.01
+
+        # Plot each row
+        for i in range(n_gwas):
+            manhattan_ax = axes[i * 2]  # Even indices: Manhattan
+            qq_ax = axes[i * 2 + 1]  # Odd indices: QQ
+            manhattan_df = manhattan_dfs[i]
+            qq_df = qq_dfs[i]
+
+            # --- Manhattan plot ---
+            for chrom in chrom_order:
+                chrom_data = manhattan_df[manhattan_df["_chrom_str"] == chrom]
+                if len(chrom_data) > 0:
+                    self._backend.scatter(
+                        manhattan_ax,
+                        chrom_data["_cumulative_pos"],
+                        chrom_data["_neg_log_p"],
+                        colors=chrom_data["_color"].iloc[0],
+                        sizes=15,
+                        marker="o",
+                        edgecolor="black",
+                        linewidth=0.3,
+                        zorder=2,
+                    )
+
+            if significance_threshold is not None:
+                threshold_line = -np.log10(significance_threshold)
+                self._backend.axhline(
+                    manhattan_ax,
+                    y=threshold_line,
+                    color="red",
+                    linestyle="--",
+                    linewidth=1,
+                    zorder=1,
+                )
+
+            self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
+            y_max = manhattan_df["_neg_log_p"].max()
+            self._backend.set_ylim(manhattan_ax, 0, y_max * 1.1)
+
+            # Panel label
+            if panel_labels and i < len(panel_labels):
+                self._backend.add_panel_label(manhattan_ax, panel_labels[i])
+
+            # Y-axis label
+            self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=10)
+            self._backend.hide_spines(manhattan_ax, ["top", "right"])
+
+            # X-axis: show labels only on bottom row
+            if i == n_gwas - 1:
+                positions = [
+                    chrom_centers[chrom]
+                    for chrom in chrom_order
+                    if chrom in chrom_centers
+                ]
+                labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
+                self._backend.set_xticks(manhattan_ax, positions, labels, fontsize=8)
+                self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=10)
+
+            # --- QQ plot ---
+            if show_confidence_band:
+                self._backend.fill_between(
+                    qq_ax,
+                    x=qq_df["_expected"],
+                    y1=qq_df["_ci_lower"],
+                    y2=qq_df["_ci_upper"],
+                    color="#CCCCCC",
+                    alpha=0.5,
+                    zorder=1,
+                )
+
+            max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
+            self._backend.line(
+                qq_ax,
+                x=pd.Series([0, max_val]),
+                y=pd.Series([0, max_val]),
+                color="red",
+                linestyle="--",
+                linewidth=1,
+                zorder=2,
+            )
+
+            self._backend.scatter(
+                qq_ax,
+                qq_df["_expected"],
+                qq_df["_observed"],
+                colors="#1f77b4",
+                sizes=20,
+                marker="o",
+                edgecolor="black",
+                linewidth=0.2,
+                zorder=3,
+            )
+
+            self._backend.set_xlim(qq_ax, 0, max_val * 1.05)
+            self._backend.set_ylim(qq_ax, 0, max_val * 1.05)
+
+            # Labels for QQ
+            if i == n_gwas - 1:
+                self._backend.set_xlabel(
+                    qq_ax, r"Expected $-\log_{10}(p)$", fontsize=10
+                )
+            self._backend.set_ylabel(qq_ax, r"Observed $-\log_{10}(p)$", fontsize=10)
+
+            # QQ title with lambda
+            if show_lambda:
+                lambda_gc = qq_df.attrs["lambda_gc"]
+                qq_title = f"λ = {lambda_gc:.3f}"
+            else:
+                qq_title = "QQ"
+            self._backend.set_title(qq_ax, qq_title, fontsize=10)
+            self._backend.hide_spines(qq_ax, ["top", "right"])
+
+        # Overall title
+        if title:
+            self._backend.set_suptitle(fig, title, fontsize=14)
+
+        self._backend.finalize_layout(fig, hspace=0.15)
 
         return fig
