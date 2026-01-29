@@ -83,9 +83,72 @@ exons_df = pd.DataFrame(
 
 print("Generating example plots...")
 
-# 1. Basic matplotlib plot with LD coloring
-print("1. Basic regional plot with LD coloring...")
 plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+# 1. Regional plot with recombination overlay (full LocusZoom style)
+# Use a region that has recombination data (canine maps start at ~4Mb on chr1)
+print("1. Regional plot with recombination overlay...")
+recomb_positions = np.sort(np.random.randint(12_000_000, 14_000_000, n_snps))
+recomb_peak_center = 13_000_000
+recomb_positions[250] = recomb_peak_center
+
+recomb_p_values = np.ones(n_snps) * 0.5
+for i, pos in enumerate(recomb_positions):
+    dist = abs(pos - recomb_peak_center)
+    if dist < 100_000:
+        recomb_p_values[i] = 10 ** -(8 * np.exp(-dist / 30_000))
+    else:
+        recomb_p_values[i] = np.random.uniform(0.01, 1)
+
+recomb_ld_values = []
+for pos in recomb_positions:
+    dist = abs(pos - recomb_peak_center)
+    if dist == 0:
+        r2 = 1.0
+    elif dist < 50_000:
+        r2 = max(0, 0.9 * np.exp(-dist / 20_000) + np.random.uniform(-0.1, 0.1))
+    elif dist < 150_000:
+        r2 = max(0, 0.5 * np.exp(-dist / 50_000) + np.random.uniform(-0.1, 0.1))
+    else:
+        r2 = max(0, np.random.uniform(0, 0.2))
+    recomb_ld_values.append(min(1.0, r2))
+
+recomb_gwas_df = pd.DataFrame(
+    {
+        "ps": recomb_positions,
+        "p_wald": recomb_p_values,
+        "rs": [f"rs{i}" for i in range(n_snps)],
+        "ld_r2": recomb_ld_values,
+    }
+)
+
+recomb_genes_df = pd.DataFrame(
+    {
+        "chr": ["1", "1"],
+        "start": [12_200_000, 13_200_000],
+        "end": [12_600_000, 13_800_000],
+        "gene_name": ["GENE_A", "GENE_B"],
+        "strand": ["+", "-"],
+    }
+)
+
+fig = plotter.plot(
+    recomb_gwas_df,
+    chrom=1,
+    start=12_000_000,
+    end=14_000_000,
+    lead_pos=13_000_000,
+    ld_col="ld_r2",
+    genes_df=recomb_genes_df,
+    show_recombination=True,  # Enable recombination rate overlay
+    snp_labels=True,
+    label_top_n=1,
+)
+fig.savefig("examples/regional_plot_with_recomb.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/regional_plot_with_recomb.png")
+
+# 2. Basic matplotlib plot with LD coloring (no recombination)
+print("2. Basic regional plot with LD coloring...")
 fig = plotter.plot(
     gwas_df,
     chrom=1,
@@ -102,8 +165,8 @@ fig = plotter.plot(
 fig.savefig("examples/regional_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/regional_plot.png")
 
-# 2. Stacked plot with LD coloring
-print("2. Stacked plot with LD coloring...")
+# 3. Stacked plot with LD coloring
+print("3. Stacked plot with LD coloring...")
 gwas_df2 = gwas_df.copy()
 gwas_df2["p_wald"] = np.ones(n_snps) * 0.5
 peak_center2 = 1_700_000
@@ -147,8 +210,8 @@ fig = plotter.plot_stacked(
 fig.savefig("examples/stacked_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/stacked_plot.png")
 
-# 3. eQTL overlay with effect sizes
-print("3. eQTL overlay plot...")
+# 4. eQTL overlay with effect sizes
+print("4. eQTL overlay plot...")
 eqtl_df = pd.DataFrame(
     {
         "pos": [
@@ -192,8 +255,8 @@ fig = plotter.plot_stacked(
 fig.savefig("examples/eqtl_overlay.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/eqtl_overlay.png")
 
-# 4. Fine-mapping/SuSiE plot
-print("4. Fine-mapping/SuSiE plot with credible sets...")
+# 5. Fine-mapping/SuSiE plot
+print("5. Fine-mapping/SuSiE plot with credible sets...")
 
 # Generate synthetic fine-mapping data
 # Create PIP values that peak around the lead SNP
@@ -251,8 +314,8 @@ fig = plotter.plot_stacked(
 fig.savefig("examples/finemapping_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/finemapping_plot.png")
 
-# 5. Interactive Plotly eQTL plot
-print("5. Interactive Plotly eQTL plot...")
+# 6. Interactive Plotly eQTL plot
+print("6. Interactive Plotly eQTL plot...")
 plotly_plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
 fig = plotly_plotter.plot_stacked(
     [gwas_df],
@@ -269,8 +332,8 @@ fig = plotly_plotter.plot_stacked(
 fig.write_html("examples/eqtl_plotly.html")
 print("   Saved: examples/eqtl_plotly.html")
 
-# 6. Interactive Plotly fine-mapping plot
-print("6. Interactive Plotly fine-mapping plot...")
+# 7. Interactive Plotly fine-mapping plot
+print("7. Interactive Plotly fine-mapping plot...")
 fig = plotly_plotter.plot_stacked(
     [gwas_df],
     chrom=1,
@@ -286,8 +349,8 @@ fig = plotly_plotter.plot_stacked(
 fig.write_html("examples/finemapping_plotly.html")
 print("   Saved: examples/finemapping_plotly.html")
 
-# 7. Interactive Bokeh eQTL plot
-print("7. Interactive Bokeh eQTL plot...")
+# 8. Interactive Bokeh eQTL plot
+print("8. Interactive Bokeh eQTL plot...")
 from bokeh.io import output_file, save
 
 bokeh_plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
@@ -307,8 +370,8 @@ output_file("examples/eqtl_bokeh.html")
 save(fig)
 print("   Saved: examples/eqtl_bokeh.html")
 
-# 8. Interactive Bokeh fine-mapping plot
-print("8. Interactive Bokeh fine-mapping plot...")
+# 9. Interactive Bokeh fine-mapping plot
+print("9. Interactive Bokeh fine-mapping plot...")
 fig = bokeh_plotter.plot_stacked(
     [gwas_df],
     chrom=1,
@@ -325,8 +388,8 @@ output_file("examples/finemapping_bokeh.html")
 save(fig)
 print("   Saved: examples/finemapping_bokeh.html")
 
-# 9. PheWAS plot
-print("9. PheWAS plot...")
+# 10. PheWAS plot
+print("10. PheWAS plot...")
 phewas_df = pd.DataFrame(
     {
         "phenotype": [
@@ -360,8 +423,8 @@ fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
 fig.savefig("examples/phewas_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/phewas_plot.png")
 
-# 10. Forest plot (odds ratios with null at 1.0)
-print("10. Forest plot...")
+# 11. Forest plot (odds ratios with null at 1.0)
+print("11. Forest plot...")
 forest_df = pd.DataFrame(
     {
         "study": ["GWAS Study A", "GWAS Study B", "GWAS Study C", "Meta-analysis"],
