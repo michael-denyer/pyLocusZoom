@@ -231,6 +231,21 @@ class LocusZoomPlotter:
         except FileNotFoundError:
             return None
 
+    def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
+        """Add neglog10p column with -log10 transformed p-values.
+
+        Clips extremely small p-values to 1e-300 to avoid -inf.
+
+        Args:
+            df: DataFrame with p-value column.
+            p_col: Name of p-value column.
+
+        Returns:
+            DataFrame with neglog10p column added.
+        """
+        df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
+        return df
+
     def plot(
         self,
         gwas_df: pd.DataFrame,
@@ -349,7 +364,7 @@ class LocusZoomPlotter:
         if clipped_count > 0:
             logger.debug(f"Clipping {clipped_count} p-values below 1e-300 to 1e-300")
 
-        df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
+        df = self._transform_pvalues(df, p_col)
 
         # Calculate LD if reference file provided
         if ld_reference_file and lead_pos and ld_col is None:
@@ -955,7 +970,7 @@ class LocusZoomPlotter:
         for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
             ax = axes[i]
             df = gwas_df.copy()
-            df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
+            df = self._transform_pvalues(df, p_col)
 
             # Use pre-computed LD or calculate from reference
             panel_ld_col = ld_col
@@ -1091,9 +1106,7 @@ class LocusZoomPlotter:
                 eqtl_data = eqtl_data[mask]
 
             if not eqtl_data.empty:
-                eqtl_data["neglog10p"] = -np.log10(
-                    eqtl_data["p_value"].clip(lower=1e-300)
-                )
+                eqtl_data = self._transform_pvalues(eqtl_data, "p_value")
 
                 # Build hover data using HoverDataBuilder
                 eqtl_extra_cols = {}
@@ -1242,7 +1255,7 @@ class LocusZoomPlotter:
         validate_phewas_df(phewas_df, phenotype_col, p_col, category_col)
 
         df = phewas_df.copy()
-        df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
+        df = self._transform_pvalues(df, p_col)
 
         # Sort by category then by p-value for consistent ordering
         if category_col in df.columns:

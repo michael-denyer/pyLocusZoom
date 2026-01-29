@@ -1258,3 +1258,31 @@ class TestRecombinationDownloadErrors:
             result = plotter._ensure_recomb_maps()
             assert result is None
             mock_download.assert_called_once()
+
+
+class TestPvalueTransformation:
+    """Tests for p-value transformation helper."""
+
+    def test_transform_pvalues_adds_neglog10p_column(self):
+        """Helper creates neglog10p column from p-values."""
+        df = pd.DataFrame({"pval": [0.01, 0.001, 1e-8]})
+        plotter = LocusZoomPlotter()
+
+        result = plotter._transform_pvalues(df.copy(), "pval")
+
+        assert "neglog10p" in result.columns
+        assert result["neglog10p"].iloc[0] == pytest.approx(2.0)  # -log10(0.01)
+        assert result["neglog10p"].iloc[1] == pytest.approx(3.0)  # -log10(0.001)
+        assert result["neglog10p"].iloc[2] == pytest.approx(8.0)  # -log10(1e-8)
+
+    def test_transform_pvalues_clips_extreme_values(self):
+        """Extremely small p-values are clipped to avoid -inf."""
+        df = pd.DataFrame({"pval": [1e-350, 0.0]})  # Would be -inf without clipping
+        plotter = LocusZoomPlotter()
+
+        result = plotter._transform_pvalues(df.copy(), "pval")
+
+        # Should be clipped to 1e-300, giving ~300
+        assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
+        assert result["neglog10p"].iloc[1] == pytest.approx(300.0)
+        assert not np.isinf(result["neglog10p"]).any()
