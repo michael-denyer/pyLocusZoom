@@ -898,5 +898,62 @@ fig = qq_plotter.plot_qq(
 fig.savefig("examples/qq_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/qq_plot.png")
 
+# Interactive Plotly Manhattan plot
+print("20. Interactive Plotly Manhattan plot...")
+manhattan_plotter_plotly = LocusZoomPlotter(
+    species="human", backend="plotly", log_level=None
+)
+fig = manhattan_plotter_plotly.plot_manhattan(
+    manhattan_df,
+    significance_threshold=5e-8,
+    figsize=(14, 4),
+    title="Genome-wide Association Study",
+)
+fig.write_html("examples/manhattan_plotly.html")
+print("   Saved: examples/manhattan_plotly.html")
+
+# Interactive Bokeh Manhattan plot
+print("21. Interactive Bokeh Manhattan plot...")
+from bokeh.io import save
+from bokeh.resources import CDN
+
+manhattan_plotter_bokeh = LocusZoomPlotter(
+    species="human", backend="bokeh", log_level=None
+)
+fig = manhattan_plotter_bokeh.plot_manhattan(
+    manhattan_df,
+    significance_threshold=5e-8,
+    figsize=(14, 4),
+    title="Genome-wide Association Study",
+)
+save(
+    fig, filename="examples/manhattan_bokeh.html", resources=CDN, title="Manhattan Plot"
+)
+print("   Saved: examples/manhattan_bokeh.html")
+
+# Interactive Plotly QQ plot
+print("22. Interactive Plotly QQ plot...")
+qq_plotter_plotly = LocusZoomPlotter(backend="plotly", log_level=None)
+fig = qq_plotter_plotly.plot_qq(
+    qq_df,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(5, 5),
+)
+fig.write_html("examples/qq_plotly.html")
+print("   Saved: examples/qq_plotly.html")
+
+# Interactive Bokeh QQ plot
+print("23. Interactive Bokeh QQ plot...")
+qq_plotter_bokeh = LocusZoomPlotter(backend="bokeh", log_level=None)
+fig = qq_plotter_bokeh.plot_qq(
+    qq_df,
+    show_confidence_band=True,
+    show_lambda=True,
+    figsize=(5, 5),
+)
+save(fig, filename="examples/qq_bokeh.html", resources=CDN, title="QQ Plot")
+print("   Saved: examples/qq_bokeh.html")
+
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")
