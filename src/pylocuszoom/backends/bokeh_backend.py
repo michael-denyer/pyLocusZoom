@@ -6,12 +6,26 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
-from bokeh.io import export_png, export_svgs, output_file, save, show
 from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
 from . import convert_latex_to_unicode, register_backend
+
+# Style mappings (matplotlib -> Bokeh)
+_MARKER_MAP = {
+    "o": "circle",
+    "D": "diamond",
+    "s": "square",
+    "^": "triangle",
+    "v": "inverted_triangle",
+}
+_DASH_MAP = {
+    "-": "solid",
+    "--": "dashed",
+    ":": "dotted",
+    "-.": "dashdot",
+}
 
 
 @register_backend("bokeh")
@@ -21,21 +35,6 @@ class BokehBackend:
     Produces interactive HTML plots suitable for embedding in web
     applications and dashboards.
     """
-
-    # Class constants for style mappings
-    _MARKER_MAP = {
-        "o": "circle",
-        "D": "diamond",
-        "s": "square",
-        "^": "triangle",
-        "v": "inverted_triangle",
-    }
-    _DASH_MAP = {
-        "-": "solid",
-        "--": "dashed",
-        ":": "dotted",
-        "-.": "dashdot",
-    }
 
     @property
     def supports_snp_labels(self) -> bool:
@@ -153,8 +152,7 @@ class BokehBackend:
 
         source = ColumnDataSource(data)
 
-        # Get marker type for scatter()
-        marker_type = self._MARKER_MAP.get(marker, "circle")
+        marker_type = _MARKER_MAP.get(marker, "circle")
 
         # Create scatter using scatter() method (Bokeh 3.4+ preferred API)
         scatter_kwargs = {
@@ -194,7 +192,7 @@ class BokehBackend:
         label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given figure."""
-        line_dash = self._DASH_MAP.get(linestyle, "solid")
+        line_dash = _DASH_MAP.get(linestyle, "solid")
 
         line_kwargs = {
             "line_color": color,
@@ -249,7 +247,7 @@ class BokehBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the figure."""
-        line_dash = self._DASH_MAP.get(linestyle, "dashed")
+        line_dash = _DASH_MAP.get(linestyle, "dashed")
 
         span = Span(
             location=y,
@@ -408,9 +406,15 @@ class BokehBackend:
         """
         from bokeh.models import LinearAxis, Range1d
 
-        # Add a second y-axis
+        # Add a second y-axis without tick marks (cleaner look)
         ax.extra_y_ranges = {"secondary": Range1d(start=0, end=100)}
-        ax.add_layout(LinearAxis(y_range_name="secondary"), "right")
+        secondary_axis = LinearAxis(
+            y_range_name="secondary",
+            major_tick_line_color=None,  # Hide major ticks
+            minor_tick_line_color=None,  # Hide minor ticks
+            major_label_text_font_size="0pt",  # Hide tick labels
+        )
+        ax.add_layout(secondary_axis, "right")
 
         return "secondary"
 
@@ -427,7 +431,7 @@ class BokehBackend:
         yaxis_name: str = "secondary",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
-        line_dash = self._DASH_MAP.get(linestyle, "solid")
+        line_dash = _DASH_MAP.get(linestyle, "solid")
 
         return ax.line(
             x.values,
@@ -570,7 +574,7 @@ class BokehBackend:
         label: str,
         color: str,
         marker: str,
-        size: int = 10,
+        size: int = 14,
     ) -> Any:
         """Create an invisible scatter renderer for a legend entry."""
         from bokeh.models import LegendItem
@@ -619,7 +623,7 @@ class BokehBackend:
         """
         source = self._ensure_legend_range(ax)
         items = [
-            self._add_legend_item(ax, source, "Lead SNP", lead_snp_color, "diamond", 12)
+            self._add_legend_item(ax, source, "Lead SNP", lead_snp_color, "diamond", 16)
         ]
         for _, label, color in ld_bins:
             items.append(self._add_legend_item(ax, source, label, color, "square"))
@@ -674,6 +678,8 @@ class BokehBackend:
 
         Supports .html for interactive and .png for static.
         """
+        from bokeh.io import export_png, export_svgs, output_file, save
+
         if path.endswith(".html"):
             output_file(path)
             save(fig)
@@ -682,12 +688,13 @@ class BokehBackend:
         elif path.endswith(".svg"):
             export_svgs(fig, filename=path)
         else:
-            # Default to HTML
             output_file(path)
             save(fig)
 
     def show(self, fig: Any) -> None:
         """Display the figure."""
+        from bokeh.io import show
+
         show(fig)
 
     def close(self, fig: Any) -> None:
@@ -756,7 +763,7 @@ class BokehBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a vertical line across the figure."""
-        line_dash = self._DASH_MAP.get(linestyle, "dashed")
+        line_dash = _DASH_MAP.get(linestyle, "dashed")
 
         span = Span(
             location=x,

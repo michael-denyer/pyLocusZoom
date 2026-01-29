@@ -432,8 +432,8 @@ def add_recombination_overlay(
         region_recomb["pos"],
         region_recomb["rate"],
         color=RECOMB_COLOR,
-        linewidth=1.5,
-        alpha=0.7,
+        linewidth=2.5,
+        alpha=0.8,
         zorder=0,  # Behind scatter points
     )
 
@@ -447,14 +447,14 @@ def add_recombination_overlay(
         zorder=0,
     )
 
-    # Format secondary axis
-    recomb_ax.set_ylabel("Recombination rate (cM/Mb)", color=RECOMB_COLOR, fontsize=9)
-    recomb_ax.tick_params(axis="y", labelcolor=RECOMB_COLOR, labelsize=8)
+    # Format secondary axis - use black for label text (more readable)
+    recomb_ax.set_ylabel("Recombination rate (cM/Mb)", color="black", fontsize=9)
+    recomb_ax.tick_params(axis="y", labelcolor="black", labelsize=8)
     recomb_ax.set_ylim(bottom=0)
 
-    # Don't let recomb rate overwhelm the plot
+    # Scale to fit data with headroom
     max_rate = region_recomb["rate"].max()
-    recomb_ax.set_ylim(0, max(max_rate * 1.2, 20))
+    recomb_ax.set_ylim(0, max(max_rate * 1.3, 10))
 
     # Remove top spine for cleaner look
     recomb_ax.spines["top"].set_visible(False)

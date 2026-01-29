@@ -175,17 +175,6 @@ def _draw_strand_arrows_matplotlib(
         gene_start, gene_end, region_width, strand
     )
 
-    # Draw connecting line between arrow centers
-    if len(arrow_tip_positions) > 1:
-        ax.plot(
-            [arrow_tip_positions[0], arrow_tip_positions[-1]],
-            [y_gene, y_gene],
-            color=arrow_color,
-            linewidth=1.0,
-            zorder=4,
-            solid_capstyle="butt",
-        )
-
     for tip_x in arrow_tip_positions:
         if strand == "+":
             base_x = tip_x - tri_width
@@ -223,17 +212,6 @@ def _draw_strand_arrows_generic(
     arrow_tip_positions, tri_height, tri_width, arrow_color = _compute_arrow_geometry(
         gene_start, gene_end, region_width, strand
     )
-
-    # Draw connecting line between arrow centers
-    if len(arrow_tip_positions) > 1:
-        backend.line(
-            ax,
-            x=pd.Series([arrow_tip_positions[0], arrow_tip_positions[-1]]),
-            y=pd.Series([y_gene, y_gene]),
-            color=arrow_color,
-            linewidth=1.0,
-            zorder=4,
-        )
 
     for tip_x in arrow_tip_positions:
         if strand == "+":
@@ -406,7 +384,7 @@ def plot_gene_track(
                 gene_name,
                 ha="center",
                 va="bottom",
-                fontsize=7,
+                fontsize=9,
                 color="#000000",
                 fontweight="medium",
                 style="italic",
@@ -553,7 +531,7 @@ def plot_gene_track_generic(
                 label_pos,
                 y_label,
                 gene_name,
-                fontsize=7,
+                fontsize=9,
                 ha="center",
                 va="bottom",
                 color="#000000",

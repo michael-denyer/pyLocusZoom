@@ -445,6 +445,7 @@ class MatplotlibBackend:
             yaxis_name: Ignored for matplotlib.
         """
         ax.set_ylabel(label, fontsize=fontsize, color=color)
+        ax.tick_params(axis="y", labelcolor=color, labelsize=fontsize - 1)
 
     def add_legend(
         self,

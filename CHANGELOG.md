@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-01-29
+
+### Changed
+- Gene track font size increased from 7pt to 9pt for better readability
+- Removed black connecting line between gene arrows in gene track
+- Bokeh legend symbols increased from 10px to 14px (Lead SNP from 12px to 16px)
+- Bokeh recombination secondary axis tick marks hidden for cleaner appearance
+
+### Fixed
+- Plotly recombination overlay now renders on correct panel (fixed secondary y-axis naming conflict with subplot axes)
+- Example plots now show exons in all gene tracks
+
+### Internal
+- Backend style mappings moved to module-level constants (bokeh, plotly)
+- Lazy imports for Bokeh I/O functions to reduce startup time
+
 ## [1.0.0] - 2026-01-28
 
 ### Added

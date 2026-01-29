@@ -27,4 +27,5 @@ htmlcov/
 # Project instructions (private)
 CLAUDE.md
 docs/plans/
+docs/publication/
 .planning/

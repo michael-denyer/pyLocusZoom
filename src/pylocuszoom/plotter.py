@@ -401,7 +401,12 @@ class LocusZoomPlotter:
         # Format axes
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
         self._backend.set_xlim(ax, start, end)
-        self._backend.hide_spines(ax, ["top", "right"])
+        # When recombination overlay is present, keep right spine for secondary y-axis
+        has_recomb = recomb_df is not None and not recomb_df.empty
+        if has_recomb and self._backend.supports_secondary_axis:
+            self._backend.hide_spines(ax, ["top"])
+        else:
+            self._backend.hide_spines(ax, ["top", "right"])
 
         # Add LD legend (all backends)
         if ld_col is not None and ld_col in df.columns:
@@ -605,23 +610,27 @@ class LocusZoomPlotter:
             region_recomb["pos"],
             region_recomb["rate"],
             color=RECOMB_COLOR,
-            linewidth=1.5,
-            alpha=0.7,
+            linewidth=2.5,
+            alpha=0.8,
             yaxis_name=secondary_y,
         )
 
-        # Set y-axis limits and label
+        # Set y-axis limits and label - scale to fit data with headroom
         max_rate = region_recomb["rate"].max()
         self._backend.set_secondary_ylim(
-            secondary_ax, 0, max(max_rate * 1.2, 20), yaxis_name=secondary_y
+            secondary_ax, 0, max(max_rate * 1.3, 10), yaxis_name=secondary_y
         )
         self._backend.set_secondary_ylabel(
             secondary_ax,
             "Recombination rate (cM/Mb)",
-            color=RECOMB_COLOR,
+            color="black",  # Use black for readability (line/fill color remains light blue)
             fontsize=9,
             yaxis_name=secondary_y,
         )
+
+        # Hide top spine on the secondary axis (matplotlib twin axis has its own frame)
+        if isinstance(twin_result, Axes):
+            secondary_ax.spines["top"].set_visible(False)
 
     def _plot_finemapping(
         self,

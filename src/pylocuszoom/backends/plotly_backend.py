@@ -11,6 +11,21 @@ from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
 
+# Style mappings (matplotlib -> Plotly)
+_MARKER_SYMBOLS = {
+    "o": "circle",
+    "D": "diamond",
+    "s": "square",
+    "^": "triangle-up",
+    "v": "triangle-down",
+}
+_DASH_MAP = {
+    "-": "solid",
+    "--": "dash",
+    ":": "dot",
+    "-.": "dashdot",
+}
+
 
 @register_backend("plotly")
 class PlotlyBackend:
@@ -22,21 +37,6 @@ class PlotlyBackend:
     - R² with lead SNP
     - Nearest gene
     """
-
-    # Class constants for style mappings
-    _MARKER_SYMBOLS = {
-        "o": "circle",
-        "D": "diamond",
-        "s": "square",
-        "^": "triangle-up",
-        "v": "triangle-down",
-    }
-    _DASH_MAP = {
-        "-": "solid",
-        "--": "dash",
-        ":": "dot",
-        "-.": "dashdot",
-    }
 
     @property
     def supports_snp_labels(self) -> bool:
@@ -134,7 +134,7 @@ class PlotlyBackend:
         fig, row = ax
 
         # Convert matplotlib marker to plotly symbol
-        symbol = self._MARKER_SYMBOLS.get(marker, "circle")
+        symbol = _MARKER_SYMBOLS.get(marker, "circle")
 
         # Convert size (matplotlib uses area, plotly uses diameter)
         if isinstance(sizes, (int, float)):
@@ -201,7 +201,7 @@ class PlotlyBackend:
     ) -> Any:
         """Create a line plot on the given panel."""
         fig, row = ax
-        dash = self._DASH_MAP.get(linestyle, "solid")
+        dash = _DASH_MAP.get(linestyle, "solid")
 
         trace = go.Scatter(
             x=x,
@@ -259,7 +259,7 @@ class PlotlyBackend:
     ) -> Any:
         """Add a horizontal line across the panel."""
         fig, row = ax
-        dash = self._DASH_MAP.get(linestyle, "dash")
+        dash = _DASH_MAP.get(linestyle, "dash")
 
         fig.add_hline(
             y=y,
@@ -451,17 +451,33 @@ class PlotlyBackend:
         """Create a secondary y-axis.
 
         Returns tuple of (figure, row, secondary_yaxis_name).
+
+        For Plotly subplots, we need unique axis names that don't conflict
+        with the subplot axes. We use a high number suffix to avoid conflicts.
         """
         fig, row = ax
-        secondary_y = f"y{row}2" if row > 1 else "y2"
 
-        # Configure secondary y-axis
-        yaxis_name = f"yaxis{row}2" if row > 1 else "yaxis2"
+        # Use a unique suffix that won't conflict with subplot axis numbering
+        # yaxis10, yaxis11, etc. are unlikely to conflict with typical subplot counts
+        secondary_suffix = 10 + row - 1
+        secondary_y = f"y{secondary_suffix}"
+        yaxis_name = f"yaxis{secondary_suffix}"
+
+        # Get the primary y-axis name for this row
+        primary_y = f"y{row}" if row > 1 else "y"
+        # Get the x-axis name for this row
+        xaxis_ref = f"x{row}" if row > 1 else "x"
+
+        # Configure secondary y-axis to overlay the primary axis of this row
         fig.update_layout(
             **{
                 yaxis_name: dict(
-                    overlaying=f"y{row}" if row > 1 else "y",
+                    overlaying=primary_y,
                     side="right",
+                    anchor=xaxis_ref,
+                    showgrid=False,
+                    showline=False,
+                    zeroline=False,
                 )
             }
         )
@@ -482,7 +498,11 @@ class PlotlyBackend:
     ) -> Any:
         """Create a line plot on secondary y-axis."""
         fig, row = ax
-        dash = self._DASH_MAP.get(linestyle, "solid")
+        dash = _DASH_MAP.get(linestyle, "solid")
+
+        # For secondary axes, we need to set both xaxis and yaxis explicitly
+        # and NOT use row/col which would override these references
+        xaxis_ref = f"x{row}" if row > 1 else "x"
 
         trace = go.Scatter(
             x=x,
@@ -492,11 +512,13 @@ class PlotlyBackend:
             opacity=alpha,
             name=label or "",
             showlegend=label is not None,
+            xaxis=xaxis_ref,
             yaxis=yaxis_name,
             hoverinfo="skip",
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        # Add trace directly without row/col to preserve axis references
+        fig.add_trace(trace)
         return trace
 
     def fill_between_secondary(
@@ -515,6 +537,10 @@ class PlotlyBackend:
         if isinstance(y1, (int, float)):
             y1 = pd.Series([y1] * len(x))
 
+        # For secondary axes, we need to set both xaxis and yaxis explicitly
+        # and NOT use row/col which would override these references
+        xaxis_ref = f"x{row}" if row > 1 else "x"
+
         trace = go.Scatter(
             x=pd.concat([x, x[::-1]]),
             y=pd.concat([y2, y1[::-1]]),
@@ -524,10 +550,12 @@ class PlotlyBackend:
             line=dict(width=0),
             showlegend=False,
             hoverinfo="skip",
+            xaxis=xaxis_ref,
             yaxis=yaxis_name,
         )
 
-        fig.add_trace(trace, row=row, col=1)
+        # Add trace directly without row/col to preserve axis references
+        fig.add_trace(trace)
         return trace
 
     def set_secondary_ylim(
@@ -848,7 +876,7 @@ class PlotlyBackend:
     ) -> Any:
         """Add a vertical line across the panel."""
         fig, row = ax
-        dash = self._DASH_MAP.get(linestyle, "dash")
+        dash = _DASH_MAP.get(linestyle, "dash")
 
         fig.add_vline(
             x=x,
