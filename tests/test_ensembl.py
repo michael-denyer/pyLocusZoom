@@ -450,6 +450,23 @@ def test_clear_ensembl_cache_species_specific():
         assert len(list(cache_dir.glob("**/*.csv"))) == 1
 
 
+# --- Consolidation tests ---
+
+
+class TestNormalizeChromConsolidation:
+    """Verify ensembl uses shared normalize_chrom from utils."""
+
+    def test_ensembl_uses_utils_normalize_chrom(self):
+        """Confirm _normalize_chrom was removed from ensembl module."""
+        import pylocuszoom.ensembl as ensembl_module
+
+        # After consolidation, _normalize_chrom should not exist in ensembl
+        assert not hasattr(ensembl_module, "_normalize_chrom"), (
+            "_normalize_chrom should be removed from ensembl.py - "
+            "use normalize_chrom from utils instead"
+        )
+
+
 # --- Export tests ---
 
 

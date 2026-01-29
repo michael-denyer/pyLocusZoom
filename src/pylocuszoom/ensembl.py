@@ -18,7 +18,7 @@ import pandas as pd
 import requests
 
 from .logging import logger
-from .utils import ValidationError
+from .utils import ValidationError, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
@@ -45,11 +45,6 @@ ENSEMBL_REST_URL = "https://rest.ensembl.org"
 ENSEMBL_REQUEST_TIMEOUT = 30  # seconds
 ENSEMBL_MAX_RETRIES = 3
 ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
-
-
-def _normalize_chrom(chrom: str | int) -> str:
-    """Normalize chromosome name by removing 'chr' prefix."""
-    return str(chrom).replace("chr", "")
 
 
 def _validate_region_size(start: int, end: int, context: str) -> None:
@@ -129,7 +124,7 @@ def get_cached_genes(
         DataFrame if cache hit, None if cache miss.
     """
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = _normalize_chrom(chrom)
+    chrom_str = normalize_chrom(chrom)
     cache_key = _cache_key(ensembl_species, chrom_str, start, end)
 
     species_dir = cache_dir / ensembl_species
@@ -161,7 +156,7 @@ def save_cached_genes(
         end: Region end position.
     """
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = _normalize_chrom(chrom)
+    chrom_str = normalize_chrom(chrom)
     cache_key = _cache_key(ensembl_species, chrom_str, start, end)
 
     species_dir = cache_dir / ensembl_species
@@ -266,7 +261,7 @@ def fetch_genes_from_ensembl(
     _validate_region_size(start, end, "genes_df")
 
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = _normalize_chrom(chrom)
+    chrom_str = normalize_chrom(chrom)
 
     # Build region string
     region = f"{chrom_str}:{start}-{end}"
@@ -334,7 +329,7 @@ def fetch_exons_from_ensembl(
     _validate_region_size(start, end, "exons_df")
 
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = _normalize_chrom(chrom)
+    chrom_str = normalize_chrom(chrom)
     region = f"{chrom_str}:{start}-{end}"
 
     url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
@@ -408,7 +403,7 @@ def get_genes_for_region(
     if cache_dir is None:
         cache_dir = get_ensembl_cache_dir()
 
-    chrom_str = _normalize_chrom(chrom)
+    chrom_str = normalize_chrom(chrom)
 
     # Check cache first
     if use_cache:
