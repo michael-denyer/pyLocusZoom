@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pylocuszoom"
-version = "1.0.1"
+version = "1.0.2"
 description = "Publication-ready regional association plots with LD coloring, gene tracks, and recombination overlays"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -37,6 +37,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "requests>=2.25.0",
     "tqdm>=4.60.0",
+    "colorcet>=3.0.0",
 ]
 
 [project.optional-dependencies]

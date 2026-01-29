@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-01-29
+
+### Added
+- `colorcet` as required dependency (for Manhattan plot chromosome colors)
+
+### Changed
+- README Quick Start example now shows recombination overlay and auto_genes
+- README hero image updated to show recombination rate overlay
+
 ## [1.0.1] - 2026-01-29
 
 ### Changed

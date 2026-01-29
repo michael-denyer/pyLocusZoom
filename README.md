@@ -21,12 +21,12 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
     - **Multi-species support**: Built-in reference data for *Canis lupus familiaris* (CanFam3.1/CanFam4) and *Felis catus* (FelCat9), or optionally provide your own for any species
     - **LD coloring**: SNPs colored by linkage disequilibrium (R²) with lead variant
     - **Gene tracks**: Annotated gene/exon positions below the association plot
-    - **Recombination rate**: Optional overlay across region (*Canis lupus familiaris* built-in, not shown in example image)
+    - **Recombination rate**: Overlay across region (*Canis lupus familiaris* built-in, or user-provided)
     - **SNP labels (matplotlib)**: Automatic labeling of top SNPs by p-value (RS IDs)
     - **Hover tooltips (Plotly and Bokeh)**: Detailed SNP data on hover
 
-![Example regional association plot with LD coloring and gene track](examples/regional_plot.png)
-*Regional association plot with LD coloring, gene/exon track, and top SNP labels (recombination overlay disabled in example).*
+![Example regional association plot with LD coloring, gene track, and recombination overlay](examples/regional_plot_with_recomb.png)
+*Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
 3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
@@ -62,15 +62,16 @@ conda install -c bioconda pylocuszoom
 from pylocuszoom import LocusZoomPlotter
 
 # Initialize plotter (loads reference data for canine)
-plotter = LocusZoomPlotter(species="canine")
+plotter = LocusZoomPlotter(species="canine", auto_genes=True)
 
 # Plot with parameters passed directly
 fig = plotter.plot(
-    gwas_df,                        # DataFrame with ps, p_wald, rs columns
+    gwas_df,                        # DataFrame with pos, p_value, rs columns
     chrom=1,
     start=1000000,
     end=2000000,
     lead_pos=1500000,               # Highlight lead SNP
+    show_recombination=True,        # Overlay recombination rate
 )
 fig.savefig("regional_plot.png", dpi=150)
 ```
