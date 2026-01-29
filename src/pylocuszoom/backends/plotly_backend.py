@@ -417,6 +417,29 @@ class PlotlyBackend:
             }
         )
 
+    def set_xticks(
+        self,
+        ax: Tuple[go.Figure, int],
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+        rotation: int = 0,
+        ha: str = "center",
+    ) -> None:
+        """Set x-axis tick positions and labels."""
+        fig, row = ax
+        fig.update_layout(
+            **{
+                self._axis_name("xaxis", row): dict(
+                    tickmode="array",
+                    tickvals=positions,
+                    ticktext=labels,
+                    tickfont=dict(size=fontsize),
+                    tickangle=-rotation if rotation else 0,
+                )
+            }
+        )
+
     def _axis_name(self, axis: str, row: int) -> str:
         """Get Plotly axis name for a given row.
 

@@ -292,3 +292,44 @@ class TestBackendRegistration:
             source = f.read()
         assert "@register_backend" in source
         assert '@register_backend("bokeh")' in source
+
+
+class TestSetXticks:
+    """Tests for x-axis tick setting across backends."""
+
+    def test_matplotlib_set_xticks(self):
+        """Matplotlib backend should set x-axis ticks."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
+        # Verify ticks were set
+        ticks = list(axes[0].get_xticks())
+        assert 0 in ticks
+        assert 1 in ticks
+        assert 2 in ticks
+
+    def test_plotly_set_xticks(self):
+        """Plotly backend should set x-axis ticks."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
+        # Verify via layout
+        xaxis = fig.layout.xaxis
+        assert xaxis.tickvals == (0, 1, 2)
+        assert xaxis.ticktext == ("A", "B", "C")
+
+    def test_bokeh_set_xticks(self):
+        """Bokeh backend should set x-axis ticks."""
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
+        # Access ticks via the ticker's ticks property
+        assert list(axes[0].xaxis.ticker.ticks) == [0, 1, 2]

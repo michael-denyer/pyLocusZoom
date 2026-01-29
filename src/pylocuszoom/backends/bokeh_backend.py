@@ -377,6 +377,26 @@ class BokehBackend:
     ) -> None:
         """Set y-axis tick positions and labels."""
         ax.yaxis.ticker = positions
+
+    def set_xticks(
+        self,
+        ax: figure,
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+        rotation: int = 0,
+        ha: str = "center",
+    ) -> None:
+        """Set x-axis tick positions and labels."""
+        ax.xaxis.ticker = positions
+        ax.xaxis.major_label_overrides = {
+            pos: label for pos, label in zip(positions, labels)
+        }
+        ax.xaxis.major_label_text_font_size = f"{fontsize}pt"
+        if rotation:
+            ax.xaxis.major_label_orientation = (
+                rotation * 3.14159 / 180
+            )  # Convert to radians
         ax.yaxis.major_label_overrides = dict(zip(positions, labels))
         ax.yaxis.major_label_text_font_size = f"{fontsize}pt"
 

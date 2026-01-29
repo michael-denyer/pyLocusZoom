@@ -320,6 +320,19 @@ class MatplotlibBackend:
         ax.set_yticks(positions)
         ax.set_yticklabels(labels, fontsize=fontsize)
 
+    def set_xticks(
+        self,
+        ax: Axes,
+        positions: List[float],
+        labels: List[str],
+        fontsize: int = 10,
+        rotation: int = 0,
+        ha: str = "center",
+    ) -> None:
+        """Set x-axis tick positions and labels."""
+        ax.set_xticks(positions)
+        ax.set_xticklabels(labels, fontsize=fontsize, rotation=rotation, ha=ha)
+
     def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
         """Set panel title."""
         ax.set_title(
