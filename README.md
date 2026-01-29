@@ -29,14 +29,16 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 *Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
-3. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
-4. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
-5. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
-6. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
-7. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
-8. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
-9. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
-10. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
+3. **Manhattan plots**: Genome-wide association visualization with chromosome coloring
+4. **QQ plots**: Quantile-quantile plots with confidence bands and genomic inflation factor
+5. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
+6. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
+7. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
+8. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
+9. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
+10. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
+11. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
+12. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
 
 ## Installation
 
@@ -310,6 +312,55 @@ fig = plotter.plot_forest(
 
 ![Example forest plot](examples/forest_plot.png)
 *Forest plot with effect sizes, confidence intervals, and weight-proportional markers.*
+
+## Manhattan Plots
+
+Create genome-wide Manhattan plots showing associations across all chromosomes:
+
+```python
+from pylocuszoom import LocusZoomPlotter
+
+plotter = LocusZoomPlotter(species="human")
+
+fig = plotter.plot_manhattan(
+    gwas_df,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    significance_threshold=5e-8,  # Genome-wide significance line
+    figsize=(12, 5),
+)
+fig.savefig("manhattan.png", dpi=150)
+```
+
+Categorical Manhattan plots (PheWAS-style) are also supported:
+
+```python
+fig = plotter.plot_manhattan(
+    phewas_df,
+    category_col="phenotype_category",
+    p_col="pvalue",
+)
+```
+
+## QQ Plots
+
+Create quantile-quantile plots to assess p-value distribution:
+
+```python
+from pylocuszoom import LocusZoomPlotter
+
+plotter = LocusZoomPlotter()
+
+fig = plotter.plot_qq(
+    gwas_df,
+    p_col="p",
+    show_confidence_band=True,  # 95% confidence band
+    show_lambda=True,           # Genomic inflation factor in title
+    figsize=(6, 6),
+)
+fig.savefig("qq_plot.png", dpi=150)
+```
 
 ## PySpark Support
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `plot_manhattan()` method for genome-wide Manhattan plots with chromosome coloring
+- `plot_qq()` method for QQ plots with 95% confidence bands and genomic inflation factor (λ)
+- `manhattan` module for Manhattan plot data preparation (chromosome ordering, colors, cumulative positions)
+- `qq` module for QQ plot data preparation (lambda calculation, confidence bands)
+- `set_xticks()` method for all backends (matplotlib, plotly, bokeh)
+- Categorical Manhattan plot support (PheWAS-style) via `category_col` parameter
+- Species aliases support in Manhattan plots (dog→canine, cat→feline)
+
 ## [1.0.2] - 2026-01-29
 
 ### Added
