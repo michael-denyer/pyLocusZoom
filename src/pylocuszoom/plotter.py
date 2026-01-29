@@ -66,7 +66,7 @@ DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 # Manhattan/QQ plot styling constants
 MANHATTAN_POINT_SIZE = 10
 MANHATTAN_CATEGORICAL_POINT_SIZE = 30
-QQ_POINT_SIZE = 20
+QQ_POINT_SIZE = 10  # Match Manhattan point size for consistency
 POINT_EDGE_COLOR = "black"
 MANHATTAN_EDGE_WIDTH = 0.1
 QQ_EDGE_WIDTH = 0.02
@@ -1930,15 +1930,15 @@ class LocusZoomPlotter:
             if panel_labels and i < len(panel_labels):
                 self._backend.add_panel_label(ax, panel_labels[i])
 
-            # Only show x-axis label and ticks on bottom panel
+            # Set x-axis ticks for all panels (needed for interactive backends)
+            positions = [
+                chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
+            ]
+            labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
+            self._backend.set_xticks(ax, positions, labels, fontsize=8)
+
+            # Only show x-axis label on bottom panel
             if i == n_gwas - 1:
-                positions = [
-                    chrom_centers[chrom]
-                    for chrom in chrom_order
-                    if chrom in chrom_centers
-                ]
-                labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-                self._backend.set_xticks(ax, positions, labels, fontsize=8)
                 self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
 
         # Overall title
@@ -2161,15 +2161,15 @@ class LocusZoomPlotter:
             self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=10)
             self._backend.hide_spines(manhattan_ax, ["top", "right"])
 
-            # X-axis: show labels only on bottom row
+            # X-axis: set chromosome ticks for all rows
+            positions = [
+                chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
+            ]
+            chrom_labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
+            self._backend.set_xticks(manhattan_ax, positions, chrom_labels, fontsize=8)
+
+            # Only show "Chromosome" label on bottom row
             if i == n_gwas - 1:
-                positions = [
-                    chrom_centers[chrom]
-                    for chrom in chrom_order
-                    if chrom in chrom_centers
-                ]
-                labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-                self._backend.set_xticks(manhattan_ax, positions, labels, fontsize=8)
                 self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=10)
 
             # --- QQ plot ---
