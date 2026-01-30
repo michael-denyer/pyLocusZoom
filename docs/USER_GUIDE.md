@@ -448,6 +448,32 @@ save(fig)
 
 ## API Reference
 
+### Specialized Plotter Classes
+
+pyLocusZoom provides specialized plotter classes for different plot types:
+
+| Class | Purpose |
+|-------|---------|
+| `LocusZoomPlotter` | Regional association plots with LD coloring |
+| `ManhattanPlotter` | Genome-wide Manhattan and QQ plots |
+| `StatsPlotter` | PheWAS and forest plots |
+
+```python
+from pylocuszoom import LocusZoomPlotter, ManhattanPlotter, StatsPlotter
+
+# Regional plots
+regional = LocusZoomPlotter(species="canine")
+fig = regional.plot(gwas_df, chrom=1, start=1e6, end=2e6)
+
+# Manhattan/QQ plots
+manhattan = ManhattanPlotter()
+fig = manhattan.plot_manhattan(gwas_df)
+
+# PheWAS/forest plots
+stats = StatsPlotter()
+fig = stats.plot_phewas(phewas_df, variant_id="rs12345")
+```
+
 ### LocusZoomPlotter
 
 The main class for creating regional association plots.
@@ -584,6 +610,8 @@ fig = plotter.plot_stacked(
 
 ### plot_manhattan() Method
 
+> **Deprecated**: Use `ManhattanPlotter().plot_manhattan()` instead.
+
 Create a genome-wide Manhattan plot showing associations across all chromosomes.
 
 ```python
@@ -610,6 +638,8 @@ fig = plotter.plot_manhattan(
 
 ### plot_qq() Method
 
+> **Deprecated**: Use `ManhattanPlotter().plot_qq()` instead.
+
 Create a quantile-quantile (QQ) plot to assess p-value distribution.
 
 ```python
@@ -631,6 +661,8 @@ fig = plotter.plot_qq(
 | `figsize` | tuple | `(6, 6)` | Figure dimensions (width, height). |
 
 ### plot_manhattan_stacked() Method
+
+> **Deprecated**: Use `ManhattanPlotter().plot_manhattan_stacked()` instead.
 
 Create stacked Manhattan plots for comparing multiple GWAS studies.
 
@@ -661,6 +693,8 @@ fig = plotter.plot_manhattan_stacked(
 | `title` | str | None | Overall figure title (suptitle). |
 
 ### plot_manhattan_qq() Method
+
+> **Deprecated**: Use `ManhattanPlotter().plot_manhattan_qq()` instead.
 
 Create a combined Manhattan and QQ plot side-by-side in a single figure.
 
@@ -693,6 +727,8 @@ fig = plotter.plot_manhattan_qq(
 | `title` | str | None | Overall figure title (suptitle). |
 
 ### plot_manhattan_qq_stacked() Method
+
+> **Deprecated**: Use `ManhattanPlotter().plot_manhattan_qq_stacked()` instead.
 
 Create stacked Manhattan+QQ plot pairs for comparing multiple GWAS studies.
 
@@ -728,6 +764,8 @@ fig = plotter.plot_manhattan_qq_stacked(
 
 ### plot_phewas() Method
 
+> **Deprecated**: Use `StatsPlotter().plot_phewas()` instead.
+
 Create a PheWAS (Phenome-Wide Association Study) plot.
 
 ```python
@@ -755,6 +793,8 @@ fig = plotter.plot_phewas(
 | `figsize` | tuple | `(10, 8)` | Figure dimensions (width, height). |
 
 ### plot_forest() Method
+
+> **Deprecated**: Use `StatsPlotter().plot_forest()` instead.
 
 Create a forest plot for meta-analysis visualization.
 
