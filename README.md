@@ -602,11 +602,11 @@ Optional:
 
 ## Documentation
 
-- [User Guide](docs/USER_GUIDE.md) - Comprehensive documentation with API reference
-- [Code Map](docs/CODEMAP.md) - Architecture diagram with source code links
-- [Architecture](docs/ARCHITECTURE.md) - Design decisions and component overview
-- [Example Notebook](examples/getting_started.ipynb) - Interactive tutorial
-- [CHANGELOG](CHANGELOG.md) - Version history
+- [User Guide](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/USER_GUIDE.md) - Comprehensive documentation with API reference
+- [Code Map](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/CODEMAP.md) - Architecture diagram with source code links
+- [Architecture](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/ARCHITECTURE.md) - Design decisions and component overview
+- [Example Notebook](https://github.com/michael-denyer/pyLocusZoom/blob/main/examples/getting_started.ipynb) - Interactive tutorial
+- [CHANGELOG](https://github.com/michael-denyer/pyLocusZoom/blob/main/CHANGELOG.md) - Version history
 
 ## License
 
