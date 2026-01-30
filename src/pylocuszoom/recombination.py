@@ -395,6 +395,40 @@ def get_recombination_rate_for_region(
     return region_df[["pos", "rate"]]
 
 
+def ensure_recomb_maps(
+    species: str = "canine",
+    data_dir: Optional[str] = None,
+) -> Optional[Path]:
+    """Ensure recombination maps are available, downloading if needed.
+
+    Args:
+        species: Species name ('canine', 'feline', etc.).
+        data_dir: Directory for recombination maps. Uses default if None.
+
+    Returns:
+        Path to recombination maps directory, or None if species not supported.
+    """
+    if species != "canine":
+        logger.debug(f"No built-in recombination maps for species: {species}")
+        return None
+
+    if data_dir is not None:
+        output_path = Path(data_dir)
+    else:
+        output_path = get_default_data_dir()
+
+    # Check if maps already exist
+    if output_path.exists():
+        existing_files = list(output_path.glob("chr*_recomb.tsv"))
+        if len(existing_files) >= 39:  # 38 autosomes + X
+            logger.debug(f"Recombination maps already exist at {output_path}")
+            return output_path
+
+    # Download maps
+    logger.info("Downloading canine recombination maps...")
+    return download_canine_recombination_maps(output_dir=str(output_path))
+
+
 def add_recombination_overlay(
     ax: Axes,
     recomb_df: pd.DataFrame,
