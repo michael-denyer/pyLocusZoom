@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
+import requests
 
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
@@ -421,4 +422,32 @@ class TestEnsureRecombMaps:
         from pylocuszoom.recombination import ensure_recomb_maps
 
         result = ensure_recomb_maps(species="human")
+        assert result is None
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_handles_network_error(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps returns None on network errors."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = requests.RequestException("Network error")
+
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="canine")
+        assert result is None
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_handles_io_error(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps returns None on IO errors."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = IOError("Disk full")
+
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="canine")
         assert result is None

@@ -406,7 +406,8 @@ def ensure_recomb_maps(
         data_dir: Directory for recombination maps. Uses default if None.
 
     Returns:
-        Path to recombination maps directory, or None if species not supported.
+        Path to recombination maps directory, or None if species not supported
+        or download fails.
     """
     if species != "canine":
         logger.debug(f"No built-in recombination maps for species: {species}")
@@ -424,9 +425,16 @@ def ensure_recomb_maps(
             logger.debug(f"Recombination maps already exist at {output_path}")
             return output_path
 
-    # Download maps
+    # Download maps with error handling
     logger.info("Downloading canine recombination maps...")
-    return download_canine_recombination_maps(output_dir=str(output_path))
+    try:
+        return download_canine_recombination_maps(output_dir=str(output_path))
+    except (requests.RequestException, OSError, IOError) as e:
+        logger.warning(f"Could not download recombination maps: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error downloading recombination maps: {e}")
+        return None
 
 
 def add_recombination_overlay(
