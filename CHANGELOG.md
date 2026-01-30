@@ -20,10 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `set_xticks()` method for all backends (matplotlib, plotly, bokeh)
 - Categorical Manhattan plot support (PheWAS-style) via `category_col` parameter
 - Species aliases support in Manhattan plots (dog→canine, cat→feline)
+- `ManhattanPlotter` class for genome-wide Manhattan and QQ plots
+- `StatsPlotter` class for PheWAS and forest plots
+- `_plotter_utils.py` module with shared constants and helper functions
 
 ### Changed
 - Manhattan and QQ plot styling: thinner edge linewidth (0.2) for cleaner appearance
 - Manhattan plot colors: switched to colorcet glasbey_bw_minc_20_minl_30 palette
+- `LocusZoomPlotter` now delegates Manhattan/QQ to `ManhattanPlotter` and PheWAS/forest to `StatsPlotter`
+- Consolidated duplicate styling constants into `_plotter_utils.py` (DRY refactoring)
+
+### Internal
+
+- Test coverage improved from 78% to 83%
+- Added comprehensive tests for `ManhattanPlotter`, `StatsPlotter`, and plotter utilities
 
 ## [1.0.2] - 2026-01-29
 
