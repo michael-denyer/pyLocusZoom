@@ -977,19 +977,29 @@ class LocusZoomPlotter:
             # Use pre-computed LD or calculate from reference
             panel_ld_col = ld_col
             if ld_reference_files and ld_reference_files[i] and lead_pos and not ld_col:
-                lead_snp_row = df[df[pos_col] == lead_pos]
-                if not lead_snp_row.empty and rs_col in df.columns:
-                    lead_snp_id = lead_snp_row[rs_col].iloc[0]
-                    ld_df = calculate_ld(
-                        bfile_path=ld_reference_files[i],
-                        lead_snp=lead_snp_id,
-                        window_kb=max((end - start) // 1000, 500),
-                        plink_path=self.plink_path,
-                        species=self.species,
+                # Check if rs_col exists before attempting LD calculation
+                if rs_col not in df.columns:
+                    logger.warning(
+                        f"Cannot calculate LD for panel {i + 1}: column '{rs_col}' "
+                        f"not found in GWAS data. "
+                        f"Provide rs_col parameter or add SNP IDs to DataFrame."
                     )
-                    if not ld_df.empty:
-                        df = df.merge(ld_df, left_on=rs_col, right_on="SNP", how="left")
-                        panel_ld_col = "R2"
+                else:
+                    lead_snp_row = df[df[pos_col] == lead_pos]
+                    if not lead_snp_row.empty:
+                        lead_snp_id = lead_snp_row[rs_col].iloc[0]
+                        ld_df = calculate_ld(
+                            bfile_path=ld_reference_files[i],
+                            lead_snp=lead_snp_id,
+                            window_kb=max((end - start) // 1000, 500),
+                            plink_path=self.plink_path,
+                            species=self.species,
+                        )
+                        if not ld_df.empty:
+                            df = df.merge(
+                                ld_df, left_on=rs_col, right_on="SNP", how="left"
+                            )
+                            panel_ld_col = "R2"
 
             # Plot association
             self._plot_association(
