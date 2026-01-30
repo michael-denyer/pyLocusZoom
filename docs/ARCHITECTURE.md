@@ -9,33 +9,33 @@ pyLocusZoom/
 │   └── publish.yml               # PyPI publish (Trusted Publishing)
 │
 ├── src/pylocuszoom/
-│   ├── __init__.py          (120) # Public API exports
-│   ├── plotter.py           (733) # LocusZoomPlotter - main entry point
-│   │                              #   plot(), plot_stacked()
+│   ├── __init__.py               # Public API exports
+│   ├── plotter.py                # LocusZoomPlotter - main entry point
+│   │                             #   plot(), plot_stacked(), plot_manhattan(), etc.
 │   ├── backends/
-│   │   ├── __init__.py       (52) # Backend registry, get_backend()
-│   │   ├── base.py          (341) # PlotBackend protocol
-│   │   ├── matplotlib_backend.py (288) # Static plots
-│   │   ├── plotly_backend.py    (474) # Interactive with hover
-│   │   └── bokeh_backend.py     (441) # Dashboard-friendly
+│   │   ├── __init__.py           # Backend registry, get_backend()
+│   │   ├── base.py               # PlotBackend protocol
+│   │   ├── matplotlib_backend.py # Static plots
+│   │   ├── plotly_backend.py     # Interactive with hover
+│   │   └── bokeh_backend.py      # Dashboard-friendly
 │   │
-│   ├── colors.py            (107) # LD color palettes
-│   ├── gene_track.py        (311) # Gene/exon rendering
-│   ├── labels.py            (118) # SNP label positioning
-│   ├── ld.py                (209) # PLINK LD calculation
-│   ├── eqtl.py              (218) # eQTL data handling
-│   ├── recombination.py     (432) # Recomb map loading/liftover
-│   ├── logging.py           (153) # Loguru configuration
-│   ├── utils.py             (194) # Validation, PySpark support
-│   └── reference_data/        (4) # Cached recomb maps location
+│   ├── colors.py                 # LD color palettes
+│   ├── gene_track.py             # Gene/exon rendering
+│   ├── labels.py                 # SNP label positioning
+│   ├── ld.py                     # PLINK LD calculation
+│   ├── eqtl.py                   # eQTL data handling
+│   ├── recombination.py          # Recomb map loading/liftover
+│   ├── logging.py                # Loguru configuration
+│   ├── utils.py                  # Validation, PySpark support
+│   └── reference_data/           # Cached recomb maps location
 │
-├── tests/                   (~1.2k) # pytest suite
+├── tests/                        # pytest suite
 ├── examples/
-│   └── getting_started.ipynb      # Tutorial notebook
+│   └── getting_started.ipynb     # Tutorial notebook
 │
-├── pyproject.toml                 # Build config, dependencies
-├── README.md                      # Documentation
-└── LICENSE.md                     # GPL-3.0-or-later
+├── pyproject.toml                # Build config, dependencies
+├── README.md                     # Documentation
+└── LICENSE.md                    # GPL-3.0-or-later
 ```
 
 ## Architecture Diagram
@@ -120,10 +120,12 @@ flowchart LR
 
 | Function | Location | Purpose |
 |----------|----------|---------|
-| `LocusZoomPlotter()` | `plotter.py:54` | Main constructor |
-| `.plot()` | `plotter.py:200` | Single regional plot |
-| `.plot_stacked()` | `plotter.py:450` | Multi-GWAS stacked plot |
-| `get_backend()` | `backends/__init__.py:30` | Backend factory |
+| `LocusZoomPlotter()` | `plotter.py` | Main constructor |
+| `.plot()` | `plotter.py` | Single regional plot |
+| `.plot_stacked()` | `plotter.py` | Multi-GWAS stacked plot |
+| `.plot_manhattan()` | `plotter.py` | Genome-wide Manhattan plot |
+| `.plot_qq()` | `plotter.py` | QQ plot |
+| `get_backend()` | `backends/__init__.py` | Backend factory |
 
 ## Backend Protocol
 
@@ -187,10 +189,10 @@ classDiagram
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 - pyliftover >= 0.4
+- adjustText >= 0.8
 
 ### Optional
 - pyspark >= 3.0.0 (for large-scale data)
-- adjustText >= 0.8 (for improved label placement)
 
 ### External
 - PLINK 1.9 (for LD calculations)
