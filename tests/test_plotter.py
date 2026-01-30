@@ -1286,3 +1286,22 @@ class TestPvalueTransformation:
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
         assert result["neglog10p"].iloc[1] == pytest.approx(300.0)
         assert not np.isinf(result["neglog10p"]).any()
+
+
+class TestPlotterDelegation:
+    """Tests for plotter delegation to specialized classes."""
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a LocusZoomPlotter instance."""
+        return LocusZoomPlotter(species="canine")
+
+    def test_manhattan_delegation_preserves_species(self, plotter):
+        """Test that species is passed to ManhattanPlotter."""
+        assert plotter._manhattan_plotter.species == "canine"
+
+    def test_stats_delegation_preserves_threshold(self, plotter):
+        """Test that threshold is passed to StatsPlotter."""
+        assert (
+            plotter._stats_plotter.genomewide_threshold == plotter.genomewide_threshold
+        )

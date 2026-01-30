@@ -1,7 +1,7 @@
 """Tests for recombination rate overlay module."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -9,9 +9,13 @@ import pytest
 
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
+    _normalize_build,
     add_recombination_overlay,
+    download_canine_recombination_maps,
+    download_liftover_chain,
     get_default_data_dir,
     get_recombination_rate_for_region,
+    liftover_recombination_map,
     load_recombination_map,
 )
 
@@ -40,16 +44,6 @@ class TestGetDefaultDataDir:
 
 class TestAddRecombinationOverlay:
     """Tests for add_recombination_overlay function."""
-
-    @pytest.fixture
-    def sample_recomb_df(self):
-        """Sample recombination rate DataFrame."""
-        return pd.DataFrame(
-            {
-                "pos": [1000000, 1200000, 1400000, 1600000, 1800000, 2000000],
-                "rate": [0.5, 1.2, 2.5, 1.8, 0.8, 0.3],
-            }
-        )
 
     def test_creates_secondary_axis(self, sample_recomb_df):
         """Should create secondary y-axis for recombination rate."""
@@ -175,3 +169,208 @@ class TestGetRecombinationRateForRegion:
         )
 
         assert list(result.columns) == ["pos", "rate"]
+
+
+class TestNormalizeBuild:
+    """Tests for _normalize_build function."""
+
+    def test_none_returns_none(self):
+        """None input returns None."""
+        assert _normalize_build(None) is None
+
+    def test_canfam4_variations(self):
+        """Various CanFam4 names normalize correctly."""
+        assert _normalize_build("canfam4") == "canfam4"
+        assert _normalize_build("CanFam4.0") == "canfam4"
+        assert _normalize_build("UU_Cfam_GSD_1.0") == "canfam4"
+
+    def test_canfam3_variations(self):
+        """Various CanFam3 names normalize correctly."""
+        assert _normalize_build("canfam3") == "canfam3"
+        assert _normalize_build("CanFam3.1") == "canfam3"
+
+    def test_unknown_build_lowercase(self):
+        """Unknown build returns lowercase."""
+        assert _normalize_build("hg38") == "hg38"
+
+
+class TestDownloadLiftoverChain:
+    """Tests for download_liftover_chain function."""
+
+    def test_returns_existing_file(self, tmp_path, monkeypatch):
+        """Returns existing chain file without re-downloading."""
+        # Create mock chain file
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+        chain_file = tmp_path / "canFam3ToCanFam4.over.chain.gz"
+        chain_file.write_bytes(b"mock chain data")
+
+        result = download_liftover_chain(force=False)
+        assert result == chain_file
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_downloads_when_missing(self, mock_download, tmp_path, monkeypatch):
+        """Downloads chain file when not present."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+
+        # Mock the download to create the file
+        def create_file(url, dest, desc):
+            dest.write_bytes(b"mock chain data")
+
+        mock_download.side_effect = create_file
+
+        result = download_liftover_chain(force=False)
+        mock_download.assert_called_once()
+        assert result.exists()
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_force_redownload(self, mock_download, tmp_path, monkeypatch):
+        """Force=True re-downloads even if file exists."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+
+        # Create existing file
+        chain_file = tmp_path / "canFam3ToCanFam4.over.chain.gz"
+        chain_file.write_bytes(b"old data")
+
+        def create_file(url, dest, desc):
+            dest.write_bytes(b"new data")
+
+        mock_download.side_effect = create_file
+
+        download_liftover_chain(force=True)
+        mock_download.assert_called_once()
+
+
+class TestLiftoverRecombinationMap:
+    """Tests for liftover_recombination_map function."""
+
+    @patch("pylocuszoom.recombination.download_liftover_chain")
+    @patch("pyliftover.LiftOver")
+    def test_lifts_positions(self, mock_liftover_class, mock_download, tmp_path):
+        """Successfully lifts over positions."""
+        # Mock chain download
+        chain_file = tmp_path / "chain.gz"
+        chain_file.touch()
+        mock_download.return_value = chain_file
+
+        # Mock LiftOver
+        mock_lo = MagicMock()
+        mock_lo.convert_coordinate.side_effect = [
+            [("chr1", 1000100, "+", 1)],  # First position maps
+            [("chr1", 1500100, "+", 1)],  # Second position maps
+        ]
+        mock_liftover_class.return_value = mock_lo
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000000, 1500000],
+                "rate": [0.5, 1.0],
+            }
+        )
+
+        result = liftover_recombination_map(df, chrom=1)
+
+        assert len(result) == 2
+        assert result["pos"].iloc[0] == 1000100
+        assert result["pos"].iloc[1] == 1500100
+
+    @patch("pylocuszoom.recombination.download_liftover_chain")
+    @patch("pyliftover.LiftOver")
+    def test_drops_unmapped_positions(
+        self, mock_liftover_class, mock_download, tmp_path
+    ):
+        """Positions that fail to map are dropped."""
+        chain_file = tmp_path / "chain.gz"
+        chain_file.touch()
+        mock_download.return_value = chain_file
+
+        mock_lo = MagicMock()
+        mock_lo.convert_coordinate.side_effect = [
+            [("chr1", 1000100, "+", 1)],  # Maps
+            [],  # Fails to map
+            [("chr1", 2000100, "+", 1)],  # Maps
+        ]
+        mock_liftover_class.return_value = mock_lo
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000000, 1500000, 2000000],
+                "rate": [0.5, 1.0, 1.5],
+            }
+        )
+
+        result = liftover_recombination_map(df, chrom=1)
+
+        assert len(result) == 2
+        assert 1500100 not in result["pos"].values
+
+    @patch("pylocuszoom.recombination.download_liftover_chain")
+    @patch("pyliftover.LiftOver")
+    def test_uses_chr_column_if_present(
+        self, mock_liftover_class, mock_download, tmp_path
+    ):
+        """Uses chr column from DataFrame if present."""
+        chain_file = tmp_path / "chain.gz"
+        chain_file.touch()
+        mock_download.return_value = chain_file
+
+        mock_lo = MagicMock()
+        mock_lo.convert_coordinate.return_value = [("chr1", 1000100, "+", 1)]
+        mock_liftover_class.return_value = mock_lo
+
+        df = pd.DataFrame(
+            {
+                "chr": [1],
+                "pos": [1000000],
+                "rate": [0.5],
+            }
+        )
+
+        liftover_recombination_map(df)  # No chrom argument needed
+
+        # Should have used chr column
+        mock_lo.convert_coordinate.assert_called()
+
+    @patch("pylocuszoom.recombination.download_liftover_chain")
+    @patch("pyliftover.LiftOver")
+    def test_requires_chr_or_chrom_param(
+        self, mock_liftover_class, mock_download, tmp_path
+    ):
+        """Raises ValueError if neither chr column nor chrom param."""
+        chain_file = tmp_path / "chain.gz"
+        chain_file.touch()
+        mock_download.return_value = chain_file
+        mock_liftover_class.return_value = MagicMock()
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000000],
+                "rate": [0.5],
+            }
+        )
+
+        with pytest.raises(ValueError, match="chr"):
+            liftover_recombination_map(df)
+
+
+class TestDownloadCanineRecombinationMaps:
+    """Tests for download_canine_recombination_maps function."""
+
+    def test_returns_existing_complete_data(self, tmp_path, monkeypatch):
+        """Returns existing directory if all files present."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+
+        # Create 39 mock files (38 autosomes + X)
+        for i in range(1, 39):
+            (tmp_path / f"chr{i}_recomb.tsv").touch()
+        (tmp_path / "chrX_recomb.tsv").touch()
+
+        result = download_canine_recombination_maps(force=False)
+        assert result == tmp_path

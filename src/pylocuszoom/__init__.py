@@ -133,6 +133,9 @@ from .loaders import (
 # Logging configuration
 from .logging import disable_logging, enable_logging
 
+# Manhattan and QQ plotting
+from .manhattan_plotter import ManhattanPlotter
+
 # PheWAS support
 from .phewas import validate_phewas_df
 from .plotter import LocusZoomPlotter
@@ -145,6 +148,9 @@ from .recombination import (
     load_recombination_map,
 )
 
+# Statistical visualizations (PheWAS, forest plots)
+from .stats_plotter import StatsPlotter
+
 # Validation utilities
 from .utils import to_pandas
 
@@ -152,6 +158,8 @@ __all__ = [
     # Core
     "__version__",
     "LocusZoomPlotter",
+    "ManhattanPlotter",
+    "StatsPlotter",
     # Backends
     "BackendType",
     "get_backend",

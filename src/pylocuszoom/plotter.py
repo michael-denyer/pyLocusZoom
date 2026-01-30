@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
@@ -29,7 +30,6 @@ from .colors import (
     get_eqtl_color,
     get_ld_bin,
     get_ld_color_palette,
-    get_phewas_category_palette,
 )
 from .config import PlotConfig, StackedPlotConfig
 from .ensembl import get_genes_for_region
@@ -38,42 +38,24 @@ from .finemapping import (
     get_credible_sets,
     prepare_finemapping_for_plotting,
 )
-from .forest import validate_forest_df
 from .gene_track import (
     assign_gene_positions,
     plot_gene_track_generic,
 )
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
-from .manhattan import (
-    prepare_categorical_data,
-    prepare_manhattan_data,
-)
-from .phewas import validate_phewas_df
-from .qq import prepare_qq_data
+from .manhattan_plotter import ManhattanPlotter
 from .recombination import (
     RECOMB_COLOR,
     download_canine_recombination_maps,
     get_default_data_dir,
     get_recombination_rate_for_region,
 )
+from .stats_plotter import StatsPlotter
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
-# Default significance threshold: 5e-8 (genome-wide significance)
-DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
+# Precomputed significance line value (used for plotting)
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
-
-# Manhattan/QQ plot styling constants
-MANHATTAN_POINT_SIZE = 10
-MANHATTAN_CATEGORICAL_POINT_SIZE = 30
-QQ_POINT_SIZE = 10  # Match Manhattan point size for consistency
-POINT_EDGE_COLOR = "black"
-MANHATTAN_EDGE_WIDTH = 0.1
-QQ_EDGE_WIDTH = 0.02
-SIGNIFICANCE_LINE_COLOR = "red"
-QQ_POINT_COLOR = "#1f77b4"
-QQ_CI_COLOR = "#CCCCCC"
-QQ_CI_ALPHA = 0.5
 
 
 class LocusZoomPlotter:
@@ -157,6 +139,7 @@ class LocusZoomPlotter:
             genome_build if genome_build else self._default_build(species)
         )
         self._backend = get_backend(backend)
+        self._backend_name = backend  # Store for delegation to child plotters
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
@@ -165,6 +148,27 @@ class LocusZoomPlotter:
 
         # Cache for loaded data
         self._recomb_cache = {}
+
+    @property
+    def _manhattan_plotter(self) -> ManhattanPlotter:
+        """Lazy-load ManhattanPlotter with shared configuration."""
+        if not hasattr(self, "_manhattan_plotter_instance"):
+            self._manhattan_plotter_instance = ManhattanPlotter(
+                species=self.species,
+                backend=self._backend_name,
+                genomewide_threshold=self.genomewide_threshold,
+            )
+        return self._manhattan_plotter_instance
+
+    @property
+    def _stats_plotter(self) -> StatsPlotter:
+        """Lazy-load StatsPlotter with shared configuration."""
+        if not hasattr(self, "_stats_plotter_instance"):
+            self._stats_plotter_instance = StatsPlotter(
+                backend=self._backend_name,
+                genomewide_threshold=self.genomewide_threshold,
+            )
+        return self._stats_plotter_instance
 
     @staticmethod
     def _default_build(species: str) -> Optional[str]:
@@ -234,15 +238,16 @@ class LocusZoomPlotter:
     def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
         """Add neglog10p column with -log10 transformed p-values.
 
-        Clips extremely small p-values to 1e-300 to avoid -inf.
+        Delegates to shared utility function. Assumes df is already a copy.
 
         Args:
-            df: DataFrame with p-value column.
+            df: DataFrame with p-value column (should be a copy).
             p_col: Name of p-value column.
 
         Returns:
             DataFrame with neglog10p column added.
         """
+        # Use shared utility - note: df should already be a copy at call sites
         df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
         return df
 
@@ -1239,143 +1244,17 @@ class LocusZoomPlotter:
         significance_threshold: float = 5e-8,
         figsize: Tuple[float, float] = (10, 8),
     ) -> Any:
-        """Create a PheWAS (Phenome-Wide Association Study) plot.
-
-        Shows associations of a single variant across multiple phenotypes,
-        with phenotypes grouped by category and colored accordingly.
-
-        Args:
-            phewas_df: DataFrame with phenotype associations.
-            variant_id: Variant identifier (e.g., "rs12345") for plot title.
-            phenotype_col: Column name for phenotype names.
-            p_col: Column name for p-values.
-            category_col: Column name for phenotype categories.
-            effect_col: Optional column name for effect direction (beta/OR).
-            significance_threshold: P-value threshold for significance line.
-            figsize: Figure size as (width, height).
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> fig = plotter.plot_phewas(
-            ...     phewas_df,
-            ...     variant_id="rs12345",
-            ...     category_col="category",
-            ... )
-        """
-        validate_phewas_df(phewas_df, phenotype_col, p_col, category_col)
-
-        df = phewas_df.copy()
-        df = self._transform_pvalues(df, p_col)
-
-        # Sort by category then by p-value for consistent ordering
-        if category_col in df.columns:
-            df = df.sort_values([category_col, p_col])
-            categories = df[category_col].unique().tolist()
-            palette = get_phewas_category_palette(categories)
-        else:
-            df = df.sort_values(p_col)
-            categories = []
-            palette = {}
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        """Create a PheWAS plot. See StatsPlotter.plot_phewas for docs."""
+        return self._stats_plotter.plot_phewas(
+            phewas_df=phewas_df,
+            variant_id=variant_id,
+            phenotype_col=phenotype_col,
+            p_col=p_col,
+            category_col=category_col,
+            effect_col=effect_col,
+            significance_threshold=significance_threshold,
             figsize=figsize,
         )
-        ax = axes[0]
-
-        # Assign y-positions (one per phenotype)
-        df["y_pos"] = range(len(df))
-
-        # Plot points by category
-        if categories:
-            for cat in categories:
-                # Handle NaN category: NaN == NaN is False in pandas
-                if pd.isna(cat):
-                    cat_data = df[df[category_col].isna()]
-                else:
-                    cat_data = df[df[category_col] == cat]
-                # Use upward triangles for positive effects, circles otherwise
-                if effect_col and effect_col in cat_data.columns:
-                    # Vectorized: split by effect sign, 2 scatter calls per category
-                    pos_data = cat_data[cat_data[effect_col] >= 0]
-                    neg_data = cat_data[cat_data[effect_col] < 0]
-
-                    if not pos_data.empty:
-                        self._backend.scatter(
-                            ax,
-                            pos_data["neglog10p"],
-                            pos_data["y_pos"],
-                            colors=palette[cat],
-                            sizes=60,
-                            marker="^",
-                            edgecolor="black",
-                            linewidth=0.5,
-                            zorder=2,
-                        )
-                    if not neg_data.empty:
-                        self._backend.scatter(
-                            ax,
-                            neg_data["neglog10p"],
-                            neg_data["y_pos"],
-                            colors=palette[cat],
-                            sizes=60,
-                            marker="v",
-                            edgecolor="black",
-                            linewidth=0.5,
-                            zorder=2,
-                        )
-                else:
-                    self._backend.scatter(
-                        ax,
-                        cat_data["neglog10p"],
-                        cat_data["y_pos"],
-                        colors=palette[cat],
-                        sizes=60,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.5,
-                        zorder=2,
-                    )
-        else:
-            self._backend.scatter(
-                ax,
-                df["neglog10p"],
-                df["y_pos"],
-                colors="#4169E1",
-                sizes=60,
-                edgecolor="black",
-                linewidth=0.5,
-                zorder=2,
-            )
-
-        # Add significance threshold line
-        sig_line = -np.log10(significance_threshold)
-        self._backend.axvline(
-            ax, x=sig_line, color="red", linestyle="--", linewidth=1, alpha=0.7
-        )
-
-        # Set axis labels and limits
-        self._backend.set_xlabel(ax, r"$-\log_{10}$ P")
-        self._backend.set_ylabel(ax, "Phenotype")
-        self._backend.set_ylim(ax, -0.5, len(df) - 0.5)
-
-        # Set y-tick labels to phenotype names
-        self._backend.set_yticks(
-            ax,
-            positions=df["y_pos"].tolist(),
-            labels=df[phenotype_col].tolist(),
-            fontsize=8,
-        )
-
-        self._backend.set_title(ax, f"PheWAS: {variant_id}")
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_forest(
         self,
@@ -1390,119 +1269,19 @@ class LocusZoomPlotter:
         effect_label: str = "Effect Size",
         figsize: Tuple[float, float] = (8, 6),
     ) -> Any:
-        """Create a forest plot showing effect sizes with confidence intervals.
-
-        Args:
-            forest_df: DataFrame with effect sizes and confidence intervals.
-            variant_id: Variant identifier for plot title.
-            study_col: Column name for study/phenotype names.
-            effect_col: Column name for effect sizes.
-            ci_lower_col: Column name for lower confidence interval.
-            ci_upper_col: Column name for upper confidence interval.
-            weight_col: Optional column for study weights (affects marker size).
-            null_value: Reference value for null effect (0 for beta, 1 for OR).
-            effect_label: X-axis label.
-            figsize: Figure size as (width, height).
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> fig = plotter.plot_forest(
-            ...     forest_df,
-            ...     variant_id="rs12345",
-            ...     effect_label="Odds Ratio",
-            ...     null_value=1.0,
-            ... )
-        """
-        validate_forest_df(forest_df, study_col, effect_col, ci_lower_col, ci_upper_col)
-
-        df = forest_df.copy()
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        """Create a forest plot. See StatsPlotter.plot_forest for docs."""
+        return self._stats_plotter.plot_forest(
+            forest_df=forest_df,
+            variant_id=variant_id,
+            study_col=study_col,
+            effect_col=effect_col,
+            ci_lower_col=ci_lower_col,
+            ci_upper_col=ci_upper_col,
+            weight_col=weight_col,
+            null_value=null_value,
+            effect_label=effect_label,
             figsize=figsize,
         )
-        ax = axes[0]
-
-        # Assign y-positions (reverse so first study is at top)
-        df["y_pos"] = range(len(df) - 1, -1, -1)
-
-        # Calculate marker sizes from weights
-        if weight_col and weight_col in df.columns:
-            # Scale weights to marker sizes (min 40, max 200)
-            weights = df[weight_col]
-            min_size, max_size = 40, 200
-            weight_range = weights.max() - weights.min()
-            if weight_range > 0:
-                sizes = min_size + (weights - weights.min()) / weight_range * (
-                    max_size - min_size
-                )
-            else:
-                sizes = (min_size + max_size) / 2
-        else:
-            sizes = 80
-
-        # Calculate error bar extents
-        xerr_lower = df[effect_col] - df[ci_lower_col]
-        xerr_upper = df[ci_upper_col] - df[effect_col]
-
-        # Plot error bars (confidence intervals)
-        self._backend.errorbar_h(
-            ax,
-            x=df[effect_col],
-            y=df["y_pos"],
-            xerr_lower=xerr_lower,
-            xerr_upper=xerr_upper,
-            color="black",
-            linewidth=1.5,
-            capsize=3,
-            zorder=2,
-        )
-
-        # Plot effect size markers
-        self._backend.scatter(
-            ax,
-            df[effect_col],
-            df["y_pos"],
-            colors="#4169E1",
-            sizes=sizes,
-            marker="s",  # square markers typical for forest plots
-            edgecolor="black",
-            linewidth=0.5,
-            zorder=3,
-        )
-
-        # Add null effect line
-        self._backend.axvline(
-            ax, x=null_value, color="grey", linestyle="--", linewidth=1, alpha=0.7
-        )
-
-        # Set axis labels and limits
-        self._backend.set_xlabel(ax, effect_label)
-        self._backend.set_ylim(ax, -0.5, len(df) - 0.5)
-
-        # Ensure x-axis includes the null value with some padding
-        x_min = min(df[ci_lower_col].min(), null_value)
-        x_max = max(df[ci_upper_col].max(), null_value)
-        x_padding = (x_max - x_min) * 0.1
-        self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
-
-        # Set y-tick labels to study names
-        self._backend.set_yticks(
-            ax,
-            positions=df["y_pos"].tolist(),
-            labels=df[study_col].tolist(),
-            fontsize=10,
-        )
-
-        self._backend.set_title(ax, f"Forest Plot: {variant_id}")
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_manhattan(
         self,
@@ -1517,279 +1296,19 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (12, 5),
         title: Optional[str] = None,
     ) -> Any:
-        """Create a Manhattan plot.
-
-        Shows associations across the genome with points colored by chromosome.
-        Supports both standard Manhattan plots (genomic positions) and
-        categorical Manhattan plots (PheWAS-style).
-
-        Args:
-            df: DataFrame with GWAS results.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
-            category_col: If provided, creates a categorical Manhattan plot
-                (like PheWAS) using this column instead of genomic positions.
-            category_order: Custom category order for categorical plots.
-            significance_threshold: P-value threshold for genome-wide significance
-                line. Set to None to disable.
-            figsize: Figure size as (width, height).
-            title: Plot title. Defaults to "Manhattan Plot".
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> # Standard Manhattan plot
-            >>> fig = plotter.plot_manhattan(gwas_df, species="human")
-            >>>
-            >>> # Categorical Manhattan (PheWAS-style)
-            >>> fig = plotter.plot_manhattan(
-            ...     phewas_df,
-            ...     category_col="phenotype_category",
-            ...     p_col="pvalue",
-            ... )
-        """
-        # Categorical Manhattan plot
-        if category_col is not None:
-            return self._plot_manhattan_categorical(
-                df=df,
-                category_col=category_col,
-                p_col=p_col,
-                category_order=category_order,
-                significance_threshold=significance_threshold,
-                figsize=figsize,
-                title=title,
-            )
-
-        # Standard Manhattan plot
-        # Prepare data with cumulative positions and colors
-        prepared_df = prepare_manhattan_data(
+        """Create a Manhattan plot. See ManhattanPlotter.plot_manhattan for docs."""
+        return self._manhattan_plotter.plot_manhattan(
             df=df,
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
-            figsize=figsize,
-        )
-        ax = axes[0]
-
-        # Plot points and significance line
-        chrom_order = prepared_df.attrs["chrom_order"]
-        self._render_manhattan_points(ax, prepared_df, chrom_order)
-        self._add_significance_line(ax, significance_threshold)
-
-        # Set x-axis ticks to chromosome centers
-        chrom_centers = prepared_df.attrs["chrom_centers"]
-        positions = [
-            chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-        ]
-        labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-        self._backend.set_xticks(ax, positions, labels, fontsize=8)
-
-        # Set limits
-        x_min = prepared_df["_cumulative_pos"].min()
-        x_max = prepared_df["_cumulative_pos"].max()
-        x_padding = (x_max - x_min) * 0.01
-        self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
-
-        y_max = prepared_df["_neg_log_p"].max()
-        self._backend.set_ylim(ax, 0, y_max * 1.1)
-
-        # Labels and title
-        self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
-        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(ax, title or "Manhattan Plot", fontsize=14)
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
-
-    def _render_manhattan_points(
-        self,
-        ax: Any,
-        prepared_df: pd.DataFrame,
-        chrom_order: List[str],
-        point_size: int = MANHATTAN_POINT_SIZE,
-    ) -> None:
-        """Render Manhattan plot scatter points grouped by chromosome.
-
-        Args:
-            ax: Axes object from backend.
-            prepared_df: DataFrame with _chrom_str, _cumulative_pos, _neg_log_p, _color.
-            chrom_order: List of chromosome names in display order.
-            point_size: Size of scatter points.
-        """
-        for chrom in chrom_order:
-            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
-            if len(chrom_data) > 0:
-                self._backend.scatter(
-                    ax,
-                    chrom_data["_cumulative_pos"],
-                    chrom_data["_neg_log_p"],
-                    colors=chrom_data["_color"].iloc[0],
-                    sizes=point_size,
-                    marker="o",
-                    edgecolor=POINT_EDGE_COLOR,
-                    linewidth=MANHATTAN_EDGE_WIDTH,
-                    zorder=2,
-                )
-
-    def _add_significance_line(
-        self,
-        ax: Any,
-        threshold: Optional[float],
-    ) -> None:
-        """Add genome-wide significance threshold line.
-
-        Args:
-            ax: Axes object from backend.
-            threshold: P-value threshold (e.g., 5e-8). None to skip.
-        """
-        if threshold is None:
-            return
-        threshold_line = -np.log10(threshold)
-        self._backend.axhline(
-            ax,
-            y=threshold_line,
-            color=SIGNIFICANCE_LINE_COLOR,
-            linestyle="--",
-            linewidth=1,
-            zorder=1,
-        )
-
-    def _render_qq_plot(
-        self,
-        ax: Any,
-        qq_df: pd.DataFrame,
-        show_confidence_band: bool = True,
-    ) -> None:
-        """Render QQ plot elements on axes.
-
-        Args:
-            ax: Axes object from backend.
-            qq_df: Prepared QQ DataFrame with _expected, _observed, _ci_lower, _ci_upper.
-            show_confidence_band: Whether to show 95% confidence band.
-        """
-        if show_confidence_band:
-            self._backend.fill_between(
-                ax,
-                x=qq_df["_expected"],
-                y1=qq_df["_ci_lower"],
-                y2=qq_df["_ci_upper"],
-                color=QQ_CI_COLOR,
-                alpha=QQ_CI_ALPHA,
-                zorder=1,
-            )
-
-        max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
-
-        # Diagonal reference line
-        self._backend.line(
-            ax,
-            x=pd.Series([0, max_val]),
-            y=pd.Series([0, max_val]),
-            color=SIGNIFICANCE_LINE_COLOR,
-            linestyle="--",
-            linewidth=1,
-            zorder=2,
-        )
-
-        # QQ points
-        self._backend.scatter(
-            ax,
-            qq_df["_expected"],
-            qq_df["_observed"],
-            colors=QQ_POINT_COLOR,
-            sizes=QQ_POINT_SIZE,
-            marker="o",
-            edgecolor=POINT_EDGE_COLOR,
-            linewidth=QQ_EDGE_WIDTH,
-            zorder=3,
-        )
-
-        # Set limits
-        self._backend.set_xlim(ax, 0, max_val * 1.05)
-        self._backend.set_ylim(ax, 0, max_val * 1.05)
-
-    def _plot_manhattan_categorical(
-        self,
-        df: pd.DataFrame,
-        category_col: str,
-        p_col: str = "p",
-        category_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        figsize: Tuple[float, float] = (12, 5),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create a categorical Manhattan plot (PheWAS-style).
-
-        Internal method called by plot_manhattan when category_col is provided.
-        """
-        # Prepare data
-        prepared_df = prepare_categorical_data(
-            df=df,
+            custom_chrom_order=custom_chrom_order,
             category_col=category_col,
-            p_col=p_col,
             category_order=category_order,
-        )
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+            significance_threshold=significance_threshold,
             figsize=figsize,
+            title=title,
         )
-        ax = axes[0]
-
-        # Plot points by category
-        cat_order = prepared_df.attrs["category_order"]
-        for cat in cat_order:
-            cat_data = prepared_df[prepared_df[category_col] == cat]
-            if len(cat_data) > 0:
-                self._backend.scatter(
-                    ax,
-                    cat_data["_x_pos"],
-                    cat_data["_neg_log_p"],
-                    colors=cat_data["_color"].iloc[0],
-                    sizes=MANHATTAN_CATEGORICAL_POINT_SIZE,
-                    marker="o",
-                    edgecolor=POINT_EDGE_COLOR,
-                    linewidth=MANHATTAN_EDGE_WIDTH,
-                    zorder=2,
-                )
-
-        self._add_significance_line(ax, significance_threshold)
-
-        # Set x-axis ticks
-        cat_centers = prepared_df.attrs["category_centers"]
-        positions = [cat_centers[cat] for cat in cat_order]
-        self._backend.set_xticks(
-            ax, positions, cat_order, fontsize=10, rotation=45, ha="right"
-        )
-
-        # Set limits
-        self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
-
-        y_max = prepared_df["_neg_log_p"].max()
-        self._backend.set_ylim(ax, 0, y_max * 1.1)
-
-        # Labels and title
-        self._backend.set_xlabel(ax, "Category", fontsize=12)
-        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(ax, title or "Categorical Manhattan Plot", fontsize=14)
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_qq(
         self,
@@ -1800,57 +1319,15 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (6, 6),
         title: Optional[str] = None,
     ) -> Any:
-        """Create a QQ (quantile-quantile) plot.
-
-        Shows observed vs expected -log10(p) distribution with optional
-        95% confidence band and genomic inflation factor (lambda).
-
-        Args:
-            df: DataFrame with p-values.
-            p_col: Column name for p-value.
-            show_confidence_band: If True, show 95% confidence band.
-            show_lambda: If True, show genomic inflation factor in title.
-            figsize: Figure size as (width, height).
-            title: Plot title. If None and show_lambda is True, shows lambda.
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> fig = plotter.plot_qq(gwas_df, p_col="pvalue")
-        """
-        # Prepare data
-        prepared_df = prepare_qq_data(df, p_col=p_col)
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        """Create a QQ plot. See ManhattanPlotter.plot_qq for docs."""
+        return self._manhattan_plotter.plot_qq(
+            df=df,
+            p_col=p_col,
+            show_confidence_band=show_confidence_band,
+            show_lambda=show_lambda,
             figsize=figsize,
+            title=title,
         )
-        ax = axes[0]
-
-        # Render QQ plot elements
-        self._render_qq_plot(ax, prepared_df, show_confidence_band)
-
-        # Labels
-        self._backend.set_xlabel(ax, r"Expected $-\log_{10}(p)$", fontsize=12)
-        self._backend.set_ylabel(ax, r"Observed $-\log_{10}(p)$", fontsize=12)
-
-        # Title with lambda
-        if title:
-            plot_title = title
-        elif show_lambda:
-            lambda_gc = prepared_df.attrs["lambda_gc"]
-            plot_title = f"QQ Plot (λ = {lambda_gc:.3f})"
-        else:
-            plot_title = "QQ Plot"
-        self._backend.set_title(ax, plot_title, fontsize=14)
-
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_manhattan_stacked(
         self,
@@ -1864,115 +1341,18 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (12, 8),
         title: Optional[str] = None,
     ) -> Any:
-        """Create stacked Manhattan plots for multiple GWAS datasets.
-
-        Vertically stacks multiple Manhattan plots for easy comparison across
-        studies or phenotypes.
-
-        Args:
-            gwas_dfs: List of GWAS results DataFrames.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
-            significance_threshold: P-value threshold for genome-wide significance
-                line. Set to None to disable.
-            panel_labels: Labels for each panel (one per DataFrame).
-            figsize: Figure size as (width, height).
-            title: Overall plot title.
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> fig = plotter.plot_manhattan_stacked(
-            ...     [gwas1, gwas2, gwas3],
-            ...     panel_labels=["Discovery", "Replication", "Meta-analysis"],
-            ... )
-        """
-        n_gwas = len(gwas_dfs)
-        if n_gwas == 0:
-            raise ValueError("At least one GWAS DataFrame required")
-
-        if panel_labels is not None and len(panel_labels) != n_gwas:
-            raise ValueError(
-                f"panel_labels length ({len(panel_labels)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-
-        # Prepare all data first to get consistent x-axis
-        prepared_dfs = []
-        for df in gwas_dfs:
-            prepared_df = prepare_manhattan_data(
-                df=df,
-                chrom_col=chrom_col,
-                pos_col=pos_col,
-                p_col=p_col,
-                species=self.species,
-                custom_order=custom_chrom_order,
-            )
-            prepared_dfs.append(prepared_df)
-
-        # Use first df for chromosome order and centers
-        chrom_order = prepared_dfs[0].attrs["chrom_order"]
-        chrom_centers = prepared_dfs[0].attrs["chrom_centers"]
-
-        # Calculate figure layout
-        panel_height = figsize[1] / n_gwas
-        height_ratios = [panel_height] * n_gwas
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=n_gwas,
-            height_ratios=height_ratios,
+        """Create stacked Manhattan plots. See ManhattanPlotter.plot_manhattan_stacked for docs."""
+        return self._manhattan_plotter.plot_manhattan_stacked(
+            gwas_dfs=gwas_dfs,
+            chrom_col=chrom_col,
+            pos_col=pos_col,
+            p_col=p_col,
+            custom_chrom_order=custom_chrom_order,
+            significance_threshold=significance_threshold,
+            panel_labels=panel_labels,
             figsize=figsize,
-            sharex=True,
+            title=title,
         )
-
-        # Get consistent x limits across all panels
-        x_min = min(df["_cumulative_pos"].min() for df in prepared_dfs)
-        x_max = max(df["_cumulative_pos"].max() for df in prepared_dfs)
-        x_padding = (x_max - x_min) * 0.01
-
-        # Plot each panel
-        for i, prepared_df in enumerate(prepared_dfs):
-            ax = axes[i]
-
-            # Plot points and significance line
-            self._render_manhattan_points(ax, prepared_df, chrom_order)
-            self._add_significance_line(ax, significance_threshold)
-
-            # Set limits
-            self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
-            y_max = prepared_df["_neg_log_p"].max()
-            self._backend.set_ylim(ax, 0, y_max * 1.1)
-
-            # Labels
-            self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=10)
-            self._backend.hide_spines(ax, ["top", "right"])
-
-            # Panel label
-            if panel_labels and i < len(panel_labels):
-                self._backend.add_panel_label(ax, panel_labels[i])
-
-            # Set x-axis ticks for all panels (needed for interactive backends)
-            positions = [
-                chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-            ]
-            labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-            self._backend.set_xticks(ax, positions, labels, fontsize=8)
-
-            # Only show x-axis label on bottom panel
-            if i == n_gwas - 1:
-                self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
-
-        # Overall title
-        if title:
-            self._backend.set_title(axes[0], title, fontsize=14)
-
-        self._backend.finalize_layout(fig, hspace=0.1)
-
-        return fig
 
     def plot_manhattan_qq(
         self,
@@ -1987,102 +1367,19 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (14, 5),
         title: Optional[str] = None,
     ) -> Any:
-        """Create side-by-side Manhattan and QQ plots.
-
-        Displays a Manhattan plot on the left and a QQ plot on the right,
-        commonly used for GWAS publication figures.
-
-        Args:
-            df: GWAS results DataFrame.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
-            significance_threshold: P-value threshold for genome-wide significance.
-            show_confidence_band: If True, show 95% confidence band on QQ plot.
-            show_lambda: If True, show genomic inflation factor on QQ plot.
-            figsize: Figure size as (width, height).
-            title: Overall plot title.
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> fig = plotter.plot_manhattan_qq(gwas_df)
-            >>> fig.savefig("gwas_summary.png", dpi=150)
-        """
-        # Prepare Manhattan data
-        manhattan_df = prepare_manhattan_data(
+        """Create side-by-side Manhattan and QQ plots. See ManhattanPlotter.plot_manhattan_qq for docs."""
+        return self._manhattan_plotter.plot_manhattan_qq(
             df=df,
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )
-
-        # Prepare QQ data
-        qq_df = prepare_qq_data(df, p_col=p_col)
-
-        # Create figure with side-by-side layout (Manhattan wider than QQ)
-        # Use width_ratios to make Manhattan ~70% and QQ ~30%
-        fig, axes = self._backend.create_figure_grid(
-            n_rows=1,
-            n_cols=2,
-            width_ratios=[2.5, 1],
+            custom_chrom_order=custom_chrom_order,
+            significance_threshold=significance_threshold,
+            show_confidence_band=show_confidence_band,
+            show_lambda=show_lambda,
             figsize=figsize,
+            title=title,
         )
-        manhattan_ax = axes[0]
-        qq_ax = axes[1]
-
-        # --- Manhattan plot ---
-        chrom_order = manhattan_df.attrs["chrom_order"]
-        chrom_centers = manhattan_df.attrs["chrom_centers"]
-
-        self._render_manhattan_points(manhattan_ax, manhattan_df, chrom_order)
-        self._add_significance_line(manhattan_ax, significance_threshold)
-
-        x_min = manhattan_df["_cumulative_pos"].min()
-        x_max = manhattan_df["_cumulative_pos"].max()
-        x_padding = (x_max - x_min) * 0.01
-        self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
-
-        y_max = manhattan_df["_neg_log_p"].max()
-        self._backend.set_ylim(manhattan_ax, 0, y_max * 1.1)
-
-        positions = [
-            chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-        ]
-        labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-        self._backend.set_xticks(manhattan_ax, positions, labels, fontsize=8)
-
-        self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=12)
-        self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(manhattan_ax, "Manhattan Plot", fontsize=12)
-        self._backend.hide_spines(manhattan_ax, ["top", "right"])
-
-        # --- QQ plot ---
-        self._render_qq_plot(qq_ax, qq_df, show_confidence_band)
-
-        self._backend.set_xlabel(qq_ax, r"Expected $-\log_{10}(p)$", fontsize=12)
-        self._backend.set_ylabel(qq_ax, r"Observed $-\log_{10}(p)$", fontsize=12)
-
-        if show_lambda:
-            lambda_gc = qq_df.attrs["lambda_gc"]
-            qq_title = f"QQ Plot (λ = {lambda_gc:.3f})"
-        else:
-            qq_title = "QQ Plot"
-        self._backend.set_title(qq_ax, qq_title, fontsize=12)
-        self._backend.hide_spines(qq_ax, ["top", "right"])
-
-        # Overall title - adjust top margin to leave room for suptitle
-        if title:
-            self._backend.set_suptitle(fig, title, fontsize=14)
-            self._backend.finalize_layout(fig, top=0.90)
-        else:
-            self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_manhattan_qq_stacked(
         self,
@@ -2098,129 +1395,17 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (14, 8),
         title: Optional[str] = None,
     ) -> Any:
-        """Create stacked side-by-side Manhattan and QQ plots for multiple GWAS.
-
-        Displays Manhattan+QQ pairs for each GWAS dataset, stacked vertically
-        for easy comparison across studies.
-
-        Args:
-            gwas_dfs: List of GWAS results DataFrames.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
-            significance_threshold: P-value threshold for genome-wide significance.
-            show_confidence_band: If True, show 95% confidence band on QQ plots.
-            show_lambda: If True, show genomic inflation factor on QQ plots.
-            panel_labels: List of labels for each GWAS (one per dataset).
-            figsize: Figure size as (width, height).
-            title: Overall plot title.
-
-        Returns:
-            Figure object (type depends on backend).
-
-        Example:
-            >>> fig = plotter.plot_manhattan_qq_stacked(
-            ...     [discovery_df, replication_df],
-            ...     panel_labels=["Discovery", "Replication"],
-            ... )
-        """
-        n_gwas = len(gwas_dfs)
-        if n_gwas == 0:
-            raise ValueError("At least one GWAS DataFrame required")
-
-        # Prepare all data
-        manhattan_dfs = []
-        qq_dfs = []
-        for df in gwas_dfs:
-            manhattan_dfs.append(
-                prepare_manhattan_data(
-                    df=df,
-                    chrom_col=chrom_col,
-                    pos_col=pos_col,
-                    p_col=p_col,
-                    species=self.species,
-                    custom_order=custom_chrom_order,
-                )
-            )
-            qq_dfs.append(prepare_qq_data(df, p_col=p_col))
-
-        # Use chromosome order from first dataset
-        chrom_order = manhattan_dfs[0].attrs["chrom_order"]
-        chrom_centers = manhattan_dfs[0].attrs["chrom_centers"]
-
-        # Create grid: n_gwas rows, 2 columns (Manhattan | QQ)
-        # Manhattan gets ~70% width, QQ gets ~30%
-        fig, axes = self._backend.create_figure_grid(
-            n_rows=n_gwas,
-            n_cols=2,
-            width_ratios=[2.5, 1],
+        """Create stacked Manhattan+QQ plots. See ManhattanPlotter.plot_manhattan_qq_stacked for docs."""
+        return self._manhattan_plotter.plot_manhattan_qq_stacked(
+            gwas_dfs=gwas_dfs,
+            chrom_col=chrom_col,
+            pos_col=pos_col,
+            p_col=p_col,
+            custom_chrom_order=custom_chrom_order,
+            significance_threshold=significance_threshold,
+            show_confidence_band=show_confidence_band,
+            show_lambda=show_lambda,
+            panel_labels=panel_labels,
             figsize=figsize,
+            title=title,
         )
-
-        # Get consistent x limits for Manhattan plots
-        x_min = min(df["_cumulative_pos"].min() for df in manhattan_dfs)
-        x_max = max(df["_cumulative_pos"].max() for df in manhattan_dfs)
-        x_padding = (x_max - x_min) * 0.01
-
-        # Plot each row
-        for i in range(n_gwas):
-            manhattan_ax = axes[i * 2]  # Even indices: Manhattan
-            qq_ax = axes[i * 2 + 1]  # Odd indices: QQ
-            manhattan_df = manhattan_dfs[i]
-            qq_df = qq_dfs[i]
-
-            # --- Manhattan plot ---
-            self._render_manhattan_points(manhattan_ax, manhattan_df, chrom_order)
-            self._add_significance_line(manhattan_ax, significance_threshold)
-
-            self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
-            y_max = manhattan_df["_neg_log_p"].max()
-            self._backend.set_ylim(manhattan_ax, 0, y_max * 1.1)
-
-            # Panel label
-            if panel_labels and i < len(panel_labels):
-                self._backend.add_panel_label(manhattan_ax, panel_labels[i])
-
-            # Y-axis label
-            self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=10)
-            self._backend.hide_spines(manhattan_ax, ["top", "right"])
-
-            # X-axis: set chromosome ticks for all panels (consistent with plot_manhattan_stacked)
-            positions = [
-                chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-            ]
-            chrom_labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-            self._backend.set_xticks(manhattan_ax, positions, chrom_labels, fontsize=8)
-
-            # Only show "Chromosome" label on bottom row
-            if i == n_gwas - 1:
-                self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=10)
-
-            # --- QQ plot ---
-            self._render_qq_plot(qq_ax, qq_df, show_confidence_band)
-
-            # Labels for QQ
-            if i == n_gwas - 1:
-                self._backend.set_xlabel(
-                    qq_ax, r"Expected $-\log_{10}(p)$", fontsize=10
-                )
-            self._backend.set_ylabel(qq_ax, r"Observed $-\log_{10}(p)$", fontsize=10)
-
-            # QQ title with lambda
-            if show_lambda:
-                lambda_gc = qq_df.attrs["lambda_gc"]
-                qq_title = f"λ = {lambda_gc:.3f}"
-            else:
-                qq_title = "QQ"
-            self._backend.set_title(qq_ax, qq_title, fontsize=10)
-            self._backend.hide_spines(qq_ax, ["top", "right"])
-
-        # Overall title - adjust top margin to leave room for suptitle
-        if title:
-            self._backend.set_suptitle(fig, title, fontsize=14)
-            self._backend.finalize_layout(fig, top=0.90, hspace=0.15)
-        else:
-            self._backend.finalize_layout(fig, hspace=0.15)
-
-        return fig
