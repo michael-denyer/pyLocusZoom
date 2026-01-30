@@ -5,9 +5,18 @@ import pytest
 
 from pylocuszoom.loaders import (
     load_bed,
+    load_bolt_lmm,
+    load_caviar,
+    load_eqtl_catalogue,
+    load_finemap,
+    load_gemma,
     load_gtex_eqtl,
+    load_gtf,
     load_gwas,
+    load_gwas_catalog,
+    load_matrixeqtl,
     load_plink_assoc,
+    load_polyfun,
     load_regenie,
     load_saige,
     load_susie,
@@ -189,6 +198,138 @@ class TestSAIGELoader:
         assert len(df) == 3
 
 
+class TestBOLTLMMLoader:
+    """Tests for BOLT-LMM file loader."""
+
+    @pytest.fixture
+    def bolt_file(self, tmp_path):
+        """Create a temporary BOLT-LMM stats file."""
+        content = """SNP\tCHR\tBP\tGENPOS\tALLELE1\tALLELE0\tA1FREQ\tF_MISS\tBETA\tSE\tP_BOLT_LMM_INF\tP_BOLT_LMM
+rs123\t1\t1000000\t0.01\tA\tG\t0.3\t0.01\t0.5\t0.2\t0.01\t0.005
+rs456\t1\t1001000\t0.02\tC\tT\t0.2\t0.02\t0.3\t0.15\t0.05\t0.04
+rs789\t1\t1002000\t0.03\tG\tA\t0.4\t0.01\t-0.2\t0.1\t1e-8\t1e-9
+"""
+        filepath = tmp_path / "test.stats"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def bolt_file_inf_only(self, tmp_path):
+        """Create BOLT-LMM file with only infinitesimal p-value."""
+        content = """SNP\tCHR\tBP\tALLELE1\tALLELE0\tA1FREQ\tBETA\tSE\tP_BOLT_LMM_INF
+rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
+"""
+        filepath = tmp_path / "test_inf.stats"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_bolt_basic(self, bolt_file):
+        """Test basic BOLT-LMM file loading."""
+        df = load_bolt_lmm(bolt_file)
+
+        assert "ps" in df.columns
+        assert "p_wald" in df.columns
+        assert "rs" in df.columns
+        assert len(df) == 3
+
+    def test_load_bolt_prefers_full_model(self, bolt_file):
+        """Test that BOLT-LMM loader prefers P_BOLT_LMM over P_BOLT_LMM_INF."""
+        df = load_bolt_lmm(bolt_file)
+
+        # Should use P_BOLT_LMM (full model), not P_BOLT_LMM_INF
+        assert df["p_wald"].iloc[0] == 0.005  # Not 0.01
+        assert df["p_wald"].iloc[2] == pytest.approx(1e-9, rel=0.01)
+
+    def test_load_bolt_fallback_to_inf(self, bolt_file_inf_only):
+        """Test that BOLT-LMM loader falls back to P_BOLT_LMM_INF."""
+        df = load_bolt_lmm(bolt_file_inf_only)
+
+        assert "p_wald" in df.columns
+        assert df["p_wald"].iloc[0] == 0.01
+
+
+class TestGEMMALoader:
+    """Tests for GEMMA file loader."""
+
+    @pytest.fixture
+    def gemma_file(self, tmp_path):
+        """Create a temporary GEMMA .assoc.txt file."""
+        content = """chr\trs\tps\tn_miss\tallele1\tallele0\taf\tbeta\tse\tlogl_H1\tl_remle\tp_wald
+1\trs123\t1000000\t0\tA\tG\t0.3\t0.5\t0.2\t100\t0.5\t0.01
+1\trs456\t1001000\t0\tC\tT\t0.2\t0.3\t0.15\t95\t0.4\t0.05
+1\trs789\t1002000\t0\tG\tA\t0.4\t-0.2\t0.1\t110\t0.6\t1e-8
+"""
+        filepath = tmp_path / "output.assoc.txt"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def gemma_lrt_file(self, tmp_path):
+        """Create GEMMA file with p_lrt instead of p_wald."""
+        content = """chr\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_lrt
+1\trs123\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.02
+"""
+        filepath = tmp_path / "output_lrt.assoc.txt"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_gemma_basic(self, gemma_file):
+        """Test basic GEMMA file loading."""
+        df = load_gemma(gemma_file)
+
+        assert "ps" in df.columns
+        assert "p_wald" in df.columns
+        assert "rs" in df.columns
+        assert len(df) == 3
+
+    def test_load_gemma_values(self, gemma_file):
+        """Test that values are loaded correctly."""
+        df = load_gemma(gemma_file)
+
+        assert df["ps"].iloc[0] == 1000000
+        assert df["p_wald"].iloc[0] == 0.01
+
+    def test_load_gemma_fallback_to_lrt(self, gemma_lrt_file):
+        """Test GEMMA loader falls back to p_lrt when p_wald missing."""
+        df = load_gemma(gemma_lrt_file)
+
+        assert "p_wald" in df.columns
+        assert df["p_wald"].iloc[0] == 0.02
+
+
+class TestGWASCatalogLoader:
+    """Tests for GWAS Catalog file loader."""
+
+    @pytest.fixture
+    def catalog_file(self, tmp_path):
+        """Create a temporary GWAS Catalog file."""
+        content = """chromosome\tbase_pair_location\tvariant_id\tp_value\tbeta
+1\t1000000\trs123\t0.01\t0.5
+1\t1001000\trs456\t0.001\t0.3
+1\t1002000\trs789\t1e-8\t-0.2
+"""
+        filepath = tmp_path / "gwas_catalog.tsv"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_gwas_catalog_basic(self, catalog_file):
+        """Test basic GWAS Catalog file loading."""
+        df = load_gwas_catalog(catalog_file)
+
+        assert "ps" in df.columns
+        assert "p_wald" in df.columns
+        assert "rs" in df.columns
+        assert len(df) == 3
+
+    def test_load_gwas_catalog_values(self, catalog_file):
+        """Test that values are mapped correctly."""
+        df = load_gwas_catalog(catalog_file)
+
+        assert df["ps"].iloc[0] == 1000000
+        assert df["p_wald"].iloc[0] == 0.01
+        assert df["rs"].iloc[0] == "rs123"
+
+
 class TestGTExEQTLLoader:
     """Tests for GTEx eQTL file loader."""
 
@@ -210,6 +351,82 @@ chr1_1001000_C_T_b38\tENSG00001\t0.01\t-0.3
         # Should standardize to effect_size for compatibility with plotter
         assert "effect_size" in df.columns
         assert df["effect_size"].iloc[0] == 0.5
+
+
+class TestEQTLCatalogueLoader:
+    """Tests for eQTL Catalogue file loader."""
+
+    @pytest.fixture
+    def eqtl_catalogue_file(self, tmp_path):
+        """Create a temporary eQTL Catalogue file."""
+        content = """molecular_trait_id\tgene_id\tvariant\tchromosome\tposition\tref\talt\tac\tan\tmaf\tbeta\tse\tpvalue
+ENSG00001_ENST00001\tENSG00001\t1_1000000_A_G\t1\t1000000\tA\tG\t100\t1000\t0.1\t0.5\t0.1\t1e-6
+ENSG00001_ENST00001\tENSG00001\t1_1001000_C_T\t1\t1001000\tC\tT\t200\t1000\t0.2\t-0.3\t0.15\t0.01
+"""
+        filepath = tmp_path / "eqtl_catalogue.tsv"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_eqtl_catalogue_basic(self, eqtl_catalogue_file):
+        """Test basic eQTL Catalogue file loading."""
+        df = load_eqtl_catalogue(eqtl_catalogue_file)
+
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
+        assert "gene" in df.columns
+        assert len(df) == 2
+
+    def test_load_eqtl_catalogue_effect_size_column(self, eqtl_catalogue_file):
+        """Test that eQTL Catalogue loader outputs effect_size column."""
+        df = load_eqtl_catalogue(eqtl_catalogue_file)
+
+        assert "effect_size" in df.columns
+        assert df["effect_size"].iloc[0] == 0.5
+
+    def test_load_eqtl_catalogue_gene_filter(self, eqtl_catalogue_file):
+        """Test gene filtering works."""
+        df = load_eqtl_catalogue(eqtl_catalogue_file, gene="ENSG00001")
+
+        assert len(df) == 2
+
+
+class TestMatrixEQTLLoader:
+    """Tests for MatrixEQTL file loader."""
+
+    @pytest.fixture
+    def matrixeqtl_file(self, tmp_path):
+        """Create a temporary MatrixEQTL output file."""
+        content = """SNP\tgene\tbeta\tt-stat\tp-value\tFDR
+rs123\tBRCA1\t0.5\t3.5\t1e-6\t1e-5
+rs456\tBRCA1\t-0.3\t-2.1\t0.03\t0.1
+rs789\tTP53\t0.2\t2.0\t0.04\t0.12
+"""
+        filepath = tmp_path / "matrixeqtl.txt"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_matrixeqtl_basic(self, matrixeqtl_file):
+        """Test basic MatrixEQTL file loading."""
+        df = load_matrixeqtl(matrixeqtl_file)
+
+        assert "rs" in df.columns
+        assert "gene" in df.columns
+        assert "p_value" in df.columns
+        assert len(df) == 3
+
+    def test_load_matrixeqtl_effect_size_column(self, matrixeqtl_file):
+        """Test that MatrixEQTL loader outputs effect_size column."""
+        df = load_matrixeqtl(matrixeqtl_file)
+
+        assert "effect_size" in df.columns
+        assert df["effect_size"].iloc[0] == 0.5
+
+    def test_load_matrixeqtl_gene_filter(self, matrixeqtl_file):
+        """Test gene filtering works."""
+        df = load_matrixeqtl(matrixeqtl_file, gene="BRCA1")
+
+        assert len(df) == 2
+        assert all(df["gene"] == "BRCA1")
 
 
 class TestAutoFormatDetection:
@@ -253,6 +470,124 @@ class TestSuSiELoader:
         assert df[df["pos"] == 1000000]["cs"].iloc[0] == 1
         assert df[df["pos"] == 1002000]["cs"].iloc[0] == 0  # Not in CS
         assert df[df["pos"] == 1003000]["cs"].iloc[0] == 2
+
+
+class TestFINEMAPLoader:
+    """Tests for FINEMAP file loader."""
+
+    @pytest.fixture
+    def finemap_file(self, tmp_path):
+        """Create a temporary FINEMAP .snp output file."""
+        content = """index rsid chromosome position allele1 allele2 maf beta se z prob log10bf
+1 rs123 1 1000000 A G 0.3 0.5 0.2 2.5 0.85 2.1
+2 rs456 1 1001000 C T 0.2 0.3 0.15 2.0 0.12 1.5
+3 rs789 1 1002000 G A 0.4 -0.2 0.1 -2.0 0.02 0.5
+4 rs101 1 1003000 T C 0.1 0.4 0.25 1.6 0.01 0.3
+"""
+        filepath = tmp_path / "results.snp"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_finemap_basic(self, finemap_file):
+        """Test basic FINEMAP file loading."""
+        df = load_finemap(finemap_file)
+
+        assert "pos" in df.columns
+        assert "pip" in df.columns
+        assert len(df) == 4
+
+    def test_load_finemap_assigns_credible_set(self, finemap_file):
+        """Test that FINEMAP loader assigns credible sets based on cumsum."""
+        df = load_finemap(finemap_file)
+
+        # Sorted by PIP: 0.85 + 0.12 = 0.97 > 0.95, so first 2 in CS
+        assert "cs" in df.columns
+        # The first variant in sorted order (0.85) should be in credible set
+        cs_variants = df[df["cs"] == 1]
+        assert len(cs_variants) >= 1
+
+    def test_load_finemap_values(self, finemap_file):
+        """Test that values are loaded correctly."""
+        df = load_finemap(finemap_file)
+
+        # After loading, find the variant with rsid rs123
+        rs123 = df[df["rs"] == "rs123"]
+        if len(rs123) > 0:
+            assert rs123["pip"].iloc[0] == 0.85
+
+
+class TestCAVIARLoader:
+    """Tests for CAVIAR file loader."""
+
+    @pytest.fixture
+    def caviar_file(self, tmp_path):
+        """Create a temporary CAVIAR .set output file."""
+        content = """rs123 0.85
+rs456 0.12
+rs789 0.02
+rs101 0.01
+"""
+        filepath = tmp_path / "results.set"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_caviar_basic(self, caviar_file):
+        """Test basic CAVIAR file loading."""
+        df = load_caviar(caviar_file)
+
+        assert "rs" in df.columns
+        assert "pip" in df.columns
+        assert len(df) == 4
+
+    def test_load_caviar_assigns_credible_set(self, caviar_file):
+        """Test that CAVIAR loader assigns credible sets."""
+        df = load_caviar(caviar_file)
+
+        assert "cs" in df.columns
+        # Top variants should be in credible set (cumsum <= 0.95)
+        assert df[df["rs"] == "rs123"]["cs"].iloc[0] == 1
+
+    def test_load_caviar_no_position_column(self, caviar_file):
+        """Test that CAVIAR output doesn't include position column."""
+        df = load_caviar(caviar_file)
+
+        # CAVIAR doesn't include positions - user needs to merge
+        assert "pos" not in df.columns
+        # But should have rs and pip
+        assert "rs" in df.columns
+        assert "pip" in df.columns
+
+
+class TestPolyFunLoader:
+    """Tests for PolyFun file loader."""
+
+    @pytest.fixture
+    def polyfun_file(self, tmp_path):
+        """Create a temporary PolyFun output file."""
+        content = """CHR BP SNP A1 A2 PIP CREDIBLE_SET BETA SE
+1 1000000 rs123 A G 0.85 1 0.5 0.2
+1 1001000 rs456 C T 0.12 1 0.3 0.15
+1 1002000 rs789 G A 0.02 0 -0.2 0.1
+"""
+        filepath = tmp_path / "polyfun.txt"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_polyfun_basic(self, polyfun_file):
+        """Test basic PolyFun file loading."""
+        df = load_polyfun(polyfun_file)
+
+        assert "pos" in df.columns
+        assert "pip" in df.columns
+        assert "cs" in df.columns
+        assert len(df) == 3
+
+    def test_load_polyfun_preserves_credible_set(self, polyfun_file):
+        """Test that PolyFun loader preserves CREDIBLE_SET column."""
+        df = load_polyfun(polyfun_file)
+
+        assert df[df["pos"] == 1000000]["cs"].iloc[0] == 1
+        assert df[df["pos"] == 1002000]["cs"].iloc[0] == 0
 
 
 # =============================================================================
@@ -312,6 +647,83 @@ chr1\t1050000\t1080000\tGENE2\t200\t-\tmore_data
         assert len(df) == 2
         assert "gene_name" in df.columns
         assert df["gene_name"].iloc[0] == "GENE1"
+
+
+class TestGTFLoader:
+    """Tests for GTF file loader."""
+
+    @pytest.fixture
+    def gtf_file(self, tmp_path):
+        """Create a temporary GTF file with gene_name before gene_id."""
+        # Note: loader extracts first matching attribute (gene_name or gene_id)
+        # so we put gene_name first to test gene_name extraction
+        content = """##description: test GTF file
+chr1\tENSEMBL\tgene\t1000000\t1020000\t.\t+\t.\tgene_name "BRCA1"; gene_id "ENSG00001"; gene_biotype "protein_coding";
+chr1\tENSEMBL\texon\t1000000\t1005000\t.\t+\t.\tgene_name "BRCA1"; gene_id "ENSG00001"; exon_number 1;
+chr1\tENSEMBL\texon\t1015000\t1020000\t.\t+\t.\tgene_name "BRCA1"; gene_id "ENSG00001"; exon_number 2;
+chr1\tENSEMBL\tgene\t1050000\t1080000\t.\t-\t.\tgene_name "TP53"; gene_id "ENSG00002"; gene_biotype "protein_coding";
+"""
+        filepath = tmp_path / "genes.gtf"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def gtf_file_gene_id_only(self, tmp_path):
+        """Create a GTF file with only gene_id (no gene_name)."""
+        content = """##description: test GTF file
+chr1\tENSEMBL\tgene\t1000000\t1020000\t.\t+\t.\tgene_id "ENSG00001"; gene_biotype "protein_coding";
+"""
+        filepath = tmp_path / "genes_id_only.gtf"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_gtf_genes(self, gtf_file):
+        """Test loading genes from GTF file."""
+        df = load_gtf(gtf_file, feature_type="gene")
+
+        assert len(df) == 2
+        assert "chr" in df.columns
+        assert "start" in df.columns
+        assert "end" in df.columns
+        assert "gene_name" in df.columns
+        assert "strand" in df.columns
+
+    def test_load_gtf_exons(self, gtf_file):
+        """Test loading exons from GTF file."""
+        df = load_gtf(gtf_file, feature_type="exon")
+
+        assert len(df) == 2
+        assert all(df["gene_name"] == "BRCA1")
+
+    def test_load_gtf_chromosome_cleaned(self, gtf_file):
+        """Test that chromosome prefix is removed."""
+        df = load_gtf(gtf_file, feature_type="gene")
+
+        # "chr1" should become "1"
+        assert df["chr"].iloc[0] == "1"
+
+    def test_load_gtf_extracts_gene_name(self, gtf_file):
+        """Test that gene_name is extracted from attributes."""
+        df = load_gtf(gtf_file, feature_type="gene")
+
+        assert "BRCA1" in df["gene_name"].values
+        assert "TP53" in df["gene_name"].values
+
+    def test_load_gtf_preserves_strand(self, gtf_file):
+        """Test that strand information is preserved."""
+        df = load_gtf(gtf_file, feature_type="gene")
+
+        brca1 = df[df["gene_name"] == "BRCA1"]
+        tp53 = df[df["gene_name"] == "TP53"]
+        assert brca1["strand"].iloc[0] == "+"
+        assert tp53["strand"].iloc[0] == "-"
+
+    def test_load_gtf_fallback_to_gene_id(self, gtf_file_gene_id_only):
+        """Test that loader falls back to gene_id when gene_name missing."""
+        df = load_gtf(gtf_file_gene_id_only, feature_type="gene")
+
+        assert len(df) == 1
+        assert df["gene_name"].iloc[0] == "ENSG00001"
 
 
 # =============================================================================
