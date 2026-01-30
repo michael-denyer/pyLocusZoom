@@ -45,16 +45,6 @@ class TestGetDefaultDataDir:
 class TestAddRecombinationOverlay:
     """Tests for add_recombination_overlay function."""
 
-    @pytest.fixture
-    def sample_recomb_df(self):
-        """Sample recombination rate DataFrame."""
-        return pd.DataFrame(
-            {
-                "pos": [1000000, 1200000, 1400000, 1600000, 1800000, 2000000],
-                "rate": [0.5, 1.2, 2.5, 1.8, 0.8, 0.3],
-            }
-        )
-
     def test_creates_secondary_axis(self, sample_recomb_df):
         """Should create secondary y-axis for recombination rate."""
         fig, ax = plt.subplots()
