@@ -34,7 +34,7 @@ Species Support:
     - Custom: User provides all reference data
 """
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 
 # Main plotter class
 # Backend types
