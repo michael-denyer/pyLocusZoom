@@ -314,7 +314,7 @@ git push
 
 ## Gotchas
 
-- **README images for PyPI**: Images must use absolute GitHub URLs (`https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/...`) not relative paths - PyPI doesn't host images
+- **README for PyPI**: All images and links must use absolute GitHub URLs - PyPI doesn't resolve relative paths. Images: `https://raw.githubusercontent.com/.../main/examples/file.png`, Links: `https://github.com/.../blob/main/docs/FILE.md`
 - **Matplotlib-only guards**: When calling matplotlib-specific methods (`_add_ld_legend`), always check `self.backend_name == "matplotlib"` first
 - **Parameter naming**: `plot()` uses `lead_pos`, `plot_stacked()` uses `lead_positions` (plural with list)
 - **PLINK species flags**: `species="canine"` maps to PLINK's `--dog` flag internally
