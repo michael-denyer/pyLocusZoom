@@ -210,3 +210,40 @@ class TestPlotFinemapping:
         plot_finemapping(mock_backend, mock_ax, df, cs_col=None)
 
         mock_backend.line.assert_called_once()
+
+    def test_plot_finemapping_with_pip_threshold(self):
+        """Test that pip_threshold filters scatter points."""
+        mock_backend = MagicMock()
+        mock_ax = MagicMock()
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000, 2000, 3000],
+                "pip": [0.05, 0.5, 0.02],  # Only 0.5 > 0.1 threshold
+            }
+        )
+
+        plot_finemapping(mock_backend, mock_ax, df, cs_col=None, pip_threshold=0.1)
+
+        # Line should still be plotted
+        mock_backend.line.assert_called_once()
+        # With no credible sets and pip_threshold > 0, scatter should be called for high-PIP points
+        mock_backend.scatter.assert_called_once()
+
+    def test_plot_finemapping_empty_dataframe(self):
+        """Test that plot_finemapping handles empty DataFrame."""
+        mock_backend = MagicMock()
+        mock_ax = MagicMock()
+
+        df = pd.DataFrame(
+            {
+                "pos": [],
+                "pip": [],
+            }
+        )
+
+        # Should not raise
+        plot_finemapping(mock_backend, mock_ax, df)
+
+        # Line should still be called (with empty data)
+        mock_backend.line.assert_called_once()
