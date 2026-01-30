@@ -43,13 +43,11 @@ from .gene_track import (
 )
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
-from .manhattan_plotter import ManhattanPlotter
 from .recombination import (
     RECOMB_COLOR,
     ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
-from .stats_plotter import StatsPlotter
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
 # Precomputed significance line value (used for plotting)
@@ -146,27 +144,6 @@ class LocusZoomPlotter:
 
         # Cache for loaded data
         self._recomb_cache = {}
-
-    @property
-    def _manhattan_plotter(self) -> ManhattanPlotter:
-        """Lazy-load ManhattanPlotter with shared configuration."""
-        if not hasattr(self, "_manhattan_plotter_instance"):
-            self._manhattan_plotter_instance = ManhattanPlotter(
-                species=self.species,
-                backend=self._backend_name,
-                genomewide_threshold=self.genomewide_threshold,
-            )
-        return self._manhattan_plotter_instance
-
-    @property
-    def _stats_plotter(self) -> StatsPlotter:
-        """Lazy-load StatsPlotter with shared configuration."""
-        if not hasattr(self, "_stats_plotter_instance"):
-            self._stats_plotter_instance = StatsPlotter(
-                backend=self._backend_name,
-                genomewide_threshold=self.genomewide_threshold,
-            )
-        return self._stats_plotter_instance
 
     @staticmethod
     def _default_build(species: str) -> Optional[str]:
@@ -1106,180 +1083,3 @@ class LocusZoomPlotter:
         self._backend.finalize_layout(fig, hspace=0.1)
 
         return fig
-
-    def plot_phewas(
-        self,
-        phewas_df: pd.DataFrame,
-        variant_id: str,
-        phenotype_col: str = "phenotype",
-        p_col: str = "p_value",
-        category_col: str = "category",
-        effect_col: Optional[str] = None,
-        significance_threshold: float = 5e-8,
-        figsize: Tuple[float, float] = (10, 8),
-    ) -> Any:
-        """Create a PheWAS plot. See StatsPlotter.plot_phewas for docs."""
-        return self._stats_plotter.plot_phewas(
-            phewas_df=phewas_df,
-            variant_id=variant_id,
-            phenotype_col=phenotype_col,
-            p_col=p_col,
-            category_col=category_col,
-            effect_col=effect_col,
-            significance_threshold=significance_threshold,
-            figsize=figsize,
-        )
-
-    def plot_forest(
-        self,
-        forest_df: pd.DataFrame,
-        variant_id: str,
-        study_col: str = "study",
-        effect_col: str = "effect",
-        ci_lower_col: str = "ci_lower",
-        ci_upper_col: str = "ci_upper",
-        weight_col: Optional[str] = None,
-        null_value: float = 0.0,
-        effect_label: str = "Effect Size",
-        figsize: Tuple[float, float] = (8, 6),
-    ) -> Any:
-        """Create a forest plot. See StatsPlotter.plot_forest for docs."""
-        return self._stats_plotter.plot_forest(
-            forest_df=forest_df,
-            variant_id=variant_id,
-            study_col=study_col,
-            effect_col=effect_col,
-            ci_lower_col=ci_lower_col,
-            ci_upper_col=ci_upper_col,
-            weight_col=weight_col,
-            null_value=null_value,
-            effect_label=effect_label,
-            figsize=figsize,
-        )
-
-    def plot_manhattan(
-        self,
-        df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        category_col: Optional[str] = None,
-        category_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        figsize: Tuple[float, float] = (12, 5),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create a Manhattan plot. See ManhattanPlotter.plot_manhattan for docs."""
-        return self._manhattan_plotter.plot_manhattan(
-            df=df,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            category_col=category_col,
-            category_order=category_order,
-            significance_threshold=significance_threshold,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_qq(
-        self,
-        df: pd.DataFrame,
-        p_col: str = "p",
-        show_confidence_band: bool = True,
-        show_lambda: bool = True,
-        figsize: Tuple[float, float] = (6, 6),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create a QQ plot. See ManhattanPlotter.plot_qq for docs."""
-        return self._manhattan_plotter.plot_qq(
-            df=df,
-            p_col=p_col,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_manhattan_stacked(
-        self,
-        gwas_dfs: List[pd.DataFrame],
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        panel_labels: Optional[List[str]] = None,
-        figsize: Tuple[float, float] = (12, 8),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create stacked Manhattan plots. See ManhattanPlotter.plot_manhattan_stacked for docs."""
-        return self._manhattan_plotter.plot_manhattan_stacked(
-            gwas_dfs=gwas_dfs,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            significance_threshold=significance_threshold,
-            panel_labels=panel_labels,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_manhattan_qq(
-        self,
-        df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        show_confidence_band: bool = True,
-        show_lambda: bool = True,
-        figsize: Tuple[float, float] = (14, 5),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create side-by-side Manhattan and QQ plots. See ManhattanPlotter.plot_manhattan_qq for docs."""
-        return self._manhattan_plotter.plot_manhattan_qq(
-            df=df,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            significance_threshold=significance_threshold,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_manhattan_qq_stacked(
-        self,
-        gwas_dfs: List[pd.DataFrame],
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        show_confidence_band: bool = True,
-        show_lambda: bool = True,
-        panel_labels: Optional[List[str]] = None,
-        figsize: Tuple[float, float] = (14, 8),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create stacked Manhattan+QQ plots. See ManhattanPlotter.plot_manhattan_qq_stacked for docs."""
-        return self._manhattan_plotter.plot_manhattan_qq_stacked(
-            gwas_dfs=gwas_dfs,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            significance_threshold=significance_threshold,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            panel_labels=panel_labels,
-            figsize=figsize,
-            title=title,
-        )

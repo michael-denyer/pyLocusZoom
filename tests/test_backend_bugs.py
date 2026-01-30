@@ -11,7 +11,8 @@ import pytest
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.manhattan import prepare_categorical_data
-from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.manhattan_plotter import ManhattanPlotter
+from pylocuszoom.stats_plotter import StatsPlotter
 
 
 @pytest.fixture
@@ -203,7 +204,7 @@ class TestPlotlyGridSubplotAxisAddressing:
 
     def test_plot_manhattan_qq_distinct_axes(self, sample_gwas_df):
         """plot_manhattan_qq should have distinct axis limits for Manhattan and QQ."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        plotter = ManhattanPlotter(species="canine", backend="plotly")
         fig = plotter.plot_manhattan_qq(sample_gwas_df)
 
         layout = fig.layout
@@ -322,7 +323,7 @@ class TestBokehSetYticksIgnoresLabels:
 
     def test_bokeh_phewas_shows_phenotype_names(self, sample_phewas_df):
         """PheWAS plot should show phenotype names, not numeric indices."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        plotter = StatsPlotter(backend="bokeh")
         fig = plotter.plot_phewas(
             sample_phewas_df,
             variant_id="rs12345",
@@ -348,7 +349,7 @@ class TestBokehSetYticksIgnoresLabels:
 
     def test_bokeh_forest_shows_study_names(self, sample_forest_df):
         """Forest plot should show study names, not numeric indices."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        plotter = StatsPlotter(backend="bokeh")
         fig = plotter.plot_forest(
             sample_forest_df,
             variant_id="rs12345",
@@ -461,7 +462,7 @@ class TestPlotlySetTitleOverwriting:
 
     def test_plot_manhattan_qq_has_distinct_titles(self, sample_gwas_df):
         """plot_manhattan_qq should show both Manhattan and QQ titles."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        plotter = ManhattanPlotter(species="canine", backend="plotly")
         fig = plotter.plot_manhattan_qq(sample_gwas_df)
 
         # Convert to JSON to inspect all text elements

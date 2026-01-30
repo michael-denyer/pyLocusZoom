@@ -13,7 +13,7 @@ matplotlib.use("Agg")  # Non-interactive backend
 import numpy as np
 import pandas as pd
 
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LocusZoomPlotter, ManhattanPlotter, StatsPlotter
 
 
 def generate_p_values(
@@ -814,7 +814,8 @@ phewas_df = pd.DataFrame(
         ],
     }
 )
-fig = plotter.plot_phewas(phewas_df, variant_id="rs7903146")
+stats_plotter = StatsPlotter()
+fig = stats_plotter.plot_phewas(phewas_df, variant_id="rs7903146")
 fig.savefig("examples/phewas_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/phewas_plot.png")
 
@@ -838,7 +839,7 @@ forest_df = pd.DataFrame(
         "weight": [22, 18, 8, 28, 12, 12, 100],
     }
 )
-fig = plotter.plot_forest(
+fig = stats_plotter.plot_forest(
     forest_df,
     variant_id="rs7903146 (TCF7L2)",
     weight_col="weight",
@@ -868,7 +869,7 @@ for chrom in range(1, 23):
 
 manhattan_df = pd.DataFrame(manhattan_data)
 
-manhattan_plotter = LocusZoomPlotter(species="human", log_level=None)
+manhattan_plotter = ManhattanPlotter(species="human")
 fig = manhattan_plotter.plot_manhattan(
     manhattan_df,
     significance_threshold=5e-8,
@@ -890,7 +891,7 @@ qq_pvalues[:n_true] = 10 ** np.random.uniform(-10, -5, n_true)
 
 qq_df = pd.DataFrame({"p": qq_pvalues})
 
-qq_plotter = LocusZoomPlotter(log_level=None)
+qq_plotter = ManhattanPlotter()
 fig = qq_plotter.plot_qq(
     qq_df,
     show_confidence_band=True,
@@ -902,9 +903,7 @@ print("   Saved: examples/qq_plot.png")
 
 # Interactive Plotly Manhattan plot
 print("20. Interactive Plotly Manhattan plot...")
-manhattan_plotter_plotly = LocusZoomPlotter(
-    species="human", backend="plotly", log_level=None
-)
+manhattan_plotter_plotly = ManhattanPlotter(species="human", backend="plotly")
 fig = manhattan_plotter_plotly.plot_manhattan(
     manhattan_df,
     significance_threshold=5e-8,
@@ -919,9 +918,7 @@ print("21. Interactive Bokeh Manhattan plot...")
 from bokeh.io import save
 from bokeh.resources import CDN
 
-manhattan_plotter_bokeh = LocusZoomPlotter(
-    species="human", backend="bokeh", log_level=None
-)
+manhattan_plotter_bokeh = ManhattanPlotter(species="human", backend="bokeh")
 fig = manhattan_plotter_bokeh.plot_manhattan(
     manhattan_df,
     significance_threshold=5e-8,
@@ -935,7 +932,7 @@ print("   Saved: examples/manhattan_bokeh.html")
 
 # Interactive Plotly QQ plot
 print("22. Interactive Plotly QQ plot...")
-qq_plotter_plotly = LocusZoomPlotter(backend="plotly", log_level=None)
+qq_plotter_plotly = ManhattanPlotter(backend="plotly")
 fig = qq_plotter_plotly.plot_qq(
     qq_df,
     show_confidence_band=True,
@@ -947,7 +944,7 @@ print("   Saved: examples/qq_plotly.html")
 
 # Interactive Bokeh QQ plot
 print("23. Interactive Bokeh QQ plot...")
-qq_plotter_bokeh = LocusZoomPlotter(backend="bokeh", log_level=None)
+qq_plotter_bokeh = ManhattanPlotter(backend="bokeh")
 fig = qq_plotter_bokeh.plot_qq(
     qq_df,
     show_confidence_band=True,
