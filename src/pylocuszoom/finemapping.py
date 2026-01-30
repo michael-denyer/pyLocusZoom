@@ -282,9 +282,9 @@ def plot_finemapping(
                 zorder=3,
                 hover_data=hover_builder.build_dataframe(cs_data),
             )
-        # Plot variants not in any credible set
-        non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
-        if not non_cs_data.empty and pip_threshold > 0:
+        # Plot variants not in any credible set (only if threshold is set)
+        if pip_threshold > 0:
+            non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
             non_cs_data = non_cs_data[non_cs_data[pip_col] >= pip_threshold]
             if not non_cs_data.empty:
                 backend.scatter(

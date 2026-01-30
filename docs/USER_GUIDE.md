@@ -610,8 +610,6 @@ fig = plotter.plot_stacked(
 
 ### plot_manhattan() Method
 
-> **Deprecated**: Use `ManhattanPlotter().plot_manhattan()` instead.
-
 Create a genome-wide Manhattan plot showing associations across all chromosomes.
 
 ```python
@@ -638,8 +636,6 @@ fig = plotter.plot_manhattan(
 
 ### plot_qq() Method
 
-> **Deprecated**: Use `ManhattanPlotter().plot_qq()` instead.
-
 Create a quantile-quantile (QQ) plot to assess p-value distribution.
 
 ```python
@@ -661,8 +657,6 @@ fig = plotter.plot_qq(
 | `figsize` | tuple | `(6, 6)` | Figure dimensions (width, height). |
 
 ### plot_manhattan_stacked() Method
-
-> **Deprecated**: Use `ManhattanPlotter().plot_manhattan_stacked()` instead.
 
 Create stacked Manhattan plots for comparing multiple GWAS studies.
 
@@ -693,8 +687,6 @@ fig = plotter.plot_manhattan_stacked(
 | `title` | str | None | Overall figure title (suptitle). |
 
 ### plot_manhattan_qq() Method
-
-> **Deprecated**: Use `ManhattanPlotter().plot_manhattan_qq()` instead.
 
 Create a combined Manhattan and QQ plot side-by-side in a single figure.
 
@@ -727,8 +719,6 @@ fig = plotter.plot_manhattan_qq(
 | `title` | str | None | Overall figure title (suptitle). |
 
 ### plot_manhattan_qq_stacked() Method
-
-> **Deprecated**: Use `ManhattanPlotter().plot_manhattan_qq_stacked()` instead.
 
 Create stacked Manhattan+QQ plot pairs for comparing multiple GWAS studies.
 

@@ -429,11 +429,8 @@ def ensure_recomb_maps(
     logger.info("Downloading canine recombination maps...")
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
-    except (requests.RequestException, OSError, IOError) as e:
-        logger.warning(f"Could not download recombination maps: {e}")
-        return None
     except Exception as e:
-        logger.error(f"Unexpected error downloading recombination maps: {e}")
+        logger.warning(f"Could not download recombination maps: {e}")
         return None
 
 
