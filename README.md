@@ -7,7 +7,7 @@
 [![Plotly](https://img.shields.io/badge/Plotly-5.15+-3F4F75.svg)](https://plotly.com/python/)
 [![Bokeh](https://img.shields.io/badge/Bokeh-3.8+-E6526F.svg)](https://bokeh.org/)
 [![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
-<img src="logo.svg" alt="pyLocusZoom logo" width="120" align="right">
+<img src="https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 # pyLocusZoom
 
 Designed for publication-ready GWAS visualization with regional association plots, gene tracks, eQTL, PheWAS, fine-mapping, and forest plots.
@@ -25,7 +25,7 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
     - **SNP labels (matplotlib)**: Automatic labeling of top SNPs by p-value (RS IDs)
     - **Hover tooltips (Plotly and Bokeh)**: Detailed SNP data on hover
 
-![Example regional association plot with LD coloring, gene track, and recombination overlay](examples/regional_plot_with_recomb.png)
+![Example regional association plot with LD coloring, gene track, and recombination overlay](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/regional_plot_with_recomb.png)
 *Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
@@ -208,7 +208,7 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example stacked plot comparing two phenotypes](examples/stacked_plot.png)
+![Example stacked plot comparing two phenotypes](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/stacked_plot.png)
 *Stacked plot comparing two phenotypes with LD coloring and shared gene track.*
 
 ## eQTL Overlay
@@ -237,7 +237,7 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example eQTL overlay plot](examples/eqtl_overlay.png)
+![Example eQTL overlay plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/eqtl_overlay.png)
 *eQTL overlay with effect direction (up/down triangles) and magnitude binning.*
 
 ## Fine-mapping Visualization
@@ -266,7 +266,7 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example fine-mapping plot](examples/finemapping_plot.png)
+![Example fine-mapping plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/finemapping_plot.png)
 *Fine-mapping visualization with PIP line and credible set coloring (CS1/CS2).*
 
 ## PheWAS Plots
@@ -287,7 +287,7 @@ fig = plotter.plot_phewas(
 )
 ```
 
-![Example PheWAS plot](examples/phewas_plot.png)
+![Example PheWAS plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/phewas_plot.png)
 *PheWAS plot showing associations across phenotype categories with significance threshold.*
 
 ## Forest Plots
@@ -310,7 +310,7 @@ fig = plotter.plot_forest(
 )
 ```
 
-![Example forest plot](examples/forest_plot.png)
+![Example forest plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/forest_plot.png)
 *Forest plot with effect sizes, confidence intervals, and weight-proportional markers.*
 
 ## Manhattan Plots
@@ -333,7 +333,7 @@ fig = plotter.plot_manhattan(
 fig.savefig("manhattan.png", dpi=150)
 ```
 
-![Example Manhattan plot](examples/manhattan_plot.png)
+![Example Manhattan plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/manhattan_plot.png)
 *Manhattan plot showing genome-wide associations with chromosome coloring and significance threshold.*
 
 Categorical Manhattan plots (PheWAS-style) are also supported:
@@ -365,7 +365,7 @@ fig = plotter.plot_qq(
 fig.savefig("qq_plot.png", dpi=150)
 ```
 
-![Example QQ plot](examples/qq_plot.png)
+![Example QQ plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/qq_plot.png)
 *QQ plot with 95% confidence band and genomic inflation factor (λ).*
 
 ## Stacked Manhattan Plots
@@ -390,7 +390,7 @@ fig = plotter.plot_manhattan_stacked(
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
 
-![Example stacked Manhattan plot](examples/manhattan_stacked.png)
+![Example stacked Manhattan plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/manhattan_stacked.png)
 *Stacked Manhattan plots comparing three GWAS studies with shared chromosome axis.*
 
 ## Manhattan and QQ Side-by-Side
@@ -416,7 +416,7 @@ fig = plotter.plot_manhattan_qq(
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
 
-![Example Manhattan and QQ side-by-side](examples/manhattan_qq_sidebyside.png)
+![Example Manhattan and QQ side-by-side](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/manhattan_qq_sidebyside.png)
 *Combined Manhattan and QQ plot showing genome-wide associations and p-value distribution.*
 
 ## PySpark Support
