@@ -764,8 +764,6 @@ fig = plotter.plot_manhattan_qq_stacked(
 
 ### plot_phewas() Method
 
-> **Deprecated**: Use `StatsPlotter().plot_phewas()` instead.
-
 Create a PheWAS (Phenome-Wide Association Study) plot.
 
 ```python
@@ -793,8 +791,6 @@ fig = plotter.plot_phewas(
 | `figsize` | tuple | `(10, 8)` | Figure dimensions (width, height). |
 
 ### plot_forest() Method
-
-> **Deprecated**: Use `StatsPlotter().plot_forest()` instead.
 
 Create a forest plot for meta-analysis visualization.
 

@@ -1121,12 +1121,6 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (10, 8),
     ) -> Any:
         """Create a PheWAS plot. See StatsPlotter.plot_phewas for docs."""
-        warnings.warn(
-            "LocusZoomPlotter.plot_phewas is deprecated. "
-            "Use StatsPlotter().plot_phewas() directly.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         return self._stats_plotter.plot_phewas(
             phewas_df=phewas_df,
             variant_id=variant_id,
@@ -1152,12 +1146,6 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (8, 6),
     ) -> Any:
         """Create a forest plot. See StatsPlotter.plot_forest for docs."""
-        warnings.warn(
-            "LocusZoomPlotter.plot_forest is deprecated. "
-            "Use StatsPlotter().plot_forest() directly.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         return self._stats_plotter.plot_forest(
             forest_df=forest_df,
             variant_id=variant_id,
