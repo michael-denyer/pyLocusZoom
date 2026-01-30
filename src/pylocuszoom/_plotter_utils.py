@@ -8,7 +8,19 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
-# Significance line styling constants
+# Significance thresholds
+DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
+
+# Manhattan/QQ plot styling constants
+MANHATTAN_POINT_SIZE = 10
+MANHATTAN_CATEGORICAL_POINT_SIZE = 30
+QQ_POINT_SIZE = 10
+POINT_EDGE_COLOR = "black"
+MANHATTAN_EDGE_WIDTH = 0.1
+QQ_EDGE_WIDTH = 0.02
+QQ_POINT_COLOR = "#1f77b4"
+QQ_CI_COLOR = "#CCCCCC"
+QQ_CI_ALPHA = 0.5
 SIGNIFICANCE_LINE_COLOR = "red"
 
 

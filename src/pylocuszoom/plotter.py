@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
@@ -53,21 +54,8 @@ from .recombination import (
 from .stats_plotter import StatsPlotter
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
-# Default significance threshold: 5e-8 (genome-wide significance)
-DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
+# Precomputed significance line value (used for plotting)
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
-
-# Manhattan/QQ plot styling constants
-MANHATTAN_POINT_SIZE = 10
-MANHATTAN_CATEGORICAL_POINT_SIZE = 30
-QQ_POINT_SIZE = 10  # Match Manhattan point size for consistency
-POINT_EDGE_COLOR = "black"
-MANHATTAN_EDGE_WIDTH = 0.1
-QQ_EDGE_WIDTH = 0.02
-SIGNIFICANCE_LINE_COLOR = "red"
-QQ_POINT_COLOR = "#1f77b4"
-QQ_CI_COLOR = "#CCCCCC"
-QQ_CI_ALPHA = 0.5
 
 
 class LocusZoomPlotter:
@@ -250,15 +238,16 @@ class LocusZoomPlotter:
     def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
         """Add neglog10p column with -log10 transformed p-values.
 
-        Clips extremely small p-values to 1e-300 to avoid -inf.
+        Delegates to shared utility function. Assumes df is already a copy.
 
         Args:
-            df: DataFrame with p-value column.
+            df: DataFrame with p-value column (should be a copy).
             p_col: Name of p-value column.
 
         Returns:
             DataFrame with neglog10p column added.
         """
+        # Use shared utility - note: df should already be a copy at call sites
         df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
         return df
 

@@ -11,23 +11,23 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._plotter_utils import add_significance_line
+from ._plotter_utils import (
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+    MANHATTAN_CATEGORICAL_POINT_SIZE,
+    MANHATTAN_EDGE_WIDTH,
+    MANHATTAN_POINT_SIZE,
+    POINT_EDGE_COLOR,
+    QQ_CI_ALPHA,
+    QQ_CI_COLOR,
+    QQ_EDGE_WIDTH,
+    QQ_POINT_COLOR,
+    QQ_POINT_SIZE,
+    SIGNIFICANCE_LINE_COLOR,
+    add_significance_line,
+)
 from .backends import BackendType, get_backend
 from .manhattan import prepare_categorical_data, prepare_manhattan_data
 from .qq import prepare_qq_data
-
-# Manhattan/QQ plot styling constants
-DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
-MANHATTAN_POINT_SIZE = 10
-MANHATTAN_CATEGORICAL_POINT_SIZE = 30
-QQ_POINT_SIZE = 10
-POINT_EDGE_COLOR = "black"
-MANHATTAN_EDGE_WIDTH = 0.1
-QQ_EDGE_WIDTH = 0.02
-QQ_POINT_COLOR = "#1f77b4"
-QQ_CI_COLOR = "#CCCCCC"
-QQ_CI_ALPHA = 0.5
-SIGNIFICANCE_LINE_COLOR = "red"
 
 
 class ManhattanPlotter:

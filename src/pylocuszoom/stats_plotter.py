@@ -10,14 +10,11 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ._plotter_utils import transform_pvalues
+from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD, transform_pvalues
 from .backends import BackendType, get_backend
 from .colors import get_phewas_category_palette
 from .forest import validate_forest_df
 from .phewas import validate_phewas_df
-
-# Default significance threshold
-DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
 
 
 class StatsPlotter:
