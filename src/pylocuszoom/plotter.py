@@ -9,6 +9,7 @@ Supports multiple backends:
 - bokeh: Interactive HTML for dashboards
 """
 
+import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
@@ -1120,6 +1121,12 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (10, 8),
     ) -> Any:
         """Create a PheWAS plot. See StatsPlotter.plot_phewas for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_phewas is deprecated. "
+            "Use StatsPlotter().plot_phewas() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._stats_plotter.plot_phewas(
             phewas_df=phewas_df,
             variant_id=variant_id,
@@ -1145,6 +1152,12 @@ class LocusZoomPlotter:
         figsize: Tuple[float, float] = (8, 6),
     ) -> Any:
         """Create a forest plot. See StatsPlotter.plot_forest for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_forest is deprecated. "
+            "Use StatsPlotter().plot_forest() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._stats_plotter.plot_forest(
             forest_df=forest_df,
             variant_id=variant_id,
@@ -1172,6 +1185,12 @@ class LocusZoomPlotter:
         title: Optional[str] = None,
     ) -> Any:
         """Create a Manhattan plot. See ManhattanPlotter.plot_manhattan for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_manhattan is deprecated. "
+            "Use ManhattanPlotter().plot_manhattan() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._manhattan_plotter.plot_manhattan(
             df=df,
             chrom_col=chrom_col,
@@ -1195,6 +1214,12 @@ class LocusZoomPlotter:
         title: Optional[str] = None,
     ) -> Any:
         """Create a QQ plot. See ManhattanPlotter.plot_qq for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_qq is deprecated. "
+            "Use ManhattanPlotter().plot_qq() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._manhattan_plotter.plot_qq(
             df=df,
             p_col=p_col,
@@ -1217,6 +1242,12 @@ class LocusZoomPlotter:
         title: Optional[str] = None,
     ) -> Any:
         """Create stacked Manhattan plots. See ManhattanPlotter.plot_manhattan_stacked for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_manhattan_stacked is deprecated. "
+            "Use ManhattanPlotter().plot_manhattan_stacked() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._manhattan_plotter.plot_manhattan_stacked(
             gwas_dfs=gwas_dfs,
             chrom_col=chrom_col,
@@ -1243,6 +1274,12 @@ class LocusZoomPlotter:
         title: Optional[str] = None,
     ) -> Any:
         """Create side-by-side Manhattan and QQ plots. See ManhattanPlotter.plot_manhattan_qq for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_manhattan_qq is deprecated. "
+            "Use ManhattanPlotter().plot_manhattan_qq() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._manhattan_plotter.plot_manhattan_qq(
             df=df,
             chrom_col=chrom_col,
@@ -1271,6 +1308,12 @@ class LocusZoomPlotter:
         title: Optional[str] = None,
     ) -> Any:
         """Create stacked Manhattan+QQ plots. See ManhattanPlotter.plot_manhattan_qq_stacked for docs."""
+        warnings.warn(
+            "LocusZoomPlotter.plot_manhattan_qq_stacked is deprecated. "
+            "Use ManhattanPlotter().plot_manhattan_qq_stacked() directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._manhattan_plotter.plot_manhattan_qq_stacked(
             gwas_dfs=gwas_dfs,
             chrom_col=chrom_col,

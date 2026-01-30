@@ -1,5 +1,6 @@
 """Tests for LocusZoomPlotter class."""
 
+import warnings
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1343,3 +1344,170 @@ def test_plotter_uses_ensure_recomb_maps():
 
         mock_ensure.assert_called_once_with(species="canine", data_dir=None)
         assert result == Path("/mock/recomb")
+
+
+class TestDeprecationWarnings:
+    """Tests for deprecation warnings on wrapper methods."""
+
+    def test_plot_manhattan_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_manhattan emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame(
+            {
+                "chrom": [1, 1],
+                "pos": [1000, 2000],
+                "p": [0.01, 0.001],
+            }
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_manhattan(df)
+            except Exception:
+                pass  # May fail on rendering, we just want the warning
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "ManhattanPlotter" in str(deprecation_warnings[0].message)
+
+    def test_plot_qq_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_qq emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame({"p": [0.01, 0.001, 0.5]})
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_qq(df)
+            except Exception:
+                pass
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "ManhattanPlotter" in str(deprecation_warnings[0].message)
+
+    def test_plot_manhattan_stacked_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_manhattan_stacked emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame(
+            {
+                "chrom": [1, 1],
+                "pos": [1000, 2000],
+                "p": [0.01, 0.001],
+            }
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_manhattan_stacked([df])
+            except Exception:
+                pass
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "ManhattanPlotter" in str(deprecation_warnings[0].message)
+
+    def test_plot_manhattan_qq_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_manhattan_qq emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame(
+            {
+                "chrom": [1, 1],
+                "pos": [1000, 2000],
+                "p": [0.01, 0.001],
+            }
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_manhattan_qq(df)
+            except Exception:
+                pass
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "ManhattanPlotter" in str(deprecation_warnings[0].message)
+
+    def test_plot_manhattan_qq_stacked_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_manhattan_qq_stacked emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame(
+            {
+                "chrom": [1, 1],
+                "pos": [1000, 2000],
+                "p": [0.01, 0.001],
+            }
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_manhattan_qq_stacked([df])
+            except Exception:
+                pass
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "ManhattanPlotter" in str(deprecation_warnings[0].message)
+
+    def test_plot_phewas_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_phewas emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame(
+            {
+                "phenotype": ["A", "B"],
+                "p_value": [0.01, 0.001],
+                "category": ["cat1", "cat1"],
+            }
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_phewas(df, variant_id="rs123")
+            except Exception:
+                pass
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "StatsPlotter" in str(deprecation_warnings[0].message)
+
+    def test_plot_forest_warns_deprecated(self):
+        """Test that LocusZoomPlotter.plot_forest emits deprecation warning."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        df = pd.DataFrame(
+            {
+                "study": ["A", "B"],
+                "effect": [0.5, 0.3],
+                "ci_lower": [0.2, 0.1],
+                "ci_upper": [0.8, 0.5],
+            }
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                plotter.plot_forest(df, variant_id="rs123")
+            except Exception:
+                pass
+
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "StatsPlotter" in str(deprecation_warnings[0].message)
