@@ -24,7 +24,6 @@ from .colors import (
     EQTL_POSITIVE_BINS,
     LD_BINS,
     LEAD_SNP_COLOR,
-    PIP_LINE_COLOR,
     get_credible_set_color,
     get_eqtl_color,
     get_ld_bin,
@@ -35,6 +34,7 @@ from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import (
     get_credible_sets,
+    plot_finemapping,
     prepare_finemapping_for_plotting,
 )
 from .gene_track import (
@@ -645,107 +645,6 @@ class LocusZoomPlotter:
         if isinstance(twin_result, Axes):
             secondary_ax.spines["top"].set_visible(False)
 
-    def _plot_finemapping(
-        self,
-        ax: Any,
-        df: pd.DataFrame,
-        pos_col: str = "pos",
-        pip_col: str = "pip",
-        cs_col: Optional[str] = "cs",
-        show_credible_sets: bool = True,
-        pip_threshold: float = 0.0,
-    ) -> None:
-        """Plot fine-mapping results (PIP line with credible set coloring).
-
-        Args:
-            ax: Matplotlib axes object.
-            df: Fine-mapping DataFrame with pos and pip columns.
-            pos_col: Column name for position.
-            pip_col: Column name for posterior inclusion probability.
-            cs_col: Column name for credible set assignment (optional).
-            show_credible_sets: Whether to color points by credible set.
-            pip_threshold: Minimum PIP to display as scatter point.
-        """
-        # Build hover data using HoverDataBuilder
-        extra_cols = {pip_col: "PIP"}
-        if cs_col and cs_col in df.columns:
-            extra_cols[cs_col] = "Credible Set"
-        hover_config = HoverConfig(
-            pos_col=pos_col if pos_col in df.columns else None,
-            extra_cols=extra_cols,
-        )
-        hover_builder = HoverDataBuilder(hover_config)
-
-        # Sort by position for line plotting
-        df = df.sort_values(pos_col)
-
-        # Plot PIP as line
-        self._backend.line(
-            ax,
-            df[pos_col],
-            df[pip_col],
-            color=PIP_LINE_COLOR,
-            linewidth=1.5,
-            alpha=0.8,
-            zorder=1,
-        )
-
-        # Check if credible sets are available
-        has_cs = cs_col is not None and cs_col in df.columns and show_credible_sets
-        credible_sets = get_credible_sets(df, cs_col) if has_cs else []
-
-        if credible_sets:
-            # Plot points colored by credible set
-            for cs_id in credible_sets:
-                cs_data = df[df[cs_col] == cs_id]
-                color = get_credible_set_color(cs_id)
-                self._backend.scatter(
-                    ax,
-                    cs_data[pos_col],
-                    cs_data[pip_col],
-                    colors=color,
-                    sizes=50,
-                    marker="o",
-                    edgecolor="black",
-                    linewidth=0.5,
-                    zorder=3,
-                    hover_data=hover_builder.build_dataframe(cs_data),
-                )
-            # Plot variants not in any credible set
-            non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
-            if not non_cs_data.empty and pip_threshold > 0:
-                non_cs_data = non_cs_data[non_cs_data[pip_col] >= pip_threshold]
-                if not non_cs_data.empty:
-                    self._backend.scatter(
-                        ax,
-                        non_cs_data[pos_col],
-                        non_cs_data[pip_col],
-                        colors="#BEBEBE",
-                        sizes=30,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.3,
-                        zorder=2,
-                        hover_data=hover_builder.build_dataframe(non_cs_data),
-                    )
-        else:
-            # No credible sets - show all points above threshold
-            if pip_threshold > 0:
-                high_pip = df[df[pip_col] >= pip_threshold]
-                if not high_pip.empty:
-                    self._backend.scatter(
-                        ax,
-                        high_pip[pos_col],
-                        high_pip[pip_col],
-                        colors=PIP_LINE_COLOR,
-                        sizes=50,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.5,
-                        zorder=3,
-                        hover_data=hover_builder.build_dataframe(high_pip),
-                    )
-
     def plot_stacked(
         self,
         gwas_dfs: List[pd.DataFrame],
@@ -1045,7 +944,8 @@ class LocusZoomPlotter:
             )
 
             if not fm_data.empty:
-                self._plot_finemapping(
+                plot_finemapping(
+                    self._backend,
                     ax,
                     fm_data,
                     pos_col="pos",

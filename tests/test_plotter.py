@@ -1294,6 +1294,41 @@ class TestPlotterDelegation:
             plotter._stats_plotter.genomewide_threshold == plotter.genomewide_threshold
         )
 
+    def test_plotter_delegates_to_plot_finemapping(self):
+        """Test that plot_stacked delegates finemapping to module function."""
+        with patch("pylocuszoom.plotter.plot_finemapping") as mock_plot_fm:
+            plotter = LocusZoomPlotter(
+                species="canine", backend="matplotlib", log_level=None
+            )
+
+            gwas_df = pd.DataFrame(
+                {
+                    "ps": [1000, 2000],
+                    "p_wald": [0.01, 0.001],
+                }
+            )
+            fm_df = pd.DataFrame(
+                {
+                    "pos": [1000, 2000],
+                    "pip": [0.5, 0.3],
+                    "cs": [1, 1],
+                }
+            )
+
+            with patch.object(plotter, "_get_recomb_for_region", return_value=None):
+                try:
+                    plotter.plot_stacked(
+                        [gwas_df],
+                        chrom=1,
+                        start=0,
+                        end=3000,
+                        finemapping_df=fm_df,
+                    )
+                except Exception:
+                    pass  # We just want to verify the call was made
+
+            mock_plot_fm.assert_called()
+
 
 def test_plotter_uses_ensure_recomb_maps():
     """Test that LocusZoomPlotter._ensure_recomb_maps delegates to module function."""
