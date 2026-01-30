@@ -4,10 +4,13 @@ Provides utilities for loading, validating, and preparing statistical
 fine-mapping results (SuSiE, FINEMAP, etc.) for visualization.
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import pandas as pd
 
+from .backends.base import PlotBackend
+from .backends.hover import HoverConfig, HoverDataBuilder
+from .colors import PIP_LINE_COLOR, get_credible_set_color
 from .exceptions import FinemappingValidationError, ValidationError
 from .logging import logger
 from .utils import filter_by_region
@@ -207,3 +210,109 @@ def calculate_credible_set_coverage(
         coverage[cs_id] = cs_data[pip_col].sum()
 
     return coverage
+
+
+def plot_finemapping(
+    backend: PlotBackend,
+    ax: Any,
+    df: pd.DataFrame,
+    pos_col: str = "pos",
+    pip_col: str = "pip",
+    cs_col: Optional[str] = "cs",
+    show_credible_sets: bool = True,
+    pip_threshold: float = 0.0,
+) -> None:
+    """Plot fine-mapping results (PIP line with credible set coloring).
+
+    Renders posterior inclusion probabilities as a line plot, with optional
+    scatter points colored by credible set membership.
+
+    Args:
+        backend: Plotting backend implementing PlotBackend protocol.
+        ax: Axes or panel to plot on.
+        df: Fine-mapping DataFrame with pos and pip columns.
+        pos_col: Column name for position.
+        pip_col: Column name for posterior inclusion probability.
+        cs_col: Column name for credible set assignment (optional).
+        show_credible_sets: Whether to color points by credible set.
+        pip_threshold: Minimum PIP to display as scatter point.
+    """
+    # Build hover data using HoverDataBuilder
+    extra_cols = {pip_col: "PIP"}
+    if cs_col and cs_col in df.columns:
+        extra_cols[cs_col] = "Credible Set"
+    hover_config = HoverConfig(
+        pos_col=pos_col if pos_col in df.columns else None,
+        extra_cols=extra_cols,
+    )
+    hover_builder = HoverDataBuilder(hover_config)
+
+    # Sort by position for line plotting
+    df = df.sort_values(pos_col)
+
+    # Plot PIP as line
+    backend.line(
+        ax,
+        df[pos_col],
+        df[pip_col],
+        color=PIP_LINE_COLOR,
+        linewidth=1.5,
+        alpha=0.8,
+        zorder=1,
+    )
+
+    # Check if credible sets are available
+    has_cs = cs_col is not None and cs_col in df.columns and show_credible_sets
+    credible_sets = get_credible_sets(df, cs_col) if has_cs else []
+
+    if credible_sets:
+        # Plot points colored by credible set
+        for cs_id in credible_sets:
+            cs_data = df[df[cs_col] == cs_id]
+            color = get_credible_set_color(cs_id)
+            backend.scatter(
+                ax,
+                cs_data[pos_col],
+                cs_data[pip_col],
+                colors=color,
+                sizes=50,
+                marker="o",
+                edgecolor="black",
+                linewidth=0.5,
+                zorder=3,
+                hover_data=hover_builder.build_dataframe(cs_data),
+            )
+        # Plot variants not in any credible set
+        non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
+        if not non_cs_data.empty and pip_threshold > 0:
+            non_cs_data = non_cs_data[non_cs_data[pip_col] >= pip_threshold]
+            if not non_cs_data.empty:
+                backend.scatter(
+                    ax,
+                    non_cs_data[pos_col],
+                    non_cs_data[pip_col],
+                    colors="#BEBEBE",
+                    sizes=30,
+                    marker="o",
+                    edgecolor="black",
+                    linewidth=0.3,
+                    zorder=2,
+                    hover_data=hover_builder.build_dataframe(non_cs_data),
+                )
+    else:
+        # No credible sets - show all points above threshold
+        if pip_threshold > 0:
+            high_pip = df[df[pip_col] >= pip_threshold]
+            if not high_pip.empty:
+                backend.scatter(
+                    ax,
+                    high_pip[pos_col],
+                    high_pip[pip_col],
+                    colors=PIP_LINE_COLOR,
+                    sizes=50,
+                    marker="o",
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=3,
+                    hover_data=hover_builder.build_dataframe(high_pip),
+                )

@@ -1,5 +1,7 @@
 """Tests for fine-mapping/SuSiE data handling."""
 
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
 
@@ -9,6 +11,7 @@ from pylocuszoom.finemapping import (
     filter_finemapping_by_region,
     get_credible_sets,
     get_top_pip_variants,
+    plot_finemapping,
     prepare_finemapping_for_plotting,
     validate_finemapping_df,
 )
@@ -151,3 +154,59 @@ class TestPrepareFinemappingForPlotting:
             finemapping_df, chrom=1, start=1500, end=3500
         )
         assert len(result) == 2
+
+
+class TestPlotFinemapping:
+    """Tests for plot_finemapping function."""
+
+    def test_plot_finemapping_plots_pip_line(self):
+        """Test that plot_finemapping renders PIP as line."""
+        mock_backend = MagicMock()
+        mock_ax = MagicMock()
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000, 2000, 3000],
+                "pip": [0.1, 0.5, 0.2],
+            }
+        )
+
+        plot_finemapping(mock_backend, mock_ax, df)
+
+        # Should call line method for PIP
+        mock_backend.line.assert_called_once()
+
+    def test_plot_finemapping_colors_by_credible_set(self):
+        """Test that plot_finemapping colors points by credible set."""
+        mock_backend = MagicMock()
+        mock_ax = MagicMock()
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000, 2000, 3000, 4000],
+                "pip": [0.1, 0.5, 0.2, 0.05],
+                "cs": [1, 1, 2, 0],
+            }
+        )
+
+        plot_finemapping(mock_backend, mock_ax, df, cs_col="cs")
+
+        # Should call scatter for each credible set
+        assert mock_backend.scatter.call_count >= 2  # CS 1 and CS 2
+
+    def test_plot_finemapping_handles_missing_cs_col(self):
+        """Test that plot_finemapping works without credible set column."""
+        mock_backend = MagicMock()
+        mock_ax = MagicMock()
+
+        df = pd.DataFrame(
+            {
+                "pos": [1000, 2000, 3000],
+                "pip": [0.1, 0.5, 0.2],
+            }
+        )
+
+        # Should not raise
+        plot_finemapping(mock_backend, mock_ax, df, cs_col=None)
+
+        mock_backend.line.assert_called_once()
