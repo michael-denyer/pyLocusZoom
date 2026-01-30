@@ -15,7 +15,6 @@ from typing import Any, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import requests
 
 from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
 from .backends import BackendType, get_backend
@@ -47,8 +46,7 @@ from .logging import enable_logging, logger
 from .manhattan_plotter import ManhattanPlotter
 from .recombination import (
     RECOMB_COLOR,
-    download_canine_recombination_maps,
-    get_default_data_dir,
+    ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
 from .stats_plotter import StatsPlotter
@@ -177,37 +175,14 @@ class LocusZoomPlotter:
         return builds.get(species)
 
     def _ensure_recomb_maps(self) -> Optional[Path]:
-        """Ensure recombination maps are downloaded.
+        """Ensure recombination maps are available.
 
-        Returns path to recombination map directory, or None if not available.
+        Delegates to the recombination module's ensure_recomb_maps function.
+
+        Returns:
+            Path to recombination map directory, or None if not available.
         """
-        if self.species == "canine":
-            if self.recomb_data_dir:
-                return Path(self.recomb_data_dir)
-            # Check if already downloaded
-            default_dir = get_default_data_dir()
-            if (
-                default_dir.exists()
-                and len(list(default_dir.glob("chr*_recomb.tsv"))) >= 39
-            ):  # 38 autosomes + X
-                return default_dir
-            # Download
-            try:
-                return download_canine_recombination_maps()
-            except (requests.RequestException, OSError, IOError) as e:
-                # Expected network/file errors - graceful fallback
-                logger.warning(f"Could not download recombination maps: {e}")
-                return None
-            except Exception as e:
-                # JUSTIFICATION: Download failure should not prevent plotting.
-                # We catch broadly here because graceful degradation is acceptable
-                # for optional recombination map downloads. Error-level logging
-                # ensures the issue is visible.
-                logger.error(f"Unexpected error downloading recombination maps: {e}")
-                return None
-        elif self.recomb_data_dir:
-            return Path(self.recomb_data_dir)
-        return None
+        return ensure_recomb_maps(species=self.species, data_dir=self.recomb_data_dir)
 
     def _get_recomb_for_region(
         self, chrom: int, start: int, end: int

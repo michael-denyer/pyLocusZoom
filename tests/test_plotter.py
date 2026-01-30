@@ -1,12 +1,12 @@
 """Tests for LocusZoomPlotter class."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
-import requests
 
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
@@ -1201,15 +1201,14 @@ class TestForestPlot:
 
 
 class TestRecombinationDownloadErrors:
-    """Tests for recombination map download error handling.
+    """Tests for recombination map error handling.
 
-    These tests verify that download errors are handled gracefully:
-    - Expected errors (network, I/O) return None without crashing
-    - Unexpected errors also return None (graceful degradation)
-    - All error types allow plotting to continue without recombination overlay
+    These tests verify that when recombination maps are unavailable,
+    the plotter gracefully handles None return values and allows
+    plotting to continue without recombination overlay.
 
-    Note: Log level verification is done visually in "Captured stderr call" output.
-    loguru doesn't integrate with pytest's caplog/capsys fixtures directly.
+    Note: Detailed error handling (network, I/O, OS errors) is tested
+    in test_recombination.py at the ensure_recomb_maps level.
     """
 
     @pytest.fixture
@@ -1217,47 +1216,36 @@ class TestRecombinationDownloadErrors:
         """Create a plotter instance for testing download errors."""
         return LocusZoomPlotter(species="canine", log_level="DEBUG")
 
-    def test_network_error_returns_none(self, plotter):
-        """Network errors (requests.RequestException) should return None."""
-
+    def test_ensure_recomb_maps_returns_none_propagates(self, plotter):
+        """When ensure_recomb_maps returns None, plotter._ensure_recomb_maps returns None."""
         with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = requests.RequestException("Network unreachable")
+            "pylocuszoom.plotter.ensure_recomb_maps", return_value=None
+        ) as mock_ensure:
             result = plotter._ensure_recomb_maps()
             assert result is None
-            # Verify the download was attempted
-            mock_download.assert_called_once()
+            mock_ensure.assert_called_once_with(species="canine", data_dir=None)
 
-    def test_io_error_returns_none(self, plotter):
-        """IO errors (IOError) should return None."""
-        with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = IOError("Disk full")
-            result = plotter._ensure_recomb_maps()
-            assert result is None
-            mock_download.assert_called_once()
+    def test_plotting_continues_without_recomb_maps(self, plotter):
+        """Plotting should succeed even when recombination maps are unavailable."""
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
 
-    def test_os_error_returns_none(self, plotter):
-        """OSError should return None."""
-        with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = OSError("Permission denied")
-            result = plotter._ensure_recomb_maps()
-            assert result is None
-            mock_download.assert_called_once()
-
-    def test_unexpected_error_returns_none(self, plotter):
-        """Unexpected errors should still return None (graceful degradation)."""
-        with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = ValueError("Unexpected parsing error")
-            result = plotter._ensure_recomb_maps()
-            assert result is None
-            mock_download.assert_called_once()
+        with patch("pylocuszoom.plotter.ensure_recomb_maps", return_value=None):
+            # Should not raise, just skip recombination overlay
+            fig = plotter.plot(
+                gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=True,  # Requested but unavailable
+            )
+            assert fig is not None
+            plt.close(fig)
 
 
 class TestPvalueTransformation:
@@ -1305,3 +1293,18 @@ class TestPlotterDelegation:
         assert (
             plotter._stats_plotter.genomewide_threshold == plotter.genomewide_threshold
         )
+
+
+def test_plotter_uses_ensure_recomb_maps():
+    """Test that LocusZoomPlotter._ensure_recomb_maps delegates to module function."""
+    with patch(
+        "pylocuszoom.plotter.ensure_recomb_maps",
+        return_value=Path("/mock/recomb"),
+    ) as mock_ensure:
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        # Call the method that should delegate to ensure_recomb_maps
+        result = plotter._ensure_recomb_maps()
+
+        mock_ensure.assert_called_once_with(species="canine", data_dir=None)
+        assert result == Path("/mock/recomb")
