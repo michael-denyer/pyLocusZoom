@@ -7,10 +7,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import settings as hyp_settings
 
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.strategies import gwas_dataframes
 
 
 class TestBackendIntegration:
@@ -1201,3 +1204,96 @@ def test_plotter_uses_ensure_recomb_maps():
 
         mock_ensure.assert_called_once_with(species="canine", data_dir=None)
         assert result == Path("/mock/recomb")
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestPlotterProperties:
+    """Property-based tests for plotter crash-resistance."""
+
+    @hyp_settings(max_examples=15, deadline=None)
+    @given(gwas_dataframes(min_snps=3, max_snps=50))
+    def test_plot_renders_valid_data_matplotlib(self, df):
+        """plot() should render any valid GWAS data without crashing (matplotlib)."""
+        plotter = LocusZoomPlotter(species="canine")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot(
+            df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert fig is not None
+        plt.close(fig)
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes(min_snps=3, max_snps=30))
+    def test_plot_renders_valid_data_plotly(self, df):
+        """plot() should render any valid GWAS data without crashing (plotly)."""
+        import plotly.graph_objects as go
+
+        plotter = LocusZoomPlotter(species="canine", backend="plotly")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot(
+            df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert isinstance(fig, go.Figure)
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes(min_snps=3, max_snps=30))
+    def test_plot_renders_valid_data_bokeh(self, df):
+        """plot() should render any valid GWAS data without crashing (bokeh)."""
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot(
+            df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert fig is not None
+
+
+class TestPlotStackedProperties:
+    """Property-based tests for stacked plots."""
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes(min_snps=5, max_snps=30))
+    def test_plot_stacked_with_duplicated_data(self, df):
+        """plot_stacked() should handle multiple identical DataFrames."""
+        plotter = LocusZoomPlotter(species="canine")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot_stacked(
+            [df, df.copy()],
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert fig is not None
+        plt.close(fig)
