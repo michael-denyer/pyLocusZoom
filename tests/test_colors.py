@@ -2,6 +2,9 @@
 
 import math
 
+from hypothesis import assume, given
+from hypothesis import strategies as st
+
 from pylocuszoom.colors import (
     LD_BINS,
     LD_NA_COLOR,
@@ -10,6 +13,7 @@ from pylocuszoom.colors import (
     get_ld_color,
     get_ld_color_palette,
 )
+from tests.strategies import ld_values
 
 
 class TestGetLdColor:
@@ -133,3 +137,70 @@ class TestGetLdColorPalette:
         palette = get_ld_color_palette()
         for _, label, color in LD_BINS:
             assert palette[label] == color
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestLdColorProperties:
+    """Property-based tests for LD color assignment."""
+
+    @given(st.floats(min_value=0.0, max_value=1.0, allow_nan=False))
+    def test_ld_value_always_maps_to_valid_color(self, r2):
+        """Any valid R² value should return a valid hex color."""
+        color = get_ld_color(r2)
+        assert color.startswith("#")
+        assert len(color) == 7  # #RRGGBB format
+
+    @given(st.floats(min_value=0.0, max_value=1.0, allow_nan=False))
+    def test_ld_value_always_maps_to_valid_bin(self, r2):
+        """Any valid R² value should return a known bin label."""
+        bin_label = get_ld_bin(r2)
+        valid_labels = [label for _, label, _ in LD_BINS] + [LD_NA_LABEL]
+        assert bin_label in valid_labels
+
+    @given(ld_values(allow_nan=True))
+    def test_ld_nan_handled_gracefully(self, r2):
+        """NaN values should return NA color/label."""
+        if math.isnan(r2) if isinstance(r2, float) else False:
+            assert get_ld_color(r2) == LD_NA_COLOR
+            assert get_ld_bin(r2) == LD_NA_LABEL
+
+    @given(
+        st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
+        st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
+    )
+    def test_ld_bins_monotonic(self, r2_low, r2_high):
+        """Higher R² should map to same or higher bin threshold."""
+        assume(r2_low <= r2_high)
+        # Get bin index (lower threshold = higher bin index in LD_BINS)
+        bin_low = next(
+            (i for i, (thresh, _, _) in enumerate(LD_BINS) if r2_low >= thresh),
+            len(LD_BINS) - 1,
+        )
+        bin_high = next(
+            (i for i, (thresh, _, _) in enumerate(LD_BINS) if r2_high >= thresh),
+            len(LD_BINS) - 1,
+        )
+        # Lower index = higher threshold = higher LD bin
+        assert bin_high <= bin_low
+
+    @given(st.integers(min_value=0, max_value=100))
+    def test_phewas_color_cycles(self, idx):
+        """PheWAS colors should cycle without error."""
+        from pylocuszoom.colors import PHEWAS_CATEGORY_COLORS, get_phewas_category_color
+
+        color = get_phewas_category_color(idx)
+        expected_idx = idx % len(PHEWAS_CATEGORY_COLORS)
+        assert color == PHEWAS_CATEGORY_COLORS[expected_idx]
+
+    @given(st.integers(min_value=1, max_value=50))
+    def test_credible_set_color_cycles(self, cs_id):
+        """Credible set colors should cycle without error."""
+        from pylocuszoom.colors import CREDIBLE_SET_COLORS, get_credible_set_color
+
+        color = get_credible_set_color(cs_id)
+        expected_idx = (cs_id - 1) % len(CREDIBLE_SET_COLORS)
+        assert color == CREDIBLE_SET_COLORS[expected_idx]
