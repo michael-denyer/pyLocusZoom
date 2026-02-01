@@ -14,6 +14,7 @@ build/
 .benchmarks/
 .coverage
 htmlcov/
+.hypothesis/
 
 # IDE
 .idea/
