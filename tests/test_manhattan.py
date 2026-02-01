@@ -1,8 +1,14 @@
 """Tests for Manhattan plot functionality."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import settings as hyp_settings
+
+from pylocuszoom.manhattan_plotter import ManhattanPlotter
+from tests.strategies import gwas_dataframes_multichrom
 
 
 class TestChromosomeOrdering:
@@ -268,3 +274,36 @@ class TestPrepareCategoricalData:
             category_order=["BMI", "Weight", "Height"],
         )
         assert result.attrs["category_order"] == ["BMI", "Weight", "Height"]
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestManhattanProperties:
+    """Property-based tests for Manhattan plot rendering."""
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes_multichrom(min_snps_per_chrom=5, max_snps_per_chrom=20))
+    def test_manhattan_renders_multichrom_data(self, df):
+        """Manhattan plot should render multi-chromosome data without crashing."""
+        plotter = ManhattanPlotter(species="canine")
+
+        fig = plotter.plot_manhattan(df, chrom_col="chr", pos_col="ps", p_col="p_wald")
+
+        assert fig is not None
+        plt.close(fig)
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes_multichrom(min_snps_per_chrom=10, max_snps_per_chrom=30))
+    def test_manhattan_qq_renders(self, df):
+        """Combined Manhattan + QQ plot should render without crashing."""
+        plotter = ManhattanPlotter(species="canine")
+
+        fig = plotter.plot_manhattan_qq(
+            df, chrom_col="chr", pos_col="ps", p_col="p_wald"
+        )
+
+        assert fig is not None
+        plt.close(fig)
