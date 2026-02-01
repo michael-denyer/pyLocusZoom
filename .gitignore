@@ -21,6 +21,9 @@ htmlcov/
 *.swp
 .claude/
 
+# Git worktrees
+.worktrees/
+
 # Issue tracking (local)
 .beads/
 
