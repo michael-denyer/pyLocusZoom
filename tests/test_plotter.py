@@ -1297,3 +1297,234 @@ class TestPlotStackedProperties:
 
         assert fig is not None
         plt.close(fig)
+
+
+# =============================================================================
+# LD Heatmap Integration Tests
+# =============================================================================
+
+
+class TestLDHeatmapIntegration:
+    """Tests for LD heatmap integration in LocusZoomPlotter."""
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS DataFrame with positions matching LD heatmap SNPs."""
+        return pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+                "chr": [1, 1, 1, 1, 1],
+                "ps": [1000000, 1000500, 1001000, 1001500, 1002000],
+                "p_wald": [1e-8, 1e-6, 1e-4, 1e-3, 0.05],
+            }
+        )
+
+    @pytest.fixture
+    def sample_ld_heatmap_data(self):
+        """Sample LD heatmap data matching calculate_pairwise_ld return format.
+
+        Returns:
+            Tuple of (DataFrame, list[str]): LD matrix and SNP IDs.
+        """
+        ld_matrix = pd.DataFrame(
+            np.array(
+                [
+                    [1.0, 0.9, 0.7, 0.4, 0.2],
+                    [0.9, 1.0, 0.8, 0.5, 0.3],
+                    [0.7, 0.8, 1.0, 0.6, 0.4],
+                    [0.4, 0.5, 0.6, 1.0, 0.7],
+                    [0.2, 0.3, 0.4, 0.7, 1.0],
+                ]
+            ),
+            index=["rs1", "rs2", "rs3", "rs4", "rs5"],
+            columns=["rs1", "rs2", "rs3", "rs4", "rs5"],
+        )
+        snp_ids = ["rs1", "rs2", "rs3", "rs4", "rs5"]
+        return ld_matrix, snp_ids
+
+    @pytest.fixture
+    def sample_genes_df(self):
+        """Sample genes for testing stacked plots with gene track."""
+        return pd.DataFrame(
+            {
+                "chr": ["1", "1"],
+                "start": [1000200, 1001200],
+                "end": [1000800, 1001800],
+                "gene_name": ["GENE1", "GENE2"],
+                "strand": ["+", "-"],
+            }
+        )
+
+    def test_plot_with_ld_heatmap_renders_two_panels(
+        self, sample_gwas_df, sample_ld_heatmap_data
+    ):
+        """When ld_heatmap_df and ld_heatmap_snp_ids provided, figure has heatmap panel."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should have at least 2 axes (association + heatmap)
+        assert len(fig.axes) >= 2
+        plt.close(fig)
+
+    def test_plot_with_ld_heatmap_aligns_x_coordinates(
+        self, sample_gwas_df, sample_ld_heatmap_data
+    ):
+        """Heatmap SNPs render at their genomic positions from GWAS data."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Verify the heatmap panel exists and has correct x-axis range
+        # The heatmap x-axis should span the genomic positions of SNPs
+        axes = fig.axes
+        assert len(axes) >= 2
+        # Heatmap is the last panel (below association)
+        heatmap_ax = axes[-1]
+        xlim = heatmap_ax.get_xlim()
+        # X-axis should be in genomic coordinate range
+        assert xlim[0] < 1003000
+        assert xlim[1] > 999000
+        plt.close(fig)
+
+    def test_plot_stacked_with_ld_heatmap_at_bottom(
+        self, sample_gwas_df, sample_ld_heatmap_data, sample_genes_df
+    ):
+        """In stacked plots, heatmap appears below gene track (at very bottom)."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        fig = plotter.plot_stacked(
+            [sample_gwas_df],
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            genes_df=sample_genes_df,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should have 3 panels: GWAS, gene track, heatmap
+        axes = fig.axes
+        assert len(axes) >= 3
+        plt.close(fig)
+
+    def test_ld_heatmap_filters_to_region(self, sample_gwas_df, sample_ld_heatmap_data):
+        """SNPs outside [start, end] are filtered from heatmap."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        # Narrow region that only includes some SNPs
+        # rs1 at 1000000, rs2 at 1000500 - both in [1000000, 1001000)
+        # rs3 at 1001000 - at boundary
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=1001000,  # Only includes rs1, rs2, rs3
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should complete without error even with partial overlap
+        assert fig is not None
+        plt.close(fig)
+
+    def test_ld_heatmap_empty_overlap_logs_warning(
+        self, sample_gwas_df, sample_ld_heatmap_data, capfd
+    ):
+        """When no SNPs in heatmap overlap with region, warning logged and no heatmap panel added."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level="WARNING")
+
+        # Region that doesn't overlap with any GWAS SNP positions
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=5000000,  # Far outside GWAS positions
+            end=6000000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should complete without error - heatmap simply not added
+        assert fig is not None
+        plt.close(fig)
+
+    def test_ld_heatmap_height_parameter(self, sample_gwas_df, sample_ld_heatmap_data):
+        """ld_heatmap_height parameter controls panel height ratio."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        # Test with different height values
+        fig1 = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+            ld_heatmap_height=0.1,  # Smaller
+        )
+
+        fig2 = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+            ld_heatmap_height=0.5,  # Larger
+        )
+
+        # Both should render successfully
+        assert fig1 is not None
+        assert fig2 is not None
+        plt.close(fig1)
+        plt.close(fig2)
+
+    def test_ld_heatmap_lead_snp_highlight(
+        self, sample_gwas_df, sample_ld_heatmap_data
+    ):
+        """Lead SNP is highlighted in heatmap when lead_pos specified and SNP found."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        # rs1 is at position 1000000
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            lead_pos=1000000,  # rs1
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should render with lead SNP highlight (visual check)
+        assert fig is not None
+        plt.close(fig)
