@@ -104,7 +104,10 @@ from .gene_track import get_nearest_gene, plot_gene_track
 from .labels import add_snp_labels
 
 # LD calculation
-from .ld import calculate_ld
+from .ld import calculate_ld, calculate_pairwise_ld
+
+# LD heatmap visualization
+from .ld_heatmap_plotter import LDHeatmapPlotter
 
 # File format loaders
 from .loaders import (
@@ -166,6 +169,7 @@ __all__ = [
     "ManhattanPlotter",
     "MiamiPlotter",
     "StatsPlotter",
+    "LDHeatmapPlotter",
     # Backends
     "BackendType",
     "get_backend",
@@ -184,6 +188,7 @@ __all__ = [
     "plot_gene_track",
     # LD
     "calculate_ld",
+    "calculate_pairwise_ld",
     # Labels
     "add_snp_labels",
     # Recombination
