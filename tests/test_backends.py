@@ -333,3 +333,122 @@ class TestSetXticks:
         backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
         # Access ticks via the ticker's ticks property
         assert list(axes[0].xaxis.ticker.ticks) == [0, 1, 2]
+
+
+class TestConvertLatexToUnicode:
+    """Tests for LaTeX to Unicode conversion."""
+
+    def test_convert_neg_log10_p(self):
+        """Should convert -log10(P) LaTeX notation."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"$-\log_{10}$ P")
+        # The conversion replaces "$-\log_{10}$ P" with "-log10(P)"
+        assert result == "-log10(P)"
+
+    def test_convert_neg_log10(self):
+        """Should convert -log10 LaTeX notation."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"$-\log_{10}$")
+        assert result == "-log10"
+
+    def test_convert_log10(self):
+        """Should convert log10 LaTeX notation."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"\log_{10}")
+        assert result == "log10"
+
+    def test_convert_r2_lowercase(self):
+        """Should convert r² LaTeX notation."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"$r^2$")
+        assert result == "r"
+
+    def test_convert_r2_uppercase(self):
+        """Should convert R² LaTeX notation."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"$R^2$")
+        assert result == "R"
+
+    def test_strips_dollar_signs(self):
+        """Should strip remaining dollar signs."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"$some text$")
+        assert "$" not in result
+        assert result == "some text"
+
+    def test_no_conversion_plain_text(self):
+        """Plain text without LaTeX should pass through unchanged."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode("plain text")
+        assert result == "plain text"
+
+    def test_partial_conversion(self):
+        """Should handle labels with some LaTeX and some plain text."""
+        from pylocuszoom.backends import convert_latex_to_unicode
+
+        result = convert_latex_to_unicode(r"Value: $r^2$ = 0.5")
+        assert result == "Value: r = 0.5"
+
+
+class TestLazyAttributeAccess:
+    """Tests for lazy attribute access via __getattr__."""
+
+    def test_matplotlib_backend_lazy_access(self):
+        """MatplotlibBackend should be accessible via lazy import."""
+        from pylocuszoom import backends
+
+        # Access via module __getattr__
+        MatplotlibBackend = backends.MatplotlibBackend
+        assert MatplotlibBackend is not None
+
+        # Should be the actual class
+        from pylocuszoom.backends.matplotlib_backend import (
+            MatplotlibBackend as DirectBackend,
+        )
+
+        assert MatplotlibBackend is DirectBackend
+
+    def test_unknown_attribute_raises_attributeerror(self):
+        """Accessing unknown attribute should raise AttributeError."""
+        from pylocuszoom import backends
+
+        with pytest.raises(AttributeError) as exc_info:
+            _ = backends.NonExistentAttribute
+
+        assert "NonExistentAttribute" in str(exc_info.value)
+
+    def test_all_exports(self):
+        """Module __all__ should contain expected exports."""
+        from pylocuszoom.backends import __all__
+
+        expected = [
+            "PlotBackend",
+            "BackendType",
+            "get_backend",
+            "register_backend",
+            "MatplotlibBackend",
+            "convert_latex_to_unicode",
+        ]
+        for name in expected:
+            assert name in __all__
+
+
+class TestBackendTypeLiteral:
+    """Tests for BackendType type literal."""
+
+    def test_backend_type_values(self):
+        """BackendType should be a valid Literal type."""
+        from pylocuszoom.backends import get_backend
+
+        # These should all work without type errors at runtime
+        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+            # Type checkers would verify BackendType compatibility
+            backend = get_backend(backend_name)
+            assert backend is not None

@@ -1,5 +1,6 @@
 """Tests for StatsPlotter class."""
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
@@ -41,11 +42,13 @@ class TestStatsPlotter:
         """Test that plot_phewas returns a figure object."""
         fig = plotter.plot_phewas(phewas_data, variant_id="rs12345")
         assert fig is not None
+        plt.close(fig)
 
     def test_plot_forest_returns_figure(self, plotter, forest_data):
         """Test that plot_forest returns a figure object."""
         fig = plotter.plot_forest(forest_data, variant_id="rs12345")
         assert fig is not None
+        plt.close(fig)
 
 
 class TestStatsPlotterBackends:
@@ -67,3 +70,198 @@ class TestStatsPlotterBackends:
         plotter = StatsPlotter(backend="matplotlib")
         fig = plotter.plot_phewas(phewas_data, variant_id="rs12345")
         assert fig is not None
+        plt.close(fig)
+
+
+class TestPheWASEdgeCases:
+    """Tests for PheWAS plot edge cases."""
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a StatsPlotter instance."""
+        return StatsPlotter()
+
+    def test_phewas_without_category_column(self, plotter):
+        """PheWAS plot should work without category column."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight", "BMI"],
+                "p_value": [0.01, 0.001, 1e-8],
+            }
+        )
+        # Remove category column entirely - test the else branch at line 92-94
+        fig = plotter.plot_phewas(
+            df,
+            variant_id="rs12345",
+            phenotype_col="phenotype",
+            p_col="p_value",
+            category_col="nonexistent",  # Column doesn't exist
+        )
+        assert fig is not None
+        plt.close(fig)
+
+    def test_phewas_with_effect_column_positive(self, plotter):
+        """PheWAS plot with positive effects should show upward triangles."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight"],
+                "category": ["Anthro", "Anthro"],
+                "p_value": [0.01, 0.001],
+                "beta": [0.5, 0.3],  # All positive effects
+            }
+        )
+        fig = plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_phewas_with_effect_column_negative(self, plotter):
+        """PheWAS plot with negative effects should show downward triangles."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight"],
+                "category": ["Anthro", "Anthro"],
+                "p_value": [0.01, 0.001],
+                "beta": [-0.5, -0.3],  # All negative effects
+            }
+        )
+        fig = plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_phewas_with_mixed_effects(self, plotter):
+        """PheWAS plot with mixed effects should show both markers."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight", "BMI", "HDL"],
+                "category": ["Anthro", "Anthro", "Anthro", "Lipids"],
+                "p_value": [0.01, 0.001, 1e-5, 1e-6],
+                "beta": [0.5, -0.3, 0.2, -0.4],  # Mixed effects
+            }
+        )
+        fig = plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_phewas_with_multiple_categories(self, plotter):
+        """PheWAS plot with multiple categories should color correctly."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight", "LDL", "HDL", "Glucose"],
+                "category": ["Anthro", "Anthro", "Lipids", "Lipids", "Metabolic"],
+                "p_value": [0.01, 0.001, 1e-5, 1e-6, 1e-4],
+            }
+        )
+        fig = plotter.plot_phewas(df, variant_id="rs12345")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_phewas_with_nan_category(self, plotter):
+        """PheWAS plot should handle NaN category values."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight", "Unknown"],
+                "category": ["Anthro", "Anthro", None],  # NaN category
+                "p_value": [0.01, 0.001, 1e-5],
+            }
+        )
+        fig = plotter.plot_phewas(df, variant_id="rs12345")
+        assert fig is not None
+        plt.close(fig)
+
+
+class TestForestPlotEdgeCases:
+    """Tests for forest plot edge cases."""
+
+    @pytest.fixture
+    def plotter(self):
+        """Create a StatsPlotter instance."""
+        return StatsPlotter()
+
+    def test_forest_with_weight_column(self, plotter):
+        """Forest plot with weight column should size markers."""
+        df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B", "Study C"],
+                "effect": [0.5, 0.3, 0.4],
+                "ci_lower": [0.2, 0.1, 0.2],
+                "ci_upper": [0.8, 0.5, 0.6],
+                "weight": [10.0, 30.0, 20.0],  # Different weights
+            }
+        )
+        fig = plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_forest_with_equal_weights(self, plotter):
+        """Forest plot with equal weights should have uniform marker sizes."""
+        df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B", "Study C"],
+                "effect": [0.5, 0.3, 0.4],
+                "ci_lower": [0.2, 0.1, 0.2],
+                "ci_upper": [0.8, 0.5, 0.6],
+                "weight": [20.0, 20.0, 20.0],  # Equal weights - triggers line 257-258
+            }
+        )
+        fig = plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_forest_with_odds_ratio(self, plotter):
+        """Forest plot with odds ratio should use null_value=1.0."""
+        df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B", "Study C"],
+                "effect": [1.5, 0.8, 1.2],  # Odds ratios
+                "ci_lower": [1.1, 0.5, 0.9],
+                "ci_upper": [2.0, 1.2, 1.6],
+            }
+        )
+        fig = plotter.plot_forest(
+            df,
+            variant_id="rs12345",
+            null_value=1.0,
+            effect_label="Odds Ratio",
+        )
+        assert fig is not None
+        plt.close(fig)
+
+    def test_forest_with_custom_figsize(self, plotter):
+        """Forest plot should accept custom figure size."""
+        df = pd.DataFrame(
+            {
+                "study": ["Study A", "Study B"],
+                "effect": [0.5, 0.3],
+                "ci_lower": [0.2, 0.1],
+                "ci_upper": [0.8, 0.5],
+            }
+        )
+        fig = plotter.plot_forest(df, variant_id="rs12345", figsize=(12, 10))
+        assert fig is not None
+        plt.close(fig)
+
+
+class TestStatsPlotterInit:
+    """Tests for StatsPlotter initialization."""
+
+    def test_default_initialization(self):
+        """StatsPlotter should initialize with default parameters."""
+        plotter = StatsPlotter()
+        assert plotter.genomewide_threshold == 5e-8
+
+    def test_custom_genomewide_threshold(self):
+        """StatsPlotter should accept custom genomewide threshold."""
+        plotter = StatsPlotter(genomewide_threshold=1e-5)
+        assert plotter.genomewide_threshold == 1e-5
+
+    def test_plotly_backend(self):
+        """StatsPlotter should work with plotly backend."""
+        pytest.importorskip("plotly")
+        plotter = StatsPlotter(backend="plotly")
+        assert plotter._backend is not None
+
+    def test_bokeh_backend(self):
+        """StatsPlotter should work with bokeh backend."""
+        pytest.importorskip("bokeh")
+        plotter = StatsPlotter(backend="bokeh")
+        assert plotter._backend is not None

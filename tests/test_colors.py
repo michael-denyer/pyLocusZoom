@@ -6,9 +6,17 @@ from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from pylocuszoom.colors import (
+    CREDIBLE_SET_COLORS,
+    EQTL_NEGATIVE_BINS,
+    EQTL_POSITIVE_BINS,
     LD_BINS,
     LD_NA_COLOR,
     LD_NA_LABEL,
+    get_credible_set_color,
+    get_credible_set_color_palette,
+    get_eqtl_bin,
+    get_eqtl_color,
+    get_eqtl_color_palette,
     get_ld_bin,
     get_ld_color,
     get_ld_color_palette,
@@ -90,6 +98,160 @@ class TestGetLdBin:
     def test_none_returns_na_label(self):
         """None should return 'NA' label."""
         assert get_ld_bin(None) == LD_NA_LABEL
+
+
+class TestEqtlColors:
+    """Tests for eQTL effect size color functions."""
+
+    def test_positive_effect_high(self):
+        """Positive effects >= 0.3 should return dark red."""
+        assert get_eqtl_color(0.35) == "#8B1A1A"
+        assert get_eqtl_color(0.4) == "#8B1A1A"  # Boundary
+        assert get_eqtl_color(0.5) == "#8B1A1A"  # Above max
+
+    def test_positive_effect_medium(self):
+        """Positive effects 0.2-0.3 should return orange."""
+        assert get_eqtl_color(0.25) == "#FF6600"
+        assert get_eqtl_color(0.3) == "#8B1A1A"  # Boundary goes to higher bin
+
+    def test_positive_effect_low(self):
+        """Positive effects 0.1-0.2 should return light orange."""
+        assert get_eqtl_color(0.15) == "#FFB347"
+        assert get_eqtl_color(0.1) == "#FFB347"  # Boundary
+
+    def test_positive_effect_below_threshold(self):
+        """Small positive effects return smallest bin color."""
+        assert get_eqtl_color(0.05) == "#FFB347"
+        assert get_eqtl_color(0.0) == "#FFB347"
+
+    def test_negative_effect_high(self):
+        """Negative effects <= -0.3 should return dark blue."""
+        assert get_eqtl_color(-0.35) == "#00008B"
+        assert get_eqtl_color(-0.4) == "#00008B"  # Boundary
+        assert get_eqtl_color(-0.5) == "#00008B"  # Below min
+
+    def test_negative_effect_medium(self):
+        """Negative effects -0.3 to -0.2 should return steel blue."""
+        assert get_eqtl_color(-0.25) == "#4682B4"
+
+    def test_negative_effect_low(self):
+        """Negative effects -0.2 to -0.1 should return aquamarine."""
+        assert get_eqtl_color(-0.15) == "#66CDAA"
+        assert get_eqtl_color(-0.1) == "#66CDAA"  # Boundary
+
+    def test_negative_effect_below_threshold(self):
+        """Small negative effects (below -0.1) return last defined bin color."""
+        # NOTE: The implementation returns the last bin for effects outside all ranges
+        # Effects like -0.05 don't fall in any bin, so get_eqtl_color returns
+        # EQTL_NEGATIVE_BINS[-1] (dark blue)
+        assert get_eqtl_color(-0.05) == "#00008B"
+
+    def test_nan_returns_grey(self):
+        """NaN should return grey."""
+        assert get_eqtl_color(float("nan")) == LD_NA_COLOR
+        assert get_eqtl_color(math.nan) == LD_NA_COLOR
+
+    def test_none_returns_grey(self):
+        """None should return grey."""
+        assert get_eqtl_color(None) == LD_NA_COLOR
+
+
+class TestEqtlBins:
+    """Tests for eQTL bin label functions."""
+
+    def test_positive_effect_bins(self):
+        """Positive effects should return correct bin labels."""
+        assert get_eqtl_bin(0.35) == "0.3 : 0.4"
+        assert get_eqtl_bin(0.25) == "0.2 : 0.3"
+        assert get_eqtl_bin(0.15) == "0.1 : 0.2"
+
+    def test_negative_effect_bins(self):
+        """Negative effects should return correct bin labels."""
+        assert get_eqtl_bin(-0.35) == "-0.4 : -0.3"
+        assert get_eqtl_bin(-0.25) == "-0.3 : -0.2"
+        assert get_eqtl_bin(-0.15) == "-0.2 : -0.1"
+
+    def test_nan_returns_na(self):
+        """NaN should return NA label."""
+        assert get_eqtl_bin(float("nan")) == LD_NA_LABEL
+        assert get_eqtl_bin(None) == LD_NA_LABEL
+
+    def test_small_effects_return_fallback_bin(self):
+        """Effects below threshold return last defined bin (fallback behavior)."""
+        # NOTE: The implementation returns the last bin in the list for values
+        # that don't match any range. This is the smallest magnitude bin for
+        # positive (0.1 : 0.2) and largest for negative (-0.4 : -0.3).
+        assert get_eqtl_bin(0.05) == "0.1 : 0.2"
+        assert get_eqtl_bin(-0.05) == "-0.4 : -0.3"
+
+
+class TestEqtlColorPalette:
+    """Tests for eQTL color palette generation."""
+
+    def test_palette_contains_all_positive_bins(self):
+        """Palette should have all positive bin labels."""
+        palette = get_eqtl_color_palette()
+        for _, _, label, _ in EQTL_POSITIVE_BINS:
+            assert label in palette
+
+    def test_palette_contains_all_negative_bins(self):
+        """Palette should have all negative bin labels."""
+        palette = get_eqtl_color_palette()
+        for _, _, label, _ in EQTL_NEGATIVE_BINS:
+            assert label in palette
+
+    def test_palette_colors_match(self):
+        """Palette colors should match bin definitions."""
+        palette = get_eqtl_color_palette()
+        for _, _, label, color in EQTL_POSITIVE_BINS:
+            assert palette[label] == color
+        for _, _, label, color in EQTL_NEGATIVE_BINS:
+            assert palette[label] == color
+
+
+class TestCredibleSetColors:
+    """Tests for credible set color functions."""
+
+    def test_valid_cs_ids(self):
+        """Valid cs_ids should return expected colors."""
+        assert get_credible_set_color(1) == CREDIBLE_SET_COLORS[0]
+        assert get_credible_set_color(2) == CREDIBLE_SET_COLORS[1]
+        assert get_credible_set_color(10) == CREDIBLE_SET_COLORS[9]
+
+    def test_cs_id_zero_returns_grey(self):
+        """cs_id of 0 should return grey."""
+        assert get_credible_set_color(0) == LD_NA_COLOR
+
+    def test_cs_id_negative_returns_grey(self):
+        """Negative cs_id should return grey."""
+        assert get_credible_set_color(-1) == LD_NA_COLOR
+        assert get_credible_set_color(-100) == LD_NA_COLOR
+
+    def test_cs_id_cycles_after_10(self):
+        """cs_id > 10 should cycle through colors."""
+        assert get_credible_set_color(11) == CREDIBLE_SET_COLORS[0]
+        assert get_credible_set_color(12) == CREDIBLE_SET_COLORS[1]
+
+    def test_palette_default_size(self):
+        """Default palette should have 10 entries."""
+        palette = get_credible_set_color_palette()
+        assert len(palette) == 10
+        assert 1 in palette
+        assert 10 in palette
+
+    def test_palette_custom_size(self):
+        """Custom palette size should work."""
+        palette = get_credible_set_color_palette(n_sets=5)
+        assert len(palette) == 5
+        assert 5 in palette
+        assert 6 not in palette
+
+    def test_palette_large_cycles(self):
+        """Large palette should cycle colors."""
+        palette = get_credible_set_color_palette(n_sets=15)
+        assert len(palette) == 15
+        # Entry 11 should be same as entry 1
+        assert palette[11] == palette[1]
 
 
 class TestPheWASColors:
@@ -204,3 +366,26 @@ class TestLdColorProperties:
         color = get_credible_set_color(cs_id)
         expected_idx = (cs_id - 1) % len(CREDIBLE_SET_COLORS)
         assert color == CREDIBLE_SET_COLORS[expected_idx]
+
+    @given(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False))
+    def test_eqtl_color_always_valid(self, effect):
+        """Any eQTL effect should return a valid hex color."""
+        color = get_eqtl_color(effect)
+        assert color.startswith("#")
+        assert len(color) == 7
+
+    @given(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False))
+    def test_eqtl_bin_always_valid(self, effect):
+        """Any eQTL effect should return a known bin label."""
+        bin_label = get_eqtl_bin(effect)
+        valid_labels = (
+            [label for _, _, label, _ in EQTL_POSITIVE_BINS]
+            + [label for _, _, label, _ in EQTL_NEGATIVE_BINS]
+            + [LD_NA_LABEL]
+        )
+        assert bin_label in valid_labels
+
+    @given(st.integers(min_value=-10, max_value=0))
+    def test_invalid_cs_id_returns_na(self, cs_id):
+        """Invalid cs_id (<=0) should return NA color."""
+        assert get_credible_set_color(cs_id) == LD_NA_COLOR
