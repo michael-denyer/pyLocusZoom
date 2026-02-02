@@ -46,7 +46,8 @@ jobs:
       - name: Run tests
         # Verbose shows pytest-randomly seed for reproduction
         # To reproduce: pytest --randomly-seed=<seed>
-        run: uv run pytest -v
+        # Skip integration tests that require external APIs (Ensembl)
+        run: uv run pytest -v -m "not integration"
 
   build:
     runs-on: ubuntu-latest
