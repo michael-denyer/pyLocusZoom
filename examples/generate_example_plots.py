@@ -13,7 +13,7 @@ matplotlib.use("Agg")  # Non-interactive backend
 import numpy as np
 import pandas as pd
 
-from pylocuszoom import LocusZoomPlotter, ManhattanPlotter, StatsPlotter
+from pylocuszoom import LocusZoomPlotter, ManhattanPlotter, MiamiPlotter, StatsPlotter
 
 
 def generate_p_values(
@@ -849,8 +849,93 @@ fig = stats_plotter.plot_forest(
 fig.savefig("examples/forest_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/forest_plot.png")
 
+# Miami plot - mirrored Manhattan comparison
+print("18. Miami plot...")
+# Generate two GWAS datasets for comparison (discovery vs replication)
+np.random.seed(789)
+miami_data_1 = []
+miami_data_2 = []
+for chrom in range(1, 23):
+    n_variants = np.random.randint(200, 400)
+    chrom_positions = np.sort(np.random.randint(1e6, 2e8, n_variants))
+    # Discovery cohort - more significant hits
+    pvalues_1 = np.random.uniform(0, 1, n_variants)
+    # Replication cohort - similar pattern but weaker
+    pvalues_2 = np.random.uniform(0, 1, n_variants)
+    # Add significant hits on shared chromosomes
+    if chrom in [6, 11]:
+        n_hits = np.random.randint(5, 10)
+        hit_indices = np.random.choice(n_variants, n_hits, replace=False)
+        pvalues_1[hit_indices] = 10 ** np.random.uniform(-15, -8, n_hits)
+        # Replication shows similar but weaker signal
+        pvalues_2[hit_indices] = 10 ** np.random.uniform(-10, -6, n_hits)
+    if chrom == 17:  # Discovery-only signal
+        n_hits = np.random.randint(3, 6)
+        hit_indices = np.random.choice(n_variants, n_hits, replace=False)
+        pvalues_1[hit_indices] = 10 ** np.random.uniform(-12, -8, n_hits)
+    for i in range(n_variants):
+        miami_data_1.append(
+            {"chrom": str(chrom), "pos": chrom_positions[i], "p": pvalues_1[i]}
+        )
+        miami_data_2.append(
+            {"chrom": str(chrom), "pos": chrom_positions[i], "p": pvalues_2[i]}
+        )
+
+miami_df_1 = pd.DataFrame(miami_data_1)
+miami_df_2 = pd.DataFrame(miami_data_2)
+
+miami_plotter = MiamiPlotter(species="human")
+fig = miami_plotter.plot_miami(
+    miami_df_1,
+    miami_df_2,
+    top_label="Discovery",
+    bottom_label="Replication",
+    top_threshold=5e-8,
+    bottom_threshold=5e-8,
+    highlight_regions=[("6", 25_000_000, 35_000_000)],  # MHC region
+    figsize=(14, 8),
+    title="Discovery vs Replication GWAS",
+)
+fig.savefig("examples/miami_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/miami_plot.png")
+
+# Interactive Plotly Miami plot
+print("19. Interactive Plotly Miami plot...")
+miami_plotter_plotly = MiamiPlotter(species="human", backend="plotly")
+fig = miami_plotter_plotly.plot_miami(
+    miami_df_1,
+    miami_df_2,
+    top_label="Discovery",
+    bottom_label="Replication",
+    top_threshold=5e-8,
+    bottom_threshold=5e-8,
+    highlight_regions=[("6", 25_000_000, 35_000_000)],
+    figsize=(14, 8),
+    title="Discovery vs Replication GWAS",
+)
+fig.write_html("examples/miami_plotly.html")
+print("   Saved: examples/miami_plotly.html")
+
+# Interactive Bokeh Miami plot
+print("20. Interactive Bokeh Miami plot...")
+miami_plotter_bokeh = MiamiPlotter(species="human", backend="bokeh")
+fig = miami_plotter_bokeh.plot_miami(
+    miami_df_1,
+    miami_df_2,
+    top_label="Discovery",
+    bottom_label="Replication",
+    top_threshold=5e-8,
+    bottom_threshold=5e-8,
+    highlight_regions=[("6", 25_000_000, 35_000_000)],
+    figsize=(14, 8),
+    title="Discovery vs Replication GWAS",
+)
+output_file("examples/miami_bokeh.html")
+save(fig)
+print("   Saved: examples/miami_bokeh.html")
+
 # Manhattan plot - genome-wide view
-print("18. Manhattan plot...")
+print("21. Manhattan plot...")
 np.random.seed(42)
 manhattan_data = []
 for chrom in range(1, 23):

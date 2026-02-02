@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `MiamiPlotter` class for mirrored Manhattan plots comparing two GWAS datasets
+  - Top panel shows -log10(p) ascending, bottom panel shows -log10(p) descending (inverted)
+  - Consistent chromosome colors and shared x-axis across both panels
+  - Per-panel significance thresholds (`top_threshold`, `bottom_threshold`)
+  - Panel labels to identify datasets (`top_label`, `bottom_label`)
+  - SNP annotations independent per panel (`top_snp_annotations`, `bottom_snp_annotations`)
+  - Region highlighting across both panels (`highlight_regions`)
+  - Interactive hover tooltips in plotly/bokeh backends
+  - Full support for all three backends (matplotlib, plotly, bokeh)
+
 ## [1.2.0] - 2026-02-02
 
 ### Added

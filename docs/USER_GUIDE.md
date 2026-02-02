@@ -15,6 +15,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [Fine-mapping Visualization](#fine-mapping-visualization)
   - [PheWAS Plots](#phewas-plots)
   - [Forest Plots](#forest-plots)
+  - [Miami Plots](#miami-plots)
   - [Manhattan Plots](#manhattan-plots)
   - [QQ Plots](#qq-plots)
   - [Stacked Manhattan Plots](#stacked-manhattan-plots)
@@ -279,6 +280,68 @@ fig = plotter.plot_forest(
 - Marker size scaled by study weight (optional)
 - Null effect reference line
 - Study names as y-axis labels
+
+### Miami Plots
+
+Miami plots (mirrored Manhattan plots) compare two GWAS datasets side-by-side with a shared x-axis. The top panel shows -log10(p) ascending, while the bottom panel is inverted.
+
+![Miami plot](../examples/miami_plot.png)
+
+```python
+from pylocuszoom import MiamiPlotter
+import pandas as pd
+
+# Two GWAS datasets to compare
+gwas1 = pd.read_csv("gwas_study1.csv")
+gwas2 = pd.read_csv("gwas_study2.csv")
+
+plotter = MiamiPlotter()
+fig = plotter.plot_miami(
+    top_df=gwas1,
+    bottom_df=gwas2,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    top_label="Study 1",
+    bottom_label="Study 2",
+    figsize=(14, 8),
+)
+fig.savefig("miami.png", dpi=150)
+```
+
+**Features:**
+- Mirrored panels with shared x-axis and consistent chromosome colors
+- Per-panel significance thresholds (`top_threshold`, `bottom_threshold`)
+- Panel labels to identify datasets
+- SNP annotations independent per panel (`top_snp_annotations`, `bottom_snp_annotations`)
+- Region highlighting across both panels (`highlight_regions`)
+- Interactive hover tooltips in plotly/bokeh backends
+- Full support for all three backends (matplotlib, plotly, bokeh)
+
+**Customization options:**
+
+```python
+fig = plotter.plot_miami(
+    top_df=gwas1,
+    bottom_df=gwas2,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    # Per-panel thresholds
+    top_threshold=5e-8,
+    bottom_threshold=1e-5,
+    # Panel labels
+    top_label="Discovery Cohort",
+    bottom_label="Replication Cohort",
+    # SNP annotations (dict of {position: "label"})
+    top_snp_annotations={12345678: "rs123"},
+    bottom_snp_annotations={87654321: "rs456"},
+    # Highlight regions (list of (chrom, start, end) tuples)
+    highlight_regions=[(1, 1000000, 2000000), (5, 50000000, 51000000)],
+    # Interactive backend
+    backend="plotly",
+)
+```
 
 ### Manhattan Plots
 

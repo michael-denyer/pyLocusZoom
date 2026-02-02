@@ -29,16 +29,17 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 *Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
-3. **Manhattan plots**: Genome-wide association visualization with chromosome coloring
-4. **QQ plots**: Quantile-quantile plots with confidence bands and genomic inflation factor
-5. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
-6. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
-7. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
-8. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
-9. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
-10. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
-11. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
-12. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
+3. **Miami plots**: Mirrored Manhattan plots for comparing two GWAS datasets (discovery vs replication)
+4. **Manhattan plots**: Genome-wide association visualization with chromosome coloring
+5. **QQ plots**: Quantile-quantile plots with confidence bands and genomic inflation factor
+6. **eQTL plot**: Expression QTL data aligned with association plots and gene tracks
+7. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
+8. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
+9. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
+10. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
+11. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
+12. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
+13. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
 
 ## Installation
 
@@ -318,6 +319,33 @@ fig = stats_plotter.plot_forest(
 
 ![Example forest plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/forest_plot.png)
 *Forest plot with effect sizes, confidence intervals, and weight-proportional markers.*
+
+## Miami Plots
+
+Compare two GWAS datasets with mirrored Manhattan plots (top panel ascending, bottom panel inverted):
+
+```python
+from pylocuszoom import MiamiPlotter
+
+plotter = MiamiPlotter(species="human")
+
+fig = plotter.plot_miami(
+    discovery_df,
+    replication_df,
+    chrom_col="chrom",
+    pos_col="pos",
+    p_col="p",
+    top_label="Discovery",
+    bottom_label="Replication",
+    top_threshold=5e-8,
+    bottom_threshold=1e-6,
+    highlight_regions=[("6", 30_000_000, 35_000_000)],  # Highlight MHC region
+)
+fig.savefig("miami.png", dpi=150)
+```
+
+![Example Miami plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/miami_plot.png)
+*Miami plot comparing discovery and replication GWAS with mirrored y-axes and region highlighting.*
 
 ## Manhattan Plots
 
