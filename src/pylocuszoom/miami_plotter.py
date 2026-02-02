@@ -73,6 +73,9 @@ class MiamiPlotter:
         bottom_label: Optional[str] = None,
         top_snp_annotations: Optional[List[str]] = None,
         bottom_snp_annotations: Optional[List[str]] = None,
+        highlight_regions: Optional[List[Tuple[str, int, int]]] = None,
+        highlight_color: str = "yellow",
+        highlight_alpha: float = 0.3,
         figsize: Tuple[float, float] = (12, 8),
         title: Optional[str] = None,
     ) -> Any:
@@ -98,6 +101,10 @@ class MiamiPlotter:
                 Requires rs_col to be set. Basic text labels (no collision avoidance).
             bottom_snp_annotations: List of SNP IDs to annotate on bottom panel.
                 Requires rs_col to be set. Basic text labels (no collision avoidance).
+            highlight_regions: List of (chrom, start, end) tuples to highlight.
+                Regions are drawn as vertical spans across both panels.
+            highlight_color: Color for highlighted regions.
+            highlight_alpha: Transparency for highlighted regions (0-1).
             figsize: Figure size as (width, height).
             title: Overall plot title.
 
@@ -241,6 +248,23 @@ class MiamiPlotter:
                 snp_ids=bottom_snp_annotations,
             )
 
+        # Region highlighting
+        if highlight_regions:
+            # Calculate chromosome offsets for position conversion
+            chrom_offsets = self._get_chrom_offsets(top_prepared, pos_col)
+            for chrom, start, end in highlight_regions:
+                self._draw_region_highlight(
+                    fig=fig,
+                    top_ax=top_ax,
+                    bottom_ax=bottom_ax,
+                    chrom=str(chrom),
+                    start=start,
+                    end=end,
+                    chrom_offsets=chrom_offsets,
+                    color=highlight_color,
+                    alpha=highlight_alpha,
+                )
+
         # Hide spines for clean appearance
         self._backend.hide_spines(top_ax, ["top", "right"])
         self._backend.hide_spines(bottom_ax, ["top", "right"])
@@ -372,3 +396,101 @@ class MiamiPlotter:
                 ha="center",
                 va="bottom",
             )
+
+    def _get_chrom_offsets(
+        self, prepared_df: pd.DataFrame, pos_col: str
+    ) -> dict[str, float]:
+        """Calculate cumulative position offset for each chromosome.
+
+        The offset is the difference between cumulative position and original
+        position for the first SNP on each chromosome.
+
+        Args:
+            prepared_df: DataFrame with _chrom_str, _cumulative_pos columns.
+            pos_col: Original position column name.
+
+        Returns:
+            Dict mapping chromosome string to its cumulative offset.
+        """
+        offsets = {}
+        for chrom in prepared_df.attrs.get("chrom_order", []):
+            chrom_data = prepared_df[prepared_df["_chrom_str"] == str(chrom)]
+            if not chrom_data.empty:
+                first_row = chrom_data.iloc[0]
+                offsets[str(chrom)] = first_row["_cumulative_pos"] - first_row[pos_col]
+        return offsets
+
+    def _draw_region_highlight(
+        self,
+        fig: Any,
+        top_ax: Any,
+        bottom_ax: Any,
+        chrom: str,
+        start: int,
+        end: int,
+        chrom_offsets: dict[str, float],
+        color: str,
+        alpha: float,
+    ) -> None:
+        """Draw highlighted region across both panels.
+
+        Uses backend-specific implementations since region highlighting
+        is not part of the PlotBackend protocol.
+
+        Args:
+            fig: Figure object from backend.
+            top_ax: Top panel axes.
+            bottom_ax: Bottom panel axes.
+            chrom: Chromosome name (as string).
+            start: Region start position (bp).
+            end: Region end position (bp).
+            chrom_offsets: Dict mapping chromosome to cumulative offset.
+            color: Highlight color.
+            alpha: Highlight transparency.
+        """
+        if chrom not in chrom_offsets:
+            return  # Chromosome not in data
+
+        offset = chrom_offsets[chrom]
+        x_start = offset + start
+        x_end = offset + end
+
+        if self.backend_name == "matplotlib":
+            top_ax.axvspan(x_start, x_end, color=color, alpha=alpha, zorder=0)
+            bottom_ax.axvspan(x_start, x_end, color=color, alpha=alpha, zorder=0)
+
+        elif self.backend_name == "plotly":
+            # For plotly, fig is the Figure and axes are (fig, row) tuples
+            fig.add_vrect(
+                x0=x_start,
+                x1=x_end,
+                fillcolor=color,
+                opacity=alpha,
+                layer="below",
+                line_width=0,
+                row=1,
+                col=1,
+            )
+            fig.add_vrect(
+                x0=x_start,
+                x1=x_end,
+                fillcolor=color,
+                opacity=alpha,
+                layer="below",
+                line_width=0,
+                row=2,
+                col=1,
+            )
+
+        elif self.backend_name == "bokeh":
+            from bokeh.models import BoxAnnotation
+
+            # For bokeh, axes are figure objects
+            for ax in [top_ax, bottom_ax]:
+                box = BoxAnnotation(
+                    left=x_start,
+                    right=x_end,
+                    fill_color=color,
+                    fill_alpha=alpha,
+                )
+                ax.add_layout(box)

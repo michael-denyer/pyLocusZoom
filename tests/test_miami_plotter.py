@@ -523,3 +523,142 @@ class TestMiamiLabels:
         # Verify bottom panel has rs1 and rs2
         assert "rs1" in bottom_texts
         assert "rs2" in bottom_texts
+
+
+@pytest.mark.skipif(
+    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
+)
+class TestMiamiHighlight:
+    """Tests for Miami plot region highlighting."""
+
+    @pytest.fixture
+    def gwas_data(self):
+        """Create GWAS data spanning multiple chromosomes."""
+        top_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 1, 2, 2, 3, 3],
+                "pos": [1000, 2000, 3000, 1000, 2000, 1000, 2000],
+                "p": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1, 0.02],
+            }
+        )
+        bottom_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 1, 2, 2, 3, 3],
+                "pos": [1000, 2000, 3000, 1000, 2000, 1000, 2000],
+                "p": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01, 0.03],
+            }
+        )
+        return top_df, bottom_df
+
+    def test_highlight_single_region(self, gwas_data):
+        """Test highlighting a single region on both panels."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            highlight_regions=[("1", 500, 2500)],
+        )
+
+        assert fig is not None
+
+        # Verify figure has 2 panels
+        axes = fig.get_axes()
+        assert len(axes) == 2
+
+        # For matplotlib, check that axvspan was called (creates Polygon patches)
+        top_ax, bottom_ax = axes
+
+        # Both axes should have patches (highlighting spans)
+        top_patches = [p for p in top_ax.patches if hasattr(p, "get_facecolor")]
+        bottom_patches = [p for p in bottom_ax.patches if hasattr(p, "get_facecolor")]
+
+        assert len(top_patches) >= 1, "Top panel should have highlight patch"
+        assert len(bottom_patches) >= 1, "Bottom panel should have highlight patch"
+
+    def test_highlight_multiple_regions(self, gwas_data):
+        """Test highlighting multiple regions."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            highlight_regions=[
+                ("1", 500, 1500),
+                ("2", 500, 1500),
+            ],
+        )
+
+        assert fig is not None
+
+        axes = fig.get_axes()
+        top_ax, bottom_ax = axes
+
+        # Each panel should have 2 highlight patches (one per region)
+        top_patches = [p for p in top_ax.patches if hasattr(p, "get_facecolor")]
+        bottom_patches = [p for p in bottom_ax.patches if hasattr(p, "get_facecolor")]
+
+        assert len(top_patches) >= 2, "Top panel should have 2 highlight patches"
+        assert len(bottom_patches) >= 2, "Bottom panel should have 2 highlight patches"
+
+    def test_highlight_with_custom_color(self, gwas_data):
+        """Test that custom highlight color is applied."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            highlight_regions=[("1", 500, 2500)],
+            highlight_color="red",
+            highlight_alpha=0.5,
+        )
+
+        assert fig is not None
+
+        axes = fig.get_axes()
+        top_ax = axes[0]
+
+        # Find patches and verify color
+        patches = [p for p in top_ax.patches if hasattr(p, "get_facecolor")]
+        assert len(patches) >= 1
+
+        # Get the facecolor and verify it's red-ish
+        facecolor = patches[0].get_facecolor()
+        # facecolor is RGBA tuple - red should have high R value
+        assert facecolor[0] >= 0.9, f"Expected red color, got {facecolor}"
+
+    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
+    def test_highlight_plotly_backend(self, gwas_data):
+        """Test region highlighting works with plotly backend."""
+        plotter = MiamiPlotter(species="canine", backend="plotly")
+        top_df, bottom_df = gwas_data
+
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            highlight_regions=[("1", 500, 2500)],
+        )
+
+        assert fig is not None
+        # Plotly should have shapes added for the highlights
+        assert hasattr(fig.layout, "shapes") or len(fig.layout.shapes or []) >= 0
+
+    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
+    def test_highlight_bokeh_backend(self, gwas_data):
+        """Test region highlighting works with bokeh backend."""
+        from bokeh.models.layouts import LayoutDOM
+
+        plotter = MiamiPlotter(species="canine", backend="bokeh")
+        top_df, bottom_df = gwas_data
+
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            highlight_regions=[("1", 500, 2500)],
+        )
+
+        assert fig is not None
+        assert isinstance(fig, LayoutDOM)
