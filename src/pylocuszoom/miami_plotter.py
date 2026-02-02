@@ -226,11 +226,12 @@ class MiamiPlotter:
         # X-axis label only on bottom panel
         self._backend.set_xlabel(bottom_ax, "Chromosome", fontsize=12)
 
-        # Panel labels
+        # Panel labels - top at top, bottom at bottom for Miami plot layout
         if top_label:
-            self._backend.add_panel_label(top_ax, top_label)
+            self._backend.add_panel_label(top_ax, top_label, y_frac=0.95)
         if bottom_label:
-            self._backend.add_panel_label(bottom_ax, bottom_label)
+            # For Miami plots, bottom panel label should be at the bottom of the panel
+            self._backend.add_panel_label(bottom_ax, bottom_label, y_frac=0.05)
 
         # SNP annotations
         if top_snp_annotations and rs_col:

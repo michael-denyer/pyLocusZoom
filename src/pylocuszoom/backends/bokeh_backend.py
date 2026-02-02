@@ -645,11 +645,16 @@ class BokehBackend:
             if hasattr(x_range, "start") and x_range.start is not None
             else 0
         )
-        y = (
-            y_range.start + y_frac * (y_range.end - y_range.start)
-            if hasattr(y_range, "start") and y_range.start is not None
-            else 0
-        )
+
+        # Handle both normal and inverted y-axis
+        # For inverted axis (start > end), y_frac=0.95 should be near start (top visually)
+        if hasattr(y_range, "start") and y_range.start is not None:
+            y_min = min(y_range.start, y_range.end)
+            y_max = max(y_range.start, y_range.end)
+            # Position label at top of visible range regardless of axis direction
+            y = y_min + y_frac * (y_max - y_min)
+        else:
+            y = 0
 
         label_obj = Label(
             x=x,
