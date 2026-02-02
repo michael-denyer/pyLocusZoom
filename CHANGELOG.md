@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.2] - 2026-01-30
+
+### Fixed
+
+- README documentation links now work on PyPI (use absolute GitHub URLs)
+
+## [1.1.1] - 2026-01-30
+
+### Fixed
+
+- README images now display correctly on PyPI (use absolute GitHub URLs)
+
+## [1.1.0] - 2026-01-30
 
 ### Added
 - `plot_manhattan()` method for genome-wide Manhattan plots with chromosome coloring
@@ -20,10 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `set_xticks()` method for all backends (matplotlib, plotly, bokeh)
 - Categorical Manhattan plot support (PheWAS-style) via `category_col` parameter
 - Species aliases support in Manhattan plots (dog→canine, cat→feline)
+- `ManhattanPlotter` class for genome-wide Manhattan and QQ plots
+- `StatsPlotter` class for PheWAS and forest plots
+- `_plotter_utils.py` module with shared constants and helper functions
 
 ### Changed
 - Manhattan and QQ plot styling: thinner edge linewidth (0.2) for cleaner appearance
 - Manhattan plot colors: switched to colorcet glasbey_bw_minc_20_minl_30 palette
+- `LocusZoomPlotter` now delegates Manhattan/QQ to `ManhattanPlotter` and PheWAS/forest to `StatsPlotter`
+- Consolidated duplicate styling constants into `_plotter_utils.py` (DRY refactoring)
+
+### Internal
+
+- Test coverage improved from 78% to 83%
+- Added comprehensive tests for `ManhattanPlotter`, `StatsPlotter`, and plotter utilities
 
 ## [1.0.2] - 2026-01-29
 
@@ -249,7 +271,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 
-[Unreleased]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.8.0...HEAD
+[1.1.2]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.0.2...v1.1.0
+[1.0.2]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.8.0...v1.0.0
 [0.8.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v0.5.0...v0.6.0

@@ -199,6 +199,7 @@ class LocusZoomPlotter:
         Returns:
             DataFrame with neglog10p column added.
         """
+        # Use shared utility - note: df should already be a copy at call sites
         df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
         return df
 
