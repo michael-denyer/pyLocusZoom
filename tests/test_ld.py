@@ -10,8 +10,10 @@ from pylocuszoom.ld import (
     build_ld_command,
     build_pairwise_ld_command,
     calculate_ld,
+    calculate_pairwise_ld,
     find_plink,
     parse_ld_output,
+    parse_pairwise_ld_output,
 )
 
 
@@ -409,3 +411,332 @@ class TestBuildPairwiseLdCommand:
 
         assert "--dog" not in cmd
         assert "--chr-set" not in cmd
+
+
+class TestParsePairwiseLdOutput:
+    """Tests for parse_pairwise_ld_output function."""
+
+    def test_parses_square_matrix_format(self, tmp_path):
+        """Should parse PLINK's square matrix .ld file (no header, whitespace-separated)."""
+        # PLINK --r2 square outputs N x N matrix without headers
+        ld_content = """1.0\t0.85\t0.45
+0.85\t1.0\t0.60
+0.45\t0.60\t1.0"""
+        snplist_content = """rs1
+rs2
+rs3"""
+
+        ld_file = tmp_path / "test.ld"
+        snplist_file = tmp_path / "test.snplist"
+        ld_file.write_text(ld_content)
+        snplist_file.write_text(snplist_content)
+
+        matrix, snp_ids = parse_pairwise_ld_output(str(ld_file), str(snplist_file))
+
+        assert matrix.shape == (3, 3)
+        assert snp_ids == ["rs1", "rs2", "rs3"]
+
+    def test_matrix_has_snp_ids_as_index_and_columns(self, tmp_path):
+        """Matrix should have SNP IDs as both row index and column names."""
+        ld_content = """1.0\t0.85
+0.85\t1.0"""
+        snplist_content = """rs1
+rs2"""
+
+        ld_file = tmp_path / "test.ld"
+        snplist_file = tmp_path / "test.snplist"
+        ld_file.write_text(ld_content)
+        snplist_file.write_text(snplist_content)
+
+        matrix, snp_ids = parse_pairwise_ld_output(str(ld_file), str(snplist_file))
+
+        assert list(matrix.index) == ["rs1", "rs2"]
+        assert list(matrix.columns) == ["rs1", "rs2"]
+
+    def test_matrix_diagonal_is_one(self, tmp_path):
+        """Diagonal elements (self-LD) should all be 1.0."""
+        ld_content = """1.0\t0.85\t0.45
+0.85\t1.0\t0.60
+0.45\t0.60\t1.0"""
+        snplist_content = """rs1
+rs2
+rs3"""
+
+        ld_file = tmp_path / "test.ld"
+        snplist_file = tmp_path / "test.snplist"
+        ld_file.write_text(ld_content)
+        snplist_file.write_text(snplist_content)
+
+        matrix, _ = parse_pairwise_ld_output(str(ld_file), str(snplist_file))
+
+        for snp in ["rs1", "rs2", "rs3"]:
+            assert matrix.loc[snp, snp] == 1.0
+
+    def test_matrix_is_symmetric(self, tmp_path):
+        """Matrix should be symmetric (LD(A,B) == LD(B,A))."""
+        ld_content = """1.0\t0.85\t0.45
+0.85\t1.0\t0.60
+0.45\t0.60\t1.0"""
+        snplist_content = """rs1
+rs2
+rs3"""
+
+        ld_file = tmp_path / "test.ld"
+        snplist_file = tmp_path / "test.snplist"
+        ld_file.write_text(ld_content)
+        snplist_file.write_text(snplist_content)
+
+        matrix, _ = parse_pairwise_ld_output(str(ld_file), str(snplist_file))
+
+        # Check symmetry
+        assert matrix.loc["rs1", "rs2"] == matrix.loc["rs2", "rs1"]
+        assert matrix.loc["rs1", "rs3"] == matrix.loc["rs3", "rs1"]
+        assert matrix.loc["rs2", "rs3"] == matrix.loc["rs3", "rs2"]
+
+    def test_handles_nan_values(self, tmp_path):
+        """Should handle nan values for SNP pairs without LD data."""
+        ld_content = """1.0\tnan\t0.45
+nan\t1.0\t0.60
+0.45\t0.60\t1.0"""
+        snplist_content = """rs1
+rs2
+rs3"""
+
+        ld_file = tmp_path / "test.ld"
+        snplist_file = tmp_path / "test.snplist"
+        ld_file.write_text(ld_content)
+        snplist_file.write_text(snplist_content)
+
+        matrix, _ = parse_pairwise_ld_output(str(ld_file), str(snplist_file))
+
+        import math
+
+        assert math.isnan(matrix.loc["rs1", "rs2"])
+        assert math.isnan(matrix.loc["rs2", "rs1"])
+
+    def test_returns_empty_for_missing_ld_file(self, tmp_path):
+        """Should return empty matrix for missing .ld file."""
+        snplist_content = """rs1
+rs2"""
+        snplist_file = tmp_path / "test.snplist"
+        snplist_file.write_text(snplist_content)
+
+        matrix, snp_ids = parse_pairwise_ld_output(
+            str(tmp_path / "nonexistent.ld"), str(snplist_file)
+        )
+
+        assert matrix.empty
+        assert snp_ids == []
+
+    def test_returns_empty_for_missing_snplist_file(self, tmp_path):
+        """Should return empty matrix for missing .snplist file."""
+        ld_content = """1.0\t0.85
+0.85\t1.0"""
+        ld_file = tmp_path / "test.ld"
+        ld_file.write_text(ld_content)
+
+        matrix, snp_ids = parse_pairwise_ld_output(
+            str(ld_file), str(tmp_path / "nonexistent.snplist")
+        )
+
+        assert matrix.empty
+        assert snp_ids == []
+
+    def test_parses_space_separated_values(self, tmp_path):
+        """Should parse space-separated values (not just tab-separated)."""
+        ld_content = """1.0 0.85 0.45
+0.85 1.0 0.60
+0.45 0.60 1.0"""
+        snplist_content = """rs1
+rs2
+rs3"""
+
+        ld_file = tmp_path / "test.ld"
+        snplist_file = tmp_path / "test.snplist"
+        ld_file.write_text(ld_content)
+        snplist_file.write_text(snplist_content)
+
+        matrix, snp_ids = parse_pairwise_ld_output(str(ld_file), str(snplist_file))
+
+        assert matrix.shape == (3, 3)
+        assert matrix.loc["rs1", "rs2"] == 0.85
+
+
+class TestCalculatePairwiseLd:
+    """Tests for calculate_pairwise_ld function."""
+
+    @pytest.fixture
+    def mock_plink_files(self, tmp_path):
+        """Create mock PLINK files for testing."""
+        bfile = tmp_path / "test_geno"
+        (bfile.parent / f"{bfile.name}.bed").touch()
+        (bfile.parent / f"{bfile.name}.bim").touch()
+        (bfile.parent / f"{bfile.name}.fam").touch()
+        return str(bfile)
+
+    def test_raises_when_plink_not_found(self, mock_plink_files):
+        """Should raise FileNotFoundError when PLINK not found."""
+        with patch("pylocuszoom.ld.find_plink", return_value=None):
+            with pytest.raises(FileNotFoundError, match="PLINK not found"):
+                calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2"],
+                )
+
+    def test_returns_empty_on_plink_failure(self, tmp_path, mock_plink_files):
+        """Should return empty DataFrame when PLINK fails."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                matrix, snp_ids = calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2"],
+                    working_dir=str(tmp_path),
+                )
+
+                assert matrix.empty
+                assert snp_ids == []
+
+    def test_writes_snp_list_file(self, tmp_path, mock_plink_files):
+        """Should write SNP list to file when snp_list provided."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2", "rs3"],
+                    working_dir=str(tmp_path),
+                )
+
+                # Check the SNP list file was written
+                snp_list_file = tmp_path / "snp_list.txt"
+                assert snp_list_file.exists()
+                content = snp_list_file.read_text()
+                assert "rs1" in content
+                assert "rs2" in content
+                assert "rs3" in content
+
+    def test_uses_extract_flag_with_snp_list(self, tmp_path, mock_plink_files):
+        """Should use --extract flag when snp_list provided."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2"],
+                    working_dir=str(tmp_path),
+                )
+
+                # Check command included --extract
+                call_args = mock_run.call_args
+                cmd = call_args[0][0]
+                assert "--extract" in cmd
+
+    def test_uses_region_flags(self, tmp_path, mock_plink_files):
+        """Should use --chr/--from-bp/--to-bp when region provided."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    chrom=1,
+                    start=1000000,
+                    end=2000000,
+                    working_dir=str(tmp_path),
+                )
+
+                # Check command included region flags
+                call_args = mock_run.call_args
+                cmd = call_args[0][0]
+                assert "--chr" in cmd
+                assert "--from-bp" in cmd
+                assert "--to-bp" in cmd
+
+    def test_raises_validation_error_for_missing_snps(self, tmp_path, mock_plink_files):
+        """Should raise ValidationError when requested SNPs not in reference."""
+        from pylocuszoom.utils import ValidationError
+
+        # Create output files with only rs1 and rs2 (missing rs3)
+        ld_file = tmp_path / "pairwise_ld.ld"
+        snplist_file = tmp_path / "pairwise_ld.snplist"
+        ld_file.write_text("1.0\t0.85\n0.85\t1.0")
+        snplist_file.write_text("rs1\nrs2")
+
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+                with pytest.raises(
+                    ValidationError, match="SNPs not found in reference panel"
+                ):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2", "rs3"],  # rs3 not in output
+                        working_dir=str(tmp_path),
+                    )
+
+    def test_cleans_up_temp_directory(self, mock_plink_files):
+        """Should clean up temp directory when working_dir not specified."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                temp_base = tempfile.gettempdir()
+                initial_dirs = set(os.listdir(temp_base))
+
+                calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2"],
+                    working_dir=None,
+                )
+
+                final_dirs = set(os.listdir(temp_base))
+                new_dirs = final_dirs - initial_dirs
+                pairwise_dirs = [
+                    d for d in new_dirs if d.startswith("snp_scope_pairwise_ld_")
+                ]
+                assert len(pairwise_dirs) == 0
+
+    def test_returns_matrix_and_snp_ids_on_success(self, tmp_path, mock_plink_files):
+        """Should return (matrix, snp_ids) tuple on successful computation."""
+        # Create output files
+        ld_file = tmp_path / "pairwise_ld.ld"
+        snplist_file = tmp_path / "pairwise_ld.snplist"
+        ld_file.write_text("1.0\t0.85\t0.45\n0.85\t1.0\t0.60\n0.45\t0.60\t1.0")
+        snplist_file.write_text("rs1\nrs2\nrs3")
+
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+                matrix, snp_ids = calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2", "rs3"],
+                    working_dir=str(tmp_path),
+                )
+
+                assert matrix.shape == (3, 3)
+                assert snp_ids == ["rs1", "rs2", "rs3"]
+                assert matrix.loc["rs1", "rs2"] == 0.85
+
+    def test_uses_specified_metric(self, tmp_path, mock_plink_files):
+        """Should pass metric parameter to build_pairwise_ld_command."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                calculate_pairwise_ld(
+                    bfile_path=mock_plink_files,
+                    snp_list=["rs1", "rs2"],
+                    working_dir=str(tmp_path),
+                    metric="dprime",
+                )
+
+                call_args = mock_run.call_args
+                cmd = call_args[0][0]
+                assert "--r" in cmd
+                assert "dprime" in cmd

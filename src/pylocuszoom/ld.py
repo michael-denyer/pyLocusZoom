@@ -150,6 +150,51 @@ def build_ld_command(
     return cmd
 
 
+def parse_pairwise_ld_output(
+    ld_file: str, snplist_file: str
+) -> tuple[pd.DataFrame, list[str]]:
+    """Parse PLINK pairwise LD matrix output files.
+
+    PLINK --r2 square outputs:
+    - .ld file: N x N matrix of R2/D' values (whitespace-separated, no headers)
+    - .snplist file: SNP IDs in order (one per line)
+
+    Args:
+        ld_file: Path to .ld output file (square matrix).
+        snplist_file: Path to .snplist output file (SNP IDs).
+
+    Returns:
+        Tuple of (DataFrame with R2/D' values, list of SNP IDs).
+        DataFrame has SNP IDs as both index and columns.
+        Returns (empty DataFrame, empty list) if files not found.
+    """
+    # Check if files exist
+    if not os.path.exists(ld_file) or not os.path.exists(snplist_file):
+        return pd.DataFrame(), []
+
+    # Read SNP list
+    with open(snplist_file) as f:
+        snp_ids = [line.strip() for line in f if line.strip()]
+
+    if not snp_ids:
+        return pd.DataFrame(), []
+
+    # Read LD matrix (whitespace-separated, no headers)
+    # Values can be numbers or 'nan'
+    matrix = pd.read_csv(
+        ld_file,
+        sep=r"\s+",
+        header=None,
+        names=snp_ids,
+        index_col=False,
+    )
+
+    # Set SNP IDs as row index
+    matrix.index = snp_ids
+
+    return matrix, snp_ids
+
+
 def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     """Parse PLINK .ld output file.
 
@@ -269,6 +314,134 @@ def calculate_ld(
         # Parse output
         ld_file = f"{output_prefix}.ld"
         return parse_ld_output(ld_file, lead_snp)
+
+    finally:
+        # Clean up temp directory
+        if cleanup_working_dir and os.path.exists(working_dir):
+            shutil.rmtree(working_dir, ignore_errors=True)
+
+
+def calculate_pairwise_ld(
+    bfile_path: str,
+    snp_list: list[str] | None = None,
+    chrom: int | None = None,
+    start: int | None = None,
+    end: int | None = None,
+    plink_path: str | None = None,
+    working_dir: str | None = None,
+    species: str = "canine",
+    metric: str = "r2",
+) -> tuple[pd.DataFrame, list[str]]:
+    """Calculate pairwise LD matrix for a set of variants.
+
+    Runs PLINK --r2 square to compute an N x N LD matrix, suitable for
+    LD heatmap visualization.
+
+    Args:
+        bfile_path: Path to PLINK binary fileset (.bed/.bim/.fam prefix).
+        snp_list: List of SNP IDs to compute pairwise LD between.
+        chrom: Chromosome number for region-based extraction.
+        start: Start position (bp) for region-based extraction.
+        end: End position (bp) for region-based extraction.
+        plink_path: Path to PLINK executable. Auto-detects if None.
+        working_dir: Directory for PLINK output files. Uses temp dir if None.
+        species: Species flag ('canine', 'feline', or None for human).
+        metric: LD metric ('r2' or 'dprime').
+
+    Returns:
+        Tuple of (LD matrix DataFrame, list of SNP IDs).
+        DataFrame has SNP IDs as both index and columns.
+        Returns (empty DataFrame, empty list) if PLINK fails.
+
+    Raises:
+        FileNotFoundError: If PLINK executable not found.
+        ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing.
+        ValidationError: If requested SNPs are not found in reference panel.
+
+    Example:
+        >>> matrix, snp_ids = calculate_pairwise_ld(
+        ...     bfile_path="/path/to/genotypes",
+        ...     snp_list=["rs1", "rs2", "rs3"],
+        ... )
+        >>> # matrix is 3x3 DataFrame with LD values
+        >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2
+    """
+    from .utils import ValidationError
+
+    # Find PLINK
+    if plink_path is None:
+        plink_path = find_plink()
+    if plink_path is None:
+        raise FileNotFoundError(
+            "PLINK not found. Install PLINK 1.9 or specify plink_path."
+        )
+
+    logger.debug(f"Using PLINK at {plink_path}")
+
+    # Validate PLINK files exist
+    validate_plink_files(bfile_path)
+
+    # Use temp directory if working_dir not specified
+    cleanup_working_dir = False
+    if working_dir is None:
+        working_dir = tempfile.mkdtemp(prefix="snp_scope_pairwise_ld_")
+        cleanup_working_dir = True
+
+    try:
+        os.makedirs(working_dir, exist_ok=True)
+        output_prefix = os.path.join(working_dir, "pairwise_ld")
+
+        # Write SNP list to file if provided
+        snp_list_file = None
+        if snp_list:
+            snp_list_file = os.path.join(working_dir, "snp_list.txt")
+            with open(snp_list_file, "w") as f:
+                for snp in snp_list:
+                    f.write(f"{snp}\n")
+
+        # Build and run PLINK command
+        cmd = build_pairwise_ld_command(
+            plink_path=plink_path,
+            bfile_path=bfile_path,
+            output_path=output_prefix,
+            snp_list_file=snp_list_file,
+            chrom=chrom,
+            start=start,
+            end=end,
+            species=species,
+            metric=metric,
+        )
+
+        logger.debug(f"Running PLINK command: {' '.join(cmd)}")
+
+        result = subprocess.run(
+            cmd,
+            cwd=working_dir,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            logger.warning(
+                f"PLINK pairwise LD calculation failed: {result.stderr[:200]}"
+            )
+            return pd.DataFrame(), []
+
+        # Parse output
+        ld_file = f"{output_prefix}.ld"
+        snplist_file = f"{output_prefix}.snplist"
+
+        matrix, found_snps = parse_pairwise_ld_output(ld_file, snplist_file)
+
+        # Validate all requested SNPs were found
+        if snp_list:
+            missing_snps = set(snp_list) - set(found_snps)
+            if missing_snps:
+                raise ValidationError(
+                    f"SNPs not found in reference panel: {', '.join(sorted(missing_snps))}"
+                )
+
+        return matrix, found_snps
 
     finally:
         # Clean up temp directory
