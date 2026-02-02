@@ -1,0 +1,346 @@
+"""Colocalization scatter plot for GWAS-eQTL visualization.
+
+Creates scatter plots comparing GWAS -log10(p) vs eQTL -log10(p)
+with points colored by LD to the lead SNP.
+"""
+
+from typing import Any, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+from .backends import BackendType, get_backend
+from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
+from .colors import LD_BINS, LD_NA_COLOR, LEAD_SNP_COLOR, get_ld_color
+
+
+class ColocPlotter:
+    """Colocalization scatter plot generator.
+
+    Creates scatter plots comparing GWAS -log10(p) vs eQTL -log10(p)
+    with points colored by LD to the lead SNP.
+
+    Supports multiple rendering backends:
+    - matplotlib (default): Static publication-quality plots
+    - plotly: Interactive HTML with hover tooltips
+    - bokeh: Interactive HTML for dashboards
+
+    Args:
+        backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
+
+    Example:
+        >>> plotter = ColocPlotter()
+        >>> fig = plotter.plot_coloc(gwas_df, eqtl_df, lead_snp="rs12345")
+        >>> fig.savefig("coloc.png", dpi=150)
+    """
+
+    def __init__(
+        self,
+        backend: BackendType = "matplotlib",
+    ):
+        """Initialize the colocalization plotter."""
+        self._backend = get_backend(backend)
+        self.backend_name = backend
+
+    def plot_coloc(
+        self,
+        gwas_df: pd.DataFrame,
+        eqtl_df: pd.DataFrame,
+        pos_col: str = "pos",
+        gwas_p_col: str = "p_gwas",
+        eqtl_p_col: str = "p_eqtl",
+        rs_col: Optional[str] = "rs",
+        ld_col: Optional[str] = None,
+        lead_snp: Optional[str] = None,
+        gwas_threshold: float = 5e-8,
+        eqtl_threshold: float = 1e-5,
+        show_correlation: bool = True,
+        figsize: Tuple[float, float] = (8.0, 8.0),
+        title: Optional[str] = None,
+    ) -> Any:
+        """Create GWAS-eQTL colocalization scatter plot.
+
+        Args:
+            gwas_df: GWAS results DataFrame with positions and p-values.
+            eqtl_df: eQTL results DataFrame with positions and p-values.
+            pos_col: Column name for genomic positions (must exist in both).
+            gwas_p_col: Column name for GWAS p-values.
+            eqtl_p_col: Column name for eQTL p-values.
+            rs_col: Column name for SNP IDs (optional, for labeling lead SNP).
+            ld_col: Column name for LD R² values in GWAS df (optional).
+            lead_snp: SNP ID to highlight as lead variant. If None and ld_col
+                is provided, auto-selects SNP with highest combined -log10(p).
+            gwas_threshold: P-value threshold for GWAS significance line.
+            eqtl_threshold: P-value threshold for eQTL significance line.
+            show_correlation: Whether to display Pearson correlation.
+            figsize: Figure size as (width, height).
+            title: Plot title.
+
+        Returns:
+            Figure object (type depends on backend).
+
+        Raises:
+            ValidationError: If required columns are missing or invalid.
+            ValueError: If no overlapping positions between GWAS and eQTL.
+            ValueError: If lead_snp specified but not found in merged data.
+
+        Example:
+            >>> fig = plotter.plot_coloc(
+            ...     gwas_df, eqtl_df,
+            ...     ld_col="ld", lead_snp="rs12345",
+            ... )
+        """
+        # Validate inputs
+        validate_coloc_gwas_df(gwas_df, pos_col, gwas_p_col, rs_col)
+        validate_coloc_eqtl_df(eqtl_df, pos_col, eqtl_p_col, rs_col)
+
+        # Merge DataFrames on position
+        merged = pd.merge(
+            gwas_df,
+            eqtl_df,
+            on=pos_col,
+            how="inner",
+            suffixes=("_gwas", "_eqtl"),
+        )
+
+        if len(merged) == 0:
+            raise ValueError(
+                "No overlapping positions between GWAS and eQTL DataFrames"
+            )
+
+        # Handle column name resolution after merge
+        # If rs_col exists in both, it gets suffixed
+        if rs_col is not None:
+            if f"{rs_col}_gwas" in merged.columns:
+                merged_rs_col = f"{rs_col}_gwas"
+            elif rs_col in merged.columns:
+                merged_rs_col = rs_col
+            else:
+                merged_rs_col = None
+        else:
+            merged_rs_col = None
+
+        # Handle p_col resolution after merge
+        # gwas_p_col comes from gwas_df, eqtl_p_col from eqtl_df
+        gwas_p_merged = gwas_p_col
+        eqtl_p_merged = eqtl_p_col
+
+        # Transform p-values to -log10(p)
+        merged["neglog10_gwas"] = -np.log10(merged[gwas_p_merged].clip(lower=1e-300))
+        merged["neglog10_eqtl"] = -np.log10(merged[eqtl_p_merged].clip(lower=1e-300))
+
+        # Drop rows with NaN in either transformed p-value
+        merged = merged.dropna(subset=["neglog10_gwas", "neglog10_eqtl"])
+
+        if len(merged) == 0:
+            raise ValueError("No valid data points after removing NaN p-values")
+
+        # Handle LD column resolution after merge
+        if ld_col is not None:
+            if f"{ld_col}_gwas" in merged.columns:
+                ld_col_merged = f"{ld_col}_gwas"
+            elif ld_col in merged.columns:
+                ld_col_merged = ld_col
+            else:
+                ld_col_merged = None
+        else:
+            ld_col_merged = None
+
+        # Apply LD coloring
+        if ld_col_merged is not None and ld_col_merged in merged.columns:
+            merged["color"] = merged[ld_col_merged].apply(get_ld_color)
+        else:
+            merged["color"] = LD_NA_COLOR
+
+        # Auto-select lead_snp if not provided but ld_col exists
+        lead_idx = None
+        if lead_snp is not None:
+            if merged_rs_col is not None and merged_rs_col in merged.columns:
+                matches = merged[merged[merged_rs_col] == lead_snp]
+                if len(matches) == 0:
+                    raise ValueError(f"lead_snp '{lead_snp}' not found in merged data")
+                lead_idx = matches.index[0]
+            else:
+                raise ValueError(
+                    f"lead_snp '{lead_snp}' specified but rs_col not found"
+                )
+        elif ld_col_merged is not None:
+            # Auto-select: highest combined -log10(p)
+            merged["combined_score"] = merged["neglog10_gwas"] + merged["neglog10_eqtl"]
+            lead_idx = merged["combined_score"].idxmax()
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=1,
+            height_ratios=[1.0],
+            figsize=figsize,
+        )
+        ax = axes[0]
+
+        # Separate lead SNP from other points
+        if lead_idx is not None:
+            lead_row = merged.loc[[lead_idx]]
+            other_rows = merged.drop(lead_idx)
+        else:
+            lead_row = pd.DataFrame()
+            other_rows = merged
+
+        # Plot non-lead points
+        if len(other_rows) > 0:
+            self._backend.scatter(
+                ax,
+                other_rows["neglog10_gwas"],
+                other_rows["neglog10_eqtl"],
+                colors=other_rows["color"].tolist(),
+                sizes=60,
+                marker="o",
+                edgecolor="black",
+                linewidth=0.5,
+                zorder=2,
+            )
+
+        # Plot lead SNP as diamond
+        if len(lead_row) > 0:
+            self._backend.scatter(
+                ax,
+                lead_row["neglog10_gwas"],
+                lead_row["neglog10_eqtl"],
+                colors=LEAD_SNP_COLOR,
+                sizes=100,
+                marker="D",
+                edgecolor="black",
+                linewidth=0.5,
+                zorder=5,
+            )
+
+            # Add lead SNP label
+            if merged_rs_col is not None and merged_rs_col in lead_row.columns:
+                label = lead_row[merged_rs_col].values[0]
+                x_pos = lead_row["neglog10_gwas"].values[0]
+                y_pos = lead_row["neglog10_eqtl"].values[0]
+                self._backend.add_text(
+                    ax,
+                    x_pos,
+                    y_pos + 0.5,  # Offset above the point
+                    label,
+                    fontsize=9,
+                    ha="center",
+                    va="bottom",
+                )
+
+        # Add significance threshold lines
+        gwas_sig_line = -np.log10(gwas_threshold)
+        eqtl_sig_line = -np.log10(eqtl_threshold)
+
+        self._backend.axvline(
+            ax, x=gwas_sig_line, color="grey", linestyle="--", linewidth=1, alpha=0.7
+        )
+        self._backend.axhline(
+            ax, y=eqtl_sig_line, color="grey", linestyle="--", linewidth=1, alpha=0.7
+        )
+
+        # Calculate and display correlation
+        if show_correlation and len(merged) >= 3:
+            r, p = stats.pearsonr(merged["neglog10_gwas"], merged["neglog10_eqtl"])
+            if p < 0.001:
+                p_str = "p < 0.001"
+            else:
+                p_str = f"p = {p:.3f}"
+            corr_text = f"r = {r:.3f}\n{p_str}"
+
+            # Position in top-left corner
+            x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
+            y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
+            text_x = x_min + 0.05 * (x_max - x_min)
+            text_y = y_max - 0.05 * (y_max - y_min)
+
+            self._backend.add_text(
+                ax,
+                text_x,
+                text_y,
+                corr_text,
+                fontsize=10,
+                ha="left",
+                va="top",
+            )
+
+        # Set axis labels
+        self._backend.set_xlabel(ax, r"GWAS $-\log_{10}$ P")
+        self._backend.set_ylabel(ax, r"eQTL $-\log_{10}$ P")
+
+        # Set title
+        if title:
+            self._backend.set_title(ax, title)
+
+        # Hide top and right spines
+        self._backend.hide_spines(ax, ["top", "right"])
+
+        # Add LD legend for matplotlib backend
+        if self.backend_name == "matplotlib" and ld_col_merged is not None:
+            self._add_ld_legend(ax)
+
+        # Finalize layout
+        self._backend.finalize_layout(fig)
+
+        return fig
+
+    def _add_ld_legend(self, ax: Any) -> None:
+        """Add LD color legend to matplotlib plot.
+
+        Args:
+            ax: Matplotlib axes object.
+        """
+        from matplotlib.lines import Line2D
+
+        legend_elements = []
+
+        # Lead SNP
+        legend_elements.append(
+            Line2D(
+                [0],
+                [0],
+                marker="D",
+                color="w",
+                markerfacecolor=LEAD_SNP_COLOR,
+                markeredgecolor="black",
+                markersize=8,
+                label="Lead SNP",
+            )
+        )
+
+        # LD bins
+        for _, label, color in LD_BINS:
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=6,
+                    label=f"R² {label}",
+                )
+            )
+
+        # NA color
+        legend_elements.append(
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=LD_NA_COLOR,
+                markeredgecolor="black",
+                markersize=6,
+                label="R² NA",
+            )
+        )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            framealpha=0.9,
+        )

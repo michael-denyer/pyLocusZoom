@@ -40,6 +40,9 @@ __version__ = "1.1.2"
 # Backend types
 from .backends import BackendType, get_backend
 
+# Colocalization visualization
+from .coloc_plotter import ColocPlotter
+
 # Colors and LD
 from .colors import (
     LEAD_SNP_COLOR,
@@ -170,6 +173,7 @@ __all__ = [
     "MiamiPlotter",
     "StatsPlotter",
     "LDHeatmapPlotter",
+    "ColocPlotter",
     # Backends
     "BackendType",
     "get_backend",
