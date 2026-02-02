@@ -298,3 +298,11 @@ LD_HEATMAP_MISSING_COLOR = "#808080"  # grey
 # Highlight colors for lead and secondary SNPs in heatmaps
 LEAD_SNP_HIGHLIGHT_COLOR = "#FF0000"  # red border/outline for lead SNP
 SECONDARY_HIGHLIGHT_COLOR = "#0000FF"  # blue for other highlighted SNPs
+
+# =============================================================================
+# Colocalization Effect Direction Colors
+# =============================================================================
+
+# Colors for effect direction agreement in colocalization plots
+EFFECT_CONGRUENT_COLOR = "#4DAF4A"  # green - same direction
+EFFECT_INCONGRUENT_COLOR = "#E41A1C"  # red - opposite direction

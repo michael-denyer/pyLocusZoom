@@ -12,7 +12,30 @@ from scipy import stats
 
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
-from .colors import LD_BINS, LD_NA_COLOR, LEAD_SNP_COLOR, get_ld_color
+from .colors import (
+    EFFECT_CONGRUENT_COLOR,
+    EFFECT_INCONGRUENT_COLOR,
+    LD_BINS,
+    LD_NA_COLOR,
+    LEAD_SNP_COLOR,
+    get_ld_color,
+)
+
+
+def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
+    """Get color based on effect direction agreement.
+
+    Args:
+        gwas_effect: GWAS effect size (beta coefficient).
+        eqtl_effect: eQTL effect size (beta coefficient).
+
+    Returns:
+        Hex color code: green for same direction, red for opposite.
+    """
+    if pd.isna(gwas_effect) or pd.isna(eqtl_effect):
+        return LD_NA_COLOR
+    same_direction = (gwas_effect > 0) == (eqtl_effect > 0)
+    return EFFECT_CONGRUENT_COLOR if same_direction else EFFECT_INCONGRUENT_COLOR
 
 
 class ColocPlotter:
@@ -56,6 +79,10 @@ class ColocPlotter:
         gwas_threshold: float = 5e-8,
         eqtl_threshold: float = 1e-5,
         show_correlation: bool = True,
+        color_by_effect: bool = False,
+        gwas_effect_col: Optional[str] = None,
+        eqtl_effect_col: Optional[str] = None,
+        h4_posterior: Optional[float] = None,
         figsize: Tuple[float, float] = (8.0, 8.0),
         title: Optional[str] = None,
     ) -> Any:
@@ -74,6 +101,12 @@ class ColocPlotter:
             gwas_threshold: P-value threshold for GWAS significance line.
             eqtl_threshold: P-value threshold for eQTL significance line.
             show_correlation: Whether to display Pearson correlation.
+            color_by_effect: Whether to color points by effect direction agreement.
+            gwas_effect_col: Column name for GWAS effect sizes (required if
+                color_by_effect=True).
+            eqtl_effect_col: Column name for eQTL effect sizes (required if
+                color_by_effect=True).
+            h4_posterior: Optional COLOC H4 posterior probability to display.
             figsize: Figure size as (width, height).
             title: Plot title.
 
@@ -84,16 +117,37 @@ class ColocPlotter:
             ValidationError: If required columns are missing or invalid.
             ValueError: If no overlapping positions between GWAS and eQTL.
             ValueError: If lead_snp specified but not found in merged data.
+            ValueError: If color_by_effect=True but effect columns not provided.
+            ValueError: If h4_posterior is not in [0, 1] range.
 
         Example:
             >>> fig = plotter.plot_coloc(
             ...     gwas_df, eqtl_df,
             ...     ld_col="ld", lead_snp="rs12345",
             ... )
+            >>> # With effect coloring
+            >>> fig = plotter.plot_coloc(
+            ...     gwas_df, eqtl_df,
+            ...     color_by_effect=True,
+            ...     gwas_effect_col="beta_gwas",
+            ...     eqtl_effect_col="beta_eqtl",
+            ... )
         """
         # Validate inputs
         validate_coloc_gwas_df(gwas_df, pos_col, gwas_p_col, rs_col)
         validate_coloc_eqtl_df(eqtl_df, pos_col, eqtl_p_col, rs_col)
+
+        # Validate effect coloring parameters
+        if color_by_effect:
+            if gwas_effect_col is None or eqtl_effect_col is None:
+                raise ValueError(
+                    "color_by_effect=True requires gwas_effect_col and eqtl_effect_col"
+                )
+
+        # Validate h4_posterior range
+        if h4_posterior is not None:
+            if not (0 <= h4_posterior <= 1):
+                raise ValueError(f"h4_posterior must be in [0, 1], got {h4_posterior}")
 
         # Merge DataFrames on position
         merged = pd.merge(
@@ -147,8 +201,38 @@ class ColocPlotter:
         else:
             ld_col_merged = None
 
-        # Apply LD coloring
-        if ld_col_merged is not None and ld_col_merged in merged.columns:
+        # Handle effect column resolution after merge
+        gwas_effect_merged = None
+        eqtl_effect_merged = None
+        if color_by_effect:
+            # Resolve GWAS effect column
+            if f"{gwas_effect_col}_gwas" in merged.columns:
+                gwas_effect_merged = f"{gwas_effect_col}_gwas"
+            elif gwas_effect_col in merged.columns:
+                gwas_effect_merged = gwas_effect_col
+            else:
+                raise ValueError(
+                    f"gwas_effect_col '{gwas_effect_col}' not found in merged data"
+                )
+            # Resolve eQTL effect column
+            if f"{eqtl_effect_col}_eqtl" in merged.columns:
+                eqtl_effect_merged = f"{eqtl_effect_col}_eqtl"
+            elif eqtl_effect_col in merged.columns:
+                eqtl_effect_merged = eqtl_effect_col
+            else:
+                raise ValueError(
+                    f"eqtl_effect_col '{eqtl_effect_col}' not found in merged data"
+                )
+
+        # Apply coloring based on mode
+        if color_by_effect:
+            merged["color"] = merged.apply(
+                lambda row: _get_effect_agreement_color(
+                    row[gwas_effect_merged], row[eqtl_effect_merged]
+                ),
+                axis=1,
+            )
+        elif ld_col_merged is not None and ld_col_merged in merged.columns:
             merged["color"] = merged[ld_col_merged].apply(get_ld_color)
         else:
             merged["color"] = LD_NA_COLOR
@@ -265,6 +349,25 @@ class ColocPlotter:
                 va="top",
             )
 
+        # Display H4 posterior probability if provided
+        if h4_posterior is not None:
+            h4_text = f"H4 PP = {h4_posterior:.3f}"
+            # Position in bottom-right corner using data coordinates
+            x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
+            y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
+            h4_x = x_max - 0.05 * (x_max - x_min)
+            h4_y = y_min + 0.05 * (y_max - y_min)
+
+            self._backend.add_text(
+                ax,
+                h4_x,
+                h4_y,
+                h4_text,
+                fontsize=10,
+                ha="right",
+                va="bottom",
+            )
+
         # Set axis labels
         self._backend.set_xlabel(ax, r"GWAS $-\log_{10}$ P")
         self._backend.set_ylabel(ax, r"eQTL $-\log_{10}$ P")
@@ -276,9 +379,12 @@ class ColocPlotter:
         # Hide top and right spines
         self._backend.hide_spines(ax, ["top", "right"])
 
-        # Add LD legend for matplotlib backend
-        if self.backend_name == "matplotlib" and ld_col_merged is not None:
-            self._add_ld_legend(ax)
+        # Add legend for matplotlib backend
+        if self.backend_name == "matplotlib":
+            if color_by_effect:
+                self._add_effect_legend(ax)
+            elif ld_col_merged is not None:
+                self._add_ld_legend(ax)
 
         # Finalize layout
         self._backend.finalize_layout(fig)
@@ -337,6 +443,54 @@ class ColocPlotter:
                 label="R² NA",
             )
         )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            framealpha=0.9,
+        )
+
+    def _add_effect_legend(self, ax: Any) -> None:
+        """Add effect direction legend to matplotlib plot.
+
+        Args:
+            ax: Matplotlib axes object.
+        """
+        from matplotlib.lines import Line2D
+
+        legend_elements = [
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=EFFECT_CONGRUENT_COLOR,
+                markeredgecolor="black",
+                markersize=8,
+                label="Same direction",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=EFFECT_INCONGRUENT_COLOR,
+                markeredgecolor="black",
+                markersize=8,
+                label="Opposite direction",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=LD_NA_COLOR,
+                markeredgecolor="black",
+                markersize=6,
+                label="Missing effect",
+            ),
+        ]
 
         ax.legend(
             handles=legend_elements,
