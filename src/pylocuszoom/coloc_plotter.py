@@ -22,6 +22,34 @@ from .colors import (
 )
 
 
+def _resolve_merged_column(
+    merged: pd.DataFrame,
+    col: Optional[str],
+    suffix: str,
+) -> Optional[str]:
+    """Resolve column name after DataFrame merge.
+
+    When merging DataFrames, pandas adds suffixes to duplicate columns.
+    This helper finds the actual column name in the merged DataFrame.
+
+    Args:
+        merged: Merged DataFrame to search.
+        col: Original column name (or None).
+        suffix: Suffix added by merge (e.g., "_gwas" or "_eqtl").
+
+    Returns:
+        Resolved column name, or None if col was None or not found.
+    """
+    if col is None:
+        return None
+    suffixed = f"{col}{suffix}"
+    if suffixed in merged.columns:
+        return suffixed
+    if col in merged.columns:
+        return col
+    return None
+
+
 def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
     """Get color based on effect direction agreement.
 
@@ -163,22 +191,11 @@ class ColocPlotter:
                 "No overlapping positions between GWAS and eQTL DataFrames"
             )
 
-        # Handle column name resolution after merge
-        # If rs_col exists in both, it gets suffixed
-        if rs_col is not None:
-            if f"{rs_col}_gwas" in merged.columns:
-                merged_rs_col = f"{rs_col}_gwas"
-            elif rs_col in merged.columns:
-                merged_rs_col = rs_col
-            else:
-                merged_rs_col = None
-        else:
-            merged_rs_col = None
-
-        # Handle p_col resolution after merge
-        # gwas_p_col comes from gwas_df, eqtl_p_col from eqtl_df
-        gwas_p_merged = gwas_p_col
-        eqtl_p_merged = eqtl_p_col
+        # Resolve column names after merge (pandas adds suffixes to duplicates)
+        merged_rs_col = _resolve_merged_column(merged, rs_col, "_gwas")
+        ld_col_merged = _resolve_merged_column(merged, ld_col, "_gwas")
+        gwas_p_merged = _resolve_merged_column(merged, gwas_p_col, "_gwas")
+        eqtl_p_merged = _resolve_merged_column(merged, eqtl_p_col, "_eqtl")
 
         # Transform p-values to -log10(p)
         merged["neglog10_gwas"] = -np.log10(merged[gwas_p_merged].clip(lower=1e-300))
@@ -190,36 +207,21 @@ class ColocPlotter:
         if len(merged) == 0:
             raise ValueError("No valid data points after removing NaN p-values")
 
-        # Handle LD column resolution after merge
-        if ld_col is not None:
-            if f"{ld_col}_gwas" in merged.columns:
-                ld_col_merged = f"{ld_col}_gwas"
-            elif ld_col in merged.columns:
-                ld_col_merged = ld_col
-            else:
-                ld_col_merged = None
-        else:
-            ld_col_merged = None
-
-        # Handle effect column resolution after merge
+        # Resolve effect columns if coloring by effect direction
         gwas_effect_merged = None
         eqtl_effect_merged = None
         if color_by_effect:
-            # Resolve GWAS effect column
-            if f"{gwas_effect_col}_gwas" in merged.columns:
-                gwas_effect_merged = f"{gwas_effect_col}_gwas"
-            elif gwas_effect_col in merged.columns:
-                gwas_effect_merged = gwas_effect_col
-            else:
+            gwas_effect_merged = _resolve_merged_column(
+                merged, gwas_effect_col, "_gwas"
+            )
+            if gwas_effect_merged is None:
                 raise ValueError(
                     f"gwas_effect_col '{gwas_effect_col}' not found in merged data"
                 )
-            # Resolve eQTL effect column
-            if f"{eqtl_effect_col}_eqtl" in merged.columns:
-                eqtl_effect_merged = f"{eqtl_effect_col}_eqtl"
-            elif eqtl_effect_col in merged.columns:
-                eqtl_effect_merged = eqtl_effect_col
-            else:
+            eqtl_effect_merged = _resolve_merged_column(
+                merged, eqtl_effect_col, "_eqtl"
+            )
+            if eqtl_effect_merged is None:
                 raise ValueError(
                     f"eqtl_effect_col '{eqtl_effect_col}' not found in merged data"
                 )
@@ -232,23 +234,22 @@ class ColocPlotter:
                 ),
                 axis=1,
             )
-        elif ld_col_merged is not None and ld_col_merged in merged.columns:
+        elif ld_col_merged is not None:
             merged["color"] = merged[ld_col_merged].apply(get_ld_color)
         else:
             merged["color"] = LD_NA_COLOR
 
-        # Auto-select lead_snp if not provided but ld_col exists
+        # Determine lead SNP index
         lead_idx = None
         if lead_snp is not None:
-            if merged_rs_col is not None and merged_rs_col in merged.columns:
-                matches = merged[merged[merged_rs_col] == lead_snp]
-                if len(matches) == 0:
-                    raise ValueError(f"lead_snp '{lead_snp}' not found in merged data")
-                lead_idx = matches.index[0]
-            else:
+            if merged_rs_col is None:
                 raise ValueError(
                     f"lead_snp '{lead_snp}' specified but rs_col not found"
                 )
+            matches = merged[merged[merged_rs_col] == lead_snp]
+            if len(matches) == 0:
+                raise ValueError(f"lead_snp '{lead_snp}' not found in merged data")
+            lead_idx = matches.index[0]
         elif ld_col_merged is not None:
             # Auto-select: highest combined -log10(p)
             merged["combined_score"] = merged["neglog10_gwas"] + merged["neglog10_eqtl"]
@@ -299,7 +300,7 @@ class ColocPlotter:
             )
 
             # Add lead SNP label
-            if merged_rs_col is not None and merged_rs_col in lead_row.columns:
+            if merged_rs_col is not None:
                 label = lead_row[merged_rs_col].values[0]
                 x_pos = lead_row["neglog10_gwas"].values[0]
                 y_pos = lead_row["neglog10_eqtl"].values[0]
@@ -324,45 +325,34 @@ class ColocPlotter:
             ax, y=eqtl_sig_line, color="grey", linestyle="--", linewidth=1, alpha=0.7
         )
 
-        # Calculate and display correlation
+        # Calculate data bounds once for text positioning
+        x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
+        y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+
+        # Display correlation in top-left corner
         if show_correlation and len(merged) >= 3:
             r, p = stats.pearsonr(merged["neglog10_gwas"], merged["neglog10_eqtl"])
-            if p < 0.001:
-                p_str = "p < 0.001"
-            else:
-                p_str = f"p = {p:.3f}"
+            p_str = "p < 0.001" if p < 0.001 else f"p = {p:.3f}"
             corr_text = f"r = {r:.3f}\n{p_str}"
-
-            # Position in top-left corner
-            x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
-            y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
-            text_x = x_min + 0.05 * (x_max - x_min)
-            text_y = y_max - 0.05 * (y_max - y_min)
-
             self._backend.add_text(
                 ax,
-                text_x,
-                text_y,
+                x_min + 0.05 * x_range,
+                y_max - 0.05 * y_range,
                 corr_text,
                 fontsize=10,
                 ha="left",
                 va="top",
             )
 
-        # Display H4 posterior probability if provided
+        # Display H4 posterior probability in bottom-right corner
         if h4_posterior is not None:
-            h4_text = f"H4 PP = {h4_posterior:.3f}"
-            # Position in bottom-right corner using data coordinates
-            x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
-            y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
-            h4_x = x_max - 0.05 * (x_max - x_min)
-            h4_y = y_min + 0.05 * (y_max - y_min)
-
             self._backend.add_text(
                 ax,
-                h4_x,
-                h4_y,
-                h4_text,
+                x_max - 0.05 * x_range,
+                y_min + 0.05 * y_range,
+                f"H4 PP = {h4_posterior:.3f}",
                 fontsize=10,
                 ha="right",
                 va="bottom",

@@ -37,7 +37,8 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 8. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
 9. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
 10. **LD heatmaps**: Triangular heatmaps showing pairwise LD patterns, standalone or integrated below regional plots
-11. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
+11. **Colocalization plots**: GWAS-eQTL scatter plots with LD coloring, correlation statistics, and effect direction visualization
+12. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
 12. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
 13. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
 14. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
@@ -317,6 +318,58 @@ fig = plotter.plot(
 
 ![Example regional plot with LD heatmap](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/regional_with_ld_heatmap.png)
 *Regional association plot with integrated LD heatmap panel below.*
+
+## Colocalization Plots
+
+Visualize GWAS-eQTL colocalization by comparing association signals in a scatter plot with LD coloring:
+
+```python
+from pylocuszoom import ColocPlotter
+
+# GWAS and eQTL data with matching positions
+gwas_df = pd.DataFrame({
+    "pos": positions,
+    "p": gwas_pvalues,
+    "ld_r2": ld_values,  # Optional: LD with lead SNP
+})
+
+eqtl_df = pd.DataFrame({
+    "pos": positions,
+    "p": eqtl_pvalues,
+})
+
+plotter = ColocPlotter()
+fig = plotter.plot_coloc(
+    gwas_df=gwas_df,
+    eqtl_df=eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",
+    gwas_threshold=5e-8,
+    eqtl_threshold=1e-5,
+)
+fig.savefig("colocalization.png", dpi=150)
+```
+
+![Example colocalization plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/colocalization_plot.png)
+*GWAS-eQTL colocalization scatter plot with LD coloring and correlation statistics.*
+
+**Advanced options** include effect direction coloring and H4 posterior probability display:
+
+```python
+fig = plotter.plot_coloc(
+    gwas_df=gwas_df,
+    eqtl_df=eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    gwas_effect_col="beta",
+    eqtl_effect_col="slope",
+    color_by_effect=True,  # Green=congruent, Red=incongruent
+    h4_posterior=0.85,     # Display coloc H4 probability
+)
+```
 
 ## PheWAS Plots
 

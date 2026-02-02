@@ -31,6 +31,7 @@ class LDHeatmapPlotter:
 
     Args:
         species: Species name ('canine', 'feline', 'human', or None).
+            Currently unused but kept for API consistency.
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
 
     Example:
@@ -45,7 +46,7 @@ class LDHeatmapPlotter:
         backend: BackendType = "matplotlib",
     ):
         """Initialize the LD heatmap plotter."""
-        self.species = species
+        self.species = species  # Kept for backward compatibility, currently unused
         self._backend = get_backend(backend)
         self.backend_name = backend
 
@@ -204,30 +205,19 @@ class LDHeatmapPlotter:
             n_snps: Total number of SNPs in the matrix.
             color: Highlight color.
         """
+        # Compute all cell positions to highlight (x, y pairs)
+        # Row cells: columns 0 to snp_idx, row = snp_idx
+        row_cells = [(j, snp_idx) for j in range(snp_idx + 1)]
+        # Column cells: column = snp_idx, rows snp_idx+1 to end (skip diagonal)
+        col_cells = [(snp_idx, i) for i in range(snp_idx + 1, n_snps)]
+        all_cells = row_cells + col_cells
+
         if self.backend_name == "matplotlib":
             from matplotlib.patches import Rectangle
 
-            # Highlight row (all cells in row snp_idx, columns 0 to snp_idx)
-            # For lower triangle with origin='lower', y corresponds to row
-            for j in range(snp_idx + 1):  # columns 0 to snp_idx inclusive
+            for x, y in all_cells:
                 rect = Rectangle(
-                    (j - 0.5, snp_idx - 0.5),  # bottom-left corner
-                    1.0,
-                    1.0,  # width, height
-                    fill=False,
-                    edgecolor=color,
-                    linewidth=2,
-                    zorder=10,
-                )
-                ax.add_patch(rect)
-
-            # Highlight column (all cells in column snp_idx, rows snp_idx to n_snps-1)
-            for i in range(snp_idx, n_snps):  # rows snp_idx to end
-                # Skip the cell at (snp_idx, snp_idx) as it's already highlighted
-                if i == snp_idx:
-                    continue
-                rect = Rectangle(
-                    (snp_idx - 0.5, i - 0.5),
+                    (x - 0.5, y - 0.5),
                     1.0,
                     1.0,
                     fill=False,
@@ -238,59 +228,22 @@ class LDHeatmapPlotter:
                 ax.add_patch(rect)
 
         elif self.backend_name == "plotly":
-            # For plotly, add shapes for row and column highlights
-            # ax is (fig, row) tuple for plotly
-            plotly_fig = fig
-
-            # Highlight row cells
-            for j in range(snp_idx + 1):
-                plotly_fig.add_shape(
+            for x, y in all_cells:
+                fig.add_shape(
                     type="rect",
-                    x0=j - 0.5,
-                    x1=j + 0.5,
-                    y0=snp_idx - 0.5,
-                    y1=snp_idx + 0.5,
-                    line=dict(color=color, width=2),
-                    fillcolor="rgba(0,0,0,0)",
-                )
-
-            # Highlight column cells
-            for i in range(snp_idx, n_snps):
-                if i == snp_idx:
-                    continue
-                plotly_fig.add_shape(
-                    type="rect",
-                    x0=snp_idx - 0.5,
-                    x1=snp_idx + 0.5,
-                    y0=i - 0.5,
-                    y1=i + 0.5,
+                    x0=x - 0.5,
+                    x1=x + 0.5,
+                    y0=y - 0.5,
+                    y1=y + 0.5,
                     line=dict(color=color, width=2),
                     fillcolor="rgba(0,0,0,0)",
                 )
 
         elif self.backend_name == "bokeh":
-            # For bokeh, add rect glyphs for highlights
-            # ax is the bokeh figure
-
-            # Highlight row cells
-            for j in range(snp_idx + 1):
+            for x, y in all_cells:
                 ax.rect(
-                    x=j,
-                    y=snp_idx,
-                    width=1,
-                    height=1,
-                    fill_alpha=0,
-                    line_color=color,
-                    line_width=2,
-                )
-
-            # Highlight column cells
-            for i in range(snp_idx, n_snps):
-                if i == snp_idx:
-                    continue
-                ax.rect(
-                    x=snp_idx,
-                    y=i,
+                    x=x,
+                    y=y,
                     width=1,
                     height=1,
                     fill_alpha=0,

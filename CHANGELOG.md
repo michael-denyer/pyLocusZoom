@@ -18,6 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Region highlighting across both panels (`highlight_regions`)
   - Interactive hover tooltips in plotly/bokeh backends
   - Full support for all three backends (matplotlib, plotly, bokeh)
+- `LDHeatmapPlotter` class for triangular LD heatmap visualization
+  - Displays pairwise LD (R² or D') as triangular heatmap
+  - White-to-red color gradient for LD values
+  - Lead SNP highlighting with visual emphasis
+  - Colorbar legend with metric label
+  - Full support for all three backends (matplotlib, plotly, bokeh)
+- `calculate_pairwise_ld()` function for computing pairwise LD matrices via PLINK
+- LD heatmap integration in `LocusZoomPlotter.plot()` and `plot_stacked()`
+  - New parameters: `ld_heatmap_df`, `ld_heatmap_snp_ids`, `ld_heatmap_height`
+  - Heatmap panel automatically aligns x-axis with regional association plot
+- `ColocPlotter` class for GWAS-eQTL colocalization scatter plots
+  - Scatter plot comparing GWAS vs eQTL -log10(p) values
+  - Points colored by LD (R²) with lead SNP
+  - Lead SNP labeled on plot
+  - Pearson correlation coefficient and p-value displayed
+  - Significance threshold reference lines
+  - Optional effect direction coloring (green=congruent, red=incongruent)
+  - Optional coloc H4 posterior probability display
+  - Full support for all three backends (matplotlib, plotly, bokeh)
+- `ColocConfig` Pydantic model for colocalization plot configuration
 
 ## [1.2.0] - 2026-02-02
 

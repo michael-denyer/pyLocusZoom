@@ -13,7 +13,13 @@ matplotlib.use("Agg")  # Non-interactive backend
 import numpy as np
 import pandas as pd
 
-from pylocuszoom import LocusZoomPlotter, ManhattanPlotter, MiamiPlotter, StatsPlotter
+from pylocuszoom import (
+    ColocPlotter,
+    LocusZoomPlotter,
+    ManhattanPlotter,
+    MiamiPlotter,
+    StatsPlotter,
+)
 
 
 def generate_p_values(
@@ -1278,10 +1284,10 @@ ld_matrix_df = pd.DataFrame(
 
 # Standalone LD heatmap - matplotlib
 ld_plotter = LDHeatmapPlotter()
-fig = ld_plotter.plot(
+fig = ld_plotter.plot_ld_heatmap(
     ld_matrix_df,
     heatmap_snp_ids,
-    highlight_snp_id="rs5",
+    lead_snp="rs5",
     metric="r2",
 )
 fig.savefig("examples/matplotlib/ld_heatmap.png", dpi=150, bbox_inches="tight")
@@ -1290,10 +1296,10 @@ print("   Saved: examples/matplotlib/ld_heatmap.png")
 # LD heatmap - plotly
 print("35. Interactive Plotly LD Heatmap...")
 ld_plotter_plotly = LDHeatmapPlotter(backend="plotly")
-fig = ld_plotter_plotly.plot(
+fig = ld_plotter_plotly.plot_ld_heatmap(
     ld_matrix_df,
     heatmap_snp_ids,
-    highlight_snp_id="rs5",
+    lead_snp="rs5",
     metric="r2",
 )
 fig.write_html("examples/plotly/ld_heatmap_plotly.html")
@@ -1302,10 +1308,10 @@ print("   Saved: examples/plotly/ld_heatmap_plotly.html")
 # LD heatmap - bokeh
 print("36. Interactive Bokeh LD Heatmap...")
 ld_plotter_bokeh = LDHeatmapPlotter(backend="bokeh")
-fig = ld_plotter_bokeh.plot(
+fig = ld_plotter_bokeh.plot_ld_heatmap(
     ld_matrix_df,
     heatmap_snp_ids,
-    highlight_snp_id="rs5",
+    lead_snp="rs5",
     metric="r2",
 )
 output_file("examples/bokeh/ld_heatmap_bokeh.html")
@@ -1376,6 +1382,122 @@ fig = bokeh_plotter.plot(
 output_file("examples/bokeh/regional_with_ld_heatmap_bokeh.html")
 save(fig)
 print("   Saved: examples/bokeh/regional_with_ld_heatmap_bokeh.html")
+
+# Colocalization plots
+print("40. Colocalization plot...")
+# Create synthetic colocalization data
+np.random.seed(42)
+n_coloc_snps = 100
+coloc_positions = np.sort(np.random.randint(1_000_000, 2_000_000, n_coloc_snps))
+
+# GWAS data with peak near 1.5Mb
+gwas_coloc_pvals = generate_p_values(
+    coloc_positions,
+    1_500_000,
+    peak_radius=100_000,
+    peak_strength=10.0,
+    decay_rate=30_000,
+)
+# eQTL data with overlapping signal (colocalized)
+eqtl_coloc_pvals = generate_p_values(
+    coloc_positions, 1_500_000, peak_radius=80_000, peak_strength=8.0, decay_rate=25_000
+)
+
+# Generate LD values relative to lead SNP
+coloc_ld_values = generate_ld_values(coloc_positions, 1_500_000)
+
+# Create effect sizes (correlated between GWAS and eQTL for colocalization)
+gwas_effects = np.random.normal(0.3, 0.1, n_coloc_snps)
+eqtl_effects = gwas_effects * np.random.uniform(0.8, 1.2, n_coloc_snps)  # Correlated
+
+coloc_snp_ids = [f"rs{100 + i}" for i in range(n_coloc_snps)]
+
+coloc_gwas_df = pd.DataFrame(
+    {
+        "pos": coloc_positions,
+        "p": gwas_coloc_pvals,
+        "rs": coloc_snp_ids,
+        "ld_r2": coloc_ld_values,
+        "beta": gwas_effects,
+    }
+)
+
+coloc_eqtl_df = pd.DataFrame(
+    {
+        "pos": coloc_positions,
+        "p": eqtl_coloc_pvals,
+        "rs": coloc_snp_ids,
+        "slope": eqtl_effects,
+    }
+)
+
+# Basic colocalization plot with LD coloring
+coloc_plotter = ColocPlotter()
+fig = coloc_plotter.plot_coloc(
+    gwas_df=coloc_gwas_df,
+    eqtl_df=coloc_eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",
+    gwas_threshold=5e-8,
+    eqtl_threshold=1e-5,
+)
+fig.savefig("examples/matplotlib/colocalization_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/colocalization_plot.png")
+
+# Colocalization plot with effect direction coloring
+print("41. Colocalization plot with effect direction coloring...")
+fig = coloc_plotter.plot_coloc(
+    gwas_df=coloc_gwas_df,
+    eqtl_df=coloc_eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    gwas_effect_col="beta",
+    eqtl_effect_col="slope",
+    color_by_effect=True,
+    h4_posterior=0.85,  # Display H4 probability
+    gwas_threshold=5e-8,
+    eqtl_threshold=1e-5,
+)
+fig.savefig(
+    "examples/matplotlib/colocalization_effect_plot.png", dpi=150, bbox_inches="tight"
+)
+print("   Saved: examples/matplotlib/colocalization_effect_plot.png")
+
+# Interactive Plotly colocalization plot
+print("42. Interactive Plotly colocalization plot...")
+coloc_plotter_plotly = ColocPlotter(backend="plotly")
+fig = coloc_plotter_plotly.plot_coloc(
+    gwas_df=coloc_gwas_df,
+    eqtl_df=coloc_eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",
+    gwas_threshold=5e-8,
+    eqtl_threshold=1e-5,
+)
+fig.write_html("examples/plotly/colocalization_plotly.html")
+print("   Saved: examples/plotly/colocalization_plotly.html")
+
+# Interactive Bokeh colocalization plot
+print("43. Interactive Bokeh colocalization plot...")
+coloc_plotter_bokeh = ColocPlotter(backend="bokeh")
+fig = coloc_plotter_bokeh.plot_coloc(
+    gwas_df=coloc_gwas_df,
+    eqtl_df=coloc_eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",
+    gwas_threshold=5e-8,
+    eqtl_threshold=1e-5,
+)
+output_file("examples/bokeh/colocalization_bokeh.html")
+save(fig)
+print("   Saved: examples/bokeh/colocalization_bokeh.html")
 
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")

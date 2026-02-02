@@ -14,6 +14,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [eQTL Overlay](#eqtl-overlay)
   - [Fine-mapping Visualization](#fine-mapping-visualization)
   - [LD Heatmaps](#ld-heatmaps)
+  - [Colocalization Plots](#colocalization-plots)
   - [PheWAS Plots](#phewas-plots)
   - [Forest Plots](#forest-plots)
   - [Miami Plots](#miami-plots)
@@ -273,6 +274,93 @@ fig = plotter.plot(
 - SNPs aligned with x-axis coordinates from GWAS data
 - Works with both `plot()` and `plot_stacked()`
 - Heatmap at very bottom in stacked plots
+
+### Colocalization Plots
+
+Visualize GWAS-eQTL colocalization by comparing association signals in a scatter plot with LD coloring.
+
+![Colocalization plot](../examples/matplotlib/colocalization_plot.png)
+
+```python
+from pylocuszoom import ColocPlotter
+import pandas as pd
+
+# GWAS data with position and p-value
+gwas_df = pd.DataFrame({
+    "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
+    "p": [1e-8, 1e-6, 1e-4, 0.01, 0.05],
+    "ld_r2": [1.0, 0.8, 0.5, 0.2, 0.1],  # Optional: LD with lead SNP
+})
+
+# eQTL data with position and p-value
+eqtl_df = pd.DataFrame({
+    "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
+    "p": [1e-6, 1e-8, 1e-5, 0.02, 0.1],
+})
+
+plotter = ColocPlotter()
+fig = plotter.plot_coloc(
+    gwas_df=gwas_df,
+    eqtl_df=eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",  # Optional: color by LD
+)
+fig.savefig("colocalization.png", dpi=150)
+```
+
+**Features:**
+- Scatter plot comparing GWAS -log10(p) vs eQTL -log10(p)
+- Points colored by LD (R²) with lead SNP (purple → red gradient)
+- Lead SNP labeled on plot
+- Pearson correlation coefficient and p-value displayed
+- Significance threshold reference lines
+
+**Advanced options:**
+
+```python
+fig = plotter.plot_coloc(
+    gwas_df=gwas_df,
+    eqtl_df=eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",
+    # Effect direction coloring (requires effect columns)
+    gwas_effect_col="beta",
+    eqtl_effect_col="slope",
+    color_by_effect=True,  # Green=congruent, Red=incongruent
+    # Display coloc H4 posterior probability
+    h4_posterior=0.85,
+    # Significance thresholds
+    gwas_threshold=5e-8,
+    eqtl_threshold=1e-5,
+)
+```
+
+**Interactive Plotly backend:**
+
+```python
+from pylocuszoom import ColocPlotter
+
+plotter = ColocPlotter(backend="plotly")
+fig = plotter.plot_coloc(
+    gwas_df=gwas_df,
+    eqtl_df=eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    ld_col="ld_r2",
+)
+
+# Save as interactive HTML
+fig.write_html("colocalization_interactive.html")
+
+# Display in Jupyter notebook
+from IPython.display import display, HTML
+display(HTML(fig.to_html(include_plotlyjs='cdn')))
+```
 
 ### PheWAS Plots
 

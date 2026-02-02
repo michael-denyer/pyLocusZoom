@@ -166,7 +166,6 @@ class MiamiPlotter:
             ax=top_ax,
             prepared_df=top_prepared,
             chrom_order=chrom_order,
-            chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
             rs_col=rs_col,
@@ -178,7 +177,6 @@ class MiamiPlotter:
             ax=bottom_ax,
             prepared_df=bottom_prepared,
             chrom_order=chrom_order,
-            chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
             rs_col=rs_col,
@@ -209,15 +207,12 @@ class MiamiPlotter:
         # For matplotlib, passing (max, 0) inverts the axis
         self._backend.set_ylim(bottom_ax, bottom_y_max, 0)
 
-        # Set x-axis ticks for chromosome labels
-        positions = [
-            chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-        ]
-        labels = [str(chrom) for chrom in chrom_order if chrom in chrom_centers]
-
-        # Both panels get x-axis ticks (needed for interactive backends)
-        self._backend.set_xticks(top_ax, positions, labels, fontsize=8)
-        self._backend.set_xticks(bottom_ax, positions, labels, fontsize=8)
+        # Set x-axis ticks for chromosome labels (needed for both panels in interactive backends)
+        valid_chroms = [c for c in chrom_order if c in chrom_centers]
+        positions = [chrom_centers[c] for c in valid_chroms]
+        labels = [str(c) for c in valid_chroms]
+        for ax in [top_ax, bottom_ax]:
+            self._backend.set_xticks(ax, positions, labels, fontsize=8)
 
         # Y-axis labels
         self._backend.set_ylabel(top_ax, r"$-\log_{10}(p)$", fontsize=12)
@@ -316,7 +311,6 @@ class MiamiPlotter:
         ax: Any,
         prepared_df: pd.DataFrame,
         chrom_order: List[str],
-        chrom_col: str,
         pos_col: str,
         p_col: str,
         rs_col: Optional[str] = None,
@@ -328,7 +322,6 @@ class MiamiPlotter:
             ax: Axes object from backend.
             prepared_df: DataFrame with _chrom_str, _cumulative_pos, _neg_log_p, _color.
             chrom_order: List of chromosome names in display order.
-            chrom_col: Original chromosome column name.
             pos_col: Original position column name.
             p_col: Original p-value column name.
             rs_col: RS ID column name for hover data.
