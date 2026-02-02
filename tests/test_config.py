@@ -538,3 +538,134 @@ class TestStackedPlotConfig:
                 ld_reference_file="/shared/plink_file",  # broadcast
                 # No lead_positions - should fail
             )
+
+
+class TestColocConfig:
+    """Tests for ColocConfig validation and immutability."""
+
+    def test_default_values(self):
+        """Test that default values are correct."""
+        from pylocuszoom.config import ColocConfig
+
+        config = ColocConfig()
+        assert config.gwas_p_col == "p_gwas"
+        assert config.eqtl_p_col == "p_eqtl"
+        assert config.pos_col == "pos"
+        assert config.rs_col == "rs"
+        assert config.ld_col is None
+        assert config.lead_snp is None
+        assert config.gwas_threshold == 5e-8
+        assert config.eqtl_threshold == 1e-5
+        assert config.show_correlation is True
+        assert config.color_by_effect is False
+        assert config.gwas_effect_col is None
+        assert config.eqtl_effect_col is None
+        assert config.h4_posterior is None
+        assert config.figsize == (8.0, 8.0)
+
+    def test_threshold_validation(self):
+        """Test that invalid thresholds raise ValidationError."""
+        from pylocuszoom.config import ColocConfig
+
+        # Threshold must be > 0
+        with pytest.raises(ValidationError, match="gwas_threshold"):
+            ColocConfig(gwas_threshold=0)
+
+        with pytest.raises(ValidationError, match="gwas_threshold"):
+            ColocConfig(gwas_threshold=-1e-8)
+
+        # Threshold must be <= 1
+        with pytest.raises(ValidationError, match="gwas_threshold"):
+            ColocConfig(gwas_threshold=1.5)
+
+        with pytest.raises(ValidationError, match="eqtl_threshold"):
+            ColocConfig(eqtl_threshold=0)
+
+    def test_h4_posterior_range(self):
+        """Test that h4_posterior must be in [0, 1]."""
+        from pylocuszoom.config import ColocConfig
+
+        # Valid values at boundaries
+        config_zero = ColocConfig(h4_posterior=0)
+        assert config_zero.h4_posterior == 0
+
+        config_one = ColocConfig(h4_posterior=1)
+        assert config_one.h4_posterior == 1
+
+        config_mid = ColocConfig(h4_posterior=0.95)
+        assert config_mid.h4_posterior == 0.95
+
+        # Invalid: < 0
+        with pytest.raises(ValidationError, match="h4_posterior"):
+            ColocConfig(h4_posterior=-0.1)
+
+        # Invalid: > 1
+        with pytest.raises(ValidationError, match="h4_posterior"):
+            ColocConfig(h4_posterior=1.1)
+
+    def test_effect_coloring_requires_columns(self):
+        """Test color_by_effect=True without effect cols raises error."""
+        from pylocuszoom.config import ColocConfig
+
+        # Missing both columns
+        with pytest.raises(
+            ValidationError, match="color_by_effect.*requires.*gwas_effect_col"
+        ):
+            ColocConfig(color_by_effect=True)
+
+        # Missing eqtl_effect_col
+        with pytest.raises(
+            ValidationError, match="color_by_effect.*requires.*eqtl_effect_col"
+        ):
+            ColocConfig(color_by_effect=True, gwas_effect_col="beta_gwas")
+
+        # Missing gwas_effect_col
+        with pytest.raises(
+            ValidationError, match="color_by_effect.*requires.*gwas_effect_col"
+        ):
+            ColocConfig(color_by_effect=True, eqtl_effect_col="beta_eqtl")
+
+        # Valid: both columns provided
+        config = ColocConfig(
+            color_by_effect=True,
+            gwas_effect_col="beta_gwas",
+            eqtl_effect_col="beta_eqtl",
+        )
+        assert config.color_by_effect is True
+        assert config.gwas_effect_col == "beta_gwas"
+        assert config.eqtl_effect_col == "beta_eqtl"
+
+    def test_frozen_config(self):
+        """Test that ColocConfig is immutable after creation."""
+        from pylocuszoom.config import ColocConfig
+
+        config = ColocConfig()
+        with pytest.raises(ValidationError):
+            config.gwas_p_col = "new_col"
+
+    def test_custom_values_accepted(self):
+        """Test that custom values are accepted."""
+        from pylocuszoom.config import ColocConfig
+
+        config = ColocConfig(
+            gwas_p_col="pvalue",
+            eqtl_p_col="pval_eqtl",
+            pos_col="position",
+            rs_col="snp_id",
+            ld_col="r2",
+            lead_snp="rs12345",
+            gwas_threshold=1e-5,
+            eqtl_threshold=1e-3,
+            show_correlation=False,
+            figsize=(10.0, 10.0),
+        )
+        assert config.gwas_p_col == "pvalue"
+        assert config.eqtl_p_col == "pval_eqtl"
+        assert config.pos_col == "position"
+        assert config.rs_col == "snp_id"
+        assert config.ld_col == "r2"
+        assert config.lead_snp == "rs12345"
+        assert config.gwas_threshold == 1e-5
+        assert config.eqtl_threshold == 1e-3
+        assert config.show_correlation is False
+        assert config.figsize == (10.0, 10.0)

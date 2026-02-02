@@ -355,6 +355,66 @@ class StackedPlotConfig(BaseModel):
         )
 
 
+class ColocConfig(BaseModel):
+    """Configuration for colocalization plot.
+
+    Attributes:
+        gwas_p_col: Column name for GWAS p-values.
+        eqtl_p_col: Column name for eQTL p-values.
+        pos_col: Column name for genomic position.
+        rs_col: Optional column name for SNP identifiers.
+        ld_col: Optional column name for pre-computed LD values.
+        lead_snp: Optional lead SNP identifier for highlighting.
+        gwas_threshold: GWAS significance threshold (default 5e-8).
+        eqtl_threshold: eQTL significance threshold (default 1e-5).
+        show_correlation: Whether to display Pearson correlation.
+        color_by_effect: Whether to color by effect direction agreement.
+        gwas_effect_col: Column name for GWAS effect sizes.
+        eqtl_effect_col: Column name for eQTL effect sizes.
+        h4_posterior: Optional COLOC H4 posterior probability to display.
+        figsize: Figure size as (width, height).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    gwas_p_col: str = Field(default="p_gwas", description="GWAS p-value column")
+    eqtl_p_col: str = Field(default="p_eqtl", description="eQTL p-value column")
+    pos_col: str = Field(default="pos", description="Position column")
+    rs_col: Optional[str] = Field(default="rs", description="SNP ID column")
+    ld_col: Optional[str] = Field(default=None, description="Pre-computed LD column")
+    lead_snp: Optional[str] = Field(default=None, description="Lead SNP ID")
+    gwas_threshold: float = Field(
+        default=5e-8, gt=0, le=1, description="GWAS significance"
+    )
+    eqtl_threshold: float = Field(
+        default=1e-5, gt=0, le=1, description="eQTL significance"
+    )
+    show_correlation: bool = Field(default=True, description="Show Pearson correlation")
+    color_by_effect: bool = Field(
+        default=False, description="Color by effect agreement"
+    )
+    gwas_effect_col: Optional[str] = Field(
+        default=None, description="GWAS effect column"
+    )
+    eqtl_effect_col: Optional[str] = Field(
+        default=None, description="eQTL effect column"
+    )
+    h4_posterior: Optional[float] = Field(
+        default=None, ge=0, le=1, description="COLOC H4 PP"
+    )
+    figsize: Tuple[float, float] = Field(default=(8.0, 8.0), description="Figure size")
+
+    @model_validator(mode="after")
+    def validate_effect_coloring(self) -> "ColocConfig":
+        """Validate that effect coloring has required columns."""
+        if self.color_by_effect:
+            if self.gwas_effect_col is None or self.eqtl_effect_col is None:
+                raise ValueError(
+                    "color_by_effect=True requires gwas_effect_col and eqtl_effect_col"
+                )
+        return self
+
+
 __all__ = [
     "RegionConfig",
     "ColumnConfig",
@@ -362,4 +422,5 @@ __all__ = [
     "LDConfig",
     "PlotConfig",
     "StackedPlotConfig",
+    "ColocConfig",
 ]
