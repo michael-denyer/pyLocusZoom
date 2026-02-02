@@ -1019,6 +1019,10 @@ class LocusZoomPlotter:
         finemapping_df: Optional[pd.DataFrame] = None,
         finemapping_cs_col: Optional[str] = "cs",
         recomb_df: Optional[pd.DataFrame] = None,
+        ld_heatmap_df: Optional[pd.DataFrame] = None,
+        ld_heatmap_snp_ids: Optional[List[str]] = None,
+        ld_heatmap_height: float = 0.25,
+        ld_heatmap_metric: str = "r2",
     ) -> Any:
         """Create stacked regional association plots for multiple GWAS.
 
@@ -1051,9 +1055,20 @@ class LocusZoomPlotter:
                 Displayed as PIP line with optional credible set coloring.
             finemapping_cs_col: Column name for credible set assignment.
             recomb_df: Pre-loaded recombination rate data.
+            ld_heatmap_df: Pairwise LD matrix (square DataFrame) from
+                calculate_pairwise_ld. If provided with ld_heatmap_snp_ids,
+                renders heatmap panel at the very bottom of the stack.
+            ld_heatmap_snp_ids: List of SNP IDs in matrix order. Required if
+                ld_heatmap_df is provided.
+            ld_heatmap_height: Height ratio of heatmap panel relative to
+                association panel. Default 0.25.
+            ld_heatmap_metric: LD metric label for colorbar ("r2" or "dprime").
 
         Returns:
             Figure object (type depends on backend).
+
+        Raises:
+            ValueError: If ld_heatmap_df provided without ld_heatmap_snp_ids.
 
         Example:
             >>> fig = plotter.plot_stacked(
@@ -1110,6 +1125,12 @@ class LocusZoomPlotter:
         if eqtl_df is not None:
             validate_eqtl_df(eqtl_df)
 
+        # Validate LD heatmap parameters
+        if ld_heatmap_df is not None and ld_heatmap_snp_ids is None:
+            raise ValueError(
+                "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
+            )
+
         # Handle lead positions
         if lead_positions is None:
             lead_positions = []
@@ -1133,10 +1154,31 @@ class LocusZoomPlotter:
         if ld_reference_files is None and ld_reference_file is not None:
             ld_reference_files = [ld_reference_file] * n_gwas
 
+        # Transform heatmap to genomic coordinates if provided (use first GWAS for mapping)
+        heatmap_data = None
+        if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
+            # Use first GWAS DataFrame for SNP-to-position mapping
+            first_gwas = gwas_dfs[0].copy()
+            first_gwas = self._transform_pvalues(first_gwas, p_col)
+            heatmap_data = self._transform_heatmap_to_genomic_coords(
+                ld_matrix=ld_heatmap_df,
+                snp_ids=ld_heatmap_snp_ids,
+                gwas_df=first_gwas,
+                start=start,
+                end=end,
+                rs_col=rs_col,
+                pos_col=pos_col,
+            )
+            if heatmap_data is None:
+                logger.warning(
+                    "No SNPs from LD heatmap overlap with region - heatmap not rendered"
+                )
+
         # Calculate panel layout
         panel_height = 2.5  # inches per GWAS panel
         eqtl_height = 2.0 if eqtl_df is not None else 0
         finemapping_height = 1.5 if finemapping_df is not None else 0
+        heatmap_height_inches = panel_height * ld_heatmap_height if heatmap_data else 0
 
         # Gene track height
         if genes_df is not None:
@@ -1161,11 +1203,13 @@ class LocusZoomPlotter:
             gene_track_height = 0
 
         # Calculate total panels and heights
+        # Order from top to bottom: GWAS, finemapping, eQTL, gene track, heatmap
         n_panels = (
             n_gwas
             + (1 if finemapping_df is not None else 0)
             + (1 if eqtl_df is not None else 0)
             + (1 if genes_df is not None else 0)
+            + (1 if heatmap_data is not None else 0)
         )
         height_ratios = [panel_height] * n_gwas
         if finemapping_df is not None:
@@ -1174,6 +1218,8 @@ class LocusZoomPlotter:
             height_ratios.append(eqtl_height)
         if genes_df is not None:
             height_ratios.append(gene_track_height)
+        if heatmap_data is not None:
+            height_ratios.append(heatmap_height_inches)
 
         # Calculate figure height
         total_height = figsize[1] if figsize[1] else sum(height_ratios)
@@ -1441,8 +1487,37 @@ class LocusZoomPlotter:
             plot_gene_track_generic(
                 gene_ax, self._backend, genes_df, chrom, start, end, exons_df
             )
-            self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
             self._backend.hide_spines(gene_ax, ["top", "right", "left"])
+            panel_idx += 1
+
+        # Plot LD heatmap panel if provided (at very bottom)
+        if heatmap_data is not None:
+            heatmap_ax = axes[panel_idx]
+            filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
+            # Find lead SNP ID from first GWAS panel if lead_positions set
+            lead_snp_id = None
+            if lead_positions and lead_positions[0] is not None:
+                first_gwas = gwas_dfs[0]
+                if rs_col in first_gwas.columns:
+                    lead_row = first_gwas[first_gwas[pos_col] == lead_positions[0]]
+                    if not lead_row.empty:
+                        lead_snp_id = lead_row[rs_col].iloc[0]
+            self._render_heatmap_panel(
+                ax=heatmap_ax,
+                fig=fig,
+                ld_matrix=filtered_matrix,
+                x_positions=x_positions,
+                snp_ids=filtered_snp_ids,
+                metric=ld_heatmap_metric,
+                lead_snp_id=lead_snp_id,
+                start=start,
+                end=end,
+            )
+            # Heatmap is at very bottom - set x-label here
+            self._backend.set_xlabel(heatmap_ax, f"Chromosome {chrom} (Mb)")
+        elif genes_df is not None:
+            # Gene track is at bottom (no heatmap) - set x-label on gene track
+            self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
         else:
             # Set x-label on bottom panel
             self._backend.set_xlabel(axes[-1], f"Chromosome {chrom} (Mb)")
