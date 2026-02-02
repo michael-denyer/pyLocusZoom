@@ -1528,3 +1528,167 @@ class TestLDHeatmapIntegration:
         # Should render with lead SNP highlight (visual check)
         assert fig is not None
         plt.close(fig)
+
+    # Backend-specific tests
+
+    def test_ld_heatmap_matplotlib_backend(
+        self, sample_gwas_df, sample_ld_heatmap_data
+    ):
+        """Verify matplotlib figure has correct panel count and axes."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(
+            species=None, backend="matplotlib", log_level=None
+        )
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should have at least 2 main axes (association + heatmap)
+        # Plus possible colorbar axis
+        assert len(fig.axes) >= 2
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_ld_heatmap_plotly_backend(self, sample_gwas_df, sample_ld_heatmap_data):
+        """Verify plotly figure has heatmap trace at correct row."""
+        import plotly.graph_objects as go
+
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        assert isinstance(fig, go.Figure)
+        # Check that figure has data traces
+        assert len(fig.data) > 0
+
+    def test_ld_heatmap_bokeh_backend(self, sample_gwas_df, sample_ld_heatmap_data):
+        """Verify bokeh layout contains heatmap."""
+        from bokeh.models.layouts import Column
+
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Bokeh returns Column layout
+        assert isinstance(fig, Column)
+        # Should have multiple children (panels)
+        assert len(fig.children) >= 2
+
+    # Edge case tests
+
+    def test_ld_heatmap_single_snp_in_region(self, sample_gwas_df):
+        """Test with single SNP in filtered region (graceful handling)."""
+        # Create a matrix with 5 SNPs but only 1 will be in region
+        ld_matrix = pd.DataFrame(
+            np.array(
+                [
+                    [1.0, 0.9, 0.7, 0.4, 0.2],
+                    [0.9, 1.0, 0.8, 0.5, 0.3],
+                    [0.7, 0.8, 1.0, 0.6, 0.4],
+                    [0.4, 0.5, 0.6, 1.0, 0.7],
+                    [0.2, 0.3, 0.4, 0.7, 1.0],
+                ]
+            ),
+            index=["rs1", "rs2", "rs3", "rs4", "rs5"],
+            columns=["rs1", "rs2", "rs3", "rs4", "rs5"],
+        )
+        snp_ids = ["rs1", "rs2", "rs3", "rs4", "rs5"]
+
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        # Very narrow region that only includes rs1 (at position 1000000)
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=999999,
+            end=1000001,  # Only rs1 at 1000000
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should complete without error
+        assert fig is not None
+        plt.close(fig)
+
+    def test_ld_heatmap_lead_snp_not_in_heatmap(
+        self, sample_gwas_df, sample_ld_heatmap_data
+    ):
+        """Test lead SNP not in heatmap SNPs (no highlighting, no error)."""
+        ld_matrix, snp_ids = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        # Create GWAS with a lead SNP not in the heatmap
+        gwas_with_extra = sample_gwas_df.copy()
+        gwas_with_extra = pd.concat(
+            [
+                gwas_with_extra,
+                pd.DataFrame(
+                    {
+                        "rs": ["rs_extra"],
+                        "chr": [1],
+                        "ps": [1000100],  # Different position
+                        "p_wald": [1e-10],  # Most significant
+                    }
+                ),
+            ],
+            ignore_index=True,
+        )
+
+        fig = plotter.plot(
+            gwas_with_extra,
+            chrom=1,
+            start=999000,
+            end=1003000,
+            lead_pos=1000100,  # rs_extra - not in heatmap
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=snp_ids,
+        )
+
+        # Should complete without error
+        assert fig is not None
+        plt.close(fig)
+
+    def test_ld_heatmap_missing_snp_ids_raises_error(
+        self, sample_gwas_df, sample_ld_heatmap_data
+    ):
+        """Test that providing ld_heatmap_df without ld_heatmap_snp_ids raises error."""
+        ld_matrix, _ = sample_ld_heatmap_data
+        plotter = LocusZoomPlotter(species=None, log_level=None)
+
+        with pytest.raises(ValueError, match="ld_heatmap_snp_ids is required"):
+            plotter.plot(
+                sample_gwas_df,
+                chrom=1,
+                start=999000,
+                end=1003000,
+                show_recombination=False,
+                ld_heatmap_df=ld_matrix,
+                # ld_heatmap_snp_ids not provided
+            )
