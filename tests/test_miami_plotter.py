@@ -298,3 +298,228 @@ class TestMiamiPlotterHoverData:
         top_df, bottom_df = gwas_data_with_rs
         fig = plotter.plot_miami(top_df, bottom_df, rs_col="rs")
         assert fig is not None
+
+
+@pytest.mark.skipif(
+    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
+)
+class TestMiamiSignificance:
+    """Tests for Miami plot significance lines."""
+
+    @pytest.fixture
+    def gwas_data(self):
+        """Create sample GWAS data for significance line testing."""
+
+        top_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 2, 2, 3, 3],
+                "pos": [1000, 2000, 1000, 2000, 1000, 2000],
+                "p": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1],
+            }
+        )
+        bottom_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 2, 2, 3, 3],
+                "pos": [1000, 2000, 1000, 2000, 1000, 2000],
+                "p": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01],
+            }
+        )
+        return top_df, bottom_df
+
+    def test_significance_lines_both_panels(self, gwas_data):
+        """Test that significance lines are drawn on both panels by default."""
+
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+        fig = plotter.plot_miami(top_df, bottom_df)
+
+        # Check figure was created
+        assert fig is not None
+
+        # Get axes and verify horizontal lines exist
+        axes = fig.get_axes()
+        assert len(axes) == 2
+
+        # Both panels should have at least one horizontal line (significance line)
+        top_ax, bottom_ax = axes
+        top_lines = [line for line in top_ax.lines if line.get_linestyle() == "--"]
+        bottom_lines = [
+            line for line in bottom_ax.lines if line.get_linestyle() == "--"
+        ]
+
+        # Default threshold creates one significance line per panel
+        assert len(top_lines) >= 1, "Top panel should have significance line"
+        assert len(bottom_lines) >= 1, "Bottom panel should have significance line"
+
+    def test_different_thresholds(self, gwas_data):
+        """Test that different thresholds create lines at different positions."""
+        import numpy as np
+
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            top_threshold=5e-8,  # -log10 = ~7.3
+            bottom_threshold=1e-6,  # -log10 = 6.0
+        )
+
+        axes = fig.get_axes()
+        top_ax, bottom_ax = axes
+
+        # Find dashed lines (significance lines)
+        top_lines = [line for line in top_ax.lines if line.get_linestyle() == "--"]
+        bottom_lines = [
+            line for line in bottom_ax.lines if line.get_linestyle() == "--"
+        ]
+
+        # Get y-values of the significance lines
+        if top_lines and bottom_lines:
+            top_y = top_lines[0].get_ydata()[0]
+            bottom_y = bottom_lines[0].get_ydata()[0]
+
+            # 5e-8 threshold = -log10(5e-8) = ~7.3
+            # 1e-6 threshold = -log10(1e-6) = 6.0
+            expected_top_y = -np.log10(5e-8)
+            expected_bottom_y = -np.log10(1e-6)
+
+            assert np.isclose(top_y, expected_top_y, rtol=0.01)
+            assert np.isclose(bottom_y, expected_bottom_y, rtol=0.01)
+
+    def test_no_significance_line(self, gwas_data):
+        """Test that threshold=None suppresses significance line on that panel."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            top_threshold=5e-8,  # Keep on top
+            bottom_threshold=None,  # No line on bottom
+        )
+
+        axes = fig.get_axes()
+        top_ax, bottom_ax = axes
+
+        # Find dashed lines (significance lines)
+        top_lines = [line for line in top_ax.lines if line.get_linestyle() == "--"]
+        bottom_lines = [
+            line for line in bottom_ax.lines if line.get_linestyle() == "--"
+        ]
+
+        assert len(top_lines) >= 1, "Top panel should have significance line"
+        assert len(bottom_lines) == 0, "Bottom panel should have no significance line"
+
+
+@pytest.mark.skipif(
+    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
+)
+class TestMiamiLabels:
+    """Tests for Miami plot panel labels and SNP annotations."""
+
+    @pytest.fixture
+    def gwas_data(self):
+        """Create GWAS data with RS IDs for annotation testing."""
+        top_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 2, 2, 3, 3],
+                "pos": [1000, 2000, 1000, 2000, 1000, 2000],
+                "p": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1],
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5", "rs6"],
+            }
+        )
+        bottom_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 2, 2, 3, 3],
+                "pos": [1000, 2000, 1000, 2000, 1000, 2000],
+                "p": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01],
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5", "rs6"],
+            }
+        )
+        return top_df, bottom_df
+
+    def test_panel_labels(self, gwas_data):
+        """Test that panel labels are correctly displayed."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            top_label="Discovery",
+            bottom_label="Replication",
+        )
+
+        # Figure should be created successfully
+        assert fig is not None
+
+        # Check that axes were created
+        axes = fig.get_axes()
+        assert len(axes) == 2
+
+        # For matplotlib, annotations include panel labels
+        # The label implementation uses ax.annotate(), which creates texts
+        top_ax, bottom_ax = axes
+
+        # Get all text objects from both axes
+        top_texts = [t.get_text() for t in top_ax.texts]
+        bottom_texts = [t.get_text() for t in bottom_ax.texts]
+
+        assert "Discovery" in top_texts, "Top panel should have 'Discovery' label"
+        assert "Replication" in bottom_texts, (
+            "Bottom panel should have 'Replication' label"
+        )
+
+    def test_snp_annotations_top_panel(self, gwas_data):
+        """Test SNP annotations on top panel only."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+
+        # Annotate rs3 (most significant on top panel - 1e-9) on top only
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            rs_col="rs",
+            top_snp_annotations=["rs3"],
+            bottom_snp_annotations=None,
+        )
+
+        assert fig is not None
+        axes = fig.get_axes()
+        assert len(axes) == 2
+
+        top_ax, bottom_ax = axes
+        top_texts = [t.get_text() for t in top_ax.texts]
+        bottom_texts = [t.get_text() for t in bottom_ax.texts]
+
+        # rs3 should be annotated on top panel
+        assert "rs3" in top_texts, "Top panel should have rs3 annotation"
+        # rs3 should NOT be annotated on bottom panel (only panel labels if any)
+        assert "rs3" not in bottom_texts, "Bottom panel should not have rs3 annotation"
+
+    def test_snp_annotations_both_panels(self, gwas_data):
+        """Test independent SNP annotations on each panel."""
+        plotter = MiamiPlotter(species="canine")
+        top_df, bottom_df = gwas_data
+
+        # Different SNPs annotated on each panel
+        fig = plotter.plot_miami(
+            top_df,
+            bottom_df,
+            rs_col="rs",
+            top_snp_annotations=["rs3", "rs5"],  # Top panel annotations
+            bottom_snp_annotations=["rs1", "rs2"],  # Bottom panel annotations
+        )
+
+        assert fig is not None
+        axes = fig.get_axes()
+        top_ax, bottom_ax = axes
+
+        top_texts = [t.get_text() for t in top_ax.texts]
+        bottom_texts = [t.get_text() for t in bottom_ax.texts]
+
+        # Verify top panel has rs3 and rs5
+        assert "rs3" in top_texts
+        assert "rs5" in top_texts
+
+        # Verify bottom panel has rs1 and rs2
+        assert "rs1" in bottom_texts
+        assert "rs2" in bottom_texts

@@ -71,6 +71,8 @@ class MiamiPlotter:
         bottom_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
         top_label: Optional[str] = None,
         bottom_label: Optional[str] = None,
+        top_snp_annotations: Optional[List[str]] = None,
+        bottom_snp_annotations: Optional[List[str]] = None,
         figsize: Tuple[float, float] = (12, 8),
         title: Optional[str] = None,
     ) -> Any:
@@ -86,12 +88,16 @@ class MiamiPlotter:
             chrom_col: Column name for chromosome.
             pos_col: Column name for position.
             p_col: Column name for p-value.
-            rs_col: Column name for SNP RS ID (for hover tooltips).
+            rs_col: Column name for SNP RS ID (for hover tooltips and annotations).
             custom_chrom_order: Custom chromosome order (overrides species).
-            top_threshold: Significance threshold for top panel.
-            bottom_threshold: Significance threshold for bottom panel.
+            top_threshold: Significance threshold for top panel. None to skip.
+            bottom_threshold: Significance threshold for bottom panel. None to skip.
             top_label: Label for top panel (e.g., "Discovery").
             bottom_label: Label for bottom panel (e.g., "Replication").
+            top_snp_annotations: List of SNP IDs to annotate on top panel.
+                Requires rs_col to be set. Basic text labels (no collision avoidance).
+            bottom_snp_annotations: List of SNP IDs to annotate on bottom panel.
+                Requires rs_col to be set. Basic text labels (no collision avoidance).
             figsize: Figure size as (width, height).
             title: Overall plot title.
 
@@ -219,6 +225,22 @@ class MiamiPlotter:
         if bottom_label:
             self._backend.add_panel_label(bottom_ax, bottom_label)
 
+        # SNP annotations
+        if top_snp_annotations and rs_col:
+            self._add_snp_annotations(
+                ax=top_ax,
+                prepared_df=top_prepared,
+                rs_col=rs_col,
+                snp_ids=top_snp_annotations,
+            )
+        if bottom_snp_annotations and rs_col:
+            self._add_snp_annotations(
+                ax=bottom_ax,
+                prepared_df=bottom_prepared,
+                rs_col=rs_col,
+                snp_ids=bottom_snp_annotations,
+            )
+
         # Hide spines for clean appearance
         self._backend.hide_spines(top_ax, ["top", "right"])
         self._backend.hide_spines(bottom_ax, ["top", "right"])
@@ -313,3 +335,40 @@ class MiamiPlotter:
                     zorder=2,
                     hover_data=hover_df,
                 )
+
+    def _add_snp_annotations(
+        self,
+        ax: Any,
+        prepared_df: pd.DataFrame,
+        rs_col: str,
+        snp_ids: List[str],
+    ) -> None:
+        """Add text annotations for specified SNPs.
+
+        Basic annotation without collision avoidance. For matplotlib,
+        use add_snp_labels() in LocusZoomPlotter for adjustText support.
+
+        Args:
+            ax: Axes object from backend.
+            prepared_df: DataFrame with _cumulative_pos, _neg_log_p, and RS column.
+            rs_col: Column name containing SNP IDs.
+            snp_ids: List of SNP IDs to annotate.
+        """
+        # Filter to only requested SNPs
+        snps_to_annotate = prepared_df[prepared_df[rs_col].isin(snp_ids)]
+
+        for _, row in snps_to_annotate.iterrows():
+            x = row["_cumulative_pos"]
+            y = row["_neg_log_p"]
+            label = row[rs_col]
+
+            # Add text slightly above the point
+            self._backend.add_text(
+                ax,
+                x=x,
+                y=y,
+                text=str(label),
+                fontsize=8,
+                ha="center",
+                va="bottom",
+            )
