@@ -274,13 +274,16 @@ fig = plotter.plot_stacked(
 Visualize associations of a single variant across multiple phenotypes:
 
 ```python
+from pylocuszoom import StatsPlotter
+
 phewas_df = pd.DataFrame({
     "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
     "p_value": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
     "category": ["Anthropometric", "Anthropometric", "Metabolic", "Cardiovascular", "Lipids"],
 })
 
-fig = plotter.plot_phewas(
+stats_plotter = StatsPlotter()
+fig = stats_plotter.plot_phewas(
     phewas_df,
     variant_id="rs12345",
     category_col="category",
@@ -295,6 +298,8 @@ fig = plotter.plot_phewas(
 Create forest plots for meta-analysis visualization:
 
 ```python
+from pylocuszoom import StatsPlotter
+
 forest_df = pd.DataFrame({
     "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
     "effect": [0.45, 0.52, 0.38, 0.46],
@@ -303,7 +308,8 @@ forest_df = pd.DataFrame({
     "weight": [25, 35, 20, 100],
 })
 
-fig = plotter.plot_forest(
+stats_plotter = StatsPlotter()
+fig = stats_plotter.plot_forest(
     forest_df,
     variant_id="rs12345",
     weight_col="weight",
@@ -318,9 +324,9 @@ fig = plotter.plot_forest(
 Create genome-wide Manhattan plots showing associations across all chromosomes:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import ManhattanPlotter
 
-plotter = LocusZoomPlotter(species="human")
+plotter = ManhattanPlotter(species="human")
 
 fig = plotter.plot_manhattan(
     gwas_df,
@@ -351,9 +357,9 @@ fig = plotter.plot_manhattan(
 Create quantile-quantile plots to assess p-value distribution:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import ManhattanPlotter
 
-plotter = LocusZoomPlotter()
+plotter = ManhattanPlotter()
 
 fig = plotter.plot_qq(
     gwas_df,
@@ -373,9 +379,9 @@ fig.savefig("qq_plot.png", dpi=150)
 Compare multiple GWAS results in vertically stacked Manhattan plots:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import ManhattanPlotter
 
-plotter = LocusZoomPlotter()
+plotter = ManhattanPlotter()
 
 fig = plotter.plot_manhattan_stacked(
     [gwas_study1, gwas_study2, gwas_study3],
@@ -398,9 +404,9 @@ fig.savefig("manhattan_stacked.png", dpi=150)
 Create combined Manhattan and QQ plots in a single figure:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import ManhattanPlotter
 
-plotter = LocusZoomPlotter()
+plotter = ManhattanPlotter()
 
 fig = plotter.plot_manhattan_qq(
     gwas_df,

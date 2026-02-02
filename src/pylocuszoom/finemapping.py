@@ -16,9 +16,8 @@ from .logging import logger
 from .utils import filter_by_region
 from .validation import DataFrameValidator
 
-# Required columns for fine-mapping data
+# Required columns for fine-mapping data (default column names)
 REQUIRED_FINEMAPPING_COLS = ["pos", "pip"]
-OPTIONAL_FINEMAPPING_COLS = ["rs", "cs", "cs_id", "effect", "se"]
 
 
 def validate_finemapping_df(

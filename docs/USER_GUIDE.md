@@ -224,12 +224,15 @@ Visualize associations of a single variant across multiple phenotypes in a pheno
 ![PheWAS plot](../examples/phewas_plot.png)
 
 ```python
+from pylocuszoom import StatsPlotter
+
 phewas_df = pd.DataFrame({
     "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
     "p_value": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
     "category": ["Anthropometric", "Anthropometric", "Metabolic", "Cardiovascular", "Lipids"],
 })
 
+plotter = StatsPlotter()
 fig = plotter.plot_phewas(
     phewas_df,
     variant_id="rs12345",
@@ -251,6 +254,8 @@ Create forest plots for meta-analysis visualization showing effect sizes with co
 ![Forest plot](../examples/forest_plot.png)
 
 ```python
+from pylocuszoom import StatsPlotter
+
 forest_df = pd.DataFrame({
     "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
     "effect": [0.45, 0.52, 0.38, 0.46],
@@ -259,6 +264,7 @@ forest_df = pd.DataFrame({
     "weight": [25, 35, 20, 100],  # Optional: affects marker size
 })
 
+plotter = StatsPlotter()
 fig = plotter.plot_forest(
     forest_df,
     variant_id="rs12345",
@@ -281,6 +287,9 @@ Genome-wide Manhattan plots showing associations across all chromosomes.
 ![Manhattan plot](../examples/manhattan_plot.png)
 
 ```python
+from pylocuszoom import ManhattanPlotter
+
+plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan(
     gwas_df,
     chrom_col="chrom",
@@ -305,6 +314,9 @@ Quantile-quantile plots for assessing p-value distribution and detecting systema
 ![QQ plot](../examples/qq_plot.png)
 
 ```python
+from pylocuszoom import ManhattanPlotter
+
+plotter = ManhattanPlotter()
 fig = plotter.plot_qq(
     gwas_df,
     p_col="p",
@@ -328,6 +340,9 @@ Compare multiple GWAS studies in vertically stacked Manhattan plots with shared 
 ![Stacked Manhattan plot](../examples/manhattan_stacked.png)
 
 ```python
+from pylocuszoom import ManhattanPlotter
+
+plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_stacked(
     [gwas_study1, gwas_study2, gwas_study3],
     chrom_col="chrom",
@@ -355,6 +370,9 @@ Combined Manhattan and QQ plots in a single figure for comprehensive GWAS summar
 ![Manhattan and QQ side-by-side](../examples/manhattan_qq_sidebyside.png)
 
 ```python
+from pylocuszoom import ManhattanPlotter
+
+plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_qq(
     gwas_df,
     chrom_col="chrom",

@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Property-based testing with Hypothesis library for improved test coverage
+- `tests/strategies.py` module with reusable GWAS data generators
+- Hypothesis test profiles (ci/dev/debug) for configurable test intensity
+- Property tests for validation, colors, plotter, gene track, Manhattan, and QQ modules
+- `ensure_recomb_maps()` function exported from package for pre-downloading recombination data
+- `plot_finemapping()` function exported from package for standalone fine-mapping plots
+
+### Changed
+
+- Refactored `LocusZoomPlotter` to remove deprecated wrapper methods
+  - Removed: `plot_manhattan()`, `plot_qq()`, `plot_manhattan_stacked()`, `plot_manhattan_qq()`, `plot_manhattan_qq_stacked()` (use `ManhattanPlotter` instead)
+  - Removed: `plot_phewas()`, `plot_forest()` (use `StatsPlotter` instead)
+
+### Internal
+
+- Test count increased from 667 to 690 with hypothesis property tests
+- Removed unused `OPTIONAL_FINEMAPPING_COLS` constant from finemapping module
+
 ## [1.1.2] - 2026-01-30
 
 ### Fixed
