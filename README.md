@@ -25,7 +25,7 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
     - **SNP labels (matplotlib)**: Automatic labeling of top SNPs by p-value (RS IDs)
     - **Hover tooltips (Plotly and Bokeh)**: Detailed SNP data on hover
 
-![Example regional association plot with LD coloring, gene track, and recombination overlay](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/regional_plot_with_recomb.png)
+![Example regional association plot with LD coloring, gene track, and recombination overlay](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/regional_plot_with_recomb.png)
 *Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
@@ -36,10 +36,11 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 7. **Fine-mapping plots**: Visualize SuSiE credible sets with posterior inclusion probabilities
 8. **PheWAS plots**: Phenome-wide association study visualization across multiple phenotypes
 9. **Forest plots**: Meta-analysis effect size visualization with confidence intervals
-10. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
-11. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
-12. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
-13. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
+10. **LD heatmaps**: Triangular heatmaps showing pairwise LD patterns, standalone or integrated below regional plots
+11. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
+12. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
+13. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
+14. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
 
 ## Installation
 
@@ -209,7 +210,7 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example stacked plot comparing two phenotypes](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/stacked_plot.png)
+![Example stacked plot comparing two phenotypes](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/stacked_plot.png)
 *Stacked plot comparing two phenotypes with LD coloring and shared gene track.*
 
 ## eQTL Overlay
@@ -238,7 +239,7 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example eQTL overlay plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/eqtl_overlay.png)
+![Example eQTL overlay plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/eqtl_overlay.png)
 *eQTL overlay with effect direction (up/down triangles) and magnitude binning.*
 
 ## Fine-mapping Visualization
@@ -267,8 +268,55 @@ fig = plotter.plot_stacked(
 )
 ```
 
-![Example fine-mapping plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/finemapping_plot.png)
+![Example fine-mapping plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/finemapping_plot.png)
 *Fine-mapping visualization with PIP line and credible set coloring (CS1/CS2).*
+
+## LD Heatmaps
+
+Create triangular LD heatmaps showing pairwise linkage disequilibrium patterns:
+
+```python
+from pylocuszoom import LDHeatmapPlotter
+
+# ld_matrix is a square DataFrame with SNP IDs as index/columns
+# snp_ids is a list of SNP IDs in the matrix
+
+ld_plotter = LDHeatmapPlotter()
+fig = ld_plotter.plot(
+    ld_matrix,
+    snp_ids,
+    highlight_snp_id="rs12345",  # Highlight lead SNP
+    metric="r2",                  # or "dprime"
+)
+fig.savefig("ld_heatmap.png", dpi=150)
+```
+
+![Example LD heatmap](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/ld_heatmap.png)
+*Triangular LD heatmap with R² values and lead SNP highlighted.*
+
+### Integrated LD Heatmap with Regional Plot
+
+Add an LD heatmap panel below a regional association plot:
+
+```python
+from pylocuszoom import LocusZoomPlotter
+
+plotter = LocusZoomPlotter(species="canine")
+
+fig = plotter.plot(
+    gwas_df,
+    chrom=1,
+    start=1000000,
+    end=2000000,
+    lead_pos=1500000,
+    ld_heatmap_df=ld_matrix,         # Pairwise LD matrix
+    ld_heatmap_snp_ids=snp_ids,      # SNP IDs in matrix
+    ld_heatmap_height=0.25,          # Panel height ratio
+)
+```
+
+![Example regional plot with LD heatmap](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/regional_with_ld_heatmap.png)
+*Regional association plot with integrated LD heatmap panel below.*
 
 ## PheWAS Plots
 
@@ -291,7 +339,7 @@ fig = stats_plotter.plot_phewas(
 )
 ```
 
-![Example PheWAS plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/phewas_plot.png)
+![Example PheWAS plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/phewas_plot.png)
 *PheWAS plot showing associations across phenotype categories with significance threshold.*
 
 ## Forest Plots
@@ -317,7 +365,7 @@ fig = stats_plotter.plot_forest(
 )
 ```
 
-![Example forest plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/forest_plot.png)
+![Example forest plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/forest_plot.png)
 *Forest plot with effect sizes, confidence intervals, and weight-proportional markers.*
 
 ## Miami Plots
@@ -360,7 +408,7 @@ output_file("miami_bokeh.html")
 save(fig)
 ```
 
-![Example Miami plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/miami_plot.png)
+![Example Miami plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/miami_plot.png)
 *Miami plot comparing discovery and replication GWAS with mirrored y-axes and region highlighting.*
 
 ## Manhattan Plots
@@ -383,7 +431,7 @@ fig = plotter.plot_manhattan(
 fig.savefig("manhattan.png", dpi=150)
 ```
 
-![Example Manhattan plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/manhattan_plot.png)
+![Example Manhattan plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/manhattan_plot.png)
 *Manhattan plot showing genome-wide associations with chromosome coloring and significance threshold.*
 
 Categorical Manhattan plots (PheWAS-style) are also supported:
@@ -415,7 +463,7 @@ fig = plotter.plot_qq(
 fig.savefig("qq_plot.png", dpi=150)
 ```
 
-![Example QQ plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/qq_plot.png)
+![Example QQ plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/qq_plot.png)
 *QQ plot with 95% confidence band and genomic inflation factor (λ).*
 
 ## Stacked Manhattan Plots
@@ -440,7 +488,7 @@ fig = plotter.plot_manhattan_stacked(
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
 
-![Example stacked Manhattan plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/manhattan_stacked.png)
+![Example stacked Manhattan plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/manhattan_stacked.png)
 *Stacked Manhattan plots comparing three GWAS studies with shared chromosome axis.*
 
 ## Manhattan and QQ Side-by-Side
@@ -466,7 +514,7 @@ fig = plotter.plot_manhattan_qq(
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
 
-![Example Manhattan and QQ side-by-side](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/manhattan_qq_sidebyside.png)
+![Example Manhattan and QQ side-by-side](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/manhattan_qq_sidebyside.png)
 *Combined Manhattan and QQ plot showing genome-wide associations and p-value distribution.*
 
 ## PySpark Support

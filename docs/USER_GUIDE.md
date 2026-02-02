@@ -13,6 +13,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [Stacked Plots](#stacked-plots)
   - [eQTL Overlay](#eqtl-overlay)
   - [Fine-mapping Visualization](#fine-mapping-visualization)
+  - [LD Heatmaps](#ld-heatmaps)
   - [PheWAS Plots](#phewas-plots)
   - [Forest Plots](#forest-plots)
   - [Miami Plots](#miami-plots)
@@ -109,7 +110,7 @@ fig.savefig("my_plot.png", dpi=150, bbox_inches="tight")
 
 The basic single-panel plot showing association signals with LD coloring.
 
-![Regional association plot](../examples/regional_plot.png)
+![Regional association plot](../examples/matplotlib/regional_plot.png)
 
 ```python
 fig = plotter.plot(
@@ -139,7 +140,7 @@ fig = plotter.plot(
 
 Compare multiple GWAS results vertically with a shared x-axis.
 
-![Stacked plot](../examples/stacked_plot.png)
+![Stacked plot](../examples/matplotlib/stacked_plot.png)
 
 ```python
 fig = plotter.plot_stacked(
@@ -163,7 +164,7 @@ fig = plotter.plot_stacked(
 
 Add expression QTL data as a separate panel below GWAS results.
 
-![eQTL overlay](../examples/eqtl_overlay.png)
+![eQTL overlay](../examples/matplotlib/eqtl_overlay.png)
 
 ```python
 eqtl_df = pd.DataFrame({
@@ -193,7 +194,7 @@ fig = plotter.plot_stacked(
 
 Visualize SuSiE or other fine-mapping results with credible set coloring.
 
-![Fine-mapping plot](../examples/finemapping_plot.png)
+![Fine-mapping plot](../examples/matplotlib/finemapping_plot.png)
 
 ```python
 finemapping_df = pd.DataFrame({
@@ -218,11 +219,66 @@ fig = plotter.plot_stacked(
 - Credible sets colored distinctly (CS1 = red, CS2 = blue, etc.)
 - Variants not in credible sets shown in gray
 
+### LD Heatmaps
+
+Create triangular LD heatmaps showing pairwise linkage disequilibrium patterns.
+
+![LD heatmap](../examples/matplotlib/ld_heatmap.png)
+
+```python
+from pylocuszoom import LDHeatmapPlotter
+
+# ld_matrix is a square DataFrame with SNP IDs as index/columns
+# snp_ids is a list of SNP IDs in matrix order
+
+ld_plotter = LDHeatmapPlotter()
+fig = ld_plotter.plot(
+    ld_matrix,
+    snp_ids,
+    highlight_snp_id="rs12345",  # Highlight lead SNP
+    metric="r2",                  # or "dprime"
+)
+fig.savefig("ld_heatmap.png", dpi=150)
+```
+
+**Features:**
+- Triangular heatmap showing pairwise LD (R² or D')
+- White-to-red color gradient
+- Optional lead SNP highlighting
+- Colorbar legend with metric label
+
+#### Integrated LD Heatmap with Regional Plot
+
+Add an LD heatmap panel below a regional association plot:
+
+![Regional plot with LD heatmap](../examples/matplotlib/regional_with_ld_heatmap.png)
+
+```python
+plotter = LocusZoomPlotter(species="canine")
+
+fig = plotter.plot(
+    gwas_df,
+    chrom=1,
+    start=1000000,
+    end=2000000,
+    lead_pos=1500000,
+    ld_heatmap_df=ld_matrix,         # Pairwise LD matrix
+    ld_heatmap_snp_ids=snp_ids,      # SNP IDs in matrix
+    ld_heatmap_height=0.25,          # Panel height ratio
+)
+```
+
+**Features:**
+- Heatmap panel automatically added below association plot
+- SNPs aligned with x-axis coordinates from GWAS data
+- Works with both `plot()` and `plot_stacked()`
+- Heatmap at very bottom in stacked plots
+
 ### PheWAS Plots
 
 Visualize associations of a single variant across multiple phenotypes in a phenome-wide association study.
 
-![PheWAS plot](../examples/phewas_plot.png)
+![PheWAS plot](../examples/matplotlib/phewas_plot.png)
 
 ```python
 from pylocuszoom import StatsPlotter
@@ -252,7 +308,7 @@ fig = plotter.plot_phewas(
 
 Create forest plots for meta-analysis visualization showing effect sizes with confidence intervals.
 
-![Forest plot](../examples/forest_plot.png)
+![Forest plot](../examples/matplotlib/forest_plot.png)
 
 ```python
 from pylocuszoom import StatsPlotter
@@ -285,7 +341,7 @@ fig = plotter.plot_forest(
 
 Miami plots (mirrored Manhattan plots) compare two GWAS datasets side-by-side with a shared x-axis. The top panel shows -log10(p) ascending, while the bottom panel is inverted.
 
-![Miami plot](../examples/miami_plot.png)
+![Miami plot](../examples/matplotlib/miami_plot.png)
 
 ```python
 from pylocuszoom import MiamiPlotter
@@ -403,7 +459,7 @@ display(HTML(file_html(fig, CDN, "Miami Plot")))
 
 Genome-wide Manhattan plots showing associations across all chromosomes.
 
-![Manhattan plot](../examples/manhattan_plot.png)
+![Manhattan plot](../examples/matplotlib/manhattan_plot.png)
 
 ```python
 from pylocuszoom import ManhattanPlotter
@@ -430,7 +486,7 @@ fig.savefig("manhattan.png", dpi=150)
 
 Quantile-quantile plots for assessing p-value distribution and detecting systematic bias.
 
-![QQ plot](../examples/qq_plot.png)
+![QQ plot](../examples/matplotlib/qq_plot.png)
 
 ```python
 from pylocuszoom import ManhattanPlotter
@@ -456,7 +512,7 @@ fig.savefig("qq_plot.png", dpi=150)
 
 Compare multiple GWAS studies in vertically stacked Manhattan plots with shared chromosome axis.
 
-![Stacked Manhattan plot](../examples/manhattan_stacked.png)
+![Stacked Manhattan plot](../examples/matplotlib/manhattan_stacked.png)
 
 ```python
 from pylocuszoom import ManhattanPlotter
@@ -486,7 +542,7 @@ fig.savefig("manhattan_stacked.png", dpi=150)
 
 Combined Manhattan and QQ plots in a single figure for comprehensive GWAS summary.
 
-![Manhattan and QQ side-by-side](../examples/manhattan_qq_sidebyside.png)
+![Manhattan and QQ side-by-side](../examples/matplotlib/manhattan_qq_sidebyside.png)
 
 ```python
 from pylocuszoom import ManhattanPlotter

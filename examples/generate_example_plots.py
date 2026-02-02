@@ -376,8 +376,10 @@ fig = plotter.plot(
     snp_labels=True,
     label_top_n=1,
 )
-fig.savefig("examples/regional_plot_with_recomb.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/regional_plot_with_recomb.png")
+fig.savefig(
+    "examples/matplotlib/regional_plot_with_recomb.png", dpi=150, bbox_inches="tight"
+)
+print("   Saved: examples/matplotlib/regional_plot_with_recomb.png")
 
 # 2. Basic matplotlib plot with LD coloring (no recombination)
 print("2. Basic regional plot with LD coloring...")
@@ -394,8 +396,8 @@ fig = plotter.plot(
     snp_labels=True,
     label_top_n=1,
 )
-fig.savefig("examples/regional_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/regional_plot.png")
+fig.savefig("examples/matplotlib/regional_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/regional_plot.png")
 
 # 3. Stacked plot with LD coloring
 print("3. Stacked plot with LD coloring...")
@@ -424,8 +426,8 @@ fig = plotter.plot_stacked(
     show_recombination=False,
     label_top_n=1,
 )
-fig.savefig("examples/stacked_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/stacked_plot.png")
+fig.savefig("examples/matplotlib/stacked_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/stacked_plot.png")
 
 # 4. eQTL overlay with effect sizes
 # Realistic eQTL data for SLC25A gene (near the GWAS peak)
@@ -505,8 +507,8 @@ fig = plotter.plot_stacked(
     show_recombination=False,
     label_top_n=1,
 )
-fig.savefig("examples/eqtl_overlay.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/eqtl_overlay.png")
+fig.savefig("examples/matplotlib/eqtl_overlay.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/eqtl_overlay.png")
 
 # 5. Fine-mapping/SuSiE plot
 print("5. Fine-mapping/SuSiE plot with credible sets...")
@@ -594,8 +596,8 @@ fig = plotter.plot_stacked(
     show_recombination=False,
     label_top_n=1,
 )
-fig.savefig("examples/finemapping_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/finemapping_plot.png")
+fig.savefig("examples/matplotlib/finemapping_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/finemapping_plot.png")
 
 # 6. Interactive Plotly regional plot with recombination
 print("6. Interactive Plotly regional plot with recombination...")
@@ -611,8 +613,8 @@ fig = plotly_plotter.plot(
     exons_df=recomb_exons_df,
     show_recombination=True,
 )
-fig.write_html("examples/regional_recomb_plotly.html")
-print("   Saved: examples/regional_recomb_plotly.html")
+fig.write_html("examples/plotly/regional_recomb_plotly.html")
+print("   Saved: examples/plotly/regional_recomb_plotly.html")
 
 # 8. Interactive Plotly eQTL plot
 print("8. Interactive Plotly eQTL plot...")
@@ -629,8 +631,8 @@ fig = plotly_plotter.plot_stacked(
     exons_df=exons_df,
     show_recombination=False,
 )
-fig.write_html("examples/eqtl_plotly.html")
-print("   Saved: examples/eqtl_plotly.html")
+fig.write_html("examples/plotly/eqtl_plotly.html")
+print("   Saved: examples/plotly/eqtl_plotly.html")
 
 # 10. Interactive Plotly fine-mapping plot
 print("10. Interactive Plotly fine-mapping plot...")
@@ -647,8 +649,8 @@ fig = plotly_plotter.plot_stacked(
     exons_df=exons_df,
     show_recombination=False,
 )
-fig.write_html("examples/finemapping_plotly.html")
-print("   Saved: examples/finemapping_plotly.html")
+fig.write_html("examples/plotly/finemapping_plotly.html")
+print("   Saved: examples/plotly/finemapping_plotly.html")
 
 # 11. Interactive Bokeh regional plot with recombination
 print("11. Interactive Bokeh regional plot with recombination...")
@@ -666,9 +668,9 @@ fig = bokeh_plotter.plot(
     exons_df=recomb_exons_df,
     show_recombination=True,
 )
-output_file("examples/regional_recomb_bokeh.html")
+output_file("examples/bokeh/regional_recomb_bokeh.html")
 save(fig)
-print("   Saved: examples/regional_recomb_bokeh.html")
+print("   Saved: examples/bokeh/regional_recomb_bokeh.html")
 
 # 13. Interactive Bokeh eQTL plot
 print("13. Interactive Bokeh eQTL plot...")
@@ -685,9 +687,9 @@ fig = bokeh_plotter.plot_stacked(
     exons_df=exons_df,
     show_recombination=False,
 )
-output_file("examples/eqtl_bokeh.html")
+output_file("examples/bokeh/eqtl_bokeh.html")
 save(fig)
-print("   Saved: examples/eqtl_bokeh.html")
+print("   Saved: examples/bokeh/eqtl_bokeh.html")
 
 # 15. Interactive Bokeh fine-mapping plot
 print("15. Interactive Bokeh fine-mapping plot...")
@@ -704,9 +706,9 @@ fig = bokeh_plotter.plot_stacked(
     exons_df=exons_df,
     show_recombination=False,
 )
-output_file("examples/finemapping_bokeh.html")
+output_file("examples/bokeh/finemapping_bokeh.html")
 save(fig)
-print("   Saved: examples/finemapping_bokeh.html")
+print("   Saved: examples/bokeh/finemapping_bokeh.html")
 
 # 16. PheWAS plot
 # Realistic PheWAS data showing pleiotropic effects across multiple trait categories
@@ -816,8 +818,8 @@ phewas_df = pd.DataFrame(
 )
 stats_plotter = StatsPlotter()
 fig = stats_plotter.plot_phewas(phewas_df, variant_id="rs7903146")
-fig.savefig("examples/phewas_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/phewas_plot.png")
+fig.savefig("examples/matplotlib/phewas_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/phewas_plot.png")
 
 # 17. Forest plot (odds ratios with null at 1.0)
 # Realistic meta-analysis forest plot for T2D association
@@ -846,8 +848,8 @@ fig = stats_plotter.plot_forest(
     null_value=1.0,
     effect_label="Odds Ratio (T2D)",
 )
-fig.savefig("examples/forest_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/forest_plot.png")
+fig.savefig("examples/matplotlib/forest_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/forest_plot.png")
 
 # Miami plot - mirrored Manhattan comparison
 print("18. Miami plot...")
@@ -896,8 +898,8 @@ fig = miami_plotter.plot_miami(
     figsize=(14, 8),
     title="Discovery vs Replication GWAS",
 )
-fig.savefig("examples/miami_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/miami_plot.png")
+fig.savefig("examples/matplotlib/miami_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/miami_plot.png")
 
 # Interactive Plotly Miami plot
 print("19. Interactive Plotly Miami plot...")
@@ -913,8 +915,8 @@ fig = miami_plotter_plotly.plot_miami(
     figsize=(14, 8),
     title="Discovery vs Replication GWAS",
 )
-fig.write_html("examples/miami_plotly.html")
-print("   Saved: examples/miami_plotly.html")
+fig.write_html("examples/plotly/miami_plotly.html")
+print("   Saved: examples/plotly/miami_plotly.html")
 
 # Interactive Bokeh Miami plot
 print("20. Interactive Bokeh Miami plot...")
@@ -930,9 +932,9 @@ fig = miami_plotter_bokeh.plot_miami(
     figsize=(14, 8),
     title="Discovery vs Replication GWAS",
 )
-output_file("examples/miami_bokeh.html")
+output_file("examples/bokeh/miami_bokeh.html")
 save(fig)
-print("   Saved: examples/miami_bokeh.html")
+print("   Saved: examples/bokeh/miami_bokeh.html")
 
 # Manhattan plot - genome-wide view
 print("21. Manhattan plot...")
@@ -961,8 +963,8 @@ fig = manhattan_plotter.plot_manhattan(
     figsize=(14, 4),
     title="Genome-wide Association Study",
 )
-fig.savefig("examples/manhattan_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/manhattan_plot.png")
+fig.savefig("examples/matplotlib/manhattan_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/manhattan_plot.png")
 
 # QQ plot
 print("19. QQ plot...")
@@ -983,8 +985,8 @@ fig = qq_plotter.plot_qq(
     show_lambda=True,
     figsize=(5, 5),
 )
-fig.savefig("examples/qq_plot.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/qq_plot.png")
+fig.savefig("examples/matplotlib/qq_plot.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/qq_plot.png")
 
 # Interactive Plotly Manhattan plot
 print("20. Interactive Plotly Manhattan plot...")
@@ -995,8 +997,8 @@ fig = manhattan_plotter_plotly.plot_manhattan(
     figsize=(14, 4),
     title="Genome-wide Association Study",
 )
-fig.write_html("examples/manhattan_plotly.html")
-print("   Saved: examples/manhattan_plotly.html")
+fig.write_html("examples/plotly/manhattan_plotly.html")
+print("   Saved: examples/plotly/manhattan_plotly.html")
 
 # Interactive Bokeh Manhattan plot
 print("21. Interactive Bokeh Manhattan plot...")
@@ -1011,9 +1013,12 @@ fig = manhattan_plotter_bokeh.plot_manhattan(
     title="Genome-wide Association Study",
 )
 save(
-    fig, filename="examples/manhattan_bokeh.html", resources=CDN, title="Manhattan Plot"
+    fig,
+    filename="examples/bokeh/manhattan_bokeh.html",
+    resources=CDN,
+    title="Manhattan Plot",
 )
-print("   Saved: examples/manhattan_bokeh.html")
+print("   Saved: examples/bokeh/manhattan_bokeh.html")
 
 # Interactive Plotly QQ plot
 print("22. Interactive Plotly QQ plot...")
@@ -1024,8 +1029,8 @@ fig = qq_plotter_plotly.plot_qq(
     show_lambda=True,
     figsize=(5, 5),
 )
-fig.write_html("examples/qq_plotly.html")
-print("   Saved: examples/qq_plotly.html")
+fig.write_html("examples/plotly/qq_plotly.html")
+print("   Saved: examples/plotly/qq_plotly.html")
 
 # Interactive Bokeh QQ plot
 print("23. Interactive Bokeh QQ plot...")
@@ -1036,8 +1041,8 @@ fig = qq_plotter_bokeh.plot_qq(
     show_lambda=True,
     figsize=(5, 5),
 )
-save(fig, filename="examples/qq_bokeh.html", resources=CDN, title="QQ Plot")
-print("   Saved: examples/qq_bokeh.html")
+save(fig, filename="examples/bokeh/qq_bokeh.html", resources=CDN, title="QQ Plot")
+print("   Saved: examples/bokeh/qq_bokeh.html")
 
 # Stacked Manhattan plot - multiple GWAS comparison
 print("24. Stacked Manhattan plot...")
@@ -1078,8 +1083,8 @@ fig = manhattan_plotter.plot_manhattan_stacked(
     figsize=(14, 9),
     title="Multi-cohort GWAS Comparison",
 )
-fig.savefig("examples/manhattan_stacked.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/manhattan_stacked.png")
+fig.savefig("examples/matplotlib/manhattan_stacked.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/manhattan_stacked.png")
 
 # Interactive Plotly stacked Manhattan plot
 print("25. Interactive Plotly stacked Manhattan plot...")
@@ -1090,8 +1095,8 @@ fig = manhattan_plotter_plotly.plot_manhattan_stacked(
     figsize=(14, 9),
     title="Multi-cohort GWAS Comparison",
 )
-fig.write_html("examples/manhattan_stacked_plotly.html")
-print("   Saved: examples/manhattan_stacked_plotly.html")
+fig.write_html("examples/plotly/manhattan_stacked_plotly.html")
+print("   Saved: examples/plotly/manhattan_stacked_plotly.html")
 
 # Interactive Bokeh stacked Manhattan plot
 print("26. Interactive Bokeh stacked Manhattan plot...")
@@ -1104,11 +1109,11 @@ fig = manhattan_plotter_bokeh.plot_manhattan_stacked(
 )
 save(
     fig,
-    filename="examples/manhattan_stacked_bokeh.html",
+    filename="examples/bokeh/manhattan_stacked_bokeh.html",
     resources=CDN,
     title="Stacked Manhattan Plot",
 )
-print("   Saved: examples/manhattan_stacked_bokeh.html")
+print("   Saved: examples/bokeh/manhattan_stacked_bokeh.html")
 
 # Side-by-side Manhattan + QQ plot
 print("27. Side-by-side Manhattan + QQ plot...")
@@ -1120,8 +1125,10 @@ fig = manhattan_plotter.plot_manhattan_qq(
     figsize=(16, 5),
     title="GWAS Summary",
 )
-fig.savefig("examples/manhattan_qq_sidebyside.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/manhattan_qq_sidebyside.png")
+fig.savefig(
+    "examples/matplotlib/manhattan_qq_sidebyside.png", dpi=150, bbox_inches="tight"
+)
+print("   Saved: examples/matplotlib/manhattan_qq_sidebyside.png")
 
 # Interactive Plotly side-by-side Manhattan + QQ plot
 print("28. Interactive Plotly side-by-side Manhattan + QQ plot...")
@@ -1133,8 +1140,8 @@ fig = manhattan_plotter_plotly.plot_manhattan_qq(
     figsize=(16, 5),
     title="GWAS Summary",
 )
-fig.write_html("examples/manhattan_qq_plotly.html")
-print("   Saved: examples/manhattan_qq_plotly.html")
+fig.write_html("examples/plotly/manhattan_qq_plotly.html")
+print("   Saved: examples/plotly/manhattan_qq_plotly.html")
 
 # Interactive Bokeh side-by-side Manhattan + QQ plot
 print("29. Interactive Bokeh side-by-side Manhattan + QQ plot...")
@@ -1148,11 +1155,11 @@ fig = manhattan_plotter_bokeh.plot_manhattan_qq(
 )
 save(
     fig,
-    filename="examples/manhattan_qq_bokeh.html",
+    filename="examples/bokeh/manhattan_qq_bokeh.html",
     resources=CDN,
     title="Manhattan + QQ Plot",
 )
-print("   Saved: examples/manhattan_qq_bokeh.html")
+print("   Saved: examples/bokeh/manhattan_qq_bokeh.html")
 
 # Stacked Manhattan + QQ plot for multiple GWAS
 print("30. Stacked Manhattan + QQ plot...")
@@ -1165,8 +1172,10 @@ fig = manhattan_plotter.plot_manhattan_qq_stacked(
     figsize=(16, 12),
     title="Multi-cohort GWAS Summary",
 )
-fig.savefig("examples/manhattan_qq_stacked.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/manhattan_qq_stacked.png")
+fig.savefig(
+    "examples/matplotlib/manhattan_qq_stacked.png", dpi=150, bbox_inches="tight"
+)
+print("   Saved: examples/matplotlib/manhattan_qq_stacked.png")
 
 # Interactive Plotly stacked Manhattan + QQ plot
 print("31. Interactive Plotly stacked Manhattan + QQ plot...")
@@ -1179,8 +1188,8 @@ fig = manhattan_plotter_plotly.plot_manhattan_qq_stacked(
     figsize=(16, 12),
     title="Multi-cohort GWAS Summary",
 )
-fig.write_html("examples/manhattan_qq_stacked_plotly.html")
-print("   Saved: examples/manhattan_qq_stacked_plotly.html")
+fig.write_html("examples/plotly/manhattan_qq_stacked_plotly.html")
+print("   Saved: examples/plotly/manhattan_qq_stacked_plotly.html")
 
 # Interactive Bokeh stacked Manhattan + QQ plot
 print("32. Interactive Bokeh stacked Manhattan + QQ plot...")
@@ -1195,11 +1204,11 @@ fig = manhattan_plotter_bokeh.plot_manhattan_qq_stacked(
 )
 save(
     fig,
-    filename="examples/manhattan_qq_stacked_bokeh.html",
+    filename="examples/bokeh/manhattan_qq_stacked_bokeh.html",
     resources=CDN,
     title="Stacked Manhattan + QQ Plot",
 )
-print("   Saved: examples/manhattan_qq_stacked_bokeh.html")
+print("   Saved: examples/bokeh/manhattan_qq_stacked_bokeh.html")
 
 # Canine Manhattan + QQ plot (38 chromosomes + X)
 print("33. Canine Manhattan + QQ plot (many chromosomes)...")
@@ -1234,8 +1243,139 @@ fig = canine_plotter.plot_manhattan_qq(
     figsize=(16, 5),
     title="Canine GWAS (38 Autosomes + X)",
 )
-fig.savefig("examples/manhattan_qq_canine.png", dpi=150, bbox_inches="tight")
-print("   Saved: examples/manhattan_qq_canine.png")
+fig.savefig("examples/matplotlib/manhattan_qq_canine.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/manhattan_qq_canine.png")
+
+# LD Heatmap examples
+print("34. Standalone LD Heatmap...")
+from pylocuszoom import LDHeatmapPlotter
+
+# Create synthetic LD matrix for demonstration
+np.random.seed(42)
+n_snps_heatmap = 20
+heatmap_snp_ids = [f"rs{i}" for i in range(n_snps_heatmap)]
+
+# Generate correlated LD values (block structure)
+ld_matrix_values = np.eye(n_snps_heatmap)
+for i in range(n_snps_heatmap):
+    for j in range(i + 1, n_snps_heatmap):
+        # LD decays with distance, with some block structure
+        dist = abs(i - j)
+        if dist <= 5:
+            r2 = max(0, 0.9 * np.exp(-dist / 3) + np.random.uniform(-0.1, 0.1))
+        elif dist <= 10:
+            r2 = max(0, 0.4 * np.exp(-dist / 6) + np.random.uniform(-0.05, 0.05))
+        else:
+            r2 = max(0, np.random.uniform(0, 0.1))
+        ld_matrix_values[i, j] = min(1.0, r2)
+        ld_matrix_values[j, i] = min(1.0, r2)
+
+ld_matrix_df = pd.DataFrame(
+    ld_matrix_values,
+    index=heatmap_snp_ids,
+    columns=heatmap_snp_ids,
+)
+
+# Standalone LD heatmap - matplotlib
+ld_plotter = LDHeatmapPlotter()
+fig = ld_plotter.plot(
+    ld_matrix_df,
+    heatmap_snp_ids,
+    highlight_snp_id="rs5",
+    metric="r2",
+)
+fig.savefig("examples/matplotlib/ld_heatmap.png", dpi=150, bbox_inches="tight")
+print("   Saved: examples/matplotlib/ld_heatmap.png")
+
+# LD heatmap - plotly
+print("35. Interactive Plotly LD Heatmap...")
+ld_plotter_plotly = LDHeatmapPlotter(backend="plotly")
+fig = ld_plotter_plotly.plot(
+    ld_matrix_df,
+    heatmap_snp_ids,
+    highlight_snp_id="rs5",
+    metric="r2",
+)
+fig.write_html("examples/plotly/ld_heatmap_plotly.html")
+print("   Saved: examples/plotly/ld_heatmap_plotly.html")
+
+# LD heatmap - bokeh
+print("36. Interactive Bokeh LD Heatmap...")
+ld_plotter_bokeh = LDHeatmapPlotter(backend="bokeh")
+fig = ld_plotter_bokeh.plot(
+    ld_matrix_df,
+    heatmap_snp_ids,
+    highlight_snp_id="rs5",
+    metric="r2",
+)
+output_file("examples/bokeh/ld_heatmap_bokeh.html")
+save(fig)
+print("   Saved: examples/bokeh/ld_heatmap_bokeh.html")
+
+# Regional plot with integrated LD heatmap
+print("37. Regional plot with integrated LD Heatmap...")
+# Create GWAS data with matching SNP IDs for heatmap integration
+heatmap_gwas_positions = np.sort(
+    np.random.randint(1_000_000, 2_000_000, n_snps_heatmap)
+)
+heatmap_gwas_df = pd.DataFrame(
+    {
+        "ps": heatmap_gwas_positions,
+        "p_wald": 10 ** np.random.uniform(-10, -1, n_snps_heatmap),
+        "rs": heatmap_snp_ids,
+        "ld_r2": [
+            1.0 if i == 5 else max(0, 0.9 * np.exp(-abs(i - 5) / 3))
+            for i in range(n_snps_heatmap)
+        ],
+    }
+)
+heatmap_gwas_df.loc[5, "p_wald"] = 1e-12  # Lead SNP
+
+fig = plotter.plot(
+    heatmap_gwas_df,
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_pos=int(heatmap_gwas_df.loc[5, "ps"]),
+    ld_col="ld_r2",
+    ld_heatmap_df=ld_matrix_df,
+    ld_heatmap_snp_ids=heatmap_snp_ids,
+)
+fig.savefig(
+    "examples/matplotlib/regional_with_ld_heatmap.png", dpi=150, bbox_inches="tight"
+)
+print("   Saved: examples/matplotlib/regional_with_ld_heatmap.png")
+
+# Regional plot with LD heatmap - plotly
+print("38. Interactive Plotly Regional plot with LD Heatmap...")
+fig = plotly_plotter.plot(
+    heatmap_gwas_df,
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_pos=int(heatmap_gwas_df.loc[5, "ps"]),
+    ld_col="ld_r2",
+    ld_heatmap_df=ld_matrix_df,
+    ld_heatmap_snp_ids=heatmap_snp_ids,
+)
+fig.write_html("examples/plotly/regional_with_ld_heatmap_plotly.html")
+print("   Saved: examples/plotly/regional_with_ld_heatmap_plotly.html")
+
+# Regional plot with LD heatmap - bokeh
+print("39. Interactive Bokeh Regional plot with LD Heatmap...")
+fig = bokeh_plotter.plot(
+    heatmap_gwas_df,
+    chrom=1,
+    start=1_000_000,
+    end=2_000_000,
+    lead_pos=int(heatmap_gwas_df.loc[5, "ps"]),
+    ld_col="ld_r2",
+    ld_heatmap_df=ld_matrix_df,
+    ld_heatmap_snp_ids=heatmap_snp_ids,
+)
+output_file("examples/bokeh/regional_with_ld_heatmap_bokeh.html")
+save(fig)
+print("   Saved: examples/bokeh/regional_with_ld_heatmap_bokeh.html")
 
 print("\nAll plots generated successfully!")
 print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")
