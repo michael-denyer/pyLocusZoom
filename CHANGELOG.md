@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-02-02
+
 ### Added
 
 - Property-based testing with Hypothesis library for improved test coverage
@@ -18,9 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Refactored `LocusZoomPlotter` to remove deprecated wrapper methods
-  - Removed: `plot_manhattan()`, `plot_qq()`, `plot_manhattan_stacked()`, `plot_manhattan_qq()`, `plot_manhattan_qq_stacked()` (use `ManhattanPlotter` instead)
-  - Removed: `plot_phewas()`, `plot_forest()` (use `StatsPlotter` instead)
+- **BREAKING**: Removed deprecated wrapper methods from `LocusZoomPlotter`
+  - Removed: `plot_manhattan()`, `plot_qq()`, `plot_manhattan_stacked()`, `plot_manhattan_qq()`, `plot_manhattan_qq_stacked()` — use `ManhattanPlotter` instead
+  - Removed: `plot_phewas()`, `plot_forest()` — use `StatsPlotter` instead
 
 ### Internal
 
@@ -293,6 +295,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 
+[1.2.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.0.2...v1.1.0
