@@ -344,6 +344,22 @@ fig = plotter.plot_miami(
 fig.savefig("miami.png", dpi=150)
 ```
 
+**Interactive backends** (Plotly/Bokeh) provide hover tooltips showing SNP details:
+
+```python
+# Plotly - interactive HTML with hover tooltips
+plotter = MiamiPlotter(species="human", backend="plotly")
+fig = plotter.plot_miami(discovery_df, replication_df, ...)
+fig.write_html("miami_interactive.html")
+
+# Bokeh - dashboard-ready interactive plots
+from bokeh.io import output_file, save
+plotter = MiamiPlotter(species="human", backend="bokeh")
+fig = plotter.plot_miami(discovery_df, replication_df, ...)
+output_file("miami_bokeh.html")
+save(fig)
+```
+
 ![Example Miami plot](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/miami_plot.png)
 *Miami plot comparing discovery and replication GWAS with mirrored y-axes and region highlighting.*
 

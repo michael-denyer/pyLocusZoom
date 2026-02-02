@@ -338,9 +338,65 @@ fig = plotter.plot_miami(
     bottom_snp_annotations={87654321: "rs456"},
     # Highlight regions (list of (chrom, start, end) tuples)
     highlight_regions=[(1, 1000000, 2000000), (5, 50000000, 51000000)],
-    # Interactive backend
-    backend="plotly",
 )
+```
+
+**Interactive Plotly backend:**
+
+```python
+from pylocuszoom import MiamiPlotter
+
+# Create plotter with Plotly backend
+plotter = MiamiPlotter(species="human", backend="plotly")
+
+fig = plotter.plot_miami(
+    top_df=discovery_df,
+    bottom_df=replication_df,
+    top_label="Discovery",
+    bottom_label="Replication",
+    top_threshold=5e-8,
+    bottom_threshold=5e-8,
+    highlight_regions=[("6", 25_000_000, 35_000_000)],  # MHC region
+    title="Discovery vs Replication GWAS",
+)
+
+# Save as interactive HTML
+fig.write_html("miami_interactive.html")
+
+# Display in Jupyter notebook
+from IPython.display import display, HTML
+display(HTML(fig.to_html(include_plotlyjs='cdn')))
+```
+
+**Interactive Bokeh backend:**
+
+```python
+from pylocuszoom import MiamiPlotter
+from bokeh.io import output_file, save
+from bokeh.resources import CDN
+from bokeh.embed import file_html
+
+# Create plotter with Bokeh backend
+plotter = MiamiPlotter(species="human", backend="bokeh")
+
+fig = plotter.plot_miami(
+    top_df=discovery_df,
+    bottom_df=replication_df,
+    top_label="Discovery",
+    bottom_label="Replication",
+    top_threshold=5e-8,
+    bottom_threshold=5e-8,
+    highlight_regions=[("6", 25_000_000, 35_000_000)],
+    title="Discovery vs Replication GWAS",
+)
+
+# Save as interactive HTML
+output_file("miami_bokeh.html")
+save(fig)
+
+# Display in Jupyter notebook
+from IPython.display import display, HTML
+display(HTML(file_html(fig, CDN, "Miami Plot")))
 ```
 
 ### Manhattan Plots
