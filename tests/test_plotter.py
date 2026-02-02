@@ -1536,9 +1536,7 @@ class TestLDHeatmapIntegration:
     ):
         """Verify matplotlib figure has correct panel count and axes."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(
-            species=None, backend="matplotlib", log_level=None
-        )
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         fig = plotter.plot(
             sample_gwas_df,

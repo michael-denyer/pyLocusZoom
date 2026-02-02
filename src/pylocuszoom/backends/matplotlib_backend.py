@@ -857,7 +857,6 @@ class MatplotlibBackend:
             if x_max - x_min > len(x_coords):
                 # Genomic coordinates - use extent for alignment
                 # Add half-cell padding for proper cell centering
-                n = len(x_coords)
                 y_min, y_max = min(y_coords), max(y_coords)
                 extent = [x_min, x_max, y_min - 0.5, y_max + 0.5]
 
