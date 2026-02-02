@@ -137,6 +137,9 @@ from .logging import disable_logging, enable_logging
 # Manhattan and QQ plotting
 from .manhattan_plotter import ManhattanPlotter
 
+# Miami plot (mirrored Manhattan comparison)
+from .miami_plotter import MiamiPlotter
+
 # PheWAS support
 from .phewas import validate_phewas_df
 from .plotter import LocusZoomPlotter
@@ -161,6 +164,7 @@ __all__ = [
     "__version__",
     "LocusZoomPlotter",
     "ManhattanPlotter",
+    "MiamiPlotter",
     "StatsPlotter",
     # Backends
     "BackendType",
