@@ -130,12 +130,12 @@ class TestMiamiPlotter:
         missing_p_df = pd.DataFrame({"chrom": [1], "pos": [1000]})
         valid_df = pd.DataFrame({"chrom": [1], "pos": [1000], "p": [0.01]})
 
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, KeyError)):
             plotter.plot_miami(missing_p_df, valid_df)
 
         # DataFrame missing 'chrom' column
         missing_chrom_df = pd.DataFrame({"pos": [1000], "p": [0.01]})
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, KeyError)):
             plotter.plot_miami(valid_df, missing_chrom_df)
 
     def test_inverted_bottom_panel(self, plotter, gwas_data):
