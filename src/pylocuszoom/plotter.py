@@ -23,7 +23,9 @@ from .colors import (
     EQTL_NEGATIVE_BINS,
     EQTL_POSITIVE_BINS,
     LD_BINS,
+    LD_HEATMAP_COLORS,
     LEAD_SNP_COLOR,
+    LEAD_SNP_HIGHLIGHT_COLOR,
     get_credible_set_color,
     get_eqtl_color,
     get_ld_bin,
@@ -223,6 +225,10 @@ class LocusZoomPlotter:
         genes_df: Optional[pd.DataFrame] = None,
         exons_df: Optional[pd.DataFrame] = None,
         recomb_df: Optional[pd.DataFrame] = None,
+        ld_heatmap_df: Optional[pd.DataFrame] = None,
+        ld_heatmap_snp_ids: Optional[List[str]] = None,
+        ld_heatmap_height: float = 0.25,
+        ld_heatmap_metric: str = "r2",
     ) -> Any:
         """Create a regional association plot.
 
@@ -246,12 +252,21 @@ class LocusZoomPlotter:
             exons_df: Exon annotations with chr, start, end, gene_name.
             recomb_df: Pre-loaded recombination rate data.
                 If None and show_recombination=True, loads from species default.
+            ld_heatmap_df: Pairwise LD matrix (square DataFrame) from
+                calculate_pairwise_ld. If provided with ld_heatmap_snp_ids,
+                renders heatmap panel below association plot.
+            ld_heatmap_snp_ids: List of SNP IDs in matrix order. Required if
+                ld_heatmap_df is provided.
+            ld_heatmap_height: Height ratio of heatmap panel relative to
+                association panel. Default 0.25.
+            ld_heatmap_metric: LD metric label for colorbar ("r2" or "dprime").
 
         Returns:
             Figure object (type depends on backend).
 
         Raises:
             ValidationError: If parameters or DataFrame columns are invalid.
+            ValueError: If ld_heatmap_df provided without ld_heatmap_snp_ids.
 
         Example:
             >>> fig = plotter.plot(
@@ -279,6 +294,12 @@ class LocusZoomPlotter:
 
         # Validate inputs
         validate_gwas_df(gwas_df, pos_col=pos_col, p_col=p_col)
+
+        # Validate LD heatmap parameters
+        if ld_heatmap_df is not None and ld_heatmap_snp_ids is None:
+            raise ValueError(
+                "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
+            )
 
         # Auto-fetch genes if enabled and not provided
         if genes_df is None and self._auto_genes:
@@ -352,8 +373,33 @@ class LocusZoomPlotter:
         if show_recombination and recomb_df is None:
             recomb_df = self._get_recomb_for_region(chrom, start, end)
 
+        # Transform heatmap to genomic coordinates if provided
+        heatmap_data = None
+        if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
+            heatmap_data = self._transform_heatmap_to_genomic_coords(
+                ld_matrix=ld_heatmap_df,
+                snp_ids=ld_heatmap_snp_ids,
+                gwas_df=df,
+                start=start,
+                end=end,
+                rs_col=rs_col,
+                pos_col=pos_col,
+            )
+            if heatmap_data is None:
+                logger.warning(
+                    "No SNPs from LD heatmap overlap with region - heatmap not rendered"
+                )
+
         # Create figure layout
-        fig, ax, gene_ax = self._create_figure(genes_df, chrom, start, end, figsize)
+        fig, ax, gene_ax, heatmap_ax = self._create_figure_with_heatmap(
+            genes_df=genes_df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            figsize=figsize,
+            heatmap_data=heatmap_data,
+            heatmap_height=ld_heatmap_height,
+        )
 
         # Plot association data
         self._plot_association(ax, df, pos_col, ld_col, lead_pos, rs_col, p_col)
@@ -407,11 +453,38 @@ class LocusZoomPlotter:
             plot_gene_track_generic(
                 gene_ax, self._backend, genes_df, chrom, start, end, exons_df
             )
-            self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
             self._backend.hide_spines(gene_ax, ["top", "right", "left"])
             # Format both axes for interactive backends (they don't share x-axis)
             self._backend.format_xaxis_mb(gene_ax)
-        else:
+            # Only set x-label on gene track if no heatmap below
+            if heatmap_ax is None:
+                self._backend.set_xlabel(gene_ax, f"Chromosome {chrom} (Mb)")
+
+        # Render LD heatmap panel if data available
+        if heatmap_ax is not None and heatmap_data is not None:
+            filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
+            # Find lead SNP ID if lead_pos is set
+            lead_snp_id = None
+            if lead_pos is not None and rs_col in df.columns:
+                lead_row = df[df[pos_col] == lead_pos]
+                if not lead_row.empty:
+                    lead_snp_id = lead_row[rs_col].iloc[0]
+            self._render_heatmap_panel(
+                ax=heatmap_ax,
+                fig=fig,
+                ld_matrix=filtered_matrix,
+                x_positions=x_positions,
+                snp_ids=filtered_snp_ids,
+                metric=ld_heatmap_metric,
+                lead_snp_id=lead_snp_id,
+                start=start,
+                end=end,
+            )
+            # Heatmap is at bottom - set x-label on it
+            self._backend.set_xlabel(heatmap_ax, f"Chromosome {chrom} (Mb)")
+            self._backend.format_xaxis_mb(heatmap_ax)
+        elif gene_ax is None and heatmap_ax is None:
+            # No gene track and no heatmap - set x-label on association plot
             self._backend.set_xlabel(ax, f"Chromosome {chrom} (Mb)")
 
         # Format x-axis with Mb labels (association axis always needs formatting)
@@ -470,6 +543,304 @@ class LocusZoomPlotter:
                 figsize=(figsize[0], figsize[1] * 0.75),
             )
             return fig, axes[0], None
+
+    def _create_figure_with_heatmap(
+        self,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+        start: int,
+        end: int,
+        figsize: Tuple[float, float],
+        heatmap_data: Optional[Tuple[pd.DataFrame, List[int], List[str]]],
+        heatmap_height: float = 0.25,
+    ) -> Tuple[Any, Any, Optional[Any], Optional[Any]]:
+        """Create figure with optional gene track and heatmap panel.
+
+        Args:
+            genes_df: Gene annotations DataFrame.
+            chrom: Chromosome number.
+            start: Region start position.
+            end: Region end position.
+            figsize: Base figure size as (width, height).
+            heatmap_data: Tuple of (filtered_matrix, x_positions, snp_ids) from
+                _transform_heatmap_to_genomic_coords, or None.
+            heatmap_height: Height ratio of heatmap relative to association panel.
+
+        Returns:
+            Tuple of (fig, assoc_ax, gene_ax, heatmap_ax). gene_ax and heatmap_ax
+            are None if not included.
+        """
+        # Calculate base heights
+        assoc_height = figsize[1] * 0.6
+
+        # Calculate gene track height if needed
+        gene_track_height = 0.0
+        if genes_df is not None:
+            chrom_str = normalize_chrom(chrom)
+            region_genes = genes_df[
+                (
+                    genes_df["chr"].astype(str).str.replace("chr", "", regex=False)
+                    == chrom_str
+                )
+                & (genes_df["end"] >= start)
+                & (genes_df["start"] <= end)
+            ]
+            if not region_genes.empty:
+                temp_positions = assign_gene_positions(
+                    region_genes.sort_values("start"), start, end
+                )
+                n_gene_rows = max(temp_positions) + 1 if temp_positions else 1
+            else:
+                n_gene_rows = 1
+
+            base_gene_height = 1.0
+            per_row_height = 0.5
+            gene_track_height = base_gene_height + (n_gene_rows - 1) * per_row_height
+
+        # Calculate heatmap height if needed
+        actual_heatmap_height = 0.0
+        if heatmap_data is not None:
+            actual_heatmap_height = assoc_height * heatmap_height
+
+        # Build panel list (top to bottom): assoc, gene track, heatmap
+        n_panels = 1  # Association panel always present
+        height_ratios = [assoc_height]
+
+        if genes_df is not None:
+            n_panels += 1
+            height_ratios.append(gene_track_height)
+
+        if heatmap_data is not None:
+            n_panels += 1
+            height_ratios.append(actual_heatmap_height)
+
+        total_height = sum(height_ratios)
+
+        # Create figure
+        fig, axes = self._backend.create_figure(
+            n_panels=n_panels,
+            height_ratios=height_ratios,
+            figsize=(figsize[0], total_height),
+            sharex=True,
+        )
+
+        # Assign axes
+        assoc_ax = axes[0]
+        gene_ax = None
+        heatmap_ax = None
+
+        panel_idx = 1
+        if genes_df is not None:
+            gene_ax = axes[panel_idx]
+            panel_idx += 1
+        if heatmap_data is not None:
+            heatmap_ax = axes[panel_idx]
+
+        return fig, assoc_ax, gene_ax, heatmap_ax
+
+    def _transform_heatmap_to_genomic_coords(
+        self,
+        ld_matrix: pd.DataFrame,
+        snp_ids: List[str],
+        gwas_df: pd.DataFrame,
+        start: int,
+        end: int,
+        rs_col: str,
+        pos_col: str,
+    ) -> Optional[Tuple[pd.DataFrame, List[int], List[str]]]:
+        """Transform heatmap matrix to genomic coordinates.
+
+        Args:
+            ld_matrix: Square LD matrix from calculate_pairwise_ld.
+            snp_ids: SNP IDs in matrix order.
+            gwas_df: GWAS DataFrame with position column.
+            start: Region start position.
+            end: Region end position.
+            rs_col: SNP ID column name.
+            pos_col: Position column name.
+
+        Returns:
+            Tuple of (filtered_matrix, x_positions, filtered_snp_ids), or None
+            if no SNPs overlap with the region.
+        """
+        # Build SNP-to-position mapping from GWAS data
+        if rs_col not in gwas_df.columns:
+            logger.warning(
+                f"Cannot map heatmap to genomic coords: column '{rs_col}' not in GWAS data"
+            )
+            return None
+
+        snp_to_pos = dict(zip(gwas_df[rs_col], gwas_df[pos_col]))
+
+        # Filter to SNPs present in GWAS and within region
+        filtered_indices = []
+        filtered_snp_ids = []
+        x_positions = []
+
+        for i, snp_id in enumerate(snp_ids):
+            if snp_id in snp_to_pos:
+                pos = snp_to_pos[snp_id]
+                if start <= pos <= end:
+                    filtered_indices.append(i)
+                    filtered_snp_ids.append(snp_id)
+                    x_positions.append(int(pos))
+
+        if not filtered_indices:
+            return None
+
+        # Filter matrix to matching rows/columns
+        filtered_matrix = ld_matrix.iloc[filtered_indices, filtered_indices].copy()
+
+        return filtered_matrix, x_positions, filtered_snp_ids
+
+    def _render_heatmap_panel(
+        self,
+        ax: Any,
+        fig: Any,
+        ld_matrix: pd.DataFrame,
+        x_positions: List[int],
+        snp_ids: List[str],
+        metric: str,
+        lead_snp_id: Optional[str],
+        start: int,
+        end: int,
+    ) -> None:
+        """Render LD heatmap panel with genomic x-coordinates.
+
+        Args:
+            ax: Axes object for heatmap panel.
+            fig: Figure object.
+            ld_matrix: Filtered LD matrix.
+            x_positions: Genomic positions for each SNP (x-axis).
+            snp_ids: SNP IDs in filtered order.
+            metric: LD metric label ("r2" or "dprime").
+            lead_snp_id: Lead SNP ID to highlight (if present in snp_ids).
+            start: Region start for x-axis limits.
+            end: Region end for x-axis limits.
+        """
+        data = ld_matrix.values
+        n_snps = len(snp_ids)
+
+        # Skip rendering if only one SNP (can't show pairwise LD)
+        if n_snps < 2:
+            logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")
+            return
+
+        # Render triangular heatmap at genomic positions
+        mappable = self._backend.add_heatmap(
+            ax,
+            data=data,
+            x_coords=x_positions,
+            y_coords=list(range(n_snps)),  # Keep y as indices (0, 1, 2, ...)
+            cmap_colors=LD_HEATMAP_COLORS,
+            vmin=0.0,
+            vmax=1.0,
+            mask_upper=True,
+        )
+
+        # Add colorbar
+        label = "R²" if metric == "r2" else "D'"
+        self._backend.add_colorbar(ax, mappable, label=label)
+
+        # Highlight lead SNP if present
+        if lead_snp_id is not None and lead_snp_id in snp_ids:
+            lead_idx = snp_ids.index(lead_snp_id)
+            self._highlight_heatmap_snp(ax, fig, lead_idx, n_snps)
+
+        # Set x-axis limits to match regional plot
+        self._backend.set_xlim(ax, start, end)
+
+        # Hide y-axis (SNP indices are not meaningful for viewer)
+        self._backend.set_yticks(ax, [], [])
+        self._backend.hide_spines(ax, ["top", "right", "left"])
+
+    def _highlight_heatmap_snp(
+        self, ax: Any, fig: Any, snp_idx: int, n_snps: int
+    ) -> None:
+        """Highlight a SNP's row/column in the heatmap.
+
+        Args:
+            ax: Axes object.
+            fig: Figure object.
+            snp_idx: Index of SNP to highlight.
+            n_snps: Total number of SNPs in matrix.
+        """
+        if self._backend_name == "matplotlib":
+            from matplotlib.patches import Rectangle
+
+            # Highlight row (cells in row snp_idx, columns 0 to snp_idx)
+            for j in range(snp_idx + 1):
+                rect = Rectangle(
+                    (j - 0.5, snp_idx - 0.5),
+                    1.0,
+                    1.0,
+                    fill=False,
+                    edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
+                    linewidth=2,
+                    zorder=10,
+                )
+                ax.add_patch(rect)
+
+            # Highlight column (cells in column snp_idx, rows snp_idx to n_snps-1)
+            for i in range(snp_idx + 1, n_snps):
+                rect = Rectangle(
+                    (snp_idx - 0.5, i - 0.5),
+                    1.0,
+                    1.0,
+                    fill=False,
+                    edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
+                    linewidth=2,
+                    zorder=10,
+                )
+                ax.add_patch(rect)
+
+        elif self._backend_name == "plotly":
+            # For plotly, add shapes for row and column highlights
+            for j in range(snp_idx + 1):
+                fig.add_shape(
+                    type="rect",
+                    x0=j - 0.5,
+                    x1=j + 0.5,
+                    y0=snp_idx - 0.5,
+                    y1=snp_idx + 0.5,
+                    line=dict(color=LEAD_SNP_HIGHLIGHT_COLOR, width=2),
+                    fillcolor="rgba(0,0,0,0)",
+                )
+
+            for i in range(snp_idx + 1, n_snps):
+                fig.add_shape(
+                    type="rect",
+                    x0=snp_idx - 0.5,
+                    x1=snp_idx + 0.5,
+                    y0=i - 0.5,
+                    y1=i + 0.5,
+                    line=dict(color=LEAD_SNP_HIGHLIGHT_COLOR, width=2),
+                    fillcolor="rgba(0,0,0,0)",
+                )
+
+        elif self._backend_name == "bokeh":
+            # For bokeh, add rect glyphs for highlights
+            for j in range(snp_idx + 1):
+                ax.rect(
+                    x=j,
+                    y=snp_idx,
+                    width=1,
+                    height=1,
+                    fill_alpha=0,
+                    line_color=LEAD_SNP_HIGHLIGHT_COLOR,
+                    line_width=2,
+                )
+
+            for i in range(snp_idx + 1, n_snps):
+                ax.rect(
+                    x=snp_idx,
+                    y=i,
+                    width=1,
+                    height=1,
+                    fill_alpha=0,
+                    line_color=LEAD_SNP_HIGHLIGHT_COLOR,
+                    line_width=2,
+                )
 
     def _plot_association(
         self,

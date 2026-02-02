@@ -1397,12 +1397,12 @@ class TestLDHeatmapIntegration:
         # The heatmap x-axis should span the genomic positions of SNPs
         axes = fig.axes
         assert len(axes) >= 2
-        # Heatmap is the last panel (below association)
-        heatmap_ax = axes[-1]
+        # Heatmap is axes[1] (after association at axes[0], colorbar may be axes[2])
+        heatmap_ax = axes[1]
         xlim = heatmap_ax.get_xlim()
         # X-axis should be in genomic coordinate range
-        assert xlim[0] < 1003000
-        assert xlim[1] > 999000
+        assert xlim[0] < 1003000, f"Heatmap xlim[0]={xlim[0]} should be < 1003000"
+        assert xlim[1] > 999000, f"Heatmap xlim[1]={xlim[1]} should be > 999000"
         plt.close(fig)
 
     def test_plot_stacked_with_ld_heatmap_at_bottom(

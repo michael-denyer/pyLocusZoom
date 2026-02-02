@@ -848,6 +848,19 @@ class MatplotlibBackend:
             mask = np.triu(np.ones_like(data, dtype=bool), k=1)
             plot_data = np.ma.array(data, mask=mask)
 
+        # Compute extent from coordinates if non-trivial (genomic coordinates)
+        # This allows heatmap to align with regional plot x-axis
+        extent = None
+        if x_coords and len(x_coords) > 1:
+            x_min, x_max = min(x_coords), max(x_coords)
+            # Only use extent if coordinates are not simple indices
+            if x_max - x_min > len(x_coords):
+                # Genomic coordinates - use extent for alignment
+                # Add half-cell padding for proper cell centering
+                n = len(x_coords)
+                y_min, y_max = min(y_coords), max(y_coords)
+                extent = [x_min, x_max, y_min - 0.5, y_max + 0.5]
+
         # Use imshow for heatmap rendering
         im = ax.imshow(
             plot_data,
@@ -856,6 +869,7 @@ class MatplotlibBackend:
             vmax=vmax,
             aspect="auto",
             origin="lower",
+            extent=extent,
         )
         return im
 
