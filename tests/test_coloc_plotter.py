@@ -385,3 +385,280 @@ class TestColocPlotterEdgeCases:
                 ld_col="ld",
                 lead_snp="invalid_rs",
             )
+
+
+@pytest.fixture
+def gwas_data_with_effects():
+    """GWAS data with effect sizes."""
+    return pd.DataFrame(
+        {
+            "pos": [1000, 2000, 3000, 4000, 5000],
+            "p_gwas": [1e-8, 1e-6, 0.01, 0.05, 0.1],
+            "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+            "beta_gwas": [
+                0.5,
+                -0.3,
+                0.2,
+                -0.1,
+                0.4,
+            ],  # positive, negative, positive, negative, positive
+        }
+    )
+
+
+@pytest.fixture
+def eqtl_data_with_effects():
+    """eQTL data with effect sizes."""
+    return pd.DataFrame(
+        {
+            "pos": [1000, 2000, 3000, 4000, 5000],
+            "p_eqtl": [1e-7, 1e-5, 0.02, 0.04, 0.15],
+            "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+            "beta_eqtl": [
+                0.4,
+                -0.2,
+                -0.1,
+                -0.2,
+                0.3,
+            ],  # same, same, opposite, same, same
+        }
+    )
+
+
+class TestEffectDirectionColoring:
+    """Tests for effect direction coloring feature."""
+
+    def test_color_by_effect_basic(
+        self, gwas_data_with_effects, eqtl_data_with_effects
+    ):
+        """Test color_by_effect renders plot without error."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+        fig = plotter.plot_coloc(
+            gwas_data_with_effects,
+            eqtl_data_with_effects,
+            color_by_effect=True,
+            gwas_effect_col="beta_gwas",
+            eqtl_effect_col="beta_eqtl",
+        )
+        assert fig is not None
+
+    def test_effect_congruent_color(self):
+        """Test same direction effects get green color."""
+        from pylocuszoom.coloc_plotter import _get_effect_agreement_color
+        from pylocuszoom.colors import EFFECT_CONGRUENT_COLOR
+
+        # Both positive
+        assert _get_effect_agreement_color(0.5, 0.4) == EFFECT_CONGRUENT_COLOR
+        # Both negative
+        assert _get_effect_agreement_color(-0.3, -0.2) == EFFECT_CONGRUENT_COLOR
+
+    def test_effect_incongruent_color(self):
+        """Test opposite direction effects get red color."""
+        from pylocuszoom.coloc_plotter import _get_effect_agreement_color
+        from pylocuszoom.colors import EFFECT_INCONGRUENT_COLOR
+
+        # Positive GWAS, negative eQTL
+        assert _get_effect_agreement_color(0.5, -0.2) == EFFECT_INCONGRUENT_COLOR
+        # Negative GWAS, positive eQTL
+        assert _get_effect_agreement_color(-0.3, 0.4) == EFFECT_INCONGRUENT_COLOR
+
+    def test_color_by_effect_without_cols_raises(self, gwas_data, eqtl_data):
+        """Test color_by_effect=True without effect cols raises ValueError."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+
+        # Missing both columns
+        with pytest.raises(ValueError, match="color_by_effect.*requires"):
+            plotter.plot_coloc(
+                gwas_data,
+                eqtl_data,
+                color_by_effect=True,
+            )
+
+        # Missing eqtl_effect_col
+        with pytest.raises(ValueError, match="color_by_effect.*requires"):
+            plotter.plot_coloc(
+                gwas_data,
+                eqtl_data,
+                color_by_effect=True,
+                gwas_effect_col="beta_gwas",
+            )
+
+    def test_effect_nan_handled(self):
+        """Test NaN effects get grey color."""
+        from pylocuszoom.coloc_plotter import _get_effect_agreement_color
+        from pylocuszoom.colors import LD_NA_COLOR
+
+        # NaN GWAS effect
+        assert _get_effect_agreement_color(np.nan, 0.4) == LD_NA_COLOR
+        # NaN eQTL effect
+        assert _get_effect_agreement_color(0.5, np.nan) == LD_NA_COLOR
+        # Both NaN
+        assert _get_effect_agreement_color(np.nan, np.nan) == LD_NA_COLOR
+
+    def test_effect_legend_matplotlib(
+        self, gwas_data_with_effects, eqtl_data_with_effects
+    ):
+        """Test effect direction legend shown for matplotlib backend."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter(backend="matplotlib")
+        fig = plotter.plot_coloc(
+            gwas_data_with_effects,
+            eqtl_data_with_effects,
+            color_by_effect=True,
+            gwas_effect_col="beta_gwas",
+            eqtl_effect_col="beta_eqtl",
+        )
+        # Check that legend exists on axis
+        axes = fig.get_axes()
+        assert len(axes) >= 1
+        legend = axes[0].get_legend()
+        assert legend is not None
+        # Check legend has expected labels
+        labels = [t.get_text() for t in legend.get_texts()]
+        assert "Same direction" in labels
+        assert "Opposite direction" in labels
+
+    def test_missing_effect_column_raises(
+        self, gwas_data_with_effects, eqtl_data_with_effects
+    ):
+        """Test missing effect column in data raises ValueError."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+
+        # Wrong GWAS effect column name
+        with pytest.raises(ValueError, match="gwas_effect_col.*not found"):
+            plotter.plot_coloc(
+                gwas_data_with_effects,
+                eqtl_data_with_effects,
+                color_by_effect=True,
+                gwas_effect_col="wrong_col",
+                eqtl_effect_col="beta_eqtl",
+            )
+
+
+class TestH4PosteriorDisplay:
+    """Tests for H4 posterior probability display."""
+
+    def test_h4_displayed(self, gwas_data, eqtl_data):
+        """Test H4 posterior is displayed when provided."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=0.95)
+        assert fig is not None
+
+    def test_h4_range_validation(self, gwas_data, eqtl_data):
+        """Test h4_posterior must be in [0, 1]."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+
+        # Invalid: < 0
+        with pytest.raises(ValueError, match="h4_posterior"):
+            plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=-0.1)
+
+        # Invalid: > 1
+        with pytest.raises(ValueError, match="h4_posterior"):
+            plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=1.5)
+
+    def test_h4_formatting(self, gwas_data, eqtl_data):
+        """Test H4 is formatted to 3 decimal places."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter(backend="matplotlib")
+        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=0.95123456)
+        # Check that text annotation exists
+        axes = fig.get_axes()
+        assert len(axes) >= 1
+        # Find H4 text in annotations
+        texts = [child.get_text() for child in axes[0].texts]
+        h4_texts = [t for t in texts if "H4 PP" in t]
+        assert len(h4_texts) == 1
+        assert "H4 PP = 0.951" in h4_texts[0]
+
+    def test_h4_with_correlation(self, gwas_data, eqtl_data):
+        """Test both H4 and correlation are displayed together."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter(backend="matplotlib")
+        fig = plotter.plot_coloc(
+            gwas_data, eqtl_data, h4_posterior=0.95, show_correlation=True
+        )
+        axes = fig.get_axes()
+        texts = [child.get_text() for child in axes[0].texts]
+        # Both annotations should be present
+        h4_texts = [t for t in texts if "H4 PP" in t]
+        corr_texts = [t for t in texts if "r = " in t]
+        assert len(h4_texts) >= 1
+        assert len(corr_texts) >= 1
+
+    def test_h4_boundary_values(self, gwas_data, eqtl_data):
+        """Test H4 boundary values are accepted."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+
+        # H4 = 0 (valid)
+        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=0)
+        assert fig is not None
+
+        # H4 = 1 (valid)
+        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=1)
+        assert fig is not None
+
+
+class TestColocConfigIntegration:
+    """Tests for ColocConfig integration with ColocPlotter."""
+
+    def test_config_to_plot_params(
+        self, gwas_data_with_effects, eqtl_data_with_effects
+    ):
+        """Test ColocConfig values can drive plot_coloc parameters."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.config import ColocConfig
+
+        config = ColocConfig(
+            color_by_effect=True,
+            gwas_effect_col="beta_gwas",
+            eqtl_effect_col="beta_eqtl",
+            h4_posterior=0.95,
+            show_correlation=False,
+            figsize=(10.0, 10.0),
+        )
+
+        plotter = ColocPlotter()
+        fig = plotter.plot_coloc(
+            gwas_data_with_effects,
+            eqtl_data_with_effects,
+            color_by_effect=config.color_by_effect,
+            gwas_effect_col=config.gwas_effect_col,
+            eqtl_effect_col=config.eqtl_effect_col,
+            h4_posterior=config.h4_posterior,
+            show_correlation=config.show_correlation,
+            figsize=config.figsize,
+        )
+        assert fig is not None
+        # Check figsize was applied
+        width, height = fig.get_size_inches()
+        assert width == 10.0
+        assert height == 10.0
+
+    def test_invalid_config_caught(self):
+        """Test invalid ColocConfig raises ValidationError."""
+        from pydantic import ValidationError
+
+        from pylocuszoom.config import ColocConfig
+
+        # color_by_effect without effect columns
+        with pytest.raises(ValidationError, match="color_by_effect"):
+            ColocConfig(color_by_effect=True)
+
+        # h4_posterior out of range
+        with pytest.raises(ValidationError, match="h4_posterior"):
+            ColocConfig(h4_posterior=1.5)
