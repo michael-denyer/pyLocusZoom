@@ -16,6 +16,72 @@ from .logging import logger
 from .utils import validate_plink_files
 
 
+def build_pairwise_ld_command(
+    plink_path: str,
+    bfile_path: str,
+    output_path: str,
+    snp_list_file: Optional[str] = None,
+    chrom: Optional[int] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    species: Optional[str] = "canine",
+    metric: str = "r2",
+) -> list:
+    """Build PLINK command for pairwise LD matrix computation.
+
+    Generates command for computing an N x N LD matrix using PLINK's
+    --r2 square (or --r dprime square) command.
+
+    Args:
+        plink_path: Path to PLINK executable.
+        bfile_path: Input binary fileset prefix (.bed/.bim/.fam).
+        output_path: Output prefix (creates .ld and .snplist files).
+        snp_list_file: Path to file with SNP IDs to extract (one per line).
+        chrom: Chromosome number for region-based extraction.
+        start: Start position (bp) for region-based extraction.
+        end: End position (bp) for region-based extraction.
+        species: Species flag ('canine', 'feline', or None for human).
+        metric: LD metric ('r2' or 'dprime').
+
+    Returns:
+        List of command arguments for subprocess.
+    """
+    cmd = [plink_path]
+
+    # Species flag
+    if species == "canine":
+        cmd.append("--dog")
+    elif species == "feline":
+        cmd.extend(["--chr-set", "18"])
+
+    # Input and output
+    cmd.extend(["--bfile", bfile_path])
+    cmd.extend(["--out", output_path])
+
+    # LD metric and square matrix flag
+    if metric == "dprime":
+        cmd.extend(["--r", "dprime", "square"])
+    else:
+        cmd.extend(["--r2", "square"])
+
+    # Track SNP order in output
+    cmd.append("--write-snplist")
+
+    # SNP extraction mode
+    if snp_list_file:
+        cmd.extend(["--extract", snp_list_file])
+
+    # Region-based extraction
+    if chrom is not None:
+        cmd.extend(["--chr", str(chrom)])
+    if start is not None:
+        cmd.extend(["--from-bp", str(start)])
+    if end is not None:
+        cmd.extend(["--to-bp", str(end)])
+
+    return cmd
+
+
 def find_plink() -> Optional[str]:
     """Find PLINK executable on PATH.
 

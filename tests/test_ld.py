@@ -8,6 +8,7 @@ import pytest
 
 from pylocuszoom.ld import (
     build_ld_command,
+    build_pairwise_ld_command,
     calculate_ld,
     find_plink,
     parse_ld_output,
@@ -294,3 +295,117 @@ class TestCalculateLd:
                     bfile_path=nonexistent_bfile,
                     lead_snp="rs12345",
                 )
+
+
+class TestBuildPairwiseLdCommand:
+    """Tests for build_pairwise_ld_command function."""
+
+    def test_includes_r2_square_flag(self):
+        """Command should include --r2 square for pairwise matrix."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+        )
+
+        assert "--r2" in cmd
+        assert "square" in cmd
+
+    def test_includes_write_snplist_flag(self):
+        """Command should include --write-snplist to track SNP order."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+        )
+
+        assert "--write-snplist" in cmd
+
+    def test_includes_extract_with_snp_list_file(self):
+        """Command should include --extract when snp_list_file provided."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+            snp_list_file="/path/to/snps.txt",
+        )
+
+        assert "--extract" in cmd
+        assert "/path/to/snps.txt" in cmd
+
+    def test_includes_region_flags_when_provided(self):
+        """Command should include --chr, --from-bp, --to-bp for region mode."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+            chrom=1,
+            start=1000000,
+            end=2000000,
+        )
+
+        assert "--chr" in cmd
+        assert "1" in cmd
+        assert "--from-bp" in cmd
+        assert "1000000" in cmd
+        assert "--to-bp" in cmd
+        assert "2000000" in cmd
+
+    def test_includes_dog_flag_for_canine(self):
+        """Command should include --dog for canine species."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+            species="canine",
+        )
+
+        assert "--dog" in cmd
+
+    def test_includes_chr_set_for_feline(self):
+        """Command should include --chr-set 18 for feline species."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+            species="feline",
+        )
+
+        assert "--chr-set" in cmd
+        assert "18" in cmd
+
+    def test_uses_dprime_metric(self):
+        """Command should use --r dprime for D' metric."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+            metric="dprime",
+        )
+
+        # For D', PLINK uses --r (not --r2) with dprime modifier
+        assert "--r" in cmd
+        assert "dprime" in cmd
+        assert "square" in cmd
+
+    def test_default_metric_is_r2(self):
+        """Command should use --r2 by default."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+        )
+
+        assert "--r2" in cmd
+
+    def test_no_species_flag_for_human(self):
+        """Command should not include species flag for human."""
+        cmd = build_pairwise_ld_command(
+            plink_path="/usr/bin/plink1.9",
+            bfile_path="/path/to/data",
+            output_path="/path/to/output",
+            species=None,
+        )
+
+        assert "--dog" not in cmd
+        assert "--chr-set" not in cmd

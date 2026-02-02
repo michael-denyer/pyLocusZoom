@@ -280,3 +280,21 @@ def get_phewas_category_palette(categories: List[str]) -> dict[str, str]:
         Dictionary mapping category names to hex colors.
     """
     return {cat: get_phewas_category_color(i) for i, cat in enumerate(categories)}
+
+
+# =============================================================================
+# LD Heatmap Colors
+# =============================================================================
+
+# Custom colormap name for LD heatmaps
+LD_HEATMAP_CMAP_NAME = "ld_heatmap"
+
+# White-to-red gradient for R² heatmaps (0 = white, 1 = red)
+LD_HEATMAP_COLORS: List[str] = ["#FFFFFF", "#FF0000"]
+
+# Color for missing/NaN LD values in heatmaps
+LD_HEATMAP_MISSING_COLOR = "#808080"  # grey
+
+# Highlight colors for lead and secondary SNPs in heatmaps
+LEAD_SNP_HIGHLIGHT_COLOR = "#FF0000"  # red border/outline for lead SNP
+SECONDARY_HIGHLIGHT_COLOR = "#0000FF"  # blue for other highlighted SNPs

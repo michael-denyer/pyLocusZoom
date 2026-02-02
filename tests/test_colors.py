@@ -10,8 +10,13 @@ from pylocuszoom.colors import (
     EQTL_NEGATIVE_BINS,
     EQTL_POSITIVE_BINS,
     LD_BINS,
+    LD_HEATMAP_CMAP_NAME,
+    LD_HEATMAP_COLORS,
+    LD_HEATMAP_MISSING_COLOR,
     LD_NA_COLOR,
     LD_NA_LABEL,
+    LEAD_SNP_HIGHLIGHT_COLOR,
+    SECONDARY_HIGHLIGHT_COLOR,
     get_credible_set_color,
     get_credible_set_color_palette,
     get_eqtl_bin,
@@ -389,3 +394,62 @@ class TestLdColorProperties:
     def test_invalid_cs_id_returns_na(self, cs_id):
         """Invalid cs_id (<=0) should return NA color."""
         assert get_credible_set_color(cs_id) == LD_NA_COLOR
+
+
+# =============================================================================
+# LD Heatmap Color Tests
+# =============================================================================
+
+
+class TestLdHeatmapColors:
+    """Tests for LD heatmap color constants."""
+
+    def test_ld_heatmap_colors_has_two_elements(self):
+        """LD_HEATMAP_COLORS should have exactly 2 elements (start, end)."""
+        assert len(LD_HEATMAP_COLORS) == 2
+
+    def test_ld_heatmap_colors_are_valid_hex(self):
+        """LD_HEATMAP_COLORS should be valid hex color codes."""
+        for color in LD_HEATMAP_COLORS:
+            assert color.startswith("#"), f"{color} should start with #"
+            assert len(color) == 7, f"{color} should be 7 characters (#RRGGBB)"
+            # Verify hex digits
+            hex_part = color[1:]
+            int(hex_part, 16)  # Raises ValueError if not valid hex
+
+    def test_ld_heatmap_colors_white_to_red(self):
+        """LD_HEATMAP_COLORS should be white-to-red gradient."""
+        assert LD_HEATMAP_COLORS[0] == "#FFFFFF"  # white
+        assert LD_HEATMAP_COLORS[1] == "#FF0000"  # red
+
+    def test_ld_heatmap_cmap_name_is_string(self):
+        """LD_HEATMAP_CMAP_NAME should be a non-empty string."""
+        assert isinstance(LD_HEATMAP_CMAP_NAME, str)
+        assert len(LD_HEATMAP_CMAP_NAME) > 0
+        assert LD_HEATMAP_CMAP_NAME == "ld_heatmap"
+
+    def test_ld_heatmap_missing_color_is_valid_hex(self):
+        """LD_HEATMAP_MISSING_COLOR should be a valid hex color code."""
+        assert LD_HEATMAP_MISSING_COLOR.startswith("#")
+        assert len(LD_HEATMAP_MISSING_COLOR) == 7
+        int(LD_HEATMAP_MISSING_COLOR[1:], 16)
+
+    def test_ld_heatmap_missing_color_is_grey(self):
+        """LD_HEATMAP_MISSING_COLOR should be grey."""
+        assert LD_HEATMAP_MISSING_COLOR == "#808080"
+
+    def test_lead_snp_highlight_color_is_valid_hex(self):
+        """LEAD_SNP_HIGHLIGHT_COLOR should be a valid hex color code."""
+        assert LEAD_SNP_HIGHLIGHT_COLOR.startswith("#")
+        assert len(LEAD_SNP_HIGHLIGHT_COLOR) == 7
+        int(LEAD_SNP_HIGHLIGHT_COLOR[1:], 16)
+
+    def test_secondary_highlight_color_is_valid_hex(self):
+        """SECONDARY_HIGHLIGHT_COLOR should be a valid hex color code."""
+        assert SECONDARY_HIGHLIGHT_COLOR.startswith("#")
+        assert len(SECONDARY_HIGHLIGHT_COLOR) == 7
+        int(SECONDARY_HIGHLIGHT_COLOR[1:], 16)
+
+    def test_highlight_colors_are_distinct(self):
+        """LEAD_SNP_HIGHLIGHT_COLOR and SECONDARY_HIGHLIGHT_COLOR should be different."""
+        assert LEAD_SNP_HIGHLIGHT_COLOR != SECONDARY_HIGHLIGHT_COLOR
