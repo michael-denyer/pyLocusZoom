@@ -1219,3 +1219,85 @@ class PlotlyBackend:
                             )
                         }
                     )
+
+    def add_heatmap(
+        self,
+        ax: Tuple[go.Figure, int],
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: Optional[List[str]] = None,
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+        mask_upper: bool = True,
+    ) -> Any:
+        """Render heatmap with optional triangular masking.
+
+        Args:
+            ax: Tuple of (figure, row_number).
+            data: 2D numpy array of values (NaN for missing).
+            x_coords: X coordinates for cells.
+            y_coords: Y coordinates for cells.
+            cmap_colors: Color gradient endpoints [start, end].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
+            mask_upper: If True, mask upper triangle.
+
+        Returns:
+            Heatmap trace.
+        """
+        import numpy as np
+
+        fig, row, col, _ = self._extract_row_col(ax)
+
+        if cmap_colors is None:
+            cmap_colors = ["#FFFFFF", "#FF0000"]
+
+        # Mask upper triangle by setting to NaN
+        plot_data = data.copy()
+        if mask_upper:
+            for i in range(data.shape[0]):
+                for j in range(i + 1, data.shape[1]):
+                    plot_data[i, j] = np.nan
+
+        # Replace NaN with None for Plotly
+        z = np.where(np.isnan(plot_data), None, plot_data)
+
+        colorscale = [[0, cmap_colors[0]], [1, cmap_colors[1]]]
+
+        trace = go.Heatmap(
+            z=z.tolist(),
+            x=list(range(len(x_coords))),
+            y=list(range(len(y_coords))),
+            colorscale=colorscale,
+            zmin=vmin,
+            zmax=vmax,
+            showscale=True,
+            colorbar=dict(title="R²"),
+        )
+        fig.add_trace(trace, row=row, col=col)
+        return trace
+
+    def add_colorbar(
+        self,
+        ax: Tuple[go.Figure, int],
+        mappable: Any,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> Any:
+        """Add colorbar legend for heatmap.
+
+        For Plotly, colorbar is added via showscale=True in add_heatmap.
+        This method is a no-op but kept for API consistency.
+
+        Args:
+            ax: Tuple of (figure, row_number).
+            mappable: Heatmap trace (unused).
+            label: Colorbar label (unused, set in add_heatmap).
+            orientation: Orientation (unused).
+
+        Returns:
+            None.
+        """
+        # Colorbar is configured in add_heatmap via showscale=True
+        pass

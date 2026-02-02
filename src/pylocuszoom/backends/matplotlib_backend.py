@@ -806,3 +806,77 @@ class MatplotlibBackend:
             left=left, right=right, top=top, bottom=bottom, hspace=hspace
         )
         plt.ion()
+
+    def add_heatmap(
+        self,
+        ax: Axes,
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: Optional[List[str]] = None,
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+        mask_upper: bool = True,
+    ) -> Any:
+        """Render heatmap with optional triangular masking.
+
+        Args:
+            ax: Matplotlib axes.
+            data: 2D numpy array of values (NaN for missing).
+            x_coords: X coordinates for cells.
+            y_coords: Y coordinates for cells.
+            cmap_colors: Color gradient endpoints [start, end].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
+            mask_upper: If True, mask upper triangle.
+
+        Returns:
+            AxesImage object for colorbar attachment.
+        """
+        import numpy as np
+        from matplotlib.colors import LinearSegmentedColormap
+
+        # Default white-to-red gradient
+        if cmap_colors is None:
+            cmap_colors = ["#FFFFFF", "#FF0000"]
+
+        cmap = LinearSegmentedColormap.from_list("ld_heatmap", cmap_colors, N=256)
+
+        # Mask upper triangle if requested
+        plot_data = data.copy()
+        if mask_upper:
+            mask = np.triu(np.ones_like(data, dtype=bool), k=1)
+            plot_data = np.ma.array(data, mask=mask)
+
+        # Use imshow for heatmap rendering
+        im = ax.imshow(
+            plot_data,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            aspect="auto",
+            origin="lower",
+        )
+        return im
+
+    def add_colorbar(
+        self,
+        ax: Axes,
+        mappable: Any,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> Any:
+        """Add colorbar legend for heatmap.
+
+        Args:
+            ax: Matplotlib axes.
+            mappable: AxesImage from add_heatmap.
+            label: Colorbar label.
+            orientation: "vertical" or "horizontal".
+
+        Returns:
+            Colorbar object.
+        """
+        cbar = plt.colorbar(mappable, ax=ax, orientation=orientation)
+        cbar.set_label(label)
+        return cbar

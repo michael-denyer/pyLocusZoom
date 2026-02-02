@@ -973,3 +973,135 @@ class BokehBackend:
         """
         # Bokeh handles layout differently - column spacing is fixed
         pass
+
+    def add_heatmap(
+        self,
+        ax: figure,
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: Optional[List[str]] = None,
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+        mask_upper: bool = True,
+    ) -> Any:
+        """Render heatmap with optional triangular masking.
+
+        Args:
+            ax: Bokeh figure.
+            data: 2D numpy array of values (NaN for missing).
+            x_coords: X coordinates for cells.
+            y_coords: Y coordinates for cells.
+            cmap_colors: Color gradient endpoints [start, end].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
+            mask_upper: If True, mask upper triangle.
+
+        Returns:
+            LinearColorMapper for colorbar attachment.
+        """
+        import numpy as np
+        from bokeh.models import LinearColorMapper
+
+        if cmap_colors is None:
+            cmap_colors = ["#FFFFFF", "#FF0000"]
+
+        # Create custom palette from start to end color
+        # For a simple 2-color gradient, create a palette of intermediate colors
+        palette = _create_color_palette(cmap_colors[0], cmap_colors[1], 256)
+
+        mapper = LinearColorMapper(
+            palette=palette,
+            low=vmin,
+            high=vmax,
+            nan_color="#808080",  # Grey for missing
+        )
+
+        # Build rect data for lower triangle
+        xs, ys, values = [], [], []
+        n = data.shape[0]
+        for i in range(n):
+            for j in range(n):
+                # Lower triangle including diagonal
+                if mask_upper and j > i:
+                    continue
+                val = data[i, j]
+                xs.append(j)
+                ys.append(i)
+                values.append(val if not np.isnan(val) else float("nan"))
+
+        source = ColumnDataSource({"x": xs, "y": ys, "value": values})
+
+        ax.rect(
+            x="x",
+            y="y",
+            width=1,
+            height=1,
+            fill_color={"field": "value", "transform": mapper},
+            line_color=None,
+            source=source,
+        )
+        return mapper
+
+    def add_colorbar(
+        self,
+        ax: figure,
+        mappable: Any,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> Any:
+        """Add colorbar legend for heatmap.
+
+        Args:
+            ax: Bokeh figure.
+            mappable: LinearColorMapper from add_heatmap.
+            label: Colorbar label.
+            orientation: "vertical" or "horizontal".
+
+        Returns:
+            ColorBar object.
+        """
+        from bokeh.models import BasicTicker, ColorBar
+
+        orientation_map = {"vertical": "vertical", "horizontal": "horizontal"}
+        color_bar = ColorBar(
+            color_mapper=mappable,
+            ticker=BasicTicker(),
+            label_standoff=6,
+            title=label,
+            orientation=orientation_map.get(orientation, "vertical"),
+        )
+        ax.add_layout(color_bar, "right")
+        return color_bar
+
+
+def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:
+    """Create a linear color palette between two colors.
+
+    Args:
+        start_color: Starting hex color.
+        end_color: Ending hex color.
+        n_colors: Number of colors in palette.
+
+    Returns:
+        List of hex color strings.
+    """
+
+    def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
+        hex_color = hex_color.lstrip("#")
+        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
+    def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
+        return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+    start_rgb = hex_to_rgb(start_color)
+    end_rgb = hex_to_rgb(end_color)
+
+    palette = []
+    for i in range(n_colors):
+        t = i / (n_colors - 1) if n_colors > 1 else 0
+        r = int(start_rgb[0] + t * (end_rgb[0] - start_rgb[0]))
+        g = int(start_rgb[1] + t * (end_rgb[1] - start_rgb[1]))
+        b = int(start_rgb[2] + t * (end_rgb[2] - start_rgb[2]))
+        palette.append(rgb_to_hex((r, g, b)))
+    return palette

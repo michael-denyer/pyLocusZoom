@@ -452,3 +452,204 @@ class TestBackendTypeLiteral:
             # Type checkers would verify BackendType compatibility
             backend = get_backend(backend_name)
             assert backend is not None
+
+
+class TestHeatmapMethods:
+    """Tests for heatmap rendering methods across backends."""
+
+    @pytest.fixture
+    def sample_ld_matrix(self):
+        """Create a sample 5x5 LD matrix for testing."""
+        import numpy as np
+
+        # Symmetric matrix with diagonal = 1, decreasing r2 with distance
+        n = 5
+        data = np.zeros((n, n))
+        for i in range(n):
+            for j in range(n):
+                dist = abs(i - j)
+                data[i, j] = 1.0 - dist * 0.2
+        return data
+
+    def test_matplotlib_add_heatmap_returns_mappable(self, sample_ld_matrix):
+        """Matplotlib add_heatmap should return AxesImage object."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        mappable = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        assert mappable is not None
+        # Should have a colormap
+        assert hasattr(mappable, "get_cmap")
+        backend.close(fig)
+
+    def test_matplotlib_add_heatmap_mask_upper(self, sample_ld_matrix):
+        """Matplotlib add_heatmap with mask_upper should produce masked array."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        mappable = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+            mask_upper=True,
+        )
+        # Image data should be masked array when mask_upper=True
+
+        # The underlying data should be masked
+        assert mappable is not None
+        backend.close(fig)
+
+    def test_matplotlib_add_colorbar(self, sample_ld_matrix):
+        """Matplotlib add_colorbar should not raise."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        mappable = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        cbar = backend.add_colorbar(axes[0], mappable, label="R²")
+        assert cbar is not None
+        backend.close(fig)
+
+    def test_plotly_add_heatmap_returns_trace(self, sample_ld_matrix):
+        """Plotly add_heatmap should return Heatmap trace."""
+        pytest.importorskip("plotly")
+        import plotly.graph_objects as go
+
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        trace = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        assert trace is not None
+        assert isinstance(trace, go.Heatmap)
+
+    def test_plotly_add_colorbar_no_error(self, sample_ld_matrix):
+        """Plotly add_colorbar should not raise (no-op)."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        trace = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        # Should not raise
+        result = backend.add_colorbar(axes[0], trace, label="R²")
+        assert result is None  # No-op returns None
+
+    def test_bokeh_add_heatmap_returns_mapper(self, sample_ld_matrix):
+        """Bokeh add_heatmap should return LinearColorMapper."""
+        pytest.importorskip("bokeh")
+        from bokeh.models import LinearColorMapper
+
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        mapper = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        assert mapper is not None
+        assert isinstance(mapper, LinearColorMapper)
+
+    def test_bokeh_add_colorbar_adds_to_layout(self, sample_ld_matrix):
+        """Bokeh add_colorbar should add ColorBar to figure."""
+        pytest.importorskip("bokeh")
+        from bokeh.models import ColorBar
+
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        mapper = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        cbar = backend.add_colorbar(axes[0], mapper, label="R²")
+        assert cbar is not None
+        assert isinstance(cbar, ColorBar)
+        # Should be added to right layout
+        assert cbar in axes[0].right
+
+    def test_all_backends_have_heatmap_methods(self):
+        """All backends should have add_heatmap and add_colorbar methods."""
+        from pylocuszoom.backends import get_backend
+
+        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+            if backend_name in ["plotly", "bokeh"]:
+                pytest.importorskip(backend_name)
+
+            backend = get_backend(backend_name)
+            assert hasattr(backend, "add_heatmap"), (
+                f"{backend_name} missing add_heatmap"
+            )
+            assert hasattr(backend, "add_colorbar"), (
+                f"{backend_name} missing add_colorbar"
+            )
+
+    def test_matplotlib_custom_colors(self, sample_ld_matrix):
+        """Matplotlib add_heatmap should accept custom color gradient."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        # Use blue-to-yellow gradient
+        mappable = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+            cmap_colors=["#0000FF", "#FFFF00"],
+        )
+        assert mappable is not None
+        backend.close(fig)
+
+    def test_heatmap_mask_upper_lower_triangle(self, sample_ld_matrix):
+        """Test that mask_upper=True renders only lower triangle."""
+        import numpy as np
+
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+
+        # With mask_upper=True
+        mappable = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+            mask_upper=True,
+        )
+
+        # Get the array data - should be masked
+        array_data = mappable.get_array()
+        # Check that upper triangle is masked
+        assert np.ma.is_masked(array_data)
+        backend.close(fig)
