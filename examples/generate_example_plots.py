@@ -1225,7 +1225,7 @@ for chrom in list(range(1, 39)) + ["X"]:
         )
 canine_gwas_df = pd.DataFrame(canine_gwas_data)
 
-canine_plotter = LocusZoomPlotter(species="canine", log_level=None)
+canine_plotter = ManhattanPlotter(species="canine")
 fig = canine_plotter.plot_manhattan_qq(
     canine_gwas_df,
     significance_threshold=5e-8,
