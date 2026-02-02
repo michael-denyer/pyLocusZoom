@@ -89,6 +89,7 @@ from .finemapping import (
     filter_finemapping_by_region,
     get_credible_sets,
     get_top_pip_variants,
+    plot_finemapping,
     prepare_finemapping_for_plotting,
     validate_finemapping_df,
 )
@@ -144,6 +145,7 @@ from .plotter import LocusZoomPlotter
 from .recombination import (
     add_recombination_overlay,
     download_canine_recombination_maps,
+    ensure_recomb_maps,
     get_recombination_rate_for_region,
     load_recombination_map,
 )
@@ -182,6 +184,7 @@ __all__ = [
     "add_snp_labels",
     # Recombination
     "add_recombination_overlay",
+    "ensure_recomb_maps",
     "get_recombination_rate_for_region",
     "load_recombination_map",
     # eQTL
@@ -198,6 +201,7 @@ __all__ = [
     "filter_by_credible_set",
     "get_credible_sets",
     "get_top_pip_variants",
+    "plot_finemapping",
     "prepare_finemapping_for_plotting",
     "FinemappingValidationError",
     # Logging

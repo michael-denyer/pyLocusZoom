@@ -3,6 +3,8 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import settings as hyp_settings
 
 from pylocuszoom.gene_track import (
     STRAND_COLORS,
@@ -10,6 +12,7 @@ from pylocuszoom.gene_track import (
     get_nearest_gene,
     plot_gene_track,
 )
+from tests.strategies import gene_dataframes
 
 
 class TestAssignGenePositions:
@@ -259,3 +262,70 @@ class TestPlotGeneTrack:
         xlim = ax.get_xlim()
         assert xlim == (1000000, 2000000)
         plt.close(fig)
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestGeneTrackProperties:
+    """Property-based tests for gene track rendering."""
+
+    @given(gene_dataframes(min_genes=0, max_genes=30))
+    def test_assign_positions_returns_valid_rows(self, genes_df):
+        """Row assignments should always be non-negative integers."""
+        if len(genes_df) == 0:
+            positions = assign_gene_positions(genes_df, 0, 10000)
+            assert positions == []
+            return
+
+        start = int(genes_df["start"].min())
+        end = int(genes_df["end"].max())
+        positions = assign_gene_positions(genes_df, start, end)
+
+        assert len(positions) == len(genes_df)
+        assert all(isinstance(p, int) and p >= 0 for p in positions)
+
+    @given(gene_dataframes(min_genes=2, max_genes=20))
+    def test_overlapping_genes_never_share_row(self, genes_df):
+        """Overlapping genes should never be assigned to the same row."""
+        if len(genes_df) < 2:
+            return
+
+        start = int(genes_df["start"].min())
+        end = int(genes_df["end"].max())
+        positions = assign_gene_positions(genes_df, start, end)
+
+        # Check all pairs
+        for i in range(len(genes_df)):
+            for j in range(i + 1, len(genes_df)):
+                gene_i_start = genes_df.iloc[i]["start"]
+                gene_i_end = genes_df.iloc[i]["end"]
+                gene_j_start = genes_df.iloc[j]["start"]
+                gene_j_end = genes_df.iloc[j]["end"]
+
+                # Check if genes overlap
+                overlaps = gene_i_start < gene_j_end and gene_j_start < gene_i_end
+
+                if overlaps:
+                    assert positions[i] != positions[j], (
+                        f"Overlapping genes at rows {i} and {j} share row {positions[i]}"
+                    )
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gene_dataframes(min_genes=1, max_genes=15))
+    def test_plot_gene_track_renders(self, genes_df):
+        """plot_gene_track should render without crashing."""
+        if len(genes_df) == 0:
+            return
+
+        chrom = genes_df["chr"].iloc[0]
+        start = int(genes_df["start"].min())
+        end = int(genes_df["end"].max())
+
+        fig, ax = plt.subplots()
+        try:
+            plot_gene_track(ax, genes_df, chrom, start, end)
+        finally:
+            plt.close(fig)

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
+import requests
 
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
@@ -374,3 +375,79 @@ class TestDownloadCanineRecombinationMaps:
 
         result = download_canine_recombination_maps(force=False)
         assert result == tmp_path
+
+
+class TestEnsureRecombMaps:
+    """Tests for ensure_recomb_maps function."""
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_downloads_if_missing(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps triggers download when maps missing."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.return_value = tmp_path / "recomb_data"
+
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="canine")
+
+        mock_download.assert_called_once()
+        assert result == tmp_path / "recomb_data"
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_skips_download_if_exists(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps skips download when maps exist."""
+        data_dir = tmp_path / "recomb_data"
+        data_dir.mkdir()
+        # Create 39 fake chromosome files
+        for i in range(1, 40):
+            (data_dir / f"chr{i}_recomb.tsv").touch()
+
+        mock_get_dir.return_value = data_dir
+
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="canine")
+
+        mock_download.assert_not_called()
+        assert result == data_dir
+
+    def test_ensure_recomb_maps_non_canine_returns_none(self):
+        """Test that ensure_recomb_maps returns None for non-canine species."""
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="human")
+        assert result is None
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_handles_network_error(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps returns None on network errors."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = requests.RequestException("Network error")
+
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="canine")
+        assert result is None
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_handles_io_error(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps returns None on IO errors."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = IOError("Disk full")
+
+        from pylocuszoom.recombination import ensure_recomb_maps
+
+        result = ensure_recomb_maps(species="canine")
+        assert result is None

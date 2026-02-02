@@ -1,16 +1,19 @@
 """Tests for LocusZoomPlotter class."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
-import requests
+from hypothesis import given
+from hypothesis import settings as hyp_settings
 
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.strategies import gwas_dataframes
 
 
 class TestBackendIntegration:
@@ -1073,143 +1076,15 @@ class TestBackendEQTLFinemapping:
         plt.close(fig)
 
 
-class TestPheWASPlot:
-    """Tests for plot_phewas method."""
-
-    def test_plot_phewas_basic(self):
-        """Test basic PheWAS plot generation."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-
-        phewas_df = pd.DataFrame(
-            {
-                "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
-                "p_value": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
-                "category": [
-                    "Anthropometric",
-                    "Anthropometric",
-                    "Metabolic",
-                    "Cardiovascular",
-                    "Metabolic",
-                ],
-            }
-        )
-
-        fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
-
-        assert fig is not None
-        plt.close(fig)
-
-    def test_plot_phewas_with_effect(self):
-        """Test PheWAS plot with effect sizes."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-
-        phewas_df = pd.DataFrame(
-            {
-                "phenotype": ["Height", "BMI", "T2D"],
-                "p_value": [1e-15, 0.05, 1e-8],
-                "category": ["Anthropometric", "Anthropometric", "Metabolic"],
-                "effect_size": [0.5, -0.1, 0.3],
-            }
-        )
-
-        fig = plotter.plot_phewas(
-            phewas_df, variant_id="rs12345", effect_col="effect_size"
-        )
-
-        assert fig is not None
-        plt.close(fig)
-
-    def test_plot_phewas_no_category(self):
-        """Test PheWAS plot without category column."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-
-        phewas_df = pd.DataFrame(
-            {
-                "phenotype": ["Height", "BMI", "T2D"],
-                "p_value": [1e-15, 0.05, 1e-8],
-            }
-        )
-
-        fig = plotter.plot_phewas(phewas_df, variant_id="rs12345")
-
-        assert fig is not None
-        plt.close(fig)
-
-
-class TestForestPlot:
-    """Tests for plot_forest method."""
-
-    def test_plot_forest_basic(self):
-        """Test basic forest plot generation."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-
-        forest_df = pd.DataFrame(
-            {
-                "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
-                "effect": [0.5, 0.3, 0.6, 0.45],
-                "ci_lower": [0.2, 0.0, 0.3, 0.35],
-                "ci_upper": [0.8, 0.6, 0.9, 0.55],
-            }
-        )
-
-        fig = plotter.plot_forest(forest_df, variant_id="rs12345")
-
-        assert fig is not None
-        plt.close(fig)
-
-    def test_plot_forest_with_weights(self):
-        """Test forest plot with study weights."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-
-        forest_df = pd.DataFrame(
-            {
-                "study": ["Study A", "Study B", "Meta"],
-                "effect": [0.5, 0.3, 0.4],
-                "ci_lower": [0.2, 0.0, 0.3],
-                "ci_upper": [0.8, 0.6, 0.5],
-                "weight": [30, 70, 100],
-            }
-        )
-
-        fig = plotter.plot_forest(forest_df, variant_id="rs12345", weight_col="weight")
-
-        assert fig is not None
-        plt.close(fig)
-
-    def test_plot_forest_custom_null_value(self):
-        """Test forest plot with custom null value (e.g., OR=1)."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-
-        forest_df = pd.DataFrame(
-            {
-                "study": ["Study A", "Study B"],
-                "effect": [1.5, 0.9],
-                "ci_lower": [1.1, 0.6],
-                "ci_upper": [1.9, 1.3],
-            }
-        )
-
-        fig = plotter.plot_forest(
-            forest_df,
-            variant_id="rs12345",
-            null_value=1.0,
-            effect_label="Odds Ratio",
-        )
-
-        assert fig is not None
-        plt.close(fig)
-
-
 class TestRecombinationDownloadErrors:
-    """Tests for recombination map download error handling.
+    """Tests for recombination map error handling.
 
-    These tests verify that download errors are handled gracefully:
-    - Expected errors (network, I/O) return None without crashing
-    - Unexpected errors also return None (graceful degradation)
-    - All error types allow plotting to continue without recombination overlay
+    These tests verify that when recombination maps are unavailable,
+    the plotter gracefully handles None return values and allows
+    plotting to continue without recombination overlay.
 
-    Note: Log level verification is done visually in "Captured stderr call" output.
-    loguru doesn't integrate with pytest's caplog/capsys fixtures directly.
+    Note: Detailed error handling (network, I/O, OS errors) is tested
+    in test_recombination.py at the ensure_recomb_maps level.
     """
 
     @pytest.fixture
@@ -1217,47 +1092,36 @@ class TestRecombinationDownloadErrors:
         """Create a plotter instance for testing download errors."""
         return LocusZoomPlotter(species="canine", log_level="DEBUG")
 
-    def test_network_error_returns_none(self, plotter):
-        """Network errors (requests.RequestException) should return None."""
-
+    def test_ensure_recomb_maps_returns_none_propagates(self, plotter):
+        """When ensure_recomb_maps returns None, plotter._ensure_recomb_maps returns None."""
         with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = requests.RequestException("Network unreachable")
+            "pylocuszoom.plotter.ensure_recomb_maps", return_value=None
+        ) as mock_ensure:
             result = plotter._ensure_recomb_maps()
             assert result is None
-            # Verify the download was attempted
-            mock_download.assert_called_once()
+            mock_ensure.assert_called_once_with(species="canine", data_dir=None)
 
-    def test_io_error_returns_none(self, plotter):
-        """IO errors (IOError) should return None."""
-        with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = IOError("Disk full")
-            result = plotter._ensure_recomb_maps()
-            assert result is None
-            mock_download.assert_called_once()
+    def test_plotting_continues_without_recomb_maps(self, plotter):
+        """Plotting should succeed even when recombination maps are unavailable."""
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
 
-    def test_os_error_returns_none(self, plotter):
-        """OSError should return None."""
-        with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = OSError("Permission denied")
-            result = plotter._ensure_recomb_maps()
-            assert result is None
-            mock_download.assert_called_once()
-
-    def test_unexpected_error_returns_none(self, plotter):
-        """Unexpected errors should still return None (graceful degradation)."""
-        with patch(
-            "pylocuszoom.plotter.download_canine_recombination_maps"
-        ) as mock_download:
-            mock_download.side_effect = ValueError("Unexpected parsing error")
-            result = plotter._ensure_recomb_maps()
-            assert result is None
-            mock_download.assert_called_once()
+        with patch("pylocuszoom.plotter.ensure_recomb_maps", return_value=None):
+            # Should not raise, just skip recombination overlay
+            fig = plotter.plot(
+                gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=True,  # Requested but unavailable
+            )
+            assert fig is not None
+            plt.close(fig)
 
 
 class TestPvalueTransformation:
@@ -1291,17 +1155,145 @@ class TestPvalueTransformation:
 class TestPlotterDelegation:
     """Tests for plotter delegation to specialized classes."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create a LocusZoomPlotter instance."""
-        return LocusZoomPlotter(species="canine")
+    def test_plotter_delegates_to_plot_finemapping(self):
+        """Test that plot_stacked delegates finemapping to module function."""
+        with patch("pylocuszoom.plotter.plot_finemapping") as mock_plot_fm:
+            plotter = LocusZoomPlotter(
+                species="canine", backend="matplotlib", log_level=None
+            )
 
-    def test_manhattan_delegation_preserves_species(self, plotter):
-        """Test that species is passed to ManhattanPlotter."""
-        assert plotter._manhattan_plotter.species == "canine"
+            gwas_df = pd.DataFrame(
+                {
+                    "ps": [1000, 2000],
+                    "p_wald": [0.01, 0.001],
+                }
+            )
+            fm_df = pd.DataFrame(
+                {
+                    "pos": [1000, 2000],
+                    "pip": [0.5, 0.3],
+                    "cs": [1, 1],
+                }
+            )
 
-    def test_stats_delegation_preserves_threshold(self, plotter):
-        """Test that threshold is passed to StatsPlotter."""
-        assert (
-            plotter._stats_plotter.genomewide_threshold == plotter.genomewide_threshold
+            with patch.object(plotter, "_get_recomb_for_region", return_value=None):
+                try:
+                    plotter.plot_stacked(
+                        [gwas_df],
+                        chrom=1,
+                        start=0,
+                        end=3000,
+                        finemapping_df=fm_df,
+                    )
+                except Exception:
+                    pass  # We just want to verify the call was made
+
+            mock_plot_fm.assert_called()
+
+
+def test_plotter_uses_ensure_recomb_maps():
+    """Test that LocusZoomPlotter._ensure_recomb_maps delegates to module function."""
+    with patch(
+        "pylocuszoom.plotter.ensure_recomb_maps",
+        return_value=Path("/mock/recomb"),
+    ) as mock_ensure:
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        # Call the method that should delegate to ensure_recomb_maps
+        result = plotter._ensure_recomb_maps()
+
+        mock_ensure.assert_called_once_with(species="canine", data_dir=None)
+        assert result == Path("/mock/recomb")
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestPlotterProperties:
+    """Property-based tests for plotter crash-resistance."""
+
+    @hyp_settings(max_examples=15, deadline=None)
+    @given(gwas_dataframes(min_snps=3, max_snps=50))
+    def test_plot_renders_valid_data_matplotlib(self, df):
+        """plot() should render any valid GWAS data without crashing (matplotlib)."""
+        plotter = LocusZoomPlotter(species="canine")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot(
+            df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
         )
+
+        assert fig is not None
+        plt.close(fig)
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes(min_snps=3, max_snps=30))
+    def test_plot_renders_valid_data_plotly(self, df):
+        """plot() should render any valid GWAS data without crashing (plotly)."""
+        import plotly.graph_objects as go
+
+        plotter = LocusZoomPlotter(species="canine", backend="plotly")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot(
+            df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert isinstance(fig, go.Figure)
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes(min_snps=3, max_snps=30))
+    def test_plot_renders_valid_data_bokeh(self, df):
+        """plot() should render any valid GWAS data without crashing (bokeh)."""
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot(
+            df,
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert fig is not None
+
+
+class TestPlotStackedProperties:
+    """Property-based tests for stacked plots."""
+
+    @hyp_settings(max_examples=10, deadline=None)
+    @given(gwas_dataframes(min_snps=5, max_snps=30))
+    def test_plot_stacked_with_duplicated_data(self, df):
+        """plot_stacked() should handle multiple identical DataFrames."""
+        plotter = LocusZoomPlotter(species="canine")
+        chrom = df["chr"].iloc[0]
+        start = int(df["ps"].min())
+        end = int(df["ps"].max())
+
+        fig = plotter.plot_stacked(
+            [df, df.copy()],
+            chrom=chrom,
+            start=start,
+            end=end,
+            show_recombination=False,
+        )
+
+        assert fig is not None
+        plt.close(fig)

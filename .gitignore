@@ -14,12 +14,16 @@ build/
 .benchmarks/
 .coverage
 htmlcov/
+.hypothesis/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 .claude/
+
+# Git worktrees
+.worktrees/
 
 # Issue tracking (local)
 .beads/

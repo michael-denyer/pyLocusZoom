@@ -3,9 +3,11 @@
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given
 
 from pylocuszoom.utils import ValidationError
 from pylocuszoom.validation import DataFrameValidator
+from tests.strategies import gwas_dataframes, pvalues, pvalues_invalid
 
 
 class TestRequireColumns:
@@ -470,3 +472,67 @@ class TestEQTLValidation:
 
         # Should not raise
         validate_eqtl_df(df, pos_col="pos", p_col="p_value")
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestValidationProperties:
+    """Property-based tests for DataFrame validation."""
+
+    @given(gwas_dataframes(min_snps=1, max_snps=50))
+    def test_valid_gwas_df_passes_validation(self, df):
+        """Valid GWAS DataFrames should always pass validation."""
+        validator = DataFrameValidator(df, name="gwas_df")
+        validator.require_columns(["rs", "chr", "ps", "p_wald"])
+        validator.require_numeric(["ps", "p_wald"])
+        validator.validate()  # Should not raise
+
+    @given(gwas_dataframes(min_snps=1, max_snps=50))
+    def test_dropping_required_column_fails(self, df):
+        """Dropping any required column should fail validation."""
+        required = ["rs", "chr", "ps", "p_wald"]
+        for col in required:
+            invalid_df = df.drop(columns=[col])
+            validator = DataFrameValidator(invalid_df, name="test")
+            validator.require_columns(required)
+            with pytest.raises(ValidationError):
+                validator.validate()
+
+    @given(gwas_dataframes(min_snps=5, max_snps=20))
+    def test_require_numeric_idempotent(self, df):
+        """Calling require_numeric multiple times should have same effect."""
+        validator1 = DataFrameValidator(df.copy(), name="test1")
+        validator1.require_numeric(["ps", "p_wald"]).validate()
+
+        validator2 = DataFrameValidator(df.copy(), name="test2")
+        validator2.require_numeric(["ps"]).require_numeric(["p_wald"]).validate()
+        # Both should succeed
+
+
+class TestRangeValidationProperties:
+    """Property tests for range validation."""
+
+    @given(pvalues(allow_zero=False, allow_one=True))
+    def test_valid_pvalue_in_range(self, p):
+        """Valid p-values should pass range check for (0, 1]."""
+        df = pd.DataFrame({"p": [p]})
+        validator = DataFrameValidator(df, name="test")
+        validator.require_range("p", min_val=0, max_val=1, exclusive_min=True)
+        validator.validate()  # Should not raise
+
+    @given(pvalues_invalid())
+    def test_invalid_pvalue_detected(self, p):
+        """Invalid p-values should fail range validation."""
+        if np.isnan(p):
+            return  # NaN handled separately by require_not_null
+        df = pd.DataFrame({"p": [p]})
+        validator = DataFrameValidator(df, name="test")
+        if p < 0:
+            validator.require_range("p", min_val=0)
+        elif p > 1:
+            validator.require_range("p", max_val=1)
+        with pytest.raises(ValidationError):
+            validator.validate()

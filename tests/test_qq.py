@@ -3,6 +3,11 @@
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+
+from pylocuszoom.qq import calculate_confidence_band, calculate_lambda_gc
+from tests.strategies import pvalues
 
 
 class TestLambdaCalculation:
@@ -159,3 +164,42 @@ class TestPrepareQQData:
         # QQ plots have expected on x, observed on y
         # We sort p-values ascending, so -log10(p) is descending
         assert result["_observed"].is_monotonic_decreasing
+
+
+# =============================================================================
+# Property-Based Tests (Hypothesis)
+# =============================================================================
+
+
+class TestQQProperties:
+    """Property-based tests for QQ plot calculations."""
+
+    @given(st.lists(pvalues(allow_zero=False), min_size=10, max_size=500))
+    def test_lambda_gc_is_positive(self, p_values):
+        """Lambda GC should always be positive for valid p-values."""
+        p_array = np.array(p_values)
+        lambda_gc = calculate_lambda_gc(p_array)
+
+        # Filter out edge case of all identical p-values
+        if np.std(p_array) < 1e-10:
+            return
+
+        assert lambda_gc > 0 or np.isnan(lambda_gc)
+
+    @given(st.integers(min_value=10, max_value=1000))
+    def test_confidence_band_shapes_match(self, n):
+        """Confidence band arrays should all have length n."""
+        expected, lower, upper = calculate_confidence_band(n)
+
+        assert len(expected) == n
+        assert len(lower) == n
+        assert len(upper) == n
+
+    @given(st.integers(min_value=10, max_value=500))
+    def test_confidence_band_ordering(self, n):
+        """Lower bound should be <= expected <= upper bound."""
+        expected, lower, upper = calculate_confidence_band(n)
+
+        # Allow small floating point tolerance
+        assert np.all(lower <= expected + 1e-10)
+        assert np.all(expected <= upper + 1e-10)

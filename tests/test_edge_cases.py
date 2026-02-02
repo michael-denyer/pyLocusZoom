@@ -9,7 +9,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.stats_plotter import StatsPlotter
 
 
 class TestEmptyDataFrames:
@@ -56,7 +58,7 @@ class TestEmptyDataFrames:
         Empty DataFrames have no data to compute axis limits,
         resulting in NaN limits which matplotlib cannot handle.
         """
-        plotter = LocusZoomPlotter(species="human", log_level=None)
+        plotter = ManhattanPlotter(species="human")
         empty_df = pd.DataFrame(columns=["chrom", "pos", "p"])
 
         with pytest.raises(ValueError, match="(NaN|Inf|cannot)"):
@@ -67,12 +69,13 @@ class TestEmptyDataFrames:
                 p_col="p",
             )
 
-    def test_qq_with_empty_df_raises(self, plotter):
+    def test_qq_with_empty_df_raises(self):
         """QQ plot with empty DataFrame raises ValueError.
 
         The QQ plot requires valid p-values (>0 and <=1) to compute
         expected quantiles. Empty data fails this validation.
         """
+        plotter = ManhattanPlotter()
         empty_df = pd.DataFrame({"p": pd.Series([], dtype=float)})
 
         with pytest.raises(ValueError, match="No valid p-values"):
@@ -209,7 +212,7 @@ class TestManhattanSingleChromosome:
     @pytest.fixture
     def plotter(self):
         """Create plotter instance for testing."""
-        return LocusZoomPlotter(species="human", log_level=None)
+        return ManhattanPlotter(species="human")
 
     def test_manhattan_single_chromosome_succeeds(self, plotter):
         """Manhattan plot with only one chromosome should work."""
@@ -242,7 +245,7 @@ class TestPheWASManyCategories:
     @pytest.fixture
     def plotter(self):
         """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
+        return StatsPlotter()
 
     def test_phewas_15_categories_succeeds(self, plotter):
         """PheWAS with >12 categories should cycle colors without error.
@@ -351,7 +354,7 @@ class TestManhattanStackedValidation:
     @pytest.fixture
     def plotter(self):
         """Create plotter instance for testing."""
-        return LocusZoomPlotter(species="human", log_level=None)
+        return ManhattanPlotter(species="human")
 
     @pytest.fixture
     def sample_df(self):
@@ -387,7 +390,7 @@ class TestManhattanQQStackedValidation:
     @pytest.fixture
     def plotter(self):
         """Create plotter instance for testing."""
-        return LocusZoomPlotter(species="human", log_level=None)
+        return ManhattanPlotter(species="human")
 
     def test_manhattan_qq_stacked_empty_list_raises(self, plotter):
         """Empty list of GWAS DataFrames should raise ValueError."""
@@ -401,7 +404,7 @@ class TestQQWithVariousPvalueDistributions:
     @pytest.fixture
     def plotter(self):
         """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
+        return ManhattanPlotter()
 
     def test_qq_uniform_pvalues(self, plotter):
         """QQ plot with uniform p-values should show lambda ~ 1."""

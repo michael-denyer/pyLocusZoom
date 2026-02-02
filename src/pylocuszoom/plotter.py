@@ -15,7 +15,6 @@ from typing import Any, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import requests
 
 from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
 from .backends import BackendType, get_backend
@@ -25,7 +24,6 @@ from .colors import (
     EQTL_POSITIVE_BINS,
     LD_BINS,
     LEAD_SNP_COLOR,
-    PIP_LINE_COLOR,
     get_credible_set_color,
     get_eqtl_color,
     get_ld_bin,
@@ -36,6 +34,7 @@ from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import (
     get_credible_sets,
+    plot_finemapping,
     prepare_finemapping_for_plotting,
 )
 from .gene_track import (
@@ -44,14 +43,11 @@ from .gene_track import (
 )
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
-from .manhattan_plotter import ManhattanPlotter
 from .recombination import (
     RECOMB_COLOR,
-    download_canine_recombination_maps,
-    get_default_data_dir,
+    ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
-from .stats_plotter import StatsPlotter
 from .utils import normalize_chrom, validate_genes_df, validate_gwas_df
 
 # Precomputed significance line value (used for plotting)
@@ -149,27 +145,6 @@ class LocusZoomPlotter:
         # Cache for loaded data
         self._recomb_cache = {}
 
-    @property
-    def _manhattan_plotter(self) -> ManhattanPlotter:
-        """Lazy-load ManhattanPlotter with shared configuration."""
-        if not hasattr(self, "_manhattan_plotter_instance"):
-            self._manhattan_plotter_instance = ManhattanPlotter(
-                species=self.species,
-                backend=self._backend_name,
-                genomewide_threshold=self.genomewide_threshold,
-            )
-        return self._manhattan_plotter_instance
-
-    @property
-    def _stats_plotter(self) -> StatsPlotter:
-        """Lazy-load StatsPlotter with shared configuration."""
-        if not hasattr(self, "_stats_plotter_instance"):
-            self._stats_plotter_instance = StatsPlotter(
-                backend=self._backend_name,
-                genomewide_threshold=self.genomewide_threshold,
-            )
-        return self._stats_plotter_instance
-
     @staticmethod
     def _default_build(species: str) -> Optional[str]:
         """Get default genome build for species."""
@@ -177,37 +152,14 @@ class LocusZoomPlotter:
         return builds.get(species)
 
     def _ensure_recomb_maps(self) -> Optional[Path]:
-        """Ensure recombination maps are downloaded.
+        """Ensure recombination maps are available.
 
-        Returns path to recombination map directory, or None if not available.
+        Delegates to the recombination module's ensure_recomb_maps function.
+
+        Returns:
+            Path to recombination map directory, or None if not available.
         """
-        if self.species == "canine":
-            if self.recomb_data_dir:
-                return Path(self.recomb_data_dir)
-            # Check if already downloaded
-            default_dir = get_default_data_dir()
-            if (
-                default_dir.exists()
-                and len(list(default_dir.glob("chr*_recomb.tsv"))) >= 39
-            ):  # 38 autosomes + X
-                return default_dir
-            # Download
-            try:
-                return download_canine_recombination_maps()
-            except (requests.RequestException, OSError, IOError) as e:
-                # Expected network/file errors - graceful fallback
-                logger.warning(f"Could not download recombination maps: {e}")
-                return None
-            except Exception as e:
-                # JUSTIFICATION: Download failure should not prevent plotting.
-                # We catch broadly here because graceful degradation is acceptable
-                # for optional recombination map downloads. Error-level logging
-                # ensures the issue is visible.
-                logger.error(f"Unexpected error downloading recombination maps: {e}")
-                return None
-        elif self.recomb_data_dir:
-            return Path(self.recomb_data_dir)
-        return None
+        return ensure_recomb_maps(species=self.species, data_dir=self.recomb_data_dir)
 
     def _get_recomb_for_region(
         self, chrom: int, start: int, end: int
@@ -238,7 +190,7 @@ class LocusZoomPlotter:
     def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
         """Add neglog10p column with -log10 transformed p-values.
 
-        Delegates to shared utility function. Assumes df is already a copy.
+        Modifies df in place. Callers should pass a copy to avoid side effects.
 
         Args:
             df: DataFrame with p-value column (should be a copy).
@@ -670,107 +622,6 @@ class LocusZoomPlotter:
         if isinstance(twin_result, Axes):
             secondary_ax.spines["top"].set_visible(False)
 
-    def _plot_finemapping(
-        self,
-        ax: Any,
-        df: pd.DataFrame,
-        pos_col: str = "pos",
-        pip_col: str = "pip",
-        cs_col: Optional[str] = "cs",
-        show_credible_sets: bool = True,
-        pip_threshold: float = 0.0,
-    ) -> None:
-        """Plot fine-mapping results (PIP line with credible set coloring).
-
-        Args:
-            ax: Matplotlib axes object.
-            df: Fine-mapping DataFrame with pos and pip columns.
-            pos_col: Column name for position.
-            pip_col: Column name for posterior inclusion probability.
-            cs_col: Column name for credible set assignment (optional).
-            show_credible_sets: Whether to color points by credible set.
-            pip_threshold: Minimum PIP to display as scatter point.
-        """
-        # Build hover data using HoverDataBuilder
-        extra_cols = {pip_col: "PIP"}
-        if cs_col and cs_col in df.columns:
-            extra_cols[cs_col] = "Credible Set"
-        hover_config = HoverConfig(
-            pos_col=pos_col if pos_col in df.columns else None,
-            extra_cols=extra_cols,
-        )
-        hover_builder = HoverDataBuilder(hover_config)
-
-        # Sort by position for line plotting
-        df = df.sort_values(pos_col)
-
-        # Plot PIP as line
-        self._backend.line(
-            ax,
-            df[pos_col],
-            df[pip_col],
-            color=PIP_LINE_COLOR,
-            linewidth=1.5,
-            alpha=0.8,
-            zorder=1,
-        )
-
-        # Check if credible sets are available
-        has_cs = cs_col is not None and cs_col in df.columns and show_credible_sets
-        credible_sets = get_credible_sets(df, cs_col) if has_cs else []
-
-        if credible_sets:
-            # Plot points colored by credible set
-            for cs_id in credible_sets:
-                cs_data = df[df[cs_col] == cs_id]
-                color = get_credible_set_color(cs_id)
-                self._backend.scatter(
-                    ax,
-                    cs_data[pos_col],
-                    cs_data[pip_col],
-                    colors=color,
-                    sizes=50,
-                    marker="o",
-                    edgecolor="black",
-                    linewidth=0.5,
-                    zorder=3,
-                    hover_data=hover_builder.build_dataframe(cs_data),
-                )
-            # Plot variants not in any credible set
-            non_cs_data = df[(df[cs_col].isna()) | (df[cs_col] == 0)]
-            if not non_cs_data.empty and pip_threshold > 0:
-                non_cs_data = non_cs_data[non_cs_data[pip_col] >= pip_threshold]
-                if not non_cs_data.empty:
-                    self._backend.scatter(
-                        ax,
-                        non_cs_data[pos_col],
-                        non_cs_data[pip_col],
-                        colors="#BEBEBE",
-                        sizes=30,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.3,
-                        zorder=2,
-                        hover_data=hover_builder.build_dataframe(non_cs_data),
-                    )
-        else:
-            # No credible sets - show all points above threshold
-            if pip_threshold > 0:
-                high_pip = df[df[pip_col] >= pip_threshold]
-                if not high_pip.empty:
-                    self._backend.scatter(
-                        ax,
-                        high_pip[pos_col],
-                        high_pip[pip_col],
-                        colors=PIP_LINE_COLOR,
-                        sizes=50,
-                        marker="o",
-                        edgecolor="black",
-                        linewidth=0.5,
-                        zorder=3,
-                        hover_data=hover_builder.build_dataframe(high_pip),
-                    )
-
     def plot_stacked(
         self,
         gwas_dfs: List[pd.DataFrame],
@@ -1070,7 +921,8 @@ class LocusZoomPlotter:
             )
 
             if not fm_data.empty:
-                self._plot_finemapping(
+                plot_finemapping(
+                    self._backend,
                     ax,
                     fm_data,
                     pos_col="pos",
@@ -1232,180 +1084,3 @@ class LocusZoomPlotter:
         self._backend.finalize_layout(fig, hspace=0.1)
 
         return fig
-
-    def plot_phewas(
-        self,
-        phewas_df: pd.DataFrame,
-        variant_id: str,
-        phenotype_col: str = "phenotype",
-        p_col: str = "p_value",
-        category_col: str = "category",
-        effect_col: Optional[str] = None,
-        significance_threshold: float = 5e-8,
-        figsize: Tuple[float, float] = (10, 8),
-    ) -> Any:
-        """Create a PheWAS plot. See StatsPlotter.plot_phewas for docs."""
-        return self._stats_plotter.plot_phewas(
-            phewas_df=phewas_df,
-            variant_id=variant_id,
-            phenotype_col=phenotype_col,
-            p_col=p_col,
-            category_col=category_col,
-            effect_col=effect_col,
-            significance_threshold=significance_threshold,
-            figsize=figsize,
-        )
-
-    def plot_forest(
-        self,
-        forest_df: pd.DataFrame,
-        variant_id: str,
-        study_col: str = "study",
-        effect_col: str = "effect",
-        ci_lower_col: str = "ci_lower",
-        ci_upper_col: str = "ci_upper",
-        weight_col: Optional[str] = None,
-        null_value: float = 0.0,
-        effect_label: str = "Effect Size",
-        figsize: Tuple[float, float] = (8, 6),
-    ) -> Any:
-        """Create a forest plot. See StatsPlotter.plot_forest for docs."""
-        return self._stats_plotter.plot_forest(
-            forest_df=forest_df,
-            variant_id=variant_id,
-            study_col=study_col,
-            effect_col=effect_col,
-            ci_lower_col=ci_lower_col,
-            ci_upper_col=ci_upper_col,
-            weight_col=weight_col,
-            null_value=null_value,
-            effect_label=effect_label,
-            figsize=figsize,
-        )
-
-    def plot_manhattan(
-        self,
-        df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        category_col: Optional[str] = None,
-        category_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        figsize: Tuple[float, float] = (12, 5),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create a Manhattan plot. See ManhattanPlotter.plot_manhattan for docs."""
-        return self._manhattan_plotter.plot_manhattan(
-            df=df,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            category_col=category_col,
-            category_order=category_order,
-            significance_threshold=significance_threshold,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_qq(
-        self,
-        df: pd.DataFrame,
-        p_col: str = "p",
-        show_confidence_band: bool = True,
-        show_lambda: bool = True,
-        figsize: Tuple[float, float] = (6, 6),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create a QQ plot. See ManhattanPlotter.plot_qq for docs."""
-        return self._manhattan_plotter.plot_qq(
-            df=df,
-            p_col=p_col,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_manhattan_stacked(
-        self,
-        gwas_dfs: List[pd.DataFrame],
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        panel_labels: Optional[List[str]] = None,
-        figsize: Tuple[float, float] = (12, 8),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create stacked Manhattan plots. See ManhattanPlotter.plot_manhattan_stacked for docs."""
-        return self._manhattan_plotter.plot_manhattan_stacked(
-            gwas_dfs=gwas_dfs,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            significance_threshold=significance_threshold,
-            panel_labels=panel_labels,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_manhattan_qq(
-        self,
-        df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        show_confidence_band: bool = True,
-        show_lambda: bool = True,
-        figsize: Tuple[float, float] = (14, 5),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create side-by-side Manhattan and QQ plots. See ManhattanPlotter.plot_manhattan_qq for docs."""
-        return self._manhattan_plotter.plot_manhattan_qq(
-            df=df,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            significance_threshold=significance_threshold,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            figsize=figsize,
-            title=title,
-        )
-
-    def plot_manhattan_qq_stacked(
-        self,
-        gwas_dfs: List[pd.DataFrame],
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        show_confidence_band: bool = True,
-        show_lambda: bool = True,
-        panel_labels: Optional[List[str]] = None,
-        figsize: Tuple[float, float] = (14, 8),
-        title: Optional[str] = None,
-    ) -> Any:
-        """Create stacked Manhattan+QQ plots. See ManhattanPlotter.plot_manhattan_qq_stacked for docs."""
-        return self._manhattan_plotter.plot_manhattan_qq_stacked(
-            gwas_dfs=gwas_dfs,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            custom_chrom_order=custom_chrom_order,
-            significance_threshold=significance_threshold,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            panel_labels=panel_labels,
-            figsize=figsize,
-            title=title,
-        )

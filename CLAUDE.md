@@ -70,11 +70,11 @@ flowchart TD
 | `src/pylocuszoom/ld.py` | PLINK wrapper for LD calculation |
 | `src/pylocuszoom/gene_track.py` | Gene/exon rendering with overlap handling |
 | `src/pylocuszoom/labels.py` | SNP label positioning with adjustText |
-| `src/pylocuszoom/finemapping.py` | SuSiE/fine-mapping visualization |
+| `src/pylocuszoom/finemapping.py` | SuSiE/fine-mapping visualization; `plot_finemapping()` renders PIP plots |
 | `src/pylocuszoom/eqtl.py` | eQTL data validation and filtering |
 | `src/pylocuszoom/phewas.py` | PheWAS data validation |
 | `src/pylocuszoom/forest.py` | Forest plot data validation |
-| `src/pylocuszoom/recombination.py` | Recomb map loading, CanFam4 liftover |
+| `src/pylocuszoom/recombination.py` | Recomb map loading, CanFam4 liftover; `ensure_recomb_maps()` for pre-download |
 | `src/pylocuszoom/reference_data/` | Bundled recombination maps (auto-downloaded) |
 | `src/pylocuszoom/utils.py` | DataFrame validation, PySpark support |
 
@@ -314,7 +314,6 @@ git push
 
 ## Gotchas
 
-- **README for PyPI**: All images and links must use absolute GitHub URLs - PyPI doesn't resolve relative paths. Images: `https://raw.githubusercontent.com/.../main/examples/file.png`, Links: `https://github.com/.../blob/main/docs/FILE.md`
 - **Matplotlib-only guards**: When calling matplotlib-specific methods (`_add_ld_legend`), always check `self.backend_name == "matplotlib"` first
 - **Parameter naming**: `plot()` uses `lead_pos`, `plot_stacked()` uses `lead_positions` (plural with list)
 - **PLINK species flags**: `species="canine"` maps to PLINK's `--dog` flag internally
@@ -323,6 +322,9 @@ git push
 - **Recombination auto-download**: First canine plot downloads ~50MB recombination maps to cache
 - **CanFam4 liftover**: Recomb maps are CanFam3.1; automatically lifted over when `genome_build="canfam4"`
 - **Gene track height**: Dynamically calculated based on overlapping genes in region
+- **Deprecated wrappers on LocusZoomPlotter**: The following methods are deprecated and will be removed in a future version. Use the specialized plotter classes directly:
+  - `plot_manhattan()`, `plot_qq()`, `plot_manhattan_stacked()`, `plot_manhattan_qq()`, `plot_manhattan_qq_stacked()` → Use `ManhattanPlotter` instead
+  - `plot_phewas()`, `plot_forest()` → Use `StatsPlotter` instead
 
 ## Backend Support
 

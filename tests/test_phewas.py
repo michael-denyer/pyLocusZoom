@@ -63,7 +63,7 @@ class TestPheWASNaNCategory:
         """Rows with NaN category should be included, not silently dropped."""
         import numpy as np
 
-        from pylocuszoom.plotter import LocusZoomPlotter
+        from pylocuszoom.stats_plotter import StatsPlotter
 
         # Create PheWAS data with NaN category
         phewas_df = pd.DataFrame(
@@ -74,7 +74,7 @@ class TestPheWASNaNCategory:
             }
         )
 
-        plotter = LocusZoomPlotter()
+        plotter = StatsPlotter()
         fig = plotter.plot_phewas(
             phewas_df,
             variant_id="rs12345",  # Required argument
