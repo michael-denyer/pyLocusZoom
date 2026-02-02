@@ -714,6 +714,41 @@ class MatplotlibBackend:
             labelspacing=0.4,
         )
 
+    def add_effect_legend(
+        self,
+        ax: Axes,
+        effect_bins: List[Tuple[float, str, str]],
+    ) -> None:
+        """Add effect direction legend for colocalization plots.
+
+        Args:
+            ax: Matplotlib axes.
+            effect_bins: List of (threshold, label, color) tuples.
+        """
+        from matplotlib.lines import Line2D
+
+        legend_elements = []
+        for _threshold, label, color in effect_bins:
+            legend_elements.append(
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="w",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    markersize=8,
+                    label=label,
+                )
+            )
+
+        ax.legend(
+            handles=legend_elements,
+            loc="upper right",
+            fontsize=8,
+            framealpha=0.9,
+        )
+
     def axvline(
         self,
         ax: Axes,

@@ -317,7 +317,40 @@ fig.savefig("colocalization.png", dpi=150)
 - Pearson correlation coefficient and p-value displayed
 - Significance threshold reference lines
 
-**Advanced options:**
+**Effect Direction Coloring:**
+
+Color points by whether GWAS and eQTL effects are in the same direction (congruent) or opposite (incongruent). This helps identify whether increased gene expression is associated with increased or decreased disease risk.
+
+![Colocalization effect plot](../examples/matplotlib/colocalization_effect_plot.png)
+
+```python
+# Effect direction coloring requires effect size columns in both datasets
+gwas_df = pd.DataFrame({
+    "pos": [1000000, 1000500, 1001000],
+    "p": [1e-8, 1e-6, 1e-4],
+    "beta": [0.5, 0.3, -0.2],  # GWAS effect sizes
+})
+
+eqtl_df = pd.DataFrame({
+    "pos": [1000000, 1000500, 1001000],
+    "p": [1e-6, 1e-8, 1e-5],
+    "slope": [0.8, 0.5, -0.4],  # eQTL effect sizes
+})
+
+fig = plotter.plot_coloc(
+    gwas_df=gwas_df,
+    eqtl_df=eqtl_df,
+    pos_col="pos",
+    gwas_p_col="p",
+    eqtl_p_col="p",
+    gwas_effect_col="beta",
+    eqtl_effect_col="slope",
+    color_by_effect=True,  # Green=same direction, Red=opposite
+    h4_posterior=0.85,  # Display coloc H4 posterior probability
+)
+```
+
+**Additional options:**
 
 ```python
 fig = plotter.plot_coloc(
@@ -327,12 +360,6 @@ fig = plotter.plot_coloc(
     gwas_p_col="p",
     eqtl_p_col="p",
     ld_col="ld_r2",
-    # Effect direction coloring (requires effect columns)
-    gwas_effect_col="beta",
-    eqtl_effect_col="slope",
-    color_by_effect=True,  # Green=congruent, Red=incongruent
-    # Display coloc H4 posterior probability
-    h4_posterior=0.85,
     # Significance thresholds
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,

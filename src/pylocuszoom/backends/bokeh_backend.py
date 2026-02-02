@@ -739,6 +739,18 @@ class BokehBackend:
             items.append(self._add_legend_item(ax, source, label, color, "square"))
         self._create_legend(ax, items, "r²")
 
+    def add_effect_legend(
+        self,
+        ax: figure,
+        effect_bins: List[Tuple[float, str, str]],
+    ) -> None:
+        """Add effect direction legend for colocalization plots."""
+        source = self._ensure_legend_range(ax)
+        items = []
+        for _, label, color in effect_bins:
+            items.append(self._add_legend_item(ax, source, label, color, "circle"))
+        self._create_legend(ax, items, "Effect")
+
     def add_legend(
         self,
         ax: figure,

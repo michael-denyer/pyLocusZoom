@@ -887,6 +887,19 @@ class PlotlyBackend:
 
         self._configure_legend(fig, row, "legend", "r²")
 
+    def add_effect_legend(
+        self,
+        ax: Tuple[go.Figure, int],
+        effect_bins: List[Tuple[float, str, str]],
+    ) -> None:
+        """Add effect direction legend for colocalization plots."""
+        fig, row, col, _ = self._extract_row_col(ax)
+
+        for _, label, color in effect_bins:
+            self._add_legend_item(fig, row, label, color, "circle", 10, "legend")
+
+        self._configure_legend(fig, row, "legend", "Effect")
+
     def add_legend(
         self,
         ax: Tuple[go.Figure, int],

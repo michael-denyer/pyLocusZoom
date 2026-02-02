@@ -689,6 +689,21 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def add_effect_legend(
+        self,
+        ax: Any,
+        effect_bins: List[Tuple[float, str, str]],
+    ) -> None:
+        """Add effect direction legend for colocalization plots.
+
+        Shows effect direction categories (same direction, opposite, missing).
+
+        Args:
+            ax: Axes or panel.
+            effect_bins: List of (threshold, label, color) tuples.
+        """
+        ...
+
     def add_eqtl_legend(
         self,
         ax: Any,

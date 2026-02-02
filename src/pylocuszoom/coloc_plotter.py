@@ -369,122 +369,22 @@ class ColocPlotter:
         # Hide top and right spines
         self._backend.hide_spines(ax, ["top", "right"])
 
-        # Add legend for matplotlib backend
-        if self.backend_name == "matplotlib":
-            if color_by_effect:
-                self._add_effect_legend(ax)
-            elif ld_col_merged is not None:
-                self._add_ld_legend(ax)
+        # Add legend
+        if color_by_effect:
+            self._add_effect_legend(ax)
+        elif ld_col_merged is not None:
+            self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
 
         # Finalize layout
         self._backend.finalize_layout(fig)
 
         return fig
 
-    def _add_ld_legend(self, ax: Any) -> None:
-        """Add LD color legend to matplotlib plot.
-
-        Args:
-            ax: Matplotlib axes object.
-        """
-        from matplotlib.lines import Line2D
-
-        legend_elements = []
-
-        # Lead SNP
-        legend_elements.append(
-            Line2D(
-                [0],
-                [0],
-                marker="D",
-                color="w",
-                markerfacecolor=LEAD_SNP_COLOR,
-                markeredgecolor="black",
-                markersize=8,
-                label="Lead SNP",
-            )
-        )
-
-        # LD bins
-        for _, label, color in LD_BINS:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=6,
-                    label=f"R² {label}",
-                )
-            )
-
-        # NA color
-        legend_elements.append(
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor=LD_NA_COLOR,
-                markeredgecolor="black",
-                markersize=6,
-                label="R² NA",
-            )
-        )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            framealpha=0.9,
-        )
-
     def _add_effect_legend(self, ax: Any) -> None:
-        """Add effect direction legend to matplotlib plot.
-
-        Args:
-            ax: Matplotlib axes object.
-        """
-        from matplotlib.lines import Line2D
-
-        legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor=EFFECT_CONGRUENT_COLOR,
-                markeredgecolor="black",
-                markersize=8,
-                label="Same direction",
-            ),
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor=EFFECT_INCONGRUENT_COLOR,
-                markeredgecolor="black",
-                markersize=8,
-                label="Opposite direction",
-            ),
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor=LD_NA_COLOR,
-                markeredgecolor="black",
-                markersize=6,
-                label="Missing effect",
-            ),
+        """Add effect direction legend to plot (all backends)."""
+        effect_bins = [
+            (0.0, "Same direction", EFFECT_CONGRUENT_COLOR),
+            (0.0, "Opposite direction", EFFECT_INCONGRUENT_COLOR),
+            (0.0, "Missing effect", LD_NA_COLOR),
         ]
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            framealpha=0.9,
-        )
+        self._backend.add_effect_legend(ax, effect_bins)
