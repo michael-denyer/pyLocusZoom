@@ -3,9 +3,12 @@
 Defines the interface that matplotlib, plotly, and bokeh backends must implement.
 """
 
-from typing import Any, Callable, List, Optional, Protocol, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, Tuple, Union
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    pass
 
 
 class PlotBackend(Protocol):
@@ -829,5 +832,61 @@ class PlotBackend(Protocol):
 
         Args:
             fig: Figure object.
+        """
+        ...
+
+    # =========================================================================
+    # Heatmap Rendering (for LD heatmaps)
+    # =========================================================================
+
+    def add_heatmap(
+        self,
+        ax: Any,
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: Optional[List[str]] = None,
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+        mask_upper: bool = True,
+    ) -> Any:
+        """Render heatmap with optional triangular masking.
+
+        Used for LD heatmap visualization where data is a symmetric matrix
+        and typically only the lower triangle is displayed.
+
+        Args:
+            ax: Axes or panel to plot on.
+            data: 2D numpy array of values (use NaN for missing data).
+            x_coords: X coordinates for cell positions.
+            y_coords: Y coordinates for cell positions.
+            cmap_colors: Color gradient endpoints [start_color, end_color].
+                Defaults to white-to-red ["#FFFFFF", "#FF0000"].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
+            mask_upper: If True, mask upper triangle for lower-triangular display.
+
+        Returns:
+            Heatmap object (mappable for colorbar attachment).
+        """
+        ...
+
+    def add_colorbar(
+        self,
+        ax: Any,
+        mappable: Any,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> Any:
+        """Add colorbar legend for heatmap.
+
+        Args:
+            ax: Axes or panel (or figure for some backends).
+            mappable: Heatmap object returned by add_heatmap.
+            label: Colorbar label (e.g., "R²" or "D'").
+            orientation: "vertical" or "horizontal".
+
+        Returns:
+            Colorbar object.
         """
         ...
