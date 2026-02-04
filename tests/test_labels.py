@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylocuszoom.labels import add_snp_labels
+from pylocuszoom.labels import add_snp_labels, adjust_snp_labels
 
 
 class TestAddSnpLabels:
@@ -234,3 +234,68 @@ class TestAdjustTextWarning:
         assert "adjustText" in log_output, (
             f"Expected warning about adjustText, got: {log_output}"
         )
+
+
+class TestDeferredAdjustment:
+    """Test deferred label adjustment for proper axis limits handling."""
+
+    @pytest.fixture
+    def sample_gwas_df(self):
+        """Sample GWAS results with neglog10p calculated."""
+        return pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+                "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
+                "neglog10p": [8, 5, 3, 6, 9],
+            }
+        )
+
+    def test_adjust_false_skips_adjustment(self, sample_gwas_df):
+        """When adjust=False, labels are added but not adjusted."""
+        fig, ax = plt.subplots()
+        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+
+        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=3, adjust=False)
+
+        assert len(texts) == 3
+        plt.close(fig)
+
+    def test_adjust_snp_labels_can_be_called_separately(self, sample_gwas_df):
+        """adjust_snp_labels can be called after setting axis limits."""
+        fig, ax = plt.subplots()
+        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+
+        # Add labels without adjustment
+        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=3, adjust=False)
+
+        # Set axis limits
+        ax.set_xlim(1000000, 1600000)
+        ax.set_ylim(0, 12)
+
+        # Now adjust labels
+        adjust_snp_labels(ax, texts)
+
+        assert len(texts) == 3
+        plt.close(fig)
+
+    def test_adjust_snp_labels_handles_empty_list(self):
+        """adjust_snp_labels handles empty text list gracefully."""
+        fig, ax = plt.subplots()
+
+        # Should not raise
+        adjust_snp_labels(ax, [])
+
+        plt.close(fig)
+
+    def test_adjust_snp_labels_handles_single_label(self, sample_gwas_df):
+        """adjust_snp_labels handles single label (skips adjustText)."""
+        fig, ax = plt.subplots()
+        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+
+        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=1, adjust=False)
+
+        # Should not raise - adjustText is skipped for single label
+        adjust_snp_labels(ax, texts)
+
+        assert len(texts) == 1
+        plt.close(fig)

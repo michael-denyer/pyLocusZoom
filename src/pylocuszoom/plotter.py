@@ -416,9 +416,11 @@ class LocusZoomPlotter:
         )
 
         # Add SNP labels (capability check - interactive backends use hover tooltips)
+        # Create labels without adjusting - we'll adjust after axis limits are set
+        snp_label_texts: list = []
         if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
             if self._backend.supports_snp_labels:
-                self._backend.add_snp_labels(
+                snp_label_texts = self._backend.add_snp_labels(
                     ax,
                     df,
                     pos_col=pos_col,
@@ -427,6 +429,7 @@ class LocusZoomPlotter:
                     label_top_n=label_top_n,
                     genes_df=genes_df,
                     chrom=chrom,
+                    adjust=False,  # Defer adjustment until after axis limits set
                 )
 
         # Add recombination overlay (all backends with secondary axis support)
@@ -492,6 +495,11 @@ class LocusZoomPlotter:
 
         # Adjust layout
         self._backend.finalize_layout(fig, hspace=0.1)
+
+        # Adjust SNP labels AFTER all axis limits and layout are finalized
+        # adjustText needs final plot bounds to position labels correctly
+        if snp_label_texts:
+            self._backend.adjust_snp_labels(ax, snp_label_texts)
 
         return fig
 
@@ -1241,6 +1249,9 @@ class LocusZoomPlotter:
             sharex=True,
         )
 
+        # Collect label texts for deferred adjustment
+        all_snp_label_texts: list[tuple] = []
+
         # Plot each GWAS panel
         for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
             ax = axes[i]
@@ -1291,9 +1302,10 @@ class LocusZoomPlotter:
             )
 
             # Add SNP labels (capability check - interactive backends use hover tooltips)
+            # Create labels without adjusting - we'll adjust after axis limits are set
             if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
                 if self._backend.supports_snp_labels:
-                    self._backend.add_snp_labels(
+                    texts = self._backend.add_snp_labels(
                         ax,
                         df,
                         pos_col=pos_col,
@@ -1302,7 +1314,10 @@ class LocusZoomPlotter:
                         label_top_n=label_top_n,
                         genes_df=genes_df,
                         chrom=chrom,
+                        adjust=False,  # Defer adjustment until after axis limits set
                     )
+                    if texts:
+                        all_snp_label_texts.append((ax, texts))
 
             # Add recombination overlay (only on first panel, all backends)
             if i == 0 and recomb_df is not None and not recomb_df.empty:
@@ -1528,5 +1543,10 @@ class LocusZoomPlotter:
 
         # Adjust layout
         self._backend.finalize_layout(fig, hspace=0.1)
+
+        # Adjust SNP labels AFTER all axis limits and layout are finalized
+        # adjustText needs final plot bounds to position labels correctly
+        for ax, texts in all_snp_label_texts:
+            self._backend.adjust_snp_labels(ax, texts)
 
         return fig

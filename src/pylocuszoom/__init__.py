@@ -104,7 +104,7 @@ from .forest import validate_forest_df
 from .gene_track import get_nearest_gene, plot_gene_track
 
 # Labels
-from .labels import add_snp_labels
+from .labels import add_snp_labels, adjust_snp_labels
 
 # LD calculation
 from .ld import calculate_ld, calculate_pairwise_ld
@@ -195,6 +195,7 @@ __all__ = [
     "calculate_pairwise_ld",
     # Labels
     "add_snp_labels",
+    "adjust_snp_labels",
     # Recombination
     "add_recombination_overlay",
     "ensure_recomb_maps",

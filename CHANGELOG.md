@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- SNP labels no longer extend outside plot bounds or have crossing connector lines
+  - Root cause: `adjustText` was called before axis limits were set
+  - Fix: Deferred `adjust_text()` call until after `finalize_layout()`
+  - Added `adjust_snp_labels()` function for manual label adjustment
+
 ## [1.3.0] - 2026-02-02
 
 ### Added

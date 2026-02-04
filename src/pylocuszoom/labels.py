@@ -24,6 +24,7 @@ def add_snp_labels(
     genes_df: Optional[pd.DataFrame] = None,
     chrom: Optional[Union[int, str]] = None,
     max_label_length: int = 15,
+    adjust: bool = True,
     **kwargs: Any,
 ) -> List[Annotation]:
     """Add text labels to top SNPs in the regional plot.
@@ -41,6 +42,8 @@ def add_snp_labels(
         genes_df: Unused, kept for backward compatibility.
         chrom: Unused, kept for backward compatibility.
         max_label_length: Maximum label length before truncation.
+        adjust: If True, run adjustText immediately. If False, caller must
+            call adjust_snp_labels() after setting axis limits.
 
     Returns:
         List of matplotlib text annotation objects.
@@ -101,21 +104,43 @@ def add_snp_labels(
         )
         texts.append(text)
 
-    # Only use adjustText when there are multiple labels to avoid overlap
-    if len(texts) > 1:
-        try:
-            from adjustText import adjust_text
-
-            adjust_text(
-                texts,
-                ax=ax,
-                arrowprops=dict(arrowstyle="-", color="gray", lw=0.5),
-                expand_points=(1.5, 1.5),
-            )
-        except ImportError:
-            logger.warning(
-                "adjustText not installed - SNP labels may overlap. "
-                "Install with: pip install adjustText"
-            )
+    if adjust:
+        adjust_snp_labels(ax, texts)
 
     return texts
+
+
+def adjust_snp_labels(ax: Axes, texts: List[Annotation]) -> None:
+    """Adjust SNP label positions to avoid overlaps.
+
+    This function should be called AFTER all axis limits have been set,
+    as adjustText needs to know the final plot bounds to position labels
+    correctly within the visible area.
+
+    Args:
+        ax: Matplotlib axes object.
+        texts: List of text annotation objects from add_snp_labels().
+
+    Example:
+        >>> texts = add_snp_labels(ax, df, adjust=False)
+        >>> ax.set_xlim(start, end)
+        >>> ax.set_ylim(0, max_y)
+        >>> adjust_snp_labels(ax, texts)
+    """
+    if len(texts) <= 1:
+        return
+
+    try:
+        from adjustText import adjust_text
+
+        adjust_text(
+            texts,
+            ax=ax,
+            arrowprops=dict(arrowstyle="-", color="gray", lw=0.5),
+            expand_points=(1.5, 1.5),
+        )
+    except ImportError:
+        logger.warning(
+            "adjustText not installed - SNP labels may overlap. "
+            "Install with: pip install adjustText"
+        )

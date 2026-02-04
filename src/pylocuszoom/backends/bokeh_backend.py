@@ -623,7 +623,12 @@ class BokehBackend:
         label_top_n: int,
         genes_df: Optional[pd.DataFrame],
         chrom: int,
-    ) -> None:
+        adjust: bool = True,
+    ) -> List[Any]:
+        """No-op: Bokeh uses hover tooltips instead of text labels."""
+        return []
+
+    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
         """No-op: Bokeh uses hover tooltips instead of text labels."""
         pass
 

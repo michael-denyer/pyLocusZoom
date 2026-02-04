@@ -30,8 +30,8 @@ class TestFindPlink:
     def test_tries_plink19_first(self):
         """Should try plink1.9 before plink."""
         with patch("shutil.which") as mock_which:
-            mock_which.side_effect = (
-                lambda x: "/usr/bin/plink1.9" if x == "plink1.9" else None
+            mock_which.side_effect = lambda x: (
+                "/usr/bin/plink1.9" if x == "plink1.9" else None
             )
             result = find_plink()
             assert result == "/usr/bin/plink1.9"
@@ -39,8 +39,8 @@ class TestFindPlink:
     def test_falls_back_to_plink(self):
         """Should fall back to plink if plink1.9 not found."""
         with patch("shutil.which") as mock_which:
-            mock_which.side_effect = (
-                lambda x: "/usr/bin/plink" if x == "plink" else None
+            mock_which.side_effect = lambda x: (
+                "/usr/bin/plink" if x == "plink" else None
             )
             result = find_plink()
             assert result == "/usr/bin/plink"

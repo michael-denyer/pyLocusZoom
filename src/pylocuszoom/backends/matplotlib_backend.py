@@ -264,7 +264,8 @@ class MatplotlibBackend:
         label_top_n: int,
         genes_df: Optional[pd.DataFrame],
         chrom: int,
-    ) -> None:
+        adjust: bool = True,
+    ) -> List[Any]:
         """Add SNP labels using adjustText.
 
         Args:
@@ -276,10 +277,15 @@ class MatplotlibBackend:
             label_top_n: Number of top SNPs to label.
             genes_df: Gene annotations (unused, for signature compatibility).
             chrom: Chromosome number (unused, for signature compatibility).
+            adjust: If True, run adjustText immediately. If False, caller
+                must call adjust_snp_labels() after setting axis limits.
+
+        Returns:
+            List of text annotation objects.
         """
         from ..labels import add_snp_labels as _add_snp_labels
 
-        _add_snp_labels(
+        return _add_snp_labels(
             ax,
             df,
             pos_col=pos_col,
@@ -288,7 +294,19 @@ class MatplotlibBackend:
             label_top_n=label_top_n,
             genes_df=genes_df,
             chrom=chrom,
+            adjust=adjust,
         )
+
+    def adjust_snp_labels(self, ax: Axes, texts: List[Any]) -> None:
+        """Adjust SNP label positions after axis limits are set.
+
+        Args:
+            ax: Matplotlib axes.
+            texts: List of text annotation objects from add_snp_labels().
+        """
+        from ..labels import adjust_snp_labels as _adjust_snp_labels
+
+        _adjust_snp_labels(ax, texts)
 
     def add_rectangle(
         self,
