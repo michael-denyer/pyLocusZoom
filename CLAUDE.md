@@ -367,9 +367,5 @@ GitHub Actions Trusted Publishing:
 4. Create GitHub release with tag `vX.Y.Z`
 5. Workflow auto-publishes to PyPI
 
-### Bioconda (manual, after PyPI)
-1. Get SHA256: `curl -sL https://pypi.io/packages/source/p/pylocuszoom/pylocuszoom-X.Y.Z.tar.gz | sha256sum`
-2. Update `bioconda/meta.yaml` with new version and SHA256
-3. Fork [bioconda-recipes](https://github.com/bioconda/bioconda-recipes)
-4. Copy `bioconda/meta.yaml` to `recipes/pylocuszoom/meta.yaml`
-5. Submit PR to bioconda-recipes
+### Bioconda (automatic, after PyPI)
+BiocondaBot automatically detects new PyPI releases and opens a PR to [bioconda-recipes](https://github.com/bioconda/bioconda-recipes). No manual steps needed — just merge the bot's PR once CI passes.
