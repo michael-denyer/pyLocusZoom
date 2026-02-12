@@ -630,9 +630,10 @@ class PlotlyBackend:
         # Calculate subplot index for proper axis naming
         subplot_idx = (row - 1) * n_cols + col
 
-        # Use a unique suffix that won't conflict with subplot axis numbering
-        # yaxis10, yaxis11, etc. are unlikely to conflict with typical subplot counts
-        secondary_suffix = 10 + subplot_idx - 1
+        # Use a high offset to avoid collision with primary subplot axes.
+        # Plotly names primary axes yaxis, yaxis2, ..., yaxisN for N subplots.
+        # Offset of 100 supports up to 99 subplot rows without collision.
+        secondary_suffix = 100 + subplot_idx - 1
         secondary_y = f"y{secondary_suffix}"
         yaxis_name = f"yaxis{secondary_suffix}"
 

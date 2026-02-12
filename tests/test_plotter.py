@@ -886,6 +886,54 @@ class TestPValueValidation:
         assert result["neglog10p"].iloc[1] == pytest.approx(-np.log10(0.5))
         assert result["neglog10p"].iloc[2] == pytest.approx(8.0)
 
+    def test_plot_stacked_lead_detection_excludes_out_of_range(self, plotter):
+        """Lead SNP auto-detection should exclude out-of-range p-values.
+
+        Regression test: lead detection only filtered NaN but not out-of-range
+        p-values, so a lead SNP with p=-0.1 could be selected and then removed
+        by _transform_pvalues, causing missing lead highlighting.
+        """
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "chr": [1, 1, 1],
+                "ps": [1100000, 1500000, 1900000],
+                # rs1 has smallest absolute value but is invalid (negative)
+                # rs3 should be selected as lead (smallest valid p-value)
+                "p_wald": [-0.1, 0.5, 0.001],
+            }
+        )
+
+        # Should not raise — lead detection should skip the invalid p-value
+        fig = plotter.plot_stacked(
+            [gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+        plt.close(fig)
+
+    def test_plot_stacked_all_invalid_pvalues(self, plotter):
+        """plot_stacked should handle region with all out-of-range p-values."""
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2"],
+                "chr": [1, 1],
+                "ps": [1100000, 1500000],
+                "p_wald": [-0.1, 1.5],  # All invalid
+            }
+        )
+
+        fig = plotter.plot_stacked(
+            [gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+        )
+        plt.close(fig)
+
 
 class TestBackendEQTLFinemapping:
     """Tests for eQTL and fine-mapping support across all backends."""

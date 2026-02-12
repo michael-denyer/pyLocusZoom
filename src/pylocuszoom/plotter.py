@@ -951,7 +951,17 @@ class LocusZoomPlotter:
 
         Delegates to backend-specific implementation which handles twin axis
         creation and secondary axis rendering.
+
+        Custom backends that don't implement add_recombination_overlay will
+        get a warning and the overlay will be skipped.
         """
+        if not hasattr(self._backend, "add_recombination_overlay"):
+            logger.warning(
+                "Backend '{}' does not implement add_recombination_overlay, "
+                "skipping recombination overlay",
+                self._backend_name,
+            )
+            return
         self._backend.add_recombination_overlay(ax, recomb_df, start, end)
 
     def plot_stacked(
@@ -1098,11 +1108,14 @@ class LocusZoomPlotter:
             for df in gwas_dfs:
                 region_df = df[(df[pos_col] >= start) & (df[pos_col] <= end)]
                 if not region_df.empty:
-                    # Filter out NaN p-values for lead SNP detection
+                    # Filter out NaN and out-of-range p-values for lead SNP detection
+                    # (must match _transform_pvalues filtering to avoid selecting
+                    # a lead SNP that gets removed during transformation)
                     valid_p = region_df[p_col].dropna()
+                    valid_p = valid_p[(valid_p >= 0) & (valid_p <= 1)]
                     if valid_p.empty:
                         logger.warning(
-                            "All p-values in region are NaN, cannot determine lead SNP"
+                            "No valid p-values in region, cannot determine lead SNP"
                         )
                         lead_positions.append(None)
                     else:

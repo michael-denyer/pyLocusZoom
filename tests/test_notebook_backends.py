@@ -986,3 +986,49 @@ class TestGeneTrackMbFormatting:
             f"Gene track x-axis formatter is {type(gene_track_fig.xaxis.formatter)}, "
             "expected CustomJSTickFormatter for Mb formatting"
         )
+
+
+class TestPlotlySecondaryAxisNaming:
+    """Tests for Plotly secondary axis naming to avoid collisions."""
+
+    def test_plotly_secondary_axis_offset_avoids_primary_collision(self):
+        """Secondary axis suffix should not collide with primary subplot axes.
+
+        Regression test: create_twin_axis used offset of 10, which collides
+        with primary yaxis10+ when figures have 10+ subplots.
+        """
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+
+        # Create a figure with 12 subplots (enough to trigger old collision)
+        fig, axes = backend.create_figure(12, [1.0] * 12, (12, 24))
+
+        # Create twin axis for the first subplot
+        _, _, secondary_y = backend.create_twin_axis(axes[0])
+
+        # The secondary axis name should use high offset (100+), not 10+
+        # y100 should not collide with any primary axis (y1 through y12)
+        suffix = int(secondary_y.replace("y", ""))
+        assert suffix >= 100, (
+            f"Secondary axis suffix {suffix} is too low, "
+            "will collide with primary axes in large subplot figures"
+        )
+
+    def test_plotly_secondary_axes_unique_across_subplots(self):
+        """Each subplot's secondary axis should have a unique name."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(5, [1.0] * 5, (12, 10))
+
+        secondary_names = []
+        for ax in axes:
+            _, _, secondary_y = backend.create_twin_axis(ax)
+            secondary_names.append(secondary_y)
+
+        assert len(set(secondary_names)) == 5, (
+            f"Secondary axis names are not unique: {secondary_names}"
+        )

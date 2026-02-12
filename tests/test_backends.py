@@ -653,3 +653,52 @@ class TestHeatmapMethods:
         # Check that upper triangle is masked
         assert np.ma.is_masked(array_data)
         backend.close(fig)
+
+
+class TestCustomBackendCompatibility:
+    """Tests for custom backend forward compatibility."""
+
+    def test_recomb_overlay_skipped_for_backend_without_method(self):
+        """Plotter should warn and skip recomb overlay for backends missing the method.
+
+        Regression test: after add_recombination_overlay was added to the protocol,
+        custom backends that don't implement it would get AttributeError at runtime.
+        """
+        import pandas as pd
+
+        from pylocuszoom.plotter import LocusZoomPlotter
+
+        plotter = LocusZoomPlotter(species=None)
+
+        # Monkey-patch backend to remove add_recombination_overlay
+        original = plotter._backend.add_recombination_overlay
+        delattr(plotter._backend.__class__, "add_recombination_overlay")
+
+        try:
+            gwas_df = pd.DataFrame(
+                {
+                    "rs": ["rs1", "rs2", "rs3"],
+                    "chr": [1, 1, 1],
+                    "ps": [1100000, 1500000, 1900000],
+                    "p_wald": [1e-8, 1e-5, 0.01],
+                }
+            )
+
+            recomb_df = pd.DataFrame(
+                {"pos": [1000000, 1500000, 2000000], "rate": [50.0, 100.0, 75.0]}
+            )
+
+            # Should not raise — should warn and skip
+            fig = plotter.plot(
+                gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                recomb_df=recomb_df,
+            )
+            import matplotlib.pyplot as plt
+
+            plt.close(fig)
+        finally:
+            # Restore the method
+            plotter._backend.__class__.add_recombination_overlay = original
