@@ -213,7 +213,7 @@ class LocusZoomPlotter:
         nan_mask = df[p_col].isna()
         nan_count = nan_mask.sum()
         if nan_count > 0:
-            logger.warning("Found %d NaN p-values, filtering out", nan_count)
+            logger.warning("Found {} NaN p-values, filtering out", nan_count)
             df = df[~nan_mask]
 
         # Filter out-of-range p-values (< 0 or > 1)
@@ -221,7 +221,7 @@ class LocusZoomPlotter:
         invalid_count = invalid_mask.sum()
         if invalid_count > 0:
             logger.warning(
-                "Found %d p-values outside [0, 1] range, filtering out",
+                "Found {} p-values outside [0, 1] range, filtering out",
                 invalid_count,
             )
             df = df[~invalid_mask]
@@ -229,12 +229,12 @@ class LocusZoomPlotter:
         # Log clipped values at debug level
         clipped_count = (df[p_col] < 1e-300).sum()
         if clipped_count > 0:
-            logger.debug("Clipping %d p-values below 1e-300 to 1e-300", clipped_count)
+            logger.debug("Clipping {} p-values below 1e-300 to 1e-300", clipped_count)
 
         filtered_count = initial_count - len(df)
         if filtered_count > 0:
             logger.debug(
-                "P-value filtering removed %d of %d rows",
+                "P-value filtering removed {} of {} rows",
                 filtered_count,
                 initial_count,
             )

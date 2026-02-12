@@ -764,6 +764,128 @@ class TestPValueValidation:
         )
         plt.close(fig)
 
+    def test_transform_pvalues_filters_invalid_range(self, plotter):
+        """_transform_pvalues filters out-of-range p-values (< 0 or > 1)."""
+        import io
+
+        from loguru import logger as loguru_logger
+
+        df = pd.DataFrame(
+            {
+                "ps": [1100000, 1500000, 1700000, 1900000],
+                "p_wald": [0.001, 0.5, -0.1, 1.5],
+            }
+        )
+
+        # Capture log output
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            result = plotter._transform_pvalues(df.copy(), "p_wald")
+        finally:
+            loguru_logger.remove(handler_id)
+
+        # Only valid rows (0.001, 0.5) should remain
+        assert len(result) == 2
+        assert "neglog10p" in result.columns
+        assert np.isfinite(result["neglog10p"]).all()
+        assert (result["neglog10p"] > 0).all()
+
+        # Warning logged about 2 invalid values
+        log_output = log_capture.getvalue()
+        assert "2 p-values outside [0, 1]" in log_output
+
+    def test_transform_pvalues_filters_nan(self, plotter):
+        """_transform_pvalues filters NaN p-values."""
+        import io
+
+        from loguru import logger as loguru_logger
+
+        df = pd.DataFrame(
+            {
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [0.001, np.nan, 0.5],
+            }
+        )
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            result = plotter._transform_pvalues(df.copy(), "p_wald")
+        finally:
+            loguru_logger.remove(handler_id)
+
+        # NaN row filtered out
+        assert len(result) == 2
+        assert not result["p_wald"].isna().any()
+
+        # Warning logged
+        log_output = log_capture.getvalue()
+        assert "1 NaN p-values" in log_output
+
+    def test_transform_pvalues_clips_very_small(self, plotter):
+        """_transform_pvalues clips very small p-values to 1e-300."""
+        import io
+
+        from loguru import logger as loguru_logger
+
+        df = pd.DataFrame(
+            {
+                "ps": [1100000],
+                "p_wald": [1e-310],  # Smaller than 1e-300
+            }
+        )
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="DEBUG",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            result = plotter._transform_pvalues(df.copy(), "p_wald")
+        finally:
+            loguru_logger.remove(handler_id)
+
+        # Should be clipped to 1e-300, giving -log10(1e-300) = 300
+        assert len(result) == 1
+        assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
+        assert not np.isinf(result["neglog10p"]).any()
+
+        # Debug log about clipping
+        log_output = log_capture.getvalue()
+        assert "Clipping" in log_output
+
+    def test_transform_pvalues_preserves_valid_data(self, plotter):
+        """_transform_pvalues passes through all-valid data unchanged."""
+        df = pd.DataFrame(
+            {
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [0.001, 0.5, 1e-8],
+            }
+        )
+
+        result = plotter._transform_pvalues(df.copy(), "p_wald")
+
+        assert len(result) == 3
+        assert result["neglog10p"].iloc[0] == pytest.approx(3.0)
+        assert result["neglog10p"].iloc[1] == pytest.approx(-np.log10(0.5))
+        assert result["neglog10p"].iloc[2] == pytest.approx(8.0)
+
 
 class TestBackendEQTLFinemapping:
     """Tests for eQTL and fine-mapping support across all backends."""
