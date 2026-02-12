@@ -860,6 +860,67 @@ class MatplotlibBackend:
         )
         plt.ion()
 
+    def add_recombination_overlay(
+        self,
+        ax: Axes,
+        recomb_df: pd.DataFrame,
+        start: int,
+        end: int,
+    ) -> None:
+        """Add recombination overlay using matplotlib twin axis.
+
+        Args:
+            ax: Primary matplotlib axes.
+            recomb_df: DataFrame with 'pos' and 'rate' columns.
+            start: Region start position for filtering.
+            end: Region end position for filtering.
+        """
+        from ..recombination import RECOMB_COLOR
+
+        # Filter to region
+        region_recomb = recomb_df[
+            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
+        ].copy()
+
+        if region_recomb.empty:
+            return
+
+        # Create twin axis - returns Axes object directly
+        twin_ax = self.create_twin_axis(ax)
+
+        # Plot fill under curve
+        self.fill_between_secondary(
+            twin_ax,
+            region_recomb["pos"],
+            0,
+            region_recomb["rate"],
+            color=RECOMB_COLOR,
+            alpha=0.15,
+        )
+
+        # Plot recombination rate line
+        self.line_secondary(
+            twin_ax,
+            region_recomb["pos"],
+            region_recomb["rate"],
+            color=RECOMB_COLOR,
+            linewidth=2.5,
+            alpha=0.8,
+        )
+
+        # Set y-axis limits and label
+        max_rate = region_recomb["rate"].max()
+        self.set_secondary_ylim(twin_ax, 0, max(max_rate * 1.3, 10))
+        self.set_secondary_ylabel(
+            twin_ax,
+            "Recombination rate (cM/Mb)",
+            color="black",
+            fontsize=9,
+        )
+
+        # Hide top spine on twin axis
+        twin_ax.spines["top"].set_visible(False)
+
     def add_heatmap(
         self,
         ax: Axes,

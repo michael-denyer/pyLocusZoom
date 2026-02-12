@@ -991,6 +991,67 @@ class BokehBackend:
         # Bokeh handles layout differently - column spacing is fixed
         pass
 
+    def add_recombination_overlay(
+        self,
+        ax: figure,
+        recomb_df: pd.DataFrame,
+        start: int,
+        end: int,
+    ) -> None:
+        """Add recombination overlay using bokeh secondary y-axis.
+
+        Args:
+            ax: Bokeh figure.
+            recomb_df: DataFrame with 'pos' and 'rate' columns.
+            start: Region start position for filtering.
+            end: Region end position for filtering.
+        """
+        from ..recombination import RECOMB_COLOR
+
+        # Filter to region
+        region_recomb = recomb_df[
+            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
+        ].copy()
+
+        if region_recomb.empty:
+            return
+
+        # Create twin axis - returns "secondary" string
+        yaxis_name = self.create_twin_axis(ax)
+
+        # Plot fill under curve
+        self.fill_between_secondary(
+            ax,
+            region_recomb["pos"],
+            0,
+            region_recomb["rate"],
+            color=RECOMB_COLOR,
+            alpha=0.15,
+            yaxis_name=yaxis_name,
+        )
+
+        # Plot recombination rate line
+        self.line_secondary(
+            ax,
+            region_recomb["pos"],
+            region_recomb["rate"],
+            color=RECOMB_COLOR,
+            linewidth=2.5,
+            alpha=0.8,
+            yaxis_name=yaxis_name,
+        )
+
+        # Set y-axis limits and label
+        max_rate = region_recomb["rate"].max()
+        self.set_secondary_ylim(ax, 0, max(max_rate * 1.3, 10), yaxis_name=yaxis_name)
+        self.set_secondary_ylabel(
+            ax,
+            "Recombination rate (cM/Mb)",
+            color="black",
+            fontsize=9,
+            yaxis_name=yaxis_name,
+        )
+
     def add_heatmap(
         self,
         ax: figure,
