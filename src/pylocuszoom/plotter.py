@@ -189,18 +189,56 @@ class LocusZoomPlotter:
             return None
 
     def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
-        """Add neglog10p column with -log10 transformed p-values.
+        """Validate, filter, and -log10 transform p-values.
 
-        Modifies df in place. Callers should pass a copy to avoid side effects.
+        Filters out invalid rows before transformation:
+        - NaN p-values are removed with a warning.
+        - Out-of-range p-values (< 0 or > 1) are removed with a warning.
+        - Very small valid p-values (< 1e-300) are clipped to 1e-300 to
+          avoid -inf.
+
+        Callers should pass a copy to avoid side effects on the original
+        DataFrame.
 
         Args:
             df: DataFrame with p-value column (should be a copy).
             p_col: Name of p-value column.
 
         Returns:
-            DataFrame with neglog10p column added.
+            DataFrame with invalid rows removed and neglog10p column added.
         """
-        # Use shared utility - note: df should already be a copy at call sites
+        initial_count = len(df)
+
+        # Filter NaN p-values
+        nan_mask = df[p_col].isna()
+        nan_count = nan_mask.sum()
+        if nan_count > 0:
+            logger.warning("Found %d NaN p-values, filtering out", nan_count)
+            df = df[~nan_mask]
+
+        # Filter out-of-range p-values (< 0 or > 1)
+        invalid_mask = (df[p_col] < 0) | (df[p_col] > 1)
+        invalid_count = invalid_mask.sum()
+        if invalid_count > 0:
+            logger.warning(
+                "Found %d p-values outside [0, 1] range, filtering out",
+                invalid_count,
+            )
+            df = df[~invalid_mask]
+
+        # Log clipped values at debug level
+        clipped_count = (df[p_col] < 1e-300).sum()
+        if clipped_count > 0:
+            logger.debug("Clipping %d p-values below 1e-300 to 1e-300", clipped_count)
+
+        filtered_count = initial_count - len(df)
+        if filtered_count > 0:
+            logger.debug(
+                "P-value filtering removed %d of %d rows",
+                filtered_count,
+                initial_count,
+            )
+
         df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
         return df
 
@@ -325,23 +363,6 @@ class LocusZoomPlotter:
 
         # Prepare data
         df = gwas_df.copy()
-
-        # Validate p-values and warn about issues
-        p_values = df[p_col]
-        nan_count = p_values.isna().sum()
-        if nan_count > 0:
-            logger.warning(
-                f"GWAS data contains {nan_count} NaN p-values which will be excluded"
-            )
-        invalid_count = ((p_values < 0) | (p_values > 1)).sum()
-        if invalid_count > 0:
-            logger.warning(
-                f"GWAS data contains {invalid_count} p-values outside [0, 1] range"
-            )
-        clipped_count = (p_values < 1e-300).sum()
-        if clipped_count > 0:
-            logger.debug(f"Clipping {clipped_count} p-values below 1e-300 to 1e-300")
-
         df = self._transform_pvalues(df, p_col)
 
         # Calculate LD if reference file provided
