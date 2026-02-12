@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-02-12
+
+### Changed
+
+- **BREAKING**: `get_backend()` now raises `ImportError` when plotly/bokeh is not installed instead of silently falling back to matplotlib
+- **BREAKING**: Removed `add_recombination_overlay()` standalone function — use the backend's `add_recombination_overlay()` method instead (called automatically by the plotter)
+- Recombination overlay rendering moved into backend protocol — all three backends (matplotlib, plotly, bokeh) now implement `add_recombination_overlay()` directly
+- PLINK subprocess failures now log at ERROR level with full stderr (was WARNING with truncated output)
+
+### Fixed
+
+- `_plotter_utils.transform_pvalues()` now filters NaN and out-of-range p-values instead of warn-and-proceed (affected `ManhattanPlotter` and `StatsPlotter`)
+- LD merge in `plot()` and `plot_stacked()` now uses `validate='many_to_one'` to prevent silent row duplication when PLINK returns duplicate SNP entries
+- Ensembl API `raise_on_error` contract: now correctly raises `ValidationError` after retry exhaustion on repeated 429/503 responses (was silently returning `None`)
+- Ensembl API `response.json()` now wrapped in try/except for malformed JSON responses
+- `disable_logging()` no longer suppresses `logger.error()` calls — errors always reach stderr
+- PLINK subprocess calls now have a 5-minute timeout (was unbounded)
+- Narrowed `except Exception` in recombination map download to `(RequestException, OSError, TarError)`
+
+### Removed
+
+- Dead `_create_figure()` method from `LocusZoomPlotter` (48 lines, unreachable code)
+
+### Security
+
+- Upgraded Pillow 12.1.0 → 12.1.1 (fixes CVE for out-of-bounds write when loading PSD images)
+
 ## [1.3.1] - 2026-02-04
 
 ### Fixed
@@ -338,6 +365,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 
+[1.3.2]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.1.0...v1.1.1
