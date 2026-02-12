@@ -46,7 +46,6 @@ from .gene_track import (
 from .ld import calculate_ld, find_plink
 from .logging import enable_logging, logger
 from .recombination import (
-    RECOMB_COLOR,
     ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
@@ -929,77 +928,10 @@ class LocusZoomPlotter:
     ) -> None:
         """Add recombination overlay for all backends.
 
-        Creates a secondary y-axis with recombination rate line and fill.
-        Uses backend-agnostic secondary axis methods that work across
-        matplotlib, plotly, and bokeh.
+        Delegates to backend-specific implementation which handles twin axis
+        creation and secondary axis rendering.
         """
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create secondary y-axis
-        twin_result = self._backend.create_twin_axis(ax)
-
-        # Matplotlib returns the twin Axes object itself - use it for drawing
-        # Plotly returns tuple (fig, row, secondary_y_name)
-        # Bokeh returns string "secondary"
-        from matplotlib.axes import Axes
-
-        if isinstance(twin_result, Axes):
-            # Matplotlib: use the twin axis for all secondary axis operations
-            secondary_ax = twin_result
-            secondary_y = None  # Not used for matplotlib
-        elif isinstance(twin_result, tuple):
-            # Plotly: use original ax, specify y-axis via yaxis_name
-            secondary_ax = ax
-            _, _, secondary_y = twin_result
-        else:
-            # Bokeh: use original ax, specify y-axis via yaxis_name
-            secondary_ax = ax
-            secondary_y = twin_result
-
-        # Plot fill under curve
-        self._backend.fill_between_secondary(
-            secondary_ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-            yaxis_name=secondary_y,
-        )
-
-        # Plot recombination rate line
-        self._backend.line_secondary(
-            secondary_ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-            yaxis_name=secondary_y,
-        )
-
-        # Set y-axis limits and label - scale to fit data with headroom
-        max_rate = region_recomb["rate"].max()
-        self._backend.set_secondary_ylim(
-            secondary_ax, 0, max(max_rate * 1.3, 10), yaxis_name=secondary_y
-        )
-        self._backend.set_secondary_ylabel(
-            secondary_ax,
-            "Recombination rate (cM/Mb)",
-            color="black",  # Use black for readability (line/fill color remains light blue)
-            fontsize=9,
-            yaxis_name=secondary_y,
-        )
-
-        # Hide top spine on the secondary axis (matplotlib twin axis has its own frame)
-        if isinstance(twin_result, Axes):
-            secondary_ax.spines["top"].set_visible(False)
+        self._backend.add_recombination_overlay(ax, recomb_df, start, end)
 
     def plot_stacked(
         self,
