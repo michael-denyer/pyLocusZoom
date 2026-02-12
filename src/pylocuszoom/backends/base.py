@@ -923,3 +923,27 @@ class PlotBackend(Protocol):
             Colorbar object.
         """
         ...
+
+    # =========================================================================
+    # Recombination Overlay
+    # =========================================================================
+
+    def add_recombination_overlay(
+        self,
+        ax: Any,
+        recomb_df: pd.DataFrame,
+        start: int,
+        end: int,
+    ) -> None:
+        """Add recombination rate overlay to axes with secondary y-axis.
+
+        Creates a secondary y-axis showing recombination rate line and shaded area.
+        Each backend handles its own twin axis creation and rendering logic.
+
+        Args:
+            ax: Primary axes or panel.
+            recomb_df: DataFrame with columns 'pos' (position) and 'rate' (cM/Mb).
+            start: Region start position for filtering.
+            end: Region end position for filtering.
+        """
+        ...
