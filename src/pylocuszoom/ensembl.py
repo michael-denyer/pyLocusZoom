@@ -211,7 +211,13 @@ def _make_ensembl_request(
 
         # Success
         if response.ok:
-            return response.json()
+            try:
+                return response.json()
+            except (ValueError, requests.exceptions.JSONDecodeError) as e:
+                logger.warning(f"Ensembl API returned invalid JSON: {e}")
+                if raise_on_error:
+                    raise ValidationError(f"Ensembl API returned invalid JSON: {e}")
+                return None
 
         # Retryable errors (429 rate limit, 503 service unavailable)
         if response.status_code in (429, 503) and attempt < max_retries - 1:
@@ -230,6 +236,11 @@ def _make_ensembl_request(
             raise ValidationError(error_msg)
         return None
 
+    # All retries exhausted (e.g., repeated 429/503 responses)
+    if raise_on_error:
+        raise ValidationError(
+            f"Ensembl API request failed after {max_retries} attempts (rate limited)"
+        )
     return None
 
 

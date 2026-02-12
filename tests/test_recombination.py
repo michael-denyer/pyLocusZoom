@@ -3,7 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 import requests
@@ -11,7 +10,6 @@ import requests
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
     _normalize_build,
-    add_recombination_overlay,
     download_canine_recombination_maps,
     download_liftover_chain,
     get_default_data_dir,
@@ -43,59 +41,12 @@ class TestGetDefaultDataDir:
         assert "/dbfs" in str(result)
 
 
-class TestAddRecombinationOverlay:
-    """Tests for add_recombination_overlay function."""
+class TestRecombColor:
+    """Tests for recombination color constant."""
 
-    def test_creates_secondary_axis(self, sample_recomb_df):
-        """Should create secondary y-axis for recombination rate."""
-        fig, ax = plt.subplots()
-        recomb_ax = add_recombination_overlay(
-            ax, sample_recomb_df, start=1000000, end=2000000
-        )
-        assert recomb_ax is not None
-        plt.close(fig)
-
-    def test_returns_none_for_empty_region(self):
-        """Should return None when no data in region."""
-        fig, ax = plt.subplots()
-        empty_df = pd.DataFrame(columns=["pos", "rate"])
-        recomb_ax = add_recombination_overlay(ax, empty_df, start=1000000, end=2000000)
-        assert recomb_ax is None
-        plt.close(fig)
-
-    def test_filters_to_region(self, sample_recomb_df):
-        """Should only plot data within the specified region."""
-        fig, ax = plt.subplots()
-        # Request only subset of data
-        recomb_ax = add_recombination_overlay(
-            ax, sample_recomb_df, start=1300000, end=1700000
-        )
-        assert recomb_ax is not None
-        plt.close(fig)
-
-    def test_sets_axis_label(self, sample_recomb_df):
-        """Should set y-axis label for recombination rate."""
-        fig, ax = plt.subplots()
-        recomb_ax = add_recombination_overlay(
-            ax, sample_recomb_df, start=1000000, end=2000000
-        )
-        ylabel = recomb_ax.get_ylabel()
-        assert "Recombination" in ylabel
-        plt.close(fig)
-
-    def test_uses_correct_color(self, sample_recomb_df):
+    def test_uses_correct_color(self):
         """Should use the defined recombination color."""
         assert RECOMB_COLOR == "#7FCDFF"  # Light blue
-
-    def test_sets_ylim_minimum(self, sample_recomb_df):
-        """Y-axis should start at 0."""
-        fig, ax = plt.subplots()
-        recomb_ax = add_recombination_overlay(
-            ax, sample_recomb_df, start=1000000, end=2000000
-        )
-        ylim = recomb_ax.get_ylim()
-        assert ylim[0] == 0
-        plt.close(fig)
 
 
 class TestLoadRecombinationMap:

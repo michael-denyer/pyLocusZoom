@@ -14,7 +14,6 @@ from typing import Optional
 
 import pandas as pd
 import requests
-from matplotlib.axes import Axes
 from tqdm import tqdm
 
 from .logging import logger
@@ -429,73 +428,6 @@ def ensure_recomb_maps(
     logger.info("Downloading canine recombination maps...")
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
-    except Exception as e:
+    except (requests.RequestException, OSError, tarfile.TarError) as e:
         logger.warning(f"Could not download recombination maps: {e}")
         return None
-
-
-def add_recombination_overlay(
-    ax: Axes,
-    recomb_df: pd.DataFrame,
-    start: int,
-    end: int,
-) -> Optional[Axes]:
-    """Add recombination rate as secondary y-axis overlay.
-
-    Plots recombination rate (cM/Mb) as a light blue line on a
-    secondary y-axis, styled to match LocusZoom.
-
-    Args:
-        ax: Primary matplotlib axes object.
-        recomb_df: DataFrame with 'pos' and 'rate' columns.
-        start: Region start position.
-        end: Region end position.
-
-    Returns:
-        Secondary axes object for recombination rate, or None if no data.
-    """
-    # Create secondary y-axis
-    recomb_ax = ax.twinx()
-
-    # Filter to region
-    region_recomb = recomb_df[
-        (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-    ].copy()
-
-    if region_recomb.empty:
-        recomb_ax.set_visible(False)
-        return None
-
-    # Plot recombination rate as light blue line
-    recomb_ax.plot(
-        region_recomb["pos"],
-        region_recomb["rate"],
-        color=RECOMB_COLOR,
-        linewidth=2.5,
-        alpha=0.8,
-        zorder=0,  # Behind scatter points
-    )
-
-    # Fill under curve
-    recomb_ax.fill_between(
-        region_recomb["pos"],
-        0,
-        region_recomb["rate"],
-        color=RECOMB_COLOR,
-        alpha=0.15,
-        zorder=0,
-    )
-
-    # Format secondary axis - use black for label text (more readable)
-    recomb_ax.set_ylabel("Recombination rate (cM/Mb)", color="black", fontsize=9)
-    recomb_ax.tick_params(axis="y", labelcolor="black", labelsize=8)
-    recomb_ax.set_ylim(bottom=0)
-
-    # Scale to fit data with headroom
-    max_rate = region_recomb["rate"].max()
-    recomb_ax.set_ylim(0, max(max_rate * 1.3, 10))
-
-    # Remove top spine for cleaner look
-    recomb_ax.spines["top"].set_visible(False)
-
-    return recomb_ax

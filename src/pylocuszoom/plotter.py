@@ -386,7 +386,13 @@ class LocusZoomPlotter:
                         species=self.species,
                     )
                     if not ld_df.empty:
-                        df = df.merge(ld_df, left_on=rs_col, right_on="SNP", how="left")
+                        df = df.merge(
+                            ld_df,
+                            left_on=rs_col,
+                            right_on="SNP",
+                            how="left",
+                            validate="many_to_one",
+                        )
                         ld_col = "R2"
 
         # Load recombination data if needed
@@ -522,55 +528,6 @@ class LocusZoomPlotter:
             self._backend.adjust_snp_labels(ax, snp_label_texts)
 
         return fig
-
-    def _create_figure(
-        self,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        start: int,
-        end: int,
-        figsize: Tuple[int, int],
-    ) -> Tuple[Any, Any, Optional[Any]]:
-        """Create figure with optional gene track."""
-        if genes_df is not None:
-            # Calculate dynamic height based on gene rows
-            chrom_str = normalize_chrom(chrom)
-            region_genes = genes_df[
-                (
-                    genes_df["chr"].astype(str).str.replace("chr", "", regex=False)
-                    == chrom_str
-                )
-                & (genes_df["end"] >= start)
-                & (genes_df["start"] <= end)
-            ]
-            if not region_genes.empty:
-                temp_positions = assign_gene_positions(
-                    region_genes.sort_values("start"), start, end
-                )
-                n_gene_rows = max(temp_positions) + 1 if temp_positions else 1
-            else:
-                n_gene_rows = 1
-
-            base_gene_height = 1.0
-            per_row_height = 0.5
-            gene_track_height = base_gene_height + (n_gene_rows - 1) * per_row_height
-            assoc_height = figsize[1] * 0.6
-            total_height = assoc_height + gene_track_height
-
-            fig, axes = self._backend.create_figure(
-                n_panels=2,
-                height_ratios=[assoc_height, gene_track_height],
-                figsize=(figsize[0], total_height),
-                sharex=True,
-            )
-            return fig, axes[0], axes[1]
-        else:
-            fig, axes = self._backend.create_figure(
-                n_panels=1,
-                height_ratios=[1.0],
-                figsize=(figsize[0], figsize[1] * 0.75),
-            )
-            return fig, axes[0], None
 
     def _create_figure_with_heatmap(
         self,
@@ -1247,7 +1204,11 @@ class LocusZoomPlotter:
                         )
                         if not ld_df.empty:
                             df = df.merge(
-                                ld_df, left_on=rs_col, right_on="SNP", how="left"
+                                ld_df,
+                                left_on=rs_col,
+                                right_on="SNP",
+                                how="left",
+                                validate="many_to_one",
                             )
                             panel_ld_col = "R2"
 

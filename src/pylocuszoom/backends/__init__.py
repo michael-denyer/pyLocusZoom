@@ -10,13 +10,11 @@ Backend Registration:
     class CustomBackend:
         ...
 
-Fallback Behavior:
+Error Behavior:
     When an optional backend (plotly, bokeh) is requested but not installed,
-    get_backend() falls back to matplotlib with a warning. This ensures
-    code works even without optional dependencies.
+    get_backend() raises ImportError with installation instructions.
 """
 
-import warnings
 from typing import Literal
 
 from .base import PlotBackend
@@ -84,11 +82,8 @@ def get_backend(name: BackendType) -> PlotBackend:
         Instantiated backend.
 
     Raises:
+        ImportError: If plotly or bokeh is not installed.
         ValueError: If backend name is completely unknown.
-
-    Note:
-        When optional backends (plotly, bokeh) are unavailable,
-        falls back to matplotlib with a UserWarning.
     """
     # Ensure matplotlib is always registered (it's always available)
     if "matplotlib" not in _BACKENDS:
@@ -100,24 +95,18 @@ def get_backend(name: BackendType) -> PlotBackend:
             try:
                 from .plotly_backend import PlotlyBackend  # noqa: F401
             except ImportError:
-                warnings.warn(
-                    "Plotly not installed, falling back to matplotlib. "
-                    "Install plotly with: pip install plotly",
-                    UserWarning,
-                    stacklevel=2,
+                raise ImportError(
+                    "Plotly is required for the plotly backend. "
+                    "Install it with: pip install plotly"
                 )
-                name = "matplotlib"
         elif name == "bokeh":
             try:
                 from .bokeh_backend import BokehBackend  # noqa: F401
             except ImportError:
-                warnings.warn(
-                    "Bokeh not installed, falling back to matplotlib. "
-                    "Install bokeh with: pip install bokeh",
-                    UserWarning,
-                    stacklevel=2,
+                raise ImportError(
+                    "Bokeh is required for the bokeh backend. "
+                    "Install it with: pip install bokeh"
                 )
-                name = "matplotlib"
 
     if name not in _BACKENDS:
         available = list(_BACKENDS.keys())

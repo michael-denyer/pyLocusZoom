@@ -34,7 +34,7 @@ Species Support:
     - Custom: User provides all reference data
 """
 
-__version__ = "1.1.2"
+__version__ = "1.3.1"
 
 # Main plotter class
 # Backend types
@@ -152,7 +152,6 @@ from .plotter import LocusZoomPlotter
 
 # Reference data management
 from .recombination import (
-    add_recombination_overlay,
     download_canine_recombination_maps,
     ensure_recomb_maps,
     get_recombination_rate_for_region,
@@ -197,7 +196,6 @@ __all__ = [
     "add_snp_labels",
     "adjust_snp_labels",
     # Recombination
-    "add_recombination_overlay",
     "ensure_recomb_maps",
     "get_recombination_rate_for_region",
     "load_recombination_map",

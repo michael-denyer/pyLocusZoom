@@ -305,10 +305,11 @@ def calculate_ld(
             cwd=working_dir,
             capture_output=True,
             text=True,
+            timeout=300,
         )
 
         if result.returncode != 0:
-            logger.warning(f"PLINK LD calculation failed: {result.stderr[:200]}")
+            logger.error(f"PLINK LD calculation failed: {result.stderr}")
             return pd.DataFrame(columns=["SNP", "R2"])
 
         # Parse output
@@ -419,12 +420,11 @@ def calculate_pairwise_ld(
             cwd=working_dir,
             capture_output=True,
             text=True,
+            timeout=300,
         )
 
         if result.returncode != 0:
-            logger.warning(
-                f"PLINK pairwise LD calculation failed: {result.stderr[:200]}"
-            )
+            logger.error(f"PLINK pairwise LD calculation failed: {result.stderr}")
             return pd.DataFrame(), []
 
         # Parse output

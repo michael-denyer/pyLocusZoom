@@ -1,7 +1,5 @@
 """Tests for backend registration and fallback."""
 
-import warnings
-
 import pytest
 
 
@@ -88,76 +86,33 @@ class TestGetBackend:
         assert isinstance(backend, BokehBackend)
 
 
-class TestGracefulFallback:
-    """Tests for fallback behavior when optional backends unavailable.
+class TestBackendImportErrors:
+    """Tests for ImportError behavior when optional backends unavailable."""
 
-    These tests verify that get_backend gracefully falls back to matplotlib
-    when optional dependencies (plotly, bokeh) are not available.
-
-    Note: These tests use direct testing of the fallback code path rather than
-    mocking imports, which is more reliable and avoids module reload issues.
-    """
-
-    def test_plotly_fallback_logic(self):
-        """Test that fallback warning is issued when plotly import fails.
-
-        Instead of mocking sys.modules (which has module reload issues),
-        we test the actual warning message format matches our expectations.
-        """
-        # Verify the warning message format in the code is correct
+    def test_plotly_succeeds_when_installed(self):
+        """No error when plotly is available."""
         from pylocuszoom.backends import get_backend
 
-        # When plotly IS available, no warning
         pytest.importorskip("plotly")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            get_backend("plotly")  # Call to trigger potential warning
-            # No fallback warning when plotly is available
-            plotly_warnings = [
-                str(warning.message)
-                for warning in w
-                if "plotly" in str(warning.message).lower()
-                and "matplotlib" in str(warning.message).lower()
-            ]
-            assert len(plotly_warnings) == 0
+        backend = get_backend("plotly")
+        assert backend is not None
 
-    def test_bokeh_fallback_logic(self):
-        """Test that fallback warning is issued when bokeh import fails."""
+    def test_bokeh_succeeds_when_installed(self):
+        """No error when bokeh is available."""
         from pylocuszoom.backends import get_backend
 
         pytest.importorskip("bokeh")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            get_backend("bokeh")  # Call to trigger potential warning
-            # No fallback warning when bokeh is available
-            bokeh_warnings = [
-                str(warning.message)
-                for warning in w
-                if "bokeh" in str(warning.message).lower()
-                and "matplotlib" in str(warning.message).lower()
-            ]
-            assert len(bokeh_warnings) == 0
+        backend = get_backend("bokeh")
+        assert backend is not None
 
-    def test_fallback_warning_message_content(self):
-        """Verify the fallback warning message format by checking code.
-
-        Since mocking imports is complex, we verify the warning text
-        is properly formatted by checking it contains helpful info.
-        """
-        # Read the source to verify the warning text is informative
+    def test_error_messages_contain_install_instructions(self):
+        """Verify ImportError messages contain install instructions."""
         import inspect
 
         from pylocuszoom.backends import get_backend
 
         source = inspect.getsource(get_backend)
-
-        # Verify plotly fallback message
-        assert "Plotly not installed" in source
-        assert "falling back to matplotlib" in source
         assert "pip install plotly" in source
-
-        # Verify bokeh fallback message
-        assert "Bokeh not installed" in source
         assert "pip install bokeh" in source
 
     def test_registry_persists_across_calls(self):
