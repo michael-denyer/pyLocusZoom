@@ -5,7 +5,7 @@ Colors match the locuszoomr R package color scheme.
 """
 
 import math
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional
 
 
 def _is_missing(value: Optional[float]) -> bool:
@@ -13,14 +13,25 @@ def _is_missing(value: Optional[float]) -> bool:
     return value is None or (isinstance(value, float) and math.isnan(value))
 
 
-# LD bin thresholds, labels, and colors
-# Format: (threshold, label, color)
-LD_BINS: List[Tuple[float, str, str]] = [
-    (0.8, "0.8 - 1.0", "#FF0000"),  # red
-    (0.6, "0.6 - 0.8", "#FFA500"),  # orange
-    (0.4, "0.4 - 0.6", "#00CD00"),  # green3
-    (0.2, "0.2 - 0.4", "#00EEEE"),  # cyan2
-    (0.0, "0.0 - 0.2", "#4169E1"),  # royalblue
+# =============================================================================
+# LD Bins (NamedTuple for self-documenting access)
+# =============================================================================
+
+
+class LDBin(NamedTuple):
+    """LD bin definition with threshold, label, and color."""
+
+    threshold: float
+    label: str
+    color: str
+
+
+LD_BINS: list[LDBin] = [
+    LDBin(0.8, "0.8 - 1.0", "#FF0000"),  # red
+    LDBin(0.6, "0.6 - 0.8", "#FFA500"),  # orange
+    LDBin(0.4, "0.4 - 0.6", "#00CD00"),  # green3
+    LDBin(0.2, "0.2 - 0.4", "#00EEEE"),  # cyan2
+    LDBin(0.0, "0.0 - 0.2", "#4169E1"),  # royalblue
 ]
 
 LD_NA_COLOR = "#BEBEBE"  # grey - SNPs lacking LD information
@@ -47,20 +58,60 @@ CREDIBLE_SET_COLORS: List[str] = [
 # PIP line color (when not showing credible sets)
 PIP_LINE_COLOR = "#FF7F00"  # orange
 
-# eQTL effect size bins - matches locuszoomr color scheme
-# Format: (min_threshold, max_threshold, label, color)
+# =============================================================================
+# eQTL Effect Bins (NamedTuple for self-documenting access)
+# =============================================================================
+
+
+class EQTLBin(NamedTuple):
+    """eQTL effect bin with range, label, and color."""
+
+    min_val: float
+    max_val: float
+    label: str
+    color: str
+
+
 # Positive effects (upward triangles)
-EQTL_POSITIVE_BINS: List[Tuple[float, float, str, str]] = [
-    (0.3, 0.4, "0.3 : 0.4", "#8B1A1A"),  # dark red/maroon
-    (0.2, 0.3, "0.2 : 0.3", "#FF6600"),  # orange
-    (0.1, 0.2, "0.1 : 0.2", "#FFB347"),  # light orange
+EQTL_POSITIVE_BINS: list[EQTLBin] = [
+    EQTLBin(0.3, 0.4, "0.3 : 0.4", "#8B1A1A"),  # dark red/maroon
+    EQTLBin(0.2, 0.3, "0.2 : 0.3", "#FF6600"),  # orange
+    EQTLBin(0.1, 0.2, "0.1 : 0.2", "#FFB347"),  # light orange
 ]
 # Negative effects (downward triangles)
-EQTL_NEGATIVE_BINS: List[Tuple[float, float, str, str]] = [
-    (-0.2, -0.1, "-0.2 : -0.1", "#66CDAA"),  # medium aquamarine
-    (-0.3, -0.2, "-0.3 : -0.2", "#4682B4"),  # steel blue
-    (-0.4, -0.3, "-0.4 : -0.3", "#00008B"),  # dark blue
+EQTL_NEGATIVE_BINS: list[EQTLBin] = [
+    EQTLBin(-0.2, -0.1, "-0.2 : -0.1", "#66CDAA"),  # medium aquamarine
+    EQTLBin(-0.3, -0.2, "-0.3 : -0.2", "#4682B4"),  # steel blue
+    EQTLBin(-0.4, -0.3, "-0.4 : -0.3", "#00008B"),  # dark blue
 ]
+
+
+def _find_eqtl_bin(effect: float) -> EQTLBin:
+    """Find the eQTL bin for a given effect size.
+
+    Shared lookup used by both get_eqtl_color and get_eqtl_bin to avoid
+    duplicating the bin-matching logic.
+
+    Args:
+        effect: Effect size (beta coefficient). Must not be None/NaN.
+
+    Returns:
+        Matching EQTLBin.
+    """
+    if effect >= 0:
+        for b in EQTL_POSITIVE_BINS:
+            if b.min_val <= effect < b.max_val or (
+                b.max_val == 0.4 and effect >= b.max_val
+            ):
+                return b
+        return EQTL_POSITIVE_BINS[-1]
+    else:
+        for b in EQTL_NEGATIVE_BINS:
+            if b.min_val < effect <= b.max_val or (
+                b.min_val == -0.4 and effect <= b.min_val
+            ):
+                return b
+        return EQTL_NEGATIVE_BINS[-1]
 
 
 def get_eqtl_color(effect: Optional[float]) -> str:
@@ -74,17 +125,7 @@ def get_eqtl_color(effect: Optional[float]) -> str:
     """
     if _is_missing(effect):
         return LD_NA_COLOR
-
-    if effect >= 0:
-        for min_t, max_t, _, color in EQTL_POSITIVE_BINS:
-            if min_t <= effect < max_t or (max_t == 0.4 and effect >= max_t):
-                return color
-        return EQTL_POSITIVE_BINS[-1][3]  # smallest positive bin
-    else:
-        for min_t, max_t, _, color in EQTL_NEGATIVE_BINS:
-            if min_t < effect <= max_t or (min_t == -0.4 and effect <= min_t):
-                return color
-        return EQTL_NEGATIVE_BINS[-1][3]  # smallest negative bin
+    return _find_eqtl_bin(effect).color
 
 
 def get_eqtl_bin(effect: Optional[float]) -> str:
@@ -98,17 +139,7 @@ def get_eqtl_bin(effect: Optional[float]) -> str:
     """
     if _is_missing(effect):
         return LD_NA_LABEL
-
-    if effect >= 0:
-        for min_t, max_t, label, _ in EQTL_POSITIVE_BINS:
-            if min_t <= effect < max_t or (max_t == 0.4 and effect >= max_t):
-                return label
-        return EQTL_POSITIVE_BINS[-1][2]
-    else:
-        for min_t, max_t, label, _ in EQTL_NEGATIVE_BINS:
-            if min_t < effect <= max_t or (min_t == -0.4 and effect <= min_t):
-                return label
-        return EQTL_NEGATIVE_BINS[-1][2]
+    return _find_eqtl_bin(effect).label
 
 
 def get_eqtl_color_palette() -> dict[str, str]:
@@ -118,10 +149,10 @@ def get_eqtl_color_palette() -> dict[str, str]:
         Dictionary mapping bin labels to hex colors.
     """
     palette = {}
-    for _, _, label, color in EQTL_POSITIVE_BINS:
-        palette[label] = color
-    for _, _, label, color in EQTL_NEGATIVE_BINS:
-        palette[label] = color
+    for b in EQTL_POSITIVE_BINS:
+        palette[b.label] = b.color
+    for b in EQTL_NEGATIVE_BINS:
+        palette[b.label] = b.color
     return palette
 
 
@@ -153,11 +184,11 @@ def get_ld_color(r2: Optional[float]) -> str:
     if _is_missing(r2):
         return LD_NA_COLOR
 
-    for threshold, _, color in LD_BINS:
-        if r2 >= threshold:
-            return color
+    for ld_bin in LD_BINS:
+        if r2 >= ld_bin.threshold:
+            return ld_bin.color
 
-    return LD_BINS[-1][2]
+    return LD_BINS[-1].color
 
 
 def get_ld_bin(r2: Optional[float]) -> str:
@@ -178,11 +209,11 @@ def get_ld_bin(r2: Optional[float]) -> str:
     if _is_missing(r2):
         return LD_NA_LABEL
 
-    for threshold, label, _ in LD_BINS:
-        if r2 >= threshold:
-            return label
+    for ld_bin in LD_BINS:
+        if r2 >= ld_bin.threshold:
+            return ld_bin.label
 
-    return LD_BINS[-1][1]
+    return LD_BINS[-1].label
 
 
 def get_ld_color_palette() -> dict[str, str]:
@@ -197,7 +228,7 @@ def get_ld_color_palette() -> dict[str, str]:
         >>> palette["0.8 - 1.0"]
         '#FF0000'
     """
-    palette = {label: color for _, label, color in LD_BINS}
+    palette = {ld_bin.label: ld_bin.color for ld_bin in LD_BINS}
     palette[LD_NA_LABEL] = LD_NA_COLOR
     return palette
 

@@ -8,7 +8,17 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, Tuple
 import pandas as pd
 
 if TYPE_CHECKING:
-    pass
+    from ..colors import EQTLBin, LDBin
+
+# Backend-specific type aliases for documentation purposes.
+# These remain Any because each backend uses different concrete types:
+#   matplotlib: Axes | Figure
+#   plotly: Tuple[go.Figure, int] | go.Figure
+#   bokeh: figure (bokeh.plotting) | Column layout
+# Narrowing these would require runtime backend checks or generics,
+# which adds complexity without practical benefit in a Protocol.
+AxesType = Any
+FigureType = Any
 
 
 class PlotBackend(Protocol):
@@ -693,7 +703,7 @@ class PlotBackend(Protocol):
     def add_ld_legend(
         self,
         ax: Any,
-        ld_bins: List[Tuple[float, str, str]],
+        ld_bins: "List[LDBin]",
         lead_snp_color: str,
     ) -> None:
         """Add LD color legend.
@@ -702,7 +712,7 @@ class PlotBackend(Protocol):
 
         Args:
             ax: Axes or panel.
-            ld_bins: List of (threshold, label, color) tuples defining LD bins.
+            ld_bins: List of LDBin(threshold, label, color) defining LD bins.
             lead_snp_color: Color for lead SNP marker in legend.
         """
         ...
@@ -725,15 +735,15 @@ class PlotBackend(Protocol):
     def add_eqtl_legend(
         self,
         ax: Any,
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
+        eqtl_positive_bins: "List[EQTLBin]",
+        eqtl_negative_bins: "List[EQTLBin]",
     ) -> None:
         """Add eQTL effect size legend to the axes.
 
         Args:
             ax: Axes or panel.
-            eqtl_positive_bins: List of (min, max, label, color) for positive effects.
-            eqtl_negative_bins: List of (min, max, label, color) for negative effects.
+            eqtl_positive_bins: List of EQTLBin(min_val, max_val, label, color).
+            eqtl_negative_bins: List of EQTLBin(min_val, max_val, label, color).
         """
         ...
 
