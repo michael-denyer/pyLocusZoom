@@ -196,6 +196,39 @@ class TestLDConfig:
         config = LDConfig(lead_pos=1500000)
         assert config.lead_pos == 1500000
 
+    def test_ld_col_and_reference_file_mutually_exclusive(self):
+        """Setting both ld_col and ld_reference_file should raise ValueError.
+
+        ld_col means LD is pre-computed; ld_reference_file means compute LD.
+        Both at once is contradictory.
+        """
+        from pylocuszoom.config import LDConfig
+
+        with pytest.raises(
+            ValidationError, match="Cannot specify both ld_col.*ld_reference_file"
+        ):
+            LDConfig(
+                ld_col="R2",
+                ld_reference_file="/path/to/file",
+                lead_pos=1500,
+            )
+
+    def test_ld_col_alone_still_valid(self):
+        """ld_col without ld_reference_file should work fine."""
+        from pylocuszoom.config import LDConfig
+
+        config = LDConfig(ld_col="R2")
+        assert config.ld_col == "R2"
+        assert config.ld_reference_file is None
+
+    def test_ld_reference_file_alone_still_valid(self):
+        """ld_reference_file without ld_col should work fine."""
+        from pylocuszoom.config import LDConfig
+
+        config = LDConfig(ld_reference_file="/path/to/file", lead_pos=1500)
+        assert config.ld_reference_file == "/path/to/file"
+        assert config.ld_col is None
+
     def test_ld_config_is_frozen(self):
         """Config should be immutable after creation."""
         from pylocuszoom.config import LDConfig

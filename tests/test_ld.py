@@ -9,6 +9,7 @@ import pytest
 
 from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.ld import (
+    _add_species_flags,
     build_ld_command,
     build_pairwise_ld_command,
     calculate_ld,
@@ -274,9 +275,7 @@ class TestCalculateLd:
         """Should clean up temp directory even when PlinkError is raised."""
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(
-                    returncode=1, stderr="error"
-                )
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
                 # Get initial temp dir count
                 temp_base = tempfile.gettempdir()
@@ -300,9 +299,7 @@ class TestCalculateLd:
     def test_uses_specified_plink_path(self, tmp_path, mock_plink_files):
         """Should use specified PLINK path instead of auto-detecting."""
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=1, stderr="error"
-            )
+            mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
             with pytest.raises(PlinkError):
                 calculate_ld(
@@ -798,3 +795,54 @@ class TestCalculatePairwiseLd:
                         snp_list=["rs1", "rs2"],
                         working_dir=str(tmp_path),
                     )
+
+
+class TestAddSpeciesFlags:
+    """Tests for _add_species_flags shared helper."""
+
+    def test_canine_adds_dog_flag(self):
+        """Should append --dog for canine species."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "canine")
+        assert cmd == ["plink", "--dog"]
+
+    def test_feline_adds_chr_set_18(self):
+        """Should append --chr-set 18 for feline species."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "feline")
+        assert cmd == ["plink", "--chr-set", "18"]
+
+    def test_human_adds_no_flags(self):
+        """Should not add any flags for human (None species)."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, None)
+        assert cmd == ["plink"]
+
+    def test_unknown_species_adds_no_flags(self):
+        """Should not add any flags for unrecognized species."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "bovine")
+        assert cmd == ["plink"]
+
+    def test_build_ld_command_uses_shared_helper(self):
+        """build_ld_command should produce same species flags as _add_species_flags."""
+        for species, expected_flag in [("canine", "--dog"), ("feline", "--chr-set")]:
+            cmd = build_ld_command(
+                plink_path="plink",
+                bfile_path="data",
+                lead_snp="rs1",
+                output_path="out",
+                species=species,
+            )
+            assert expected_flag in cmd
+
+    def test_build_pairwise_ld_command_uses_shared_helper(self):
+        """build_pairwise_ld_command should produce same species flags."""
+        for species, expected_flag in [("canine", "--dog"), ("feline", "--chr-set")]:
+            cmd = build_pairwise_ld_command(
+                plink_path="plink",
+                bfile_path="data",
+                output_path="out",
+                species=species,
+            )
+            assert expected_flag in cmd
