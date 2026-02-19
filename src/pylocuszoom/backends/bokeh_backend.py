@@ -3,6 +3,7 @@
 Interactive backend with hover tooltips, well-suited for dashboards.
 """
 
+import math
 from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -465,9 +466,7 @@ class BokehBackend:
         }
         ax.xaxis.major_label_text_font_size = f"{fontsize}pt"
         if rotation:
-            ax.xaxis.major_label_orientation = (
-                rotation * 3.14159 / 180
-            )  # Convert to radians
+            ax.xaxis.major_label_orientation = math.radians(rotation)
 
     def _get_legend_location(self, loc: str, default: str = "top_left") -> str:
         """Map matplotlib-style legend location to Bokeh location."""

@@ -186,6 +186,11 @@ class LocusZoomPlotter:
             self._recomb_cache[cache_key] = recomb_df
             return recomb_df
         except FileNotFoundError:
+            logger.warning(
+                f"Recombination map file not found for chr{chrom} "
+                f"({self.species}, {self.genome_build}). "
+                f"Recombination overlay will be skipped."
+            )
             return None
 
     def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
@@ -375,7 +380,12 @@ class LocusZoomPlotter:
                 )
             else:
                 lead_snp_row = df[df[pos_col] == lead_pos]
-                if not lead_snp_row.empty:
+                if lead_snp_row.empty:
+                    logger.warning(
+                        f"Lead SNP at position {lead_pos} not found in GWAS data. "
+                        f"LD coloring will be skipped."
+                    )
+                elif not lead_snp_row.empty:
                     lead_snp_id = lead_snp_row[rs_col].iloc[0]
                     logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
                     ld_df = calculate_ld(

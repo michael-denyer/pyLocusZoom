@@ -858,7 +858,6 @@ class MatplotlibBackend:
         fig.subplots_adjust(
             left=left, right=right, top=top, bottom=bottom, hspace=hspace
         )
-        plt.ion()
 
     def add_recombination_overlay(
         self,

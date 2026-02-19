@@ -182,8 +182,8 @@ def get_default_data_dir() -> Path:
     """Get default directory for recombination map data.
 
     Returns platform-appropriate cache directory:
-    - macOS/Linux: ~/.cache/snp-scope-plot (or $XDG_CACHE_HOME if set)
-    - Windows: %LOCALAPPDATA%/snp-scope-plot
+    - macOS/Linux: ~/.cache/pylocuszoom (or $XDG_CACHE_HOME if set)
+    - Windows: %LOCALAPPDATA%/pylocuszoom
     - Databricks: /dbfs/FileStore/reference_data/recombination_maps
     """
     if os.name == "nt":  # Windows
@@ -198,7 +198,7 @@ def get_default_data_dir() -> Path:
         else:
             base = Path.home() / ".cache"
 
-    return base / "snp-scope-plot" / "recombination_maps"
+    return base / "pylocuszoom" / "recombination_maps"
 
 
 def download_canine_recombination_maps(

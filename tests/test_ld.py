@@ -258,8 +258,10 @@ class TestCalculateLd:
                 # Check no new dirs remain
                 final_dirs = set(os.listdir(temp_base))
                 new_dirs = final_dirs - initial_dirs
-                snp_scope_dirs = [d for d in new_dirs if d.startswith("snp_scope_ld_")]
-                assert len(snp_scope_dirs) == 0
+                pylocuszoom_dirs = [
+                    d for d in new_dirs if d.startswith("pylocuszoom_ld_")
+                ]
+                assert len(pylocuszoom_dirs) == 0
 
     def test_uses_specified_plink_path(self, tmp_path, mock_plink_files):
         """Should use specified PLINK path instead of auto-detecting."""
@@ -697,7 +699,7 @@ class TestCalculatePairwiseLd:
                 final_dirs = set(os.listdir(temp_base))
                 new_dirs = final_dirs - initial_dirs
                 pairwise_dirs = [
-                    d for d in new_dirs if d.startswith("snp_scope_pairwise_ld_")
+                    d for d in new_dirs if d.startswith("pylocuszoom_pairwise_ld_")
                 ]
                 assert len(pairwise_dirs) == 0
 

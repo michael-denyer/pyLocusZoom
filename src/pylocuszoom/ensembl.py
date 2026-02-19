@@ -81,7 +81,7 @@ def get_ensembl_species_name(species: str) -> str:
 def get_ensembl_cache_dir() -> Path:
     """Get the cache directory for Ensembl data.
 
-    Uses same base location as recombination maps: ~/.cache/snp-scope-plot/ensembl
+    Uses same base location as recombination maps: ~/.cache/pylocuszoom/ensembl
 
     Returns:
         Path to cache directory (created if doesn't exist).
@@ -93,7 +93,7 @@ def get_ensembl_cache_dir() -> Path:
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
 
-    cache_dir = base / "snp-scope-plot" / "ensembl"
+    cache_dir = base / "pylocuszoom" / "ensembl"
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -133,8 +133,12 @@ def get_cached_genes(
     if not cache_file.exists():
         return None
 
-    logger.debug(f"Cache hit: {cache_file}")
-    return pd.read_csv(cache_file)
+    try:
+        logger.debug(f"Cache hit: {cache_file}")
+        return pd.read_csv(cache_file)
+    except (OSError, pd.errors.ParserError) as e:
+        logger.warning(f"Corrupt cache file {cache_file}, ignoring: {e}")
+        return None
 
 
 def save_cached_genes(
@@ -163,8 +167,11 @@ def save_cached_genes(
     species_dir.mkdir(parents=True, exist_ok=True)
 
     cache_file = species_dir / f"genes_{cache_key}.csv"
-    df.to_csv(cache_file, index=False)
-    logger.debug(f"Cached genes to: {cache_file}")
+    try:
+        df.to_csv(cache_file, index=False)
+        logger.debug(f"Cached genes to: {cache_file}")
+    except OSError as e:
+        logger.warning(f"Failed to write gene cache {cache_file}: {e}")
 
 
 def _make_ensembl_request(

@@ -280,7 +280,7 @@ def calculate_ld(
     # Use temp directory if working_dir not specified
     cleanup_working_dir = False
     if working_dir is None:
-        working_dir = tempfile.mkdtemp(prefix="snp_scope_ld_")
+        working_dir = tempfile.mkdtemp(prefix="pylocuszoom_ld_")
         cleanup_working_dir = True
 
     try:
@@ -300,13 +300,20 @@ def calculate_ld(
 
         logger.debug(f"Running PLINK command: {' '.join(cmd)}")
 
-        result = subprocess.run(
-            cmd,
-            cwd=working_dir,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            logger.error(
+                "PLINK LD calculation timed out after 300s. "
+                "Consider reducing window_kb or checking PLINK installation."
+            )
+            return pd.DataFrame(columns=["SNP", "R2"])
 
         if result.returncode != 0:
             logger.error(f"PLINK LD calculation failed: {result.stderr}")
@@ -385,7 +392,7 @@ def calculate_pairwise_ld(
     # Use temp directory if working_dir not specified
     cleanup_working_dir = False
     if working_dir is None:
-        working_dir = tempfile.mkdtemp(prefix="snp_scope_pairwise_ld_")
+        working_dir = tempfile.mkdtemp(prefix="pylocuszoom_pairwise_ld_")
         cleanup_working_dir = True
 
     try:
@@ -415,13 +422,20 @@ def calculate_pairwise_ld(
 
         logger.debug(f"Running PLINK command: {' '.join(cmd)}")
 
-        result = subprocess.run(
-            cmd,
-            cwd=working_dir,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            logger.error(
+                "PLINK pairwise LD calculation timed out after 300s. "
+                "Consider reducing the region size or SNP count."
+            )
+            return pd.DataFrame(), []
 
         if result.returncode != 0:
             logger.error(f"PLINK pairwise LD calculation failed: {result.stderr}")

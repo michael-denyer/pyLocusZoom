@@ -190,12 +190,12 @@ def test_fetch_exons_region_too_large():
 
 
 def test_get_ensembl_cache_dir():
-    """Test cache directory follows snp-scope-plot convention."""
+    """Test cache directory follows pylocuszoom convention."""
     from pylocuszoom.ensembl import get_ensembl_cache_dir
 
     cache_dir = get_ensembl_cache_dir()
     assert isinstance(cache_dir, Path)
-    assert "snp-scope-plot" in str(cache_dir)
+    assert "pylocuszoom" in str(cache_dir)
     assert "ensembl" in str(cache_dir)
 
 
