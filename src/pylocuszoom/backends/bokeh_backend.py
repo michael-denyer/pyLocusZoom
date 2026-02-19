@@ -1051,6 +1051,48 @@ class BokehBackend:
             yaxis_name=yaxis_name,
         )
 
+    def highlight_heatmap_snp(
+        self,
+        ax: figure,
+        fig: Any,
+        snp_idx: int,
+        n_snps: int,
+        color: str = "#7D26CD",
+        linewidth: float = 2,
+    ) -> None:
+        """Highlight a SNP's row and column in the heatmap.
+
+        Args:
+            ax: Bokeh figure.
+            fig: Layout object (unused, for API compatibility).
+            snp_idx: Index of SNP to highlight.
+            n_snps: Total number of SNPs in matrix.
+            color: Highlight color.
+            linewidth: Line width for highlight rectangles.
+        """
+        # Row highlights (lower triangle: columns 0..snp_idx)
+        for j in range(snp_idx + 1):
+            ax.rect(
+                x=j,
+                y=snp_idx,
+                width=1,
+                height=1,
+                fill_alpha=0,
+                line_color=color,
+                line_width=linewidth,
+            )
+        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
+        for i in range(snp_idx + 1, n_snps):
+            ax.rect(
+                x=snp_idx,
+                y=i,
+                width=1,
+                height=1,
+                fill_alpha=0,
+                line_color=color,
+                line_width=linewidth,
+            )
+
     def add_heatmap(
         self,
         ax: figure,

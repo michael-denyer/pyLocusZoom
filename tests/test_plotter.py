@@ -1860,3 +1860,61 @@ class TestLDHeatmapIntegration:
                 ld_heatmap_df=ld_matrix,
                 # ld_heatmap_snp_ids not provided
             )
+
+
+class TestHighlightHeatmapSnpBackendProtocol:
+    """Tests that highlight_heatmap_snp works on all backends."""
+
+    def test_matplotlib_highlight_heatmap_snp(self):
+        """Matplotlib backend highlight_heatmap_snp creates rectangle patches."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+        )
+        ax = axes[0]
+
+        # Should not raise
+        backend.highlight_heatmap_snp(ax, fig, snp_idx=2, n_snps=5)
+
+        # Verify patches were added (3 for row + 2 for column = 5 total)
+        rect_patches = [
+            p for p in ax.patches if hasattr(p, "get_edgecolor") and not p.get_fill()
+        ]
+        assert len(rect_patches) == 5
+        plt.close(fig)
+
+    def test_plotly_highlight_heatmap_snp(self):
+        """Plotly backend highlight_heatmap_snp adds shapes to figure."""
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, panels = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+        )
+        ax = panels[0]
+
+        # Should not raise
+        backend.highlight_heatmap_snp(ax, fig, snp_idx=2, n_snps=5)
+
+        # Verify shapes were added
+        shapes = fig.layout.shapes
+        assert len(shapes) == 5  # 3 for row + 2 for column
+
+    def test_bokeh_highlight_heatmap_snp(self):
+        """Bokeh backend highlight_heatmap_snp adds rect glyphs to figure."""
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        layout, figures = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+        )
+        ax = figures[0]
+        renderers_before = len(ax.renderers)
+
+        # Should not raise
+        backend.highlight_heatmap_snp(ax, layout, snp_idx=2, n_snps=5)
+
+        # Verify renderers were added (5 rect calls)
+        assert len(ax.renderers) == renderers_before + 5

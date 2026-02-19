@@ -928,6 +928,30 @@ class PlotBackend(Protocol):
     # Recombination Overlay
     # =========================================================================
 
+    def highlight_heatmap_snp(
+        self,
+        ax: Any,
+        fig: Any,
+        snp_idx: int,
+        n_snps: int,
+        color: str = "#7D26CD",
+        linewidth: float = 2,
+    ) -> None:
+        """Highlight a SNP's row and column in a heatmap.
+
+        Draws unfilled rectangles around the cells in the SNP's row (lower
+        triangle) and column (below diagonal) to visually mark the lead SNP.
+
+        Args:
+            ax: Axes/figure object.
+            fig: Figure object (used by plotly for shapes).
+            snp_idx: Index of SNP to highlight.
+            n_snps: Total number of SNPs in matrix.
+            color: Highlight color.
+            linewidth: Line width for highlight rectangles.
+        """
+        ...
+
     def add_recombination_overlay(
         self,
         ax: Any,

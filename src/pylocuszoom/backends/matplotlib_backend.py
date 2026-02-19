@@ -920,6 +920,51 @@ class MatplotlibBackend:
         # Hide top spine on twin axis
         twin_ax.spines["top"].set_visible(False)
 
+    def highlight_heatmap_snp(
+        self,
+        ax: Axes,
+        fig: Figure,
+        snp_idx: int,
+        n_snps: int,
+        color: str = "#7D26CD",
+        linewidth: float = 2,
+    ) -> None:
+        """Highlight a SNP's row and column in the heatmap.
+
+        Args:
+            ax: Matplotlib axes.
+            fig: Matplotlib figure (unused, for API compatibility).
+            snp_idx: Index of SNP to highlight.
+            n_snps: Total number of SNPs in matrix.
+            color: Highlight color.
+            linewidth: Line width for highlight rectangles.
+        """
+        # Row highlights (lower triangle: columns 0..snp_idx)
+        for j in range(snp_idx + 1):
+            rect = Rectangle(
+                (j - 0.5, snp_idx - 0.5),
+                1.0,
+                1.0,
+                fill=False,
+                edgecolor=color,
+                linewidth=linewidth,
+                zorder=10,
+            )
+            ax.add_patch(rect)
+
+        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
+        for i in range(snp_idx + 1, n_snps):
+            rect = Rectangle(
+                (snp_idx - 0.5, i - 0.5),
+                1.0,
+                1.0,
+                fill=False,
+                edgecolor=color,
+                linewidth=linewidth,
+                zorder=10,
+            )
+            ax.add_patch(rect)
+
     def add_heatmap(
         self,
         ax: Axes,

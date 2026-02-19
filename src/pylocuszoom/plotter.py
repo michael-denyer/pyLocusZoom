@@ -542,76 +542,14 @@ class LocusZoomPlotter:
         self, ax: Any, fig: Any, snp_idx: int, n_snps: int
     ) -> None:
         """Highlight a SNP's row/column in the heatmap."""
-        if self._backend_name == "matplotlib":
-            from matplotlib.patches import Rectangle
-
-            for j in range(snp_idx + 1):
-                rect = Rectangle(
-                    (j - 0.5, snp_idx - 0.5),
-                    1.0,
-                    1.0,
-                    fill=False,
-                    edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
-                    linewidth=2,
-                    zorder=10,
-                )
-                ax.add_patch(rect)
-
-            for i in range(snp_idx + 1, n_snps):
-                rect = Rectangle(
-                    (snp_idx - 0.5, i - 0.5),
-                    1.0,
-                    1.0,
-                    fill=False,
-                    edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
-                    linewidth=2,
-                    zorder=10,
-                )
-                ax.add_patch(rect)
-
-        elif self._backend_name == "plotly":
-            for j in range(snp_idx + 1):
-                fig.add_shape(
-                    type="rect",
-                    x0=j - 0.5,
-                    x1=j + 0.5,
-                    y0=snp_idx - 0.5,
-                    y1=snp_idx + 0.5,
-                    line=dict(color=LEAD_SNP_HIGHLIGHT_COLOR, width=2),
-                    fillcolor="rgba(0,0,0,0)",
-                )
-            for i in range(snp_idx + 1, n_snps):
-                fig.add_shape(
-                    type="rect",
-                    x0=snp_idx - 0.5,
-                    x1=snp_idx + 0.5,
-                    y0=i - 0.5,
-                    y1=i + 0.5,
-                    line=dict(color=LEAD_SNP_HIGHLIGHT_COLOR, width=2),
-                    fillcolor="rgba(0,0,0,0)",
-                )
-
-        elif self._backend_name == "bokeh":
-            for j in range(snp_idx + 1):
-                ax.rect(
-                    x=j,
-                    y=snp_idx,
-                    width=1,
-                    height=1,
-                    fill_alpha=0,
-                    line_color=LEAD_SNP_HIGHLIGHT_COLOR,
-                    line_width=2,
-                )
-            for i in range(snp_idx + 1, n_snps):
-                ax.rect(
-                    x=snp_idx,
-                    y=i,
-                    width=1,
-                    height=1,
-                    fill_alpha=0,
-                    line_color=LEAD_SNP_HIGHLIGHT_COLOR,
-                    line_width=2,
-                )
+        self._backend.highlight_heatmap_snp(
+            ax,
+            fig,
+            snp_idx,
+            n_snps,
+            color=LEAD_SNP_HIGHLIGHT_COLOR,
+            linewidth=2,
+        )
 
     def _plot_association(
         self,
