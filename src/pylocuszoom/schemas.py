@@ -1,14 +1,13 @@
-"""Pydantic validation schemas for loaded data.
+"""Validation schemas for loaded data.
 
-Provides validation models for GWAS, eQTL, fine-mapping, and gene annotation
+Provides validation for GWAS, eQTL, fine-mapping, and gene annotation
 DataFrames to ensure data quality before plotting.
 """
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .exceptions import LoaderValidationError
 
@@ -17,39 +16,11 @@ from .exceptions import LoaderValidationError
 # =============================================================================
 
 
-class GWASRowModel(BaseModel):
-    """Validation model for a single GWAS row."""
-
-    model_config = ConfigDict(extra="allow")
-
-    ps: int
-    p_wald: float
-    rs: Optional[str] = None
-    chr: Optional[Union[str, int]] = None
-
-    @field_validator("ps")
-    @classmethod
-    def position_positive(cls, v: int) -> int:
-        """Position must be positive."""
-        if v <= 0:
-            raise ValueError(f"Position must be positive, got {v}")
-        return v
-
-    @field_validator("p_wald")
-    @classmethod
-    def pvalue_in_range(cls, v: float) -> float:
-        """P-value must be between 0 and 1."""
-        if not (0 < v <= 1):
-            raise ValueError(f"P-value must be in range (0, 1], got {v}")
-        return v
-
-
 def validate_gwas_dataframe(
     df: pd.DataFrame,
     pos_col: str = "ps",
     p_col: str = "p_wald",
     rs_col: str = "rs",
-    strict: bool = False,
 ) -> pd.DataFrame:
     """Validate a GWAS DataFrame.
 
@@ -58,7 +29,6 @@ def validate_gwas_dataframe(
         pos_col: Column name for position.
         p_col: Column name for p-value.
         rs_col: Column name for SNP ID.
-        strict: If True, validate every row. If False (default), validate schema only.
 
     Returns:
         Validated DataFrame.
@@ -123,42 +93,13 @@ def validate_gwas_dataframe(
 # =============================================================================
 
 
-class EQTLRowModel(BaseModel):
-    """Validation model for a single eQTL row."""
-
-    model_config = ConfigDict(extra="allow")
-
-    pos: int
-    p_value: float
-    gene: str
-    effect: Optional[float] = None
-
-    @field_validator("pos")
-    @classmethod
-    def position_positive(cls, v: int) -> int:
-        """Position must be positive."""
-        if v <= 0:
-            raise ValueError(f"Position must be positive, got {v}")
-        return v
-
-    @field_validator("p_value")
-    @classmethod
-    def pvalue_in_range(cls, v: float) -> float:
-        """P-value must be between 0 and 1."""
-        if not (0 < v <= 1):
-            raise ValueError(f"P-value must be in range (0, 1], got {v}")
-        return v
-
-
 def validate_eqtl_dataframe(
     df: pd.DataFrame,
-    strict: bool = False,
 ) -> pd.DataFrame:
     """Validate an eQTL DataFrame.
 
     Args:
         df: DataFrame to validate.
-        strict: If True, validate every row.
 
     Returns:
         Validated DataFrame.
@@ -205,43 +146,15 @@ def validate_eqtl_dataframe(
 # =============================================================================
 
 
-class FinemappingRowModel(BaseModel):
-    """Validation model for a single fine-mapping row."""
-
-    model_config = ConfigDict(extra="allow")
-
-    pos: int
-    pip: float
-    cs: Optional[int] = None
-
-    @field_validator("pos")
-    @classmethod
-    def position_positive(cls, v: int) -> int:
-        """Position must be positive."""
-        if v <= 0:
-            raise ValueError(f"Position must be positive, got {v}")
-        return v
-
-    @field_validator("pip")
-    @classmethod
-    def pip_in_range(cls, v: float) -> float:
-        """PIP must be between 0 and 1."""
-        if not (0 <= v <= 1):
-            raise ValueError(f"PIP must be in range [0, 1], got {v}")
-        return v
-
-
 def validate_finemapping_dataframe(
     df: pd.DataFrame,
     cs_col: str = "cs",
-    strict: bool = False,
 ) -> pd.DataFrame:
     """Validate a fine-mapping DataFrame.
 
     Args:
         df: DataFrame to validate.
         cs_col: Column name for credible set.
-        strict: If True, validate every row.
 
     Returns:
         Validated DataFrame.
@@ -288,42 +201,13 @@ def validate_finemapping_dataframe(
 # =============================================================================
 
 
-class GeneRowModel(BaseModel):
-    """Validation model for a single gene annotation row."""
-
-    model_config = ConfigDict(extra="allow")
-
-    chr: Union[str, int]
-    start: int
-    end: int
-    gene_name: str
-    strand: Optional[str] = None
-
-    @field_validator("start", "end")
-    @classmethod
-    def position_positive(cls, v: int) -> int:
-        """Position must be positive."""
-        if v < 0:
-            raise ValueError(f"Position must be non-negative, got {v}")
-        return v
-
-    @model_validator(mode="after")
-    def start_before_end(self):
-        """Start must be <= end."""
-        if self.start > self.end:
-            raise ValueError(f"Start ({self.start}) must be <= end ({self.end})")
-        return self
-
-
 def validate_genes_dataframe(
     df: pd.DataFrame,
-    strict: bool = False,
 ) -> pd.DataFrame:
     """Validate a genes DataFrame.
 
     Args:
         df: DataFrame to validate.
-        strict: If True, validate every row.
 
     Returns:
         Validated DataFrame.

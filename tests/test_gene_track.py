@@ -263,6 +263,13 @@ class TestPlotGeneTrack:
         assert xlim == (1000000, 2000000)
         plt.close(fig)
 
+    def test_emits_deprecation_warning(self, sample_genes):
+        """plot_gene_track should emit DeprecationWarning."""
+        fig, ax = plt.subplots()
+        with pytest.warns(DeprecationWarning, match="plot_gene_track is deprecated"):
+            plot_gene_track(ax, sample_genes, chrom=1, start=1000000, end=2000000)
+        plt.close(fig)
+
 
 # =============================================================================
 # Property-Based Tests (Hypothesis)

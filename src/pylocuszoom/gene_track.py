@@ -7,6 +7,7 @@ Provides LocusZoom-style gene track plotting with:
 - Gene name labels
 """
 
+import warnings
 from typing import Any, List, Optional, Union
 
 import pandas as pd
@@ -169,7 +170,12 @@ def _draw_strand_arrows_matplotlib(
     y_gene: float,
     region_width: int,
 ) -> None:
-    """Draw strand direction arrows using matplotlib."""
+    """Draw strand direction arrows using matplotlib.
+
+    .. deprecated:: 1.3.0
+        Only used by the deprecated :func:`plot_gene_track`. Will be removed
+        when ``plot_gene_track`` is removed in a future version.
+    """
     strand = gene["strand"]
     arrow_tip_positions, tri_height, tri_width, arrow_color = _compute_arrow_geometry(
         gene_start, gene_end, region_width, strand
@@ -245,6 +251,10 @@ def plot_gene_track(
 ) -> None:
     """Plot gene annotations as a LocusZoom-style track.
 
+    .. deprecated:: 1.3.0
+        Use :func:`plot_gene_track_generic` instead. This matplotlib-only
+        function will be removed in a future version.
+
     Creates a gene track with:
     - Thin horizontal lines for introns (gene body)
     - Thick rectangles for exons
@@ -261,6 +271,11 @@ def plot_gene_track(
         exons_df: Exon annotations with chr, start, end, gene_name
             columns for drawing exon structure. Optional.
     """
+    warnings.warn(
+        "plot_gene_track is deprecated. Use plot_gene_track_generic instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     region_genes = _filter_genes_by_region(genes_df, chrom, start, end)
 
     ax.set_xlim(start, end)

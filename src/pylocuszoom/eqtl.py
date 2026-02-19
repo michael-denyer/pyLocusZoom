@@ -14,9 +14,6 @@ from .logging import logger
 from .utils import filter_by_region
 from .validation import DataFrameValidator
 
-REQUIRED_EQTL_COLS = ["pos", "p_value"]
-OPTIONAL_EQTL_COLS = ["gene", "effect_size", "rs", "se"]
-
 
 def validate_eqtl_df(
     df: pd.DataFrame,
