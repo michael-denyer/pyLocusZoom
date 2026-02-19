@@ -48,7 +48,11 @@ def _normalize_build(build: Optional[str]) -> Optional[str]:
         return "canfam4"
     if "canfam3" in build_lower:
         return "canfam3"
-    return build.lower()
+    normalized = build.lower()
+    logger.debug(
+        f"Genome build '{build}' not recognized as canine; using as-is: '{normalized}'"
+    )
+    return normalized
 
 
 def get_chain_file_path() -> Path:
@@ -96,6 +100,9 @@ def download_liftover_chain(force: bool = False) -> Path:
 
     Returns:
         Path to the downloaded chain file.
+
+    Raises:
+        requests.HTTPError: If the download fails with an HTTP error.
     """
     chain_path = get_chain_file_path()
 
@@ -107,11 +114,17 @@ def download_liftover_chain(force: bool = False) -> Path:
     logger.info("Downloading CanFam3 to CanFam4 liftover chain...")
     logger.debug(f"Source: {CANFAM3_TO_CANFAM4_CHAIN_URL}")
 
-    _download_with_progress(
-        CANFAM3_TO_CANFAM4_CHAIN_URL,
-        chain_path,
-        desc="Liftover chain",
-    )
+    try:
+        _download_with_progress(
+            CANFAM3_TO_CANFAM4_CHAIN_URL,
+            chain_path,
+            desc="Liftover chain",
+        )
+    except requests.HTTPError as e:
+        raise requests.HTTPError(
+            f"HTTP error downloading liftover chain file from "
+            f"{CANFAM3_TO_CANFAM4_CHAIN_URL}: {e}"
+        ) from e
 
     logger.info(f"Chain file saved to: {chain_path}")
     return chain_path
@@ -264,7 +277,7 @@ def download_canine_recombination_maps(
                 try:
                     member_path.resolve().relative_to(Path(tmpdir).resolve())
                     safe_members.append(member)
-                except ValueError:
+                except (ValueError, OSError):
                     logger.warning(f"Skipping unsafe path in archive: {member.name}")
             tar.extractall(tmpdir, members=safe_members)
 
@@ -343,6 +356,14 @@ def load_recombination_map(
     df["rate"] = pd.to_numeric(df["rate"], errors="coerce")
     if "cM" in df.columns:
         df["cM"] = pd.to_numeric(df["cM"], errors="coerce")
+
+    # Warn about non-numeric values that were coerced to NaN
+    nan_count = df[["pos", "rate"]].isna().sum().sum()
+    if nan_count > 0:
+        logger.warning(
+            f"Recombination map chr{chrom_str}: {nan_count} non-numeric values "
+            f"in pos/rate columns were dropped"
+        )
 
     return df.dropna(subset=["pos", "rate"])
 
@@ -429,6 +450,12 @@ def ensure_recomb_maps(
     logger.info("Downloading canine recombination maps...")
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
-    except (requests.RequestException, OSError, tarfile.TarError) as e:
-        logger.warning(f"Could not download recombination maps: {e}")
+    except requests.RequestException as e:
+        logger.warning(f"Network error downloading recombination maps: {e}")
+        return None
+    except tarfile.TarError as e:
+        logger.warning(f"Corrupt archive in recombination maps: {e}")
+        return None
+    except OSError as e:
+        logger.warning(f"File system error with recombination maps: {e}")
         return None

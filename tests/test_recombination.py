@@ -1,17 +1,21 @@
 """Tests for recombination rate overlay module."""
 
+import io
+import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 import requests
+from loguru import logger as loguru_logger
 
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
     _normalize_build,
     download_canine_recombination_maps,
     download_liftover_chain,
+    ensure_recomb_maps,
     get_default_data_dir,
     get_recombination_rate_for_region,
     liftover_recombination_map,
@@ -82,6 +86,34 @@ class TestLoadRecombinationMap:
         result = load_recombination_map(chrom="chr1", data_dir=str(tmp_path))
         assert len(result) == 1
 
+    def test_non_numeric_values_produce_warning(self, tmp_path):
+        """Non-numeric values in pos/rate should produce a warning."""
+        map_content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.001\n1\tBAD\t1.2\t0.005\n"
+        map_file = tmp_path / "chr1_recomb.tsv"
+        map_file.write_text(map_content)
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            result = load_recombination_map(chrom=1, data_dir=str(tmp_path))
+        finally:
+            loguru_logger.remove(handler_id)
+
+        # Only valid row should remain
+        assert len(result) == 1
+        assert result["pos"].iloc[0] == 1000
+
+        # Warning should mention non-numeric values
+        log_output = log_capture.getvalue()
+        assert "non-numeric values" in log_output
+        assert "chr1" in log_output
+
 
 class TestGetRecombinationRateForRegion:
     """Tests for get_recombination_rate_for_region function."""
@@ -144,6 +176,12 @@ class TestNormalizeBuild:
     def test_unknown_build_lowercase(self):
         """Unknown build returns lowercase."""
         assert _normalize_build("hg38") == "hg38"
+
+    def test_unknown_build_does_not_raise(self):
+        """Unknown build returns lowercase without raising."""
+        result = _normalize_build("FelCat9")
+        assert result == "felcat9"
+        assert isinstance(result, str)
 
 
 class TestDownloadLiftoverChain:
@@ -340,8 +378,6 @@ class TestEnsureRecombMaps:
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download.return_value = tmp_path / "recomb_data"
 
-        from pylocuszoom.recombination import ensure_recomb_maps
-
         result = ensure_recomb_maps(species="canine")
 
         mock_download.assert_called_once()
@@ -361,8 +397,6 @@ class TestEnsureRecombMaps:
 
         mock_get_dir.return_value = data_dir
 
-        from pylocuszoom.recombination import ensure_recomb_maps
-
         result = ensure_recomb_maps(species="canine")
 
         mock_download.assert_not_called()
@@ -370,8 +404,6 @@ class TestEnsureRecombMaps:
 
     def test_ensure_recomb_maps_non_canine_returns_none(self):
         """Test that ensure_recomb_maps returns None for non-canine species."""
-        from pylocuszoom.recombination import ensure_recomb_maps
-
         result = ensure_recomb_maps(species="human")
         assert result is None
 
@@ -383,8 +415,6 @@ class TestEnsureRecombMaps:
         """Test that ensure_recomb_maps returns None on network errors."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download.side_effect = requests.RequestException("Network error")
-
-        from pylocuszoom.recombination import ensure_recomb_maps
 
         result = ensure_recomb_maps(species="canine")
         assert result is None
@@ -398,7 +428,170 @@ class TestEnsureRecombMaps:
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download.side_effect = IOError("Disk full")
 
-        from pylocuszoom.recombination import ensure_recomb_maps
+        result = ensure_recomb_maps(species="canine")
+        assert result is None
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_handles_tar_error(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that ensure_recomb_maps returns None on corrupt archive."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = tarfile.TarError("Corrupt archive")
 
         result = ensure_recomb_maps(species="canine")
         assert result is None
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_network_error_message(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that network errors produce specific log message."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = requests.RequestException("Connection refused")
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            ensure_recomb_maps(species="canine")
+        finally:
+            loguru_logger.remove(handler_id)
+
+        assert "Network error downloading recombination maps" in log_capture.getvalue()
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_tar_error_message(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that tar errors produce specific log message."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = tarfile.TarError("Bad header")
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            ensure_recomb_maps(species="canine")
+        finally:
+            loguru_logger.remove(handler_id)
+
+        assert "Corrupt archive in recombination maps" in log_capture.getvalue()
+
+    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_ensure_recomb_maps_os_error_message(
+        self, mock_get_dir, mock_download, tmp_path
+    ):
+        """Test that OS errors produce specific log message."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+        mock_download.side_effect = OSError("Permission denied")
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            ensure_recomb_maps(species="canine")
+        finally:
+            loguru_logger.remove(handler_id)
+
+        assert "File system error with recombination maps" in log_capture.getvalue()
+
+
+class TestDownloadLiftoverChainHTTPError:
+    """Tests for HTTPError handling in download_liftover_chain."""
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_http_error_includes_url(self, mock_download, tmp_path, monkeypatch):
+        """HTTPError should include the URL in the error message."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+        mock_download.side_effect = requests.HTTPError("404 Client Error")
+
+        with pytest.raises(requests.HTTPError, match="liftover chain file"):
+            download_liftover_chain(force=True)
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_http_error_preserves_original(self, mock_download, tmp_path, monkeypatch):
+        """HTTPError should chain the original exception."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+        original = requests.HTTPError("404 Client Error")
+        mock_download.side_effect = original
+
+        with pytest.raises(requests.HTTPError) as exc_info:
+            download_liftover_chain(force=True)
+
+        assert exc_info.value.__cause__ is original
+
+
+class TestTarTraversalOSError:
+    """Tests for OSError handling in tar path traversal check."""
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_oserror_in_tar_member_path_is_caught(self, mock_download, tmp_path):
+        """OSError during Path.resolve() in tar extraction is caught and skipped."""
+        # Create a real tar.gz in memory with a normal file
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w:gz") as tar:
+            # Add a dummy file
+            info = tarfile.TarInfo(name="test_file.txt")
+            info.size = 4
+            tar.addfile(info, io.BytesIO(b"test"))
+        tar_buffer.seek(0)
+
+        # Mock download to write the tar to disk
+        def write_tar(url, dest, desc):
+            dest.write_bytes(tar_buffer.getvalue())
+
+        mock_download.side_effect = write_tar
+
+        # Patch Path.resolve to raise OSError for the member path
+        original_resolve = Path.resolve
+
+        def patched_resolve(self_path, *args, **kwargs):
+            if "test_file.txt" in str(self_path):
+                raise OSError("Invalid path")
+            return original_resolve(self_path, *args, **kwargs)
+
+        log_capture = io.StringIO()
+        handler_id = loguru_logger.add(
+            log_capture,
+            level="WARNING",
+            format="{message}",
+            filter=lambda record: record["name"].startswith("pylocuszoom"),
+        )
+
+        try:
+            with patch.object(Path, "resolve", patched_resolve):
+                # The function skips the unsafe member, then raises RuntimeError
+                # because no chromosome files are found. We verify the warning was
+                # logged (OSError caught) before the RuntimeError.
+                with pytest.raises(RuntimeError, match="Could not find chromosome"):
+                    download_canine_recombination_maps(
+                        output_dir=str(tmp_path / "output"), force=True
+                    )
+        finally:
+            loguru_logger.remove(handler_id)
+
+        assert "Skipping unsafe path in archive" in log_capture.getvalue()
