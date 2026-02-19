@@ -863,7 +863,12 @@ def load_gwas(
         elif "saige" in name:
             format = "saige"
         else:
-            format = "plink"  # Default fallback
+            logger.warning(
+                "Could not detect GWAS file format for '%s'. "
+                "Defaulting to 'plink'. Specify format= parameter explicitly.",
+                filepath,
+            )
+            format = "plink"
 
     loaders = {
         "plink": load_plink_assoc,

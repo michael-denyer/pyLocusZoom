@@ -7,6 +7,7 @@ Provides:
 """
 
 import os
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -186,7 +187,7 @@ def get_default_data_dir() -> Path:
     - Windows: %LOCALAPPDATA%/pylocuszoom
     - Databricks: /dbfs/FileStore/reference_data/recombination_maps
     """
-    if os.name == "nt":  # Windows
+    if sys.platform == "win32":  # Windows
         base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
     elif os.path.exists("/dbfs"):  # Databricks
         return Path("/dbfs/FileStore/reference_data/recombination_maps")

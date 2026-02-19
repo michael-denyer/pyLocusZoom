@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from pyspark.sql import DataFrame as SparkDataFrame
 
 # Type alias for DataFrames (pandas or PySpark)
-DataFrameLike = Union[pd.DataFrame, "SparkDataFrame", Any]
+DataFrameLike = Union[pd.DataFrame, "SparkDataFrame"]
 
 
 def is_spark_dataframe(df: Any) -> bool:

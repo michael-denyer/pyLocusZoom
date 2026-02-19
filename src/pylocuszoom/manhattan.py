@@ -158,9 +158,9 @@ def prepare_manhattan_data(
             chrom_offsets[chrom] = cumulative
             cumulative += chrom_data[pos_col].max() + 1_000_000
 
-    # Calculate cumulative position
-    result["_cumulative_pos"] = result.apply(
-        lambda row: chrom_offsets.get(row["_chrom_str"], 0) + row[pos_col], axis=1
+    # Calculate cumulative position (vectorized — avoids apply(axis=1))
+    result["_cumulative_pos"] = (
+        result["_chrom_str"].map(chrom_offsets).fillna(0) + result[pos_col]
     )
 
     # Calculate -log10(p)
