@@ -12,8 +12,22 @@ from typing import Optional
 
 import pandas as pd
 
+from .exceptions import PlinkError
 from .logging import logger
 from .utils import validate_plink_files
+
+
+def _add_species_flags(cmd: list[str], species: str | None) -> None:
+    """Add species-specific flags to PLINK command.
+
+    Args:
+        cmd: Command list to append flags to (modified in-place).
+        species: Species name ("canine", "feline", or None for human).
+    """
+    if species == "canine":
+        cmd.append("--dog")
+    elif species == "feline":
+        cmd.extend(["--chr-set", "18"])
 
 
 def build_pairwise_ld_command(
@@ -47,12 +61,7 @@ def build_pairwise_ld_command(
         List of command arguments for subprocess.
     """
     cmd = [plink_path]
-
-    # Species flag
-    if species == "canine":
-        cmd.append("--dog")
-    elif species == "feline":
-        cmd.extend(["--chr-set", "18"])
+    _add_species_flags(cmd, species)
 
     # Input and output
     cmd.extend(["--bfile", bfile_path])
@@ -123,13 +132,7 @@ def build_ld_command(
         List of command arguments for subprocess.
     """
     cmd = [plink_path]
-
-    # Species flag (maps to PLINK's --dog flag)
-    if species == "canine":
-        cmd.append("--dog")
-    elif species == "feline":
-        # PLINK doesn't have --cat, use --chr-set for 18 autosomes + X
-        cmd.extend(["--chr-set", "18"])
+    _add_species_flags(cmd, species)
 
     # Input and output
     cmd.extend(["--bfile", bfile_path])
@@ -249,11 +252,11 @@ def calculate_ld(
 
     Returns:
         DataFrame with columns: SNP (rsid), R2 (LD with lead SNP).
-        Returns empty DataFrame if PLINK fails or no LD values found.
 
     Raises:
         FileNotFoundError: If PLINK executable not found.
         ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing.
+        PlinkError: If PLINK subprocess fails or times out.
 
     Example:
         >>> ld_df = calculate_ld(
@@ -309,15 +312,16 @@ def calculate_ld(
                 timeout=300,
             )
         except subprocess.TimeoutExpired:
-            logger.error(
+            raise PlinkError(
                 "PLINK LD calculation timed out after 300s. "
                 "Consider reducing window_kb or checking PLINK installation."
             )
-            return pd.DataFrame(columns=["SNP", "R2"])
 
         if result.returncode != 0:
-            logger.error(f"PLINK LD calculation failed: {result.stderr}")
-            return pd.DataFrame(columns=["SNP", "R2"])
+            raise PlinkError(
+                f"PLINK LD calculation failed (exit code {result.returncode}): "
+                f"{result.stderr.strip()}"
+            )
 
         # Parse output
         ld_file = f"{output_prefix}.ld"
@@ -359,12 +363,12 @@ def calculate_pairwise_ld(
     Returns:
         Tuple of (LD matrix DataFrame, list of SNP IDs).
         DataFrame has SNP IDs as both index and columns.
-        Returns (empty DataFrame, empty list) if PLINK fails.
 
     Raises:
         FileNotFoundError: If PLINK executable not found.
         ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing.
         ValidationError: If requested SNPs are not found in reference panel.
+        PlinkError: If PLINK subprocess fails or times out.
 
     Example:
         >>> matrix, snp_ids = calculate_pairwise_ld(
@@ -431,15 +435,16 @@ def calculate_pairwise_ld(
                 timeout=300,
             )
         except subprocess.TimeoutExpired:
-            logger.error(
+            raise PlinkError(
                 "PLINK pairwise LD calculation timed out after 300s. "
                 "Consider reducing the region size or SNP count."
             )
-            return pd.DataFrame(), []
 
         if result.returncode != 0:
-            logger.error(f"PLINK pairwise LD calculation failed: {result.stderr}")
-            return pd.DataFrame(), []
+            raise PlinkError(
+                f"PLINK pairwise LD calculation failed (exit code {result.returncode}): "
+                f"{result.stderr.strip()}"
+            )
 
         # Parse output
         ld_file = f"{output_prefix}.ld"
