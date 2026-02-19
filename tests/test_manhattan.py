@@ -216,6 +216,50 @@ class TestPrepareManhattanData:
         assert unknown_pos > chrom1_pos
 
 
+class TestCumulativePositionVectorization:
+    """Tests for vectorized cumulative position calculation."""
+
+    def test_cumulative_positions_correct_across_chromosomes(self):
+        """Chromosome 2 positions should be offset by chromosome 1 max + 1Mb gap."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1", "1", "2", "2"],
+                "pos": [1000, 5000, 2000, 3000],
+                "p": [0.05, 0.01, 0.001, 1e-8],
+            }
+        )
+        result = prepare_manhattan_data(df, species="human")
+
+        # Chromosome 1 offset is 0
+        chrom1 = result[result["_chrom_str"] == "1"].sort_values("pos")
+        assert chrom1["_cumulative_pos"].iloc[0] == 1000
+        assert chrom1["_cumulative_pos"].iloc[1] == 5000
+
+        # Chromosome 2 offset = max(chrom1 pos) + 1_000_000 = 5000 + 1_000_000 = 1_005_000
+        chrom2 = result[result["_chrom_str"] == "2"].sort_values("pos")
+        expected_offset = 5000 + 1_000_000
+        assert chrom2["_cumulative_pos"].iloc[0] == expected_offset + 2000
+        assert chrom2["_cumulative_pos"].iloc[1] == expected_offset + 3000
+
+    def test_no_nan_in_cumulative_pos(self):
+        """Cumulative positions should never contain NaN when chromosomes exist in data."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1", "2", "3", "X"],
+                "pos": [1000, 2000, 3000, 4000],
+                "p": [0.05, 0.01, 0.001, 1e-8],
+            }
+        )
+        result = prepare_manhattan_data(df, species="human")
+        assert not result["_cumulative_pos"].isna().any(), (
+            "Found NaN in _cumulative_pos"
+        )
+
+
 class TestPrepareCategoricalData:
     """Tests for categorical (PheWAS-style) Manhattan data."""
 

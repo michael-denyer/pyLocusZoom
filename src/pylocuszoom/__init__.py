@@ -81,7 +81,10 @@ from .exceptions import (
     DataDownloadError,
     EQTLValidationError,
     FinemappingValidationError,
+    ForestValidationError,
     LoaderValidationError,
+    PheWASValidationError,
+    PlinkError,
     PyLocusZoomError,
     ValidationError,
 )
@@ -224,6 +227,9 @@ __all__ = [
     "ValidationError",
     "BackendError",
     "DataDownloadError",
+    "PlinkError",
+    "PheWASValidationError",
+    "ForestValidationError",
     # Utils
     "to_pandas",
     # PheWAS
