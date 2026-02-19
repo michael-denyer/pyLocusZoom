@@ -4,7 +4,7 @@ Provides a fluent API for validating pandas DataFrames with composable
 validation rules. Accumulates all validation errors before raising.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Type
 
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -27,15 +27,23 @@ class DataFrameValidator:
         ...     .validate()
     """
 
-    def __init__(self, df: pd.DataFrame, name: str = "DataFrame"):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        name: str = "DataFrame",
+        error_class: Type[ValidationError] = ValidationError,
+    ):
         """Initialize validator.
 
         Args:
             df: DataFrame to validate.
             name: Name for error messages (e.g., "gwas_df", "genes_df").
+            error_class: Exception class to raise on failure. Must be a
+                subclass of ValidationError. Default: ValidationError.
         """
         self._df = df
         self._name = name
+        self._error_class = error_class
         self._errors: List[str] = []
 
     def require_columns(self, columns: List[str]) -> "DataFrameValidator":
@@ -211,13 +219,15 @@ class DataFrameValidator:
         return self
 
     def validate(self) -> None:
-        """Raise ValidationError if any validation rules failed.
+        """Raise ValidationError (or subclass) if any validation rules failed.
 
         Raises:
             ValidationError: If any validation errors were accumulated.
-                Error message includes all accumulated errors.
+                The actual exception type is determined by the error_class
+                parameter passed to __init__. Error message includes all
+                accumulated errors.
         """
         if self._errors:
             error_msg = f"{self._name} validation failed:\n"
             error_msg += "\n".join(f"  - {error}" for error in self._errors)
-            raise ValidationError(error_msg)
+            raise self._error_class(error_msg)

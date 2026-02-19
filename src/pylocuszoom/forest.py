@@ -5,6 +5,7 @@ Validates and prepares meta-analysis/forest plot data for visualization.
 
 import pandas as pd
 
+from .exceptions import ForestValidationError
 from .validation import DataFrameValidator
 
 
@@ -25,10 +26,12 @@ def validate_forest_df(
         ci_upper_col: Column name for upper confidence interval.
 
     Raises:
-        ValidationError: If required columns are missing or have invalid types.
+        ForestValidationError: If required columns are missing or have invalid types.
     """
     (
-        DataFrameValidator(df, "Forest plot DataFrame")
+        DataFrameValidator(
+            df, "Forest plot DataFrame", error_class=ForestValidationError
+        )
         .require_columns([study_col, effect_col, ci_lower_col, ci_upper_col])
         .require_numeric([effect_col, ci_lower_col, ci_upper_col])
         .require_ci_ordering(ci_lower_col, effect_col, ci_upper_col)
