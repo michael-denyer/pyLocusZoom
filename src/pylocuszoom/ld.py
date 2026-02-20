@@ -17,12 +17,17 @@ from .logging import logger
 from .utils import validate_plink_files
 
 
+def _log_rmtree_error(func, path, exc_info):
+    """Log shutil.rmtree cleanup failures instead of silently ignoring them."""
+    logger.debug(f"Failed to clean up temp file {path}: {exc_info[1]}")
+
+
 def _add_species_flags(cmd: list[str], species: str | None) -> None:
     """Add species-specific flags to PLINK command.
 
     Args:
         cmd: Command list to append flags to (modified in-place).
-        species: Species name ("canine", "feline", or None for human).
+        species: Species name ("canine", "feline", or None for no species-specific flags).
     """
     if species == "canine":
         cmd.append("--dog")
@@ -169,18 +174,25 @@ def parse_pairwise_ld_output(
     Returns:
         Tuple of (DataFrame with R2/D' values, list of SNP IDs).
         DataFrame has SNP IDs as both index and columns.
-        Returns (empty DataFrame, empty list) if files not found.
-    """
-    # Check if files exist
-    if not os.path.exists(ld_file) or not os.path.exists(snplist_file):
-        return pd.DataFrame(), []
 
-    # Read SNP list
+    Raises:
+        PlinkError: If output files are missing after a successful PLINK run.
+    """
+    if not os.path.exists(ld_file) or not os.path.exists(snplist_file):
+        missing = [f for f in (ld_file, snplist_file) if not os.path.exists(f)]
+        raise PlinkError(
+            f"PLINK reported success but output files missing: {missing}. "
+            f"This may indicate a filesystem issue or PLINK bug."
+        )
+
     with open(snplist_file) as f:
         snp_ids = [line.strip() for line in f if line.strip()]
 
     if not snp_ids:
-        return pd.DataFrame(), []
+        raise PlinkError(
+            f"PLINK reported success but snplist file is empty: {snplist_file}. "
+            f"No SNPs were retained after filtering."
+        )
 
     # Read LD matrix (whitespace-separated, no headers)
     # Values can be numbers or 'nan'
@@ -207,9 +219,15 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
 
     Returns:
         DataFrame with columns: SNP, R2.
+
+    Raises:
+        PlinkError: If output file is missing after a successful PLINK run.
     """
     if not os.path.exists(ld_file):
-        return pd.DataFrame(columns=["SNP", "R2"])
+        raise PlinkError(
+            f"PLINK reported success but output file not found: {ld_file}. "
+            f"This may indicate a filesystem issue or PLINK bug."
+        )
 
     # PLINK outputs whitespace-separated: CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2
     ld_df = pd.read_csv(ld_file, sep=r"\s+")
@@ -328,9 +346,8 @@ def calculate_ld(
         return parse_ld_output(ld_file, lead_snp)
 
     finally:
-        # Clean up temp directory
         if cleanup_working_dir and os.path.exists(working_dir):
-            shutil.rmtree(working_dir, ignore_errors=True)
+            shutil.rmtree(working_dir, onerror=_log_rmtree_error)
 
 
 def calculate_pairwise_ld(
@@ -463,6 +480,5 @@ def calculate_pairwise_ld(
         return matrix, found_snps
 
     finally:
-        # Clean up temp directory
         if cleanup_working_dir and os.path.exists(working_dir):
-            shutil.rmtree(working_dir, ignore_errors=True)
+            shutil.rmtree(working_dir, onerror=_log_rmtree_error)

@@ -1057,7 +1057,7 @@ class BokehBackend:
         fig: Any,
         snp_idx: int,
         n_snps: int,
-        color: str = "#7D26CD",
+        color: str = "#FF0000",
         linewidth: float = 2,
     ) -> None:
         """Highlight a SNP's row and column in the heatmap.
@@ -1070,6 +1070,8 @@ class BokehBackend:
             color: Highlight color.
             linewidth: Line width for highlight rectangles.
         """
+        if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
+            raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
         # Row highlights (lower triangle: columns 0..snp_idx)
         for j in range(snp_idx + 1):
             ax.rect(

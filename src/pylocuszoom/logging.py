@@ -54,7 +54,7 @@ class _LoguruWrapper:
             try:
                 _loguru_logger.remove(self._error_handler_id)
             except ValueError:
-                pass
+                pass  # Handler already removed; safe to ignore
             self._error_handler_id = None
 
     def enable(self, level: str = "INFO", sink=sys.stderr) -> None:
@@ -65,7 +65,7 @@ class _LoguruWrapper:
             try:
                 _loguru_logger.remove(self._handler_id)
             except ValueError:
-                pass
+                pass  # Handler already removed; safe to ignore
         self._handler_id = _loguru_logger.add(
             sink,
             level=level,
@@ -80,7 +80,7 @@ class _LoguruWrapper:
             try:
                 _loguru_logger.remove(self._handler_id)
             except ValueError:
-                pass
+                pass  # Handler already removed; safe to ignore
             self._handler_id = None
         # Re-add error-only handler so errors still reach stderr
         self._add_error_handler()

@@ -11,7 +11,7 @@ import pandas as pd
 from .backends.base import PlotBackend
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import PIP_LINE_COLOR, get_credible_set_color
-from .exceptions import FinemappingValidationError, ValidationError
+from .exceptions import FinemappingValidationError
 from .logging import logger
 from .utils import filter_by_region
 from .validation import DataFrameValidator
@@ -35,16 +35,15 @@ def validate_finemapping_df(
     Raises:
         FinemappingValidationError: If required columns are missing.
     """
-    try:
-        (
-            DataFrameValidator(df, "Fine-mapping DataFrame")
-            .require_columns([pos_col, pip_col])
-            .require_numeric([pip_col])
-            .require_range(pip_col, min_val=0, max_val=1)
-            .validate()
+    (
+        DataFrameValidator(
+            df, "Fine-mapping DataFrame", error_class=FinemappingValidationError
         )
-    except ValidationError as e:
-        raise FinemappingValidationError(str(e)) from e
+        .require_columns([pos_col, pip_col])
+        .require_numeric([pip_col])
+        .require_range(pip_col, min_val=0, max_val=1)
+        .validate()
+    )
 
 
 def filter_finemapping_by_region(

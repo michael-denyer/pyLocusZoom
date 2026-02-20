@@ -371,9 +371,15 @@ def load_gtex_eqtl(
 
     logger.debug(f"Loaded GTEx eQTL file with {len(df)} associations")
 
-    # Validate if required columns present
-    if "pos" in df.columns and "p_value" in df.columns and "gene" in df.columns:
+    required = ["pos", "p_value", "gene"]
+    if all(col in df.columns for col in required):
         validate_eqtl_dataframe(df)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"GTEx eQTL loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 
@@ -409,8 +415,15 @@ def load_eqtl_catalogue(
 
     logger.debug(f"Loaded eQTL Catalogue file with {len(df)} associations")
 
-    if "pos" in df.columns and "p_value" in df.columns and "gene" in df.columns:
+    required = ["pos", "p_value", "gene"]
+    if all(col in df.columns for col in required):
         validate_eqtl_dataframe(df)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"eQTL Catalogue loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 
@@ -513,8 +526,15 @@ def load_susie(
 
     logger.debug(f"Loaded SuSiE file with {len(df)} variants")
 
-    if "pos" in df.columns and "pip" in df.columns:
+    required = ["pos", "pip"]
+    if all(col in df.columns for col in required):
         validate_finemapping_dataframe(df, cs_col=cs_col)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"SuSiE loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 
@@ -556,8 +576,15 @@ def load_finemap(
 
     logger.debug(f"Loaded FINEMAP file with {len(df)} variants")
 
-    if "pos" in df.columns and "pip" in df.columns:
+    required = ["pos", "pip"]
+    if all(col in df.columns for col in required):
         validate_finemapping_dataframe(df, cs_col=cs_col)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"FINEMAP loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 
@@ -630,8 +657,15 @@ def load_polyfun(
 
     logger.debug(f"Loaded PolyFun file with {len(df)} variants")
 
-    if "pos" in df.columns and "pip" in df.columns:
+    required = ["pos", "pip"]
+    if all(col in df.columns for col in required):
         validate_finemapping_dataframe(df, cs_col=cs_col)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"PolyFun loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 
@@ -767,8 +801,15 @@ def load_bed(
 
     logger.debug(f"Loaded {len(df)} features from BED")
 
-    if all(col in df.columns for col in ["chr", "start", "end", "gene_name"]):
+    required = ["chr", "start", "end", "gene_name"]
+    if all(col in df.columns for col in required):
         validate_genes_dataframe(df)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"BED loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 
@@ -807,8 +848,15 @@ def load_ensembl_genes(
 
     logger.debug(f"Loaded {len(df)} genes from Ensembl export")
 
-    if all(col in df.columns for col in ["chr", "start", "end", "gene_name"]):
+    required = ["chr", "start", "end", "gene_name"]
+    if all(col in df.columns for col in required):
         validate_genes_dataframe(df)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"Ensembl genes loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
 
     return df
 

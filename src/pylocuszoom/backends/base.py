@@ -935,7 +935,7 @@ class PlotBackend(Protocol):
         ...
 
     # =========================================================================
-    # Recombination Overlay
+    # Heatmap SNP Highlighting
     # =========================================================================
 
     def highlight_heatmap_snp(
@@ -944,7 +944,7 @@ class PlotBackend(Protocol):
         fig: Any,
         snp_idx: int,
         n_snps: int,
-        color: str = "#7D26CD",
+        color: str = "#FF0000",
         linewidth: float = 2,
     ) -> None:
         """Highlight a SNP's row and column in a heatmap.
@@ -955,12 +955,19 @@ class PlotBackend(Protocol):
         Args:
             ax: Axes/figure object.
             fig: Figure object (used by plotly for shapes).
-            snp_idx: Index of SNP to highlight.
-            n_snps: Total number of SNPs in matrix.
+            snp_idx: Index of SNP to highlight (0-indexed, must be < n_snps).
+            n_snps: Total number of SNPs in matrix (must be > 0).
             color: Highlight color.
             linewidth: Line width for highlight rectangles.
+
+        Raises:
+            ValueError: If snp_idx is out of bounds or n_snps < 1.
         """
         ...
+
+    # =========================================================================
+    # Recombination Overlay
+    # =========================================================================
 
     def add_recombination_overlay(
         self,

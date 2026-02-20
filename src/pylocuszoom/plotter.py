@@ -165,10 +165,9 @@ class LocusZoomPlotter:
             )
             self._recomb_cache[cache_key] = recomb_df
             return recomb_df
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             logger.warning(
-                f"Recombination map file not found for chr{chrom} "
-                f"({self.species}, {self.genome_build}). "
+                f"Recombination data file not found: {e}. "
                 f"Recombination overlay will be skipped."
             )
             return None
@@ -179,7 +178,7 @@ class LocusZoomPlotter:
         Delegates to shared transform_pvalues() in _plotter_utils.
 
         Args:
-            df: DataFrame with p-value column (should be a copy).
+            df: DataFrame with p-value column. A copy is made internally.
             p_col: Name of p-value column.
 
         Returns:
@@ -255,8 +254,7 @@ class LocusZoomPlotter:
         logger.debug(f"Creating plot for chr{chrom}:{start}-{end}")
         plt.ioff()
 
-        df = gwas_df.copy()
-        df = self._transform_pvalues(df, p_col)
+        df = self._transform_pvalues(gwas_df, p_col)
 
         if ld_reference_file and lead_pos and ld_col is None:
             if rs_col not in df.columns:
@@ -271,7 +269,7 @@ class LocusZoomPlotter:
                         f"Lead SNP at position {lead_pos} not found in GWAS data. "
                         f"LD coloring will be skipped."
                     )
-                elif not lead_snp_row.empty:
+                else:
                     lead_snp_id = lead_snp_row[rs_col].iloc[0]
                     logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
                     ld_df = calculate_ld(
@@ -739,8 +737,7 @@ class LocusZoomPlotter:
 
         heatmap_data = None
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
-            first_gwas = gwas_dfs[0].copy()
-            first_gwas = self._transform_pvalues(first_gwas, p_col)
+            first_gwas = self._transform_pvalues(gwas_dfs[0], p_col)
             heatmap_data = self._transform_heatmap_to_genomic_coords(
                 ld_matrix=ld_heatmap_df,
                 snp_ids=ld_heatmap_snp_ids,
@@ -760,7 +757,6 @@ class LocusZoomPlotter:
         finemapping_height = 1.5 if finemapping_df is not None else 0
         heatmap_height_inches = panel_height * ld_heatmap_height if heatmap_data else 0
 
-        # Gene track height
         if genes_df is not None:
             n_gene_rows = calculate_gene_track_rows(genes_df, chrom, start, end)
             gene_track_height = 1.0 + (n_gene_rows - 1) * 0.5
@@ -805,8 +801,7 @@ class LocusZoomPlotter:
 
         for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
             ax = axes[i]
-            df = gwas_df.copy()
-            df = self._transform_pvalues(df, p_col)
+            df = self._transform_pvalues(gwas_df, p_col)
 
             panel_ld_col = ld_col
             if ld_reference_files and ld_reference_files[i] and lead_pos and not ld_col:

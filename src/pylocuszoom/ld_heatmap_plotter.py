@@ -195,8 +195,7 @@ class LDHeatmapPlotter:
     ) -> None:
         """Add visual highlight for a SNP's row/column in the heatmap.
 
-        Draws rectangle borders around the row and column cells for the
-        given SNP in the lower triangle.
+        Delegates to the backend protocol's highlight_heatmap_snp method.
 
         Args:
             ax: Axes object from backend.
@@ -205,48 +204,6 @@ class LDHeatmapPlotter:
             n_snps: Total number of SNPs in the matrix.
             color: Highlight color.
         """
-        # Compute all cell positions to highlight (x, y pairs)
-        # Row cells: columns 0 to snp_idx, row = snp_idx
-        row_cells = [(j, snp_idx) for j in range(snp_idx + 1)]
-        # Column cells: column = snp_idx, rows snp_idx+1 to end (skip diagonal)
-        col_cells = [(snp_idx, i) for i in range(snp_idx + 1, n_snps)]
-        all_cells = row_cells + col_cells
-
-        if self.backend_name == "matplotlib":
-            from matplotlib.patches import Rectangle
-
-            for x, y in all_cells:
-                rect = Rectangle(
-                    (x - 0.5, y - 0.5),
-                    1.0,
-                    1.0,
-                    fill=False,
-                    edgecolor=color,
-                    linewidth=2,
-                    zorder=10,
-                )
-                ax.add_patch(rect)
-
-        elif self.backend_name == "plotly":
-            for x, y in all_cells:
-                fig.add_shape(
-                    type="rect",
-                    x0=x - 0.5,
-                    x1=x + 0.5,
-                    y0=y - 0.5,
-                    y1=y + 0.5,
-                    line=dict(color=color, width=2),
-                    fillcolor="rgba(0,0,0,0)",
-                )
-
-        elif self.backend_name == "bokeh":
-            for x, y in all_cells:
-                ax.rect(
-                    x=x,
-                    y=y,
-                    width=1,
-                    height=1,
-                    fill_alpha=0,
-                    line_color=color,
-                    line_width=2,
-                )
+        self._backend.highlight_heatmap_snp(
+            ax, fig, snp_idx, n_snps, color=color, linewidth=2
+        )

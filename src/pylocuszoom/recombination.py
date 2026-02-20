@@ -39,7 +39,8 @@ def _normalize_build(build: Optional[str]) -> Optional[str]:
         build: Build name (e.g., "canfam4", "CanFam4.0", "UU_Cfam_GSD_1.0")
 
     Returns:
-        Normalized build name ("canfam3" or "canfam4"), or None if not specified.
+        Normalized build name ("canfam3", "canfam4", or the input lowercased
+        for unrecognized builds). None if not specified.
     """
     if build is None:
         return None
@@ -351,19 +352,19 @@ def load_recombination_map(
 
     df = pd.read_csv(map_file, sep="\t")
 
-    # Ensure numeric columns
-    df["pos"] = pd.to_numeric(df["pos"], errors="coerce")
-    df["rate"] = pd.to_numeric(df["rate"], errors="coerce")
+    for col in ["pos", "rate"]:
+        original = df[col]
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        bad_mask = df[col].isna() & original.notna()
+        bad_count = bad_mask.sum()
+        if bad_count > 0:
+            sample_vals = original[bad_mask].head(3).tolist()
+            logger.warning(
+                f"Recombination map chr{chrom_str}: {bad_count} non-numeric "
+                f"values in '{col}' column dropped. Sample values: {sample_vals}"
+            )
     if "cM" in df.columns:
         df["cM"] = pd.to_numeric(df["cM"], errors="coerce")
-
-    # Warn about non-numeric values that were coerced to NaN
-    nan_count = df[["pos", "rate"]].isna().sum().sum()
-    if nan_count > 0:
-        logger.warning(
-            f"Recombination map chr{chrom_str}: {nan_count} non-numeric values "
-            f"in pos/rate columns were dropped"
-        )
 
     return df.dropna(subset=["pos", "rate"])
 
@@ -451,11 +452,11 @@ def ensure_recomb_maps(
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
     except requests.RequestException as e:
-        logger.warning(f"Network error downloading recombination maps: {e}")
+        logger.error(f"Network error downloading recombination maps: {e}")
         return None
     except tarfile.TarError as e:
-        logger.warning(f"Corrupt archive in recombination maps: {e}")
+        logger.error(f"Corrupt archive in recombination maps: {e}")
         return None
     except OSError as e:
-        logger.warning(f"File system error with recombination maps: {e}")
+        logger.error(f"File system error with recombination maps: {e}")
         return None

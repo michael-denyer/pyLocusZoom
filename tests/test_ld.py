@@ -178,13 +178,10 @@ class TestParseLdOutput:
         assert len(lead_row) == 1
         assert lead_row["R2"].iloc[0] == 1.0
 
-    def test_handles_missing_file(self, tmp_path):
-        """Should return empty DataFrame for missing file."""
-        result = parse_ld_output(str(tmp_path / "nonexistent.ld"), "rs12345")
-
-        assert len(result) == 0
-        assert "SNP" in result.columns
-        assert "R2" in result.columns
+    def test_raises_for_missing_file(self, tmp_path):
+        """Should raise PlinkError for missing output file."""
+        with pytest.raises(PlinkError, match="output file not found"):
+            parse_ld_output(str(tmp_path / "nonexistent.ld"), "rs12345")
 
     def test_parses_r2_boundary_values(self, tmp_path):
         """Should correctly parse R2 boundary values."""
@@ -550,33 +547,29 @@ rs3"""
         assert math.isnan(matrix.loc["rs1", "rs2"])
         assert math.isnan(matrix.loc["rs2", "rs1"])
 
-    def test_returns_empty_for_missing_ld_file(self, tmp_path):
-        """Should return empty matrix for missing .ld file."""
+    def test_raises_for_missing_ld_file(self, tmp_path):
+        """Should raise PlinkError for missing .ld file."""
         snplist_content = """rs1
 rs2"""
         snplist_file = tmp_path / "test.snplist"
         snplist_file.write_text(snplist_content)
 
-        matrix, snp_ids = parse_pairwise_ld_output(
-            str(tmp_path / "nonexistent.ld"), str(snplist_file)
-        )
+        with pytest.raises(PlinkError, match="output files missing"):
+            parse_pairwise_ld_output(
+                str(tmp_path / "nonexistent.ld"), str(snplist_file)
+            )
 
-        assert matrix.empty
-        assert snp_ids == []
-
-    def test_returns_empty_for_missing_snplist_file(self, tmp_path):
-        """Should return empty matrix for missing .snplist file."""
+    def test_raises_for_missing_snplist_file(self, tmp_path):
+        """Should raise PlinkError for missing .snplist file."""
         ld_content = """1.0\t0.85
 0.85\t1.0"""
         ld_file = tmp_path / "test.ld"
         ld_file.write_text(ld_content)
 
-        matrix, snp_ids = parse_pairwise_ld_output(
-            str(ld_file), str(tmp_path / "nonexistent.snplist")
-        )
-
-        assert matrix.empty
-        assert snp_ids == []
+        with pytest.raises(PlinkError, match="output files missing"):
+            parse_pairwise_ld_output(
+                str(ld_file), str(tmp_path / "nonexistent.snplist")
+            )
 
     def test_parses_space_separated_values(self, tmp_path):
         """Should parse space-separated values (not just tab-separated)."""
