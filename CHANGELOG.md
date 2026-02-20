@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-02-20
+
+### Added
+
+- Path traversal protection (`_safe_species_dir`) for Ensembl gene cache — prevents `../../` and absolute path escapes
+- `_filter_invalid_pvalues()` DRY helper consolidating duplicate p-value filtering in Manhattan/categorical plots
+- 22 new tests: path traversal (6), p-value filtering (8), heatmap coordinates (4), categorical integers (2), version (1), absolute path injection (1)
+
+### Changed
+
+- `_filter_invalid_pvalues()` always returns a copy (no inconsistent mutation) and raises `ValueError` when all rows are invalid (prevents blank plots)
+- Bokeh/Plotly heatmaps use actual genomic coordinates instead of integer indices
+- Version sourced from `importlib.metadata` instead of hardcoded string
+- Default pytest addopts exclude integration tests (`-m 'not integration'`)
+
+### Fixed
+
+- Categorical Manhattan plots with integer category columns silently dropped all points (filtered on wrong column)
+- Bokeh heatmap cell dimensions now scale with coordinate spacing instead of hardcoded `width=1`
+- Plotly heatmap axes showed index values instead of genomic positions
+- Misleading code comments (bokeh "lower triangle", manhattan "-1 for unknown")
+
 ## [1.3.3] - 2026-02-20
 
 ### Added
