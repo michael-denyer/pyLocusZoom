@@ -152,12 +152,22 @@ def get_eqtl_color_palette() -> dict[str, str]:
     Returns:
         Dictionary mapping bin labels to hex colors.
     """
-    palette = {}
-    for b in EQTL_POSITIVE_BINS:
-        palette[b.label] = b.color
-    for b in EQTL_NEGATIVE_BINS:
-        palette[b.label] = b.color
-    return palette
+    return {b.label: b.color for b in (*EQTL_POSITIVE_BINS, *EQTL_NEGATIVE_BINS)}
+
+
+def _find_ld_bin(r2: float) -> LDBin:
+    """Find the LD bin for a given R-squared value.
+
+    Args:
+        r2: R² value (must not be None/NaN).
+
+    Returns:
+        Matching LDBin.
+    """
+    for ld_bin in LD_BINS:
+        if r2 >= ld_bin.threshold:
+            return ld_bin
+    return LD_BINS[-1]
 
 
 def get_ld_color(r2: Optional[float]) -> str:
@@ -187,12 +197,7 @@ def get_ld_color(r2: Optional[float]) -> str:
     """
     if _is_missing(r2):
         return LD_NA_COLOR
-
-    for ld_bin in LD_BINS:
-        if r2 >= ld_bin.threshold:
-            return ld_bin.color
-
-    return LD_BINS[-1].color
+    return _find_ld_bin(r2).color
 
 
 def get_ld_bin(r2: Optional[float]) -> str:
@@ -212,12 +217,7 @@ def get_ld_bin(r2: Optional[float]) -> str:
     """
     if _is_missing(r2):
         return LD_NA_LABEL
-
-    for ld_bin in LD_BINS:
-        if r2 >= ld_bin.threshold:
-            return ld_bin.label
-
-    return LD_BINS[-1].label
+    return _find_ld_bin(r2).label
 
 
 def get_ld_color_palette() -> dict[str, str]:

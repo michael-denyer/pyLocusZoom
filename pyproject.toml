@@ -26,7 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "matplotlib>=3.5.0",
-    "pandas>=1.4.0",
+    "pandas>=1.4.0,<3",
     "numpy>=1.21.0",
     "loguru>=0.7.0",
     "pyliftover>=0.4",

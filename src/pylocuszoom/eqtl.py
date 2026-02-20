@@ -9,7 +9,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from .exceptions import EQTLValidationError, ValidationError
+from .exceptions import EQTLValidationError
 from .logging import logger
 from .utils import filter_by_region
 from .validation import DataFrameValidator
@@ -30,15 +30,12 @@ def validate_eqtl_df(
     Raises:
         EQTLValidationError: If required columns are missing.
     """
-    try:
-        (
-            DataFrameValidator(df, "eQTL DataFrame")
-            .require_columns([pos_col, p_col])
-            .require_numeric([p_col])
-            .validate()
-        )
-    except ValidationError as e:
-        raise EQTLValidationError(str(e)) from e
+    (
+        DataFrameValidator(df, "eQTL DataFrame", error_class=EQTLValidationError)
+        .require_columns([pos_col, p_col])
+        .require_numeric([p_col])
+        .validate()
+    )
 
 
 def filter_eqtl_by_gene(

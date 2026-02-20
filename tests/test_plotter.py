@@ -10,6 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom._plotter_utils import transform_pvalues
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
@@ -787,7 +788,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = plotter._transform_pvalues(df.copy(), "p_wald")
+            result = transform_pvalues(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -823,7 +824,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = plotter._transform_pvalues(df.copy(), "p_wald")
+            result = transform_pvalues(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -857,7 +858,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = plotter._transform_pvalues(df.copy(), "p_wald")
+            result = transform_pvalues(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -879,7 +880,7 @@ class TestPValueValidation:
             }
         )
 
-        result = plotter._transform_pvalues(df.copy(), "p_wald")
+        result = transform_pvalues(df.copy(), "p_wald")
 
         assert len(result) == 3
         assert result["neglog10p"].iloc[0] == pytest.approx(3.0)
@@ -1300,9 +1301,8 @@ class TestPvalueTransformation:
     def test_transform_pvalues_adds_neglog10p_column(self):
         """Helper creates neglog10p column from p-values."""
         df = pd.DataFrame({"pval": [0.01, 0.001, 1e-8]})
-        plotter = LocusZoomPlotter()
 
-        result = plotter._transform_pvalues(df.copy(), "pval")
+        result = transform_pvalues(df.copy(), "pval")
 
         assert "neglog10p" in result.columns
         assert result["neglog10p"].iloc[0] == pytest.approx(2.0)  # -log10(0.01)
@@ -1312,9 +1312,8 @@ class TestPvalueTransformation:
     def test_transform_pvalues_clips_extreme_values(self):
         """Extremely small p-values are clipped to avoid -inf."""
         df = pd.DataFrame({"pval": [1e-350, 0.0]})  # Would be -inf without clipping
-        plotter = LocusZoomPlotter()
 
-        result = plotter._transform_pvalues(df.copy(), "pval")
+        result = transform_pvalues(df.copy(), "pval")
 
         # Should be clipped to 1e-300, giving ~300
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)

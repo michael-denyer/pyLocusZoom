@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 import requests
-from loguru import logger as loguru_logger
 
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
@@ -93,17 +92,13 @@ class TestLoadRecombinationMap:
         map_file.write_text(map_content)
 
         log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
+        from pylocuszoom.logging import logger as plz_logger
 
+        plz_logger.enable("WARNING", sink=log_capture)
         try:
             result = load_recombination_map(chrom=1, data_dir=str(tmp_path))
         finally:
-            loguru_logger.remove(handler_id)
+            plz_logger.enable("INFO")
 
         # Only valid row should remain
         assert len(result) == 1
@@ -443,77 +438,33 @@ class TestEnsureRecombMaps:
         result = ensure_recomb_maps(species="canine")
         assert result is None
 
+    @pytest.mark.parametrize(
+        "exception,expected_msg",
+        [
+            (requests.RequestException("Connection refused"), "recombination maps"),
+            (tarfile.TarError("Bad header"), "recombination maps"),
+            (OSError("Permission denied"), "recombination maps"),
+        ],
+    )
     @patch("pylocuszoom.recombination.download_canine_recombination_maps")
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_network_error_message(
-        self, mock_get_dir, mock_download, tmp_path
+    def test_ensure_recomb_maps_error_message(
+        self, mock_get_dir, mock_download, tmp_path, exception, expected_msg
     ):
-        """Test that network errors produce specific log message."""
+        """Download errors produce log message with context."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = requests.RequestException("Connection refused")
+        mock_download.side_effect = exception
 
         log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
+        from pylocuszoom.logging import logger as plz_logger
 
+        plz_logger.enable("ERROR", sink=log_capture)
         try:
             ensure_recomb_maps(species="canine")
         finally:
-            loguru_logger.remove(handler_id)
+            plz_logger.enable("INFO")
 
-        assert "Network error downloading recombination maps" in log_capture.getvalue()
-
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_tar_error_message(
-        self, mock_get_dir, mock_download, tmp_path
-    ):
-        """Test that tar errors produce specific log message."""
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = tarfile.TarError("Bad header")
-
-        log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
-
-        try:
-            ensure_recomb_maps(species="canine")
-        finally:
-            loguru_logger.remove(handler_id)
-
-        assert "Corrupt archive in recombination maps" in log_capture.getvalue()
-
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_os_error_message(
-        self, mock_get_dir, mock_download, tmp_path
-    ):
-        """Test that OS errors produce specific log message."""
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = OSError("Permission denied")
-
-        log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
-
-        try:
-            ensure_recomb_maps(species="canine")
-        finally:
-            loguru_logger.remove(handler_id)
-
-        assert "File system error with recombination maps" in log_capture.getvalue()
+        assert expected_msg in log_capture.getvalue()
 
 
 class TestDownloadLiftoverChainHTTPError:
@@ -575,23 +526,16 @@ class TestTarTraversalOSError:
             return original_resolve(self_path, *args, **kwargs)
 
         log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
+        from pylocuszoom.logging import logger as plz_logger
 
+        plz_logger.enable("WARNING", sink=log_capture)
         try:
             with patch.object(Path, "resolve", patched_resolve):
-                # The function skips the unsafe member, then raises RuntimeError
-                # because no chromosome files are found. We verify the warning was
-                # logged (OSError caught) before the RuntimeError.
                 with pytest.raises(RuntimeError, match="Could not find chromosome"):
                     download_canine_recombination_maps(
                         output_dir=str(tmp_path / "output"), force=True
                     )
         finally:
-            loguru_logger.remove(handler_id)
+            plz_logger.enable("INFO")
 
         assert "Skipping unsafe path in archive" in log_capture.getvalue()

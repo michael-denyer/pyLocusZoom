@@ -451,12 +451,6 @@ def ensure_recomb_maps(
     logger.info("Downloading canine recombination maps...")
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
-    except requests.RequestException as e:
-        logger.error(f"Network error downloading recombination maps: {e}")
-        return None
-    except tarfile.TarError as e:
-        logger.error(f"Corrupt archive in recombination maps: {e}")
-        return None
-    except OSError as e:
-        logger.error(f"File system error with recombination maps: {e}")
+    except (requests.RequestException, tarfile.TarError, OSError) as e:
+        logger.error(f"Could not download recombination maps: {e!r}")
         return None

@@ -172,20 +172,6 @@ class LocusZoomPlotter:
             )
             return None
 
-    def _transform_pvalues(self, df: pd.DataFrame, p_col: str) -> pd.DataFrame:
-        """Validate, filter, and -log10 transform p-values.
-
-        Delegates to shared transform_pvalues() in _plotter_utils.
-
-        Args:
-            df: DataFrame with p-value column. A copy is made internally.
-            p_col: Name of p-value column.
-
-        Returns:
-            DataFrame with invalid rows removed and neglog10p column added.
-        """
-        return transform_pvalues(df, p_col)
-
     def plot(
         self,
         gwas_df: pd.DataFrame,
@@ -254,7 +240,7 @@ class LocusZoomPlotter:
         logger.debug(f"Creating plot for chr{chrom}:{start}-{end}")
         plt.ioff()
 
-        df = self._transform_pvalues(gwas_df, p_col)
+        df = transform_pvalues(gwas_df, p_col)
 
         if ld_reference_file and lead_pos and ld_col is None:
             if rs_col not in df.columns:
@@ -737,7 +723,7 @@ class LocusZoomPlotter:
 
         heatmap_data = None
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
-            first_gwas = self._transform_pvalues(gwas_dfs[0], p_col)
+            first_gwas = transform_pvalues(gwas_dfs[0], p_col)
             heatmap_data = self._transform_heatmap_to_genomic_coords(
                 ld_matrix=ld_heatmap_df,
                 snp_ids=ld_heatmap_snp_ids,
@@ -801,7 +787,7 @@ class LocusZoomPlotter:
 
         for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
             ax = axes[i]
-            df = self._transform_pvalues(gwas_df, p_col)
+            df = transform_pvalues(gwas_df, p_col)
 
             panel_ld_col = ld_col
             if ld_reference_files and ld_reference_files[i] and lead_pos and not ld_col:
@@ -936,7 +922,7 @@ class LocusZoomPlotter:
                 eqtl_data = eqtl_data[mask]
 
             if not eqtl_data.empty:
-                eqtl_data = self._transform_pvalues(eqtl_data, "p_value")
+                eqtl_data = transform_pvalues(eqtl_data, "p_value")
 
                 eqtl_extra_cols = {}
                 if "effect_size" in eqtl_data.columns:

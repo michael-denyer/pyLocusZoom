@@ -10,16 +10,6 @@ import pandas as pd
 if TYPE_CHECKING:
     from ..colors import EQTLBin, LDBin
 
-# Backend-specific type aliases for documentation purposes.
-# These remain Any because each backend uses different concrete types:
-#   matplotlib: Axes | Figure
-#   plotly: Tuple[go.Figure, int] | go.Figure
-#   bokeh: figure (bokeh.plotting) | Column layout
-# Narrowing these would require runtime backend checks or generics,
-# which adds complexity without practical benefit in a Protocol.
-AxesType = Any
-FigureType = Any
-
 
 class PlotBackend(Protocol):
     """Protocol defining the backend interface for LocusZoom plots.
