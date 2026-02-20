@@ -203,20 +203,22 @@ class BokehBackend:
         else:
             data["size"] = [max(6, s**0.5) for s in sizes]
 
-        # Add hover data
+        # Add hover data with namespaced keys to avoid collisions
+        # with internal keys (x, y, color, size)
         tooltips = []
         if hover_data is not None:
             for col in hover_data.columns:
-                data[col] = hover_data[col].values
+                safe_key = f"hover_{col}"
+                data[safe_key] = hover_data[col].values
                 col_lower = col.lower()
                 if col_lower in ("p-value", "pval", "p_value"):
-                    tooltips.append((col, "@{" + col + "}{0.2e}"))
-                elif any(x in col_lower for x in ("r2", "r²", "ld")):
-                    tooltips.append((col, "@{" + col + "}{0.3f}"))
+                    tooltips.append((col, "@{" + safe_key + "}{0.2e}"))
+                elif any(kw in col_lower for kw in ("r2", "r²", "ld")):
+                    tooltips.append((col, "@{" + safe_key + "}{0.3f}"))
                 elif "pos" in col_lower:
-                    tooltips.append((col, "@{" + col + "}{0,0}"))
+                    tooltips.append((col, "@{" + safe_key + "}{0,0}"))
                 else:
-                    tooltips.append((col, f"@{col}"))
+                    tooltips.append((col, f"@{{{safe_key}}}"))
 
         source = ColumnDataSource(data)
 
@@ -641,28 +643,16 @@ class BokehBackend:
         """Add label text at fractional position in panel."""
         from bokeh.models import Label
 
-        # Convert fraction to data coordinates using axis ranges
-        x_range = ax.x_range
-        y_range = ax.y_range
-        x = (
-            x_range.start + x_frac * (x_range.end - x_range.start)
-            if hasattr(x_range, "start") and x_range.start is not None
-            else 0
-        )
-
-        # Handle both normal and inverted y-axis
-        # For inverted axis (start > end), y_frac=0.95 should be near start (top visually)
-        if hasattr(y_range, "start") and y_range.start is not None:
-            y_min = min(y_range.start, y_range.end)
-            y_max = max(y_range.start, y_range.end)
-            # Position label at top of visible range regardless of axis direction
-            y = y_min + y_frac * (y_max - y_min)
-        else:
-            y = 0
+        # Use screen coordinates so the label works regardless of whether
+        # the data range has been resolved (DataRange1d starts as None)
+        x_px = int(x_frac * ax.width)
+        y_px = int(y_frac * ax.height)
 
         label_obj = Label(
-            x=x,
-            y=y,
+            x=x_px,
+            y=y_px,
+            x_units="screen",
+            y_units="screen",
             text=label,
             text_font_size="12px",
             text_font_style="bold",
@@ -675,7 +665,7 @@ class BokehBackend:
         Creates a separate y-range for legend glyphs so they don't affect
         the main plot's axis scaling.
         """
-        from bokeh.models import ColumnDataSource, Range1d
+        from bokeh.models import Range1d
 
         if "legend_range" not in ax.extra_y_ranges:
             ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
@@ -802,20 +792,25 @@ class BokehBackend:
     ) -> None:
         """Save figure to file.
 
-        Supports .html for interactive and .png for static.
+        Supports .html for interactive and .png/.svg for static.
+
+        Raises:
+            ValueError: If the file extension is not supported.
         """
-        from bokeh.io import export_png, export_svgs, output_file, save
+        from bokeh.io import export_png, export_svgs, save
+        from bokeh.resources import CDN
 
         if path.endswith(".html"):
-            output_file(path)
-            save(fig)
+            save(fig, filename=path, resources=CDN)
         elif path.endswith(".png"):
             export_png(fig, filename=path)
         elif path.endswith(".svg"):
             export_svgs(fig, filename=path)
         else:
-            output_file(path)
-            save(fig)
+            raise ValueError(
+                f"Unsupported file format: {path!r}. "
+                "Supported formats: .html, .png, .svg"
+            )
 
     def show(self, fig: Any) -> None:
         """Display the figure."""
@@ -1062,6 +1057,9 @@ class BokehBackend:
     ) -> None:
         """Highlight a SNP's row and column in the heatmap.
 
+        Uses batched rect() calls for efficiency instead of one renderer
+        per cell.
+
         Args:
             ax: Bokeh figure.
             fig: Layout object (unused, for API compatibility).
@@ -1072,27 +1070,32 @@ class BokehBackend:
         """
         if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
             raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
+
+        # Collect all highlight cell coordinates, then draw in batched calls
+        xs = []
+        ys = []
+
         # Row highlights (lower triangle: columns 0..snp_idx)
         for j in range(snp_idx + 1):
-            ax.rect(
-                x=j,
-                y=snp_idx,
-                width=1,
-                height=1,
-                fill_alpha=0,
-                line_color=color,
-                line_width=linewidth,
-            )
+            xs.append(j)
+            ys.append(snp_idx)
+
         # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
         for i in range(snp_idx + 1, n_snps):
+            xs.append(snp_idx)
+            ys.append(i)
+
+        if xs:
+            source = ColumnDataSource(data={"x": xs, "y": ys})
             ax.rect(
-                x=snp_idx,
-                y=i,
+                x="x",
+                y="y",
                 width=1,
                 height=1,
                 fill_alpha=0,
                 line_color=color,
                 line_width=linewidth,
+                source=source,
             )
 
     def add_heatmap(
@@ -1189,39 +1192,71 @@ class BokehBackend:
         """
         from bokeh.models import BasicTicker, ColorBar
 
-        orientation_map = {"vertical": "vertical", "horizontal": "horizontal"}
         color_bar = ColorBar(
             color_mapper=mappable,
             ticker=BasicTicker(),
             label_standoff=6,
             title=label,
-            orientation=orientation_map.get(orientation, "vertical"),
+            orientation=orientation,
         )
         ax.add_layout(color_bar, "right")
         return color_bar
+
+
+def _parse_color_to_rgb(color: str) -> Tuple[int, int, int]:
+    """Parse a color string to an (R, G, B) tuple.
+
+    Supports 6-digit hex (#FF0000), 3-digit hex (#F00), and
+    named CSS colors (red, white, etc.) via matplotlib's color converter.
+
+    Args:
+        color: Color string in any supported format.
+
+    Returns:
+        Tuple of (R, G, B) integers in range 0-255.
+    """
+    color = color.strip()
+
+    # 6-digit hex
+    if color.startswith("#") and len(color) == 7:
+        hex_str = color[1:]
+        return tuple(int(hex_str[i : i + 2], 16) for i in (0, 2, 4))
+
+    # 3-digit hex — expand to 6-digit
+    if color.startswith("#") and len(color) == 4:
+        hex_str = color[1:]
+        expanded = "".join(c * 2 for c in hex_str)
+        return tuple(int(expanded[i : i + 2], 16) for i in (0, 2, 4))
+
+    # Named CSS color — use matplotlib's converter
+    try:
+        from matplotlib.colors import to_rgb
+
+        r, g, b = to_rgb(color)
+        return (int(r * 255), int(g * 255), int(b * 255))
+    except (ImportError, ValueError):
+        raise ValueError(
+            f"Cannot parse color {color!r}. Use 6-digit hex (#FF0000), "
+            "3-digit hex (#F00), or a named CSS color (red, blue, etc.)."
+        )
 
 
 def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:
     """Create a linear color palette between two colors.
 
     Args:
-        start_color: Starting hex color.
-        end_color: Ending hex color.
+        start_color: Starting color (hex or named CSS color).
+        end_color: Ending color (hex or named CSS color).
         n_colors: Number of colors in palette.
 
     Returns:
         List of hex color strings.
     """
-
-    def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
-        hex_color = hex_color.lstrip("#")
-        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+    start_rgb = _parse_color_to_rgb(start_color)
+    end_rgb = _parse_color_to_rgb(end_color)
 
     def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
         return "#{:02x}{:02x}{:02x}".format(*rgb)
-
-    start_rgb = hex_to_rgb(start_color)
-    end_rgb = hex_to_rgb(end_color)
 
     palette = []
     for i in range(n_colors):

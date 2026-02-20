@@ -1915,5 +1915,10 @@ class TestHighlightHeatmapSnpBackendProtocol:
         # Should not raise
         backend.highlight_heatmap_snp(ax, layout, snp_idx=2, n_snps=5)
 
-        # Verify renderers were added (5 rect calls)
-        assert len(ax.renderers) == renderers_before + 5
+        # Verify renderer was added (batched into single rect call)
+        assert len(ax.renderers) == renderers_before + 1
+
+        # Verify the batched renderer has correct number of cells
+        # snp_idx=2, n_snps=5: row cells (0,2),(1,2),(2,2) + col cells (2,3),(2,4) = 5
+        renderer = ax.renderers[-1]
+        assert len(renderer.data_source.data["x"]) == 5

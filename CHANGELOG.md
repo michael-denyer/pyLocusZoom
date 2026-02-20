@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-02-20
+
+### Added
+
+- 15 new Bokeh backend tests covering save(), panel labels, hover collisions, color parsing, heatmap batching, colorbar, and legend range
+
+### Fixed
+
+- **Bokeh `save()` polluted global state** via `output_file()` — now passes `filename` directly to `bokeh.io.save()` and raises `ValueError` for unsupported file formats
+- **Bokeh `add_panel_label()` broken with `DataRange1d`** — label placed at data coordinates `(0, 0)` when range not yet resolved; now uses screen-unit pixel offsets
+- **Bokeh `scatter()` hover column name collision** — hover data columns named `x`, `y`, `color`, or `size` overwrote internal scatter keys; now namespaced as `hover_<col>`
+- **Bokeh `_create_color_palette()` only handled 6-digit hex** — 3-digit hex (`#F00`) and named CSS colors (`red`) caused silent errors; new `_parse_color_to_rgb()` handles all formats via matplotlib's `to_rgb()`
+- **Bokeh `highlight_heatmap_snp()` created O(n) renderers** — each highlighted cell added a separate renderer; now batches all cells into at most 2 `rect()` calls with `ColumnDataSource`
+- Bokeh `add_colorbar()` identity `orientation_map` removed — orientation passed directly
+- Bokeh `_ensure_legend_range()` redundant local `ColumnDataSource` import removed — uses module-level import
+
 ## [1.3.4] - 2026-02-20
 
 ### Added
@@ -416,6 +432,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bokeh >= 3.8.2
 - kaleido >= 0.2.0
 
+[1.3.5]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.4...v1.3.5
+[1.3.4]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.3...v1.3.4
+[1.3.3]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/michael-denyer/pyLocusZoom/compare/v1.2.0...v1.3.0
