@@ -289,7 +289,7 @@ class ManhattanPlotter:
         # Plot points by category
         cat_order = prepared_df.attrs["category_order"]
         for cat in cat_order:
-            cat_data = prepared_df[prepared_df[category_col] == cat]
+            cat_data = prepared_df[prepared_df["_cat_str"] == cat]
             if len(cat_data) > 0:
                 self._backend.scatter(
                     ax,

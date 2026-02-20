@@ -1138,7 +1138,7 @@ class BokehBackend:
             nan_color="#808080",  # Grey for missing
         )
 
-        # Build rect data for lower triangle
+        # Build rect data (lower triangle only when mask_upper=True)
         xs, ys, values = [], [], []
         n = data.shape[0]
         for i in range(n):
@@ -1147,17 +1147,22 @@ class BokehBackend:
                 if mask_upper and j > i:
                     continue
                 val = data[i, j]
-                xs.append(j)
-                ys.append(i)
+                xs.append(x_coords[j])
+                ys.append(y_coords[i])
                 values.append(val if not np.isnan(val) else float("nan"))
 
         source = ColumnDataSource({"x": xs, "y": ys, "value": values})
 
+        # Approximate cell size from first pair of coordinates.
+        # Assumes roughly uniform spacing; adequate for typical LD heatmap grids.
+        cell_width = abs(x_coords[1] - x_coords[0]) if len(x_coords) > 1 else 1
+        cell_height = abs(y_coords[1] - y_coords[0]) if len(y_coords) > 1 else 1
+
         ax.rect(
             x="x",
             y="y",
-            width=1,
-            height=1,
+            width=cell_width,
+            height=cell_height,
             fill_color={"field": "value", "transform": mapper},
             line_color=None,
             source=source,

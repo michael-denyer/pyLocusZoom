@@ -1032,3 +1032,101 @@ class TestPlotlySecondaryAxisNaming:
         assert len(set(secondary_names)) == 5, (
             f"Secondary axis names are not unique: {secondary_names}"
         )
+
+
+class TestHeatmapCoordinates:
+    """Tests that heatmap backends use actual genomic coordinates, not indices."""
+
+    def test_plotly_heatmap_uses_actual_coords(self):
+        """Plotly heatmap should use passed x/y coords, not range(len(coords))."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        data = np.array([[1.0, 0.5], [0.5, 1.0]])
+        x_coords = [1_000_000.0, 2_000_000.0]
+        y_coords = [1_000_000.0, 2_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+
+        fig_obj = ax[0]
+        heatmap_trace = [t for t in fig_obj.data if hasattr(t, "z")][0]
+        assert list(heatmap_trace.x) == [1_000_000.0, 2_000_000.0], (
+            f"Expected genomic x-coords, got {heatmap_trace.x}"
+        )
+        assert list(heatmap_trace.y) == [1_000_000.0, 2_000_000.0], (
+            f"Expected genomic y-coords, got {heatmap_trace.y}"
+        )
+
+    def test_bokeh_heatmap_uses_actual_coords(self):
+        """Bokeh heatmap should use passed x/y coords, not index values."""
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        data = np.array([[1.0, 0.5], [0.5, 1.0]])
+        x_coords = [1_000_000.0, 2_000_000.0]
+        y_coords = [1_000_000.0, 2_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+
+        # Get the rect glyph data source
+        renderers = ax.renderers
+        rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
+        xs = sorted(set(rect_renderer.data_source.data["x"]))
+        ys = sorted(set(rect_renderer.data_source.data["y"]))
+        assert xs == [1_000_000.0, 2_000_000.0], f"Expected genomic x-coords, got {xs}"
+        assert ys == [1_000_000.0, 2_000_000.0], f"Expected genomic y-coords, got {ys}"
+
+    def test_bokeh_heatmap_mask_upper_uses_actual_coords(self):
+        """Bokeh heatmap with mask_upper=True should still use actual coords."""
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        data = np.array([[1.0, 0.5], [0.5, 1.0]])
+        x_coords = [1_000_000.0, 2_000_000.0]
+        y_coords = [1_000_000.0, 2_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=True)
+
+        renderers = ax.renderers
+        rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
+        xs = list(rect_renderer.data_source.data["x"])
+        ys = list(rect_renderer.data_source.data["y"])
+        # mask_upper=True: only lower triangle (j <= i), so 3 cells for 2x2
+        assert len(xs) == 3
+        assert all(x >= 1_000_000 for x in xs), f"Expected genomic x-coords, got {xs}"
+        assert all(y >= 1_000_000 for y in ys), f"Expected genomic y-coords, got {ys}"
+
+    def test_bokeh_heatmap_rect_dimensions_scale_with_coords(self):
+        """Bokeh heatmap rect width/height should match coordinate spacing."""
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        data = np.array([[1.0, 0.5], [0.5, 1.0]])
+        x_coords = [1_000_000.0, 2_000_000.0]
+        y_coords = [1_000_000.0, 2_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+
+        renderers = ax.renderers
+        rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
+        glyph = rect_renderer.glyph
+        assert glyph.width == 1_000_000.0, f"Expected rect width 1M, got {glyph.width}"
+        assert glyph.height == 1_000_000.0, (
+            f"Expected rect height 1M, got {glyph.height}"
+        )

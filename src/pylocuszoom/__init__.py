@@ -34,9 +34,13 @@ Species Support:
     - Custom: User provides all reference data
 """
 
-__version__ = "1.3.2"
+from importlib.metadata import PackageNotFoundError, version
 
-# Main plotter class
+try:
+    __version__ = version("pylocuszoom")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
+
 # Backend types
 from .backends import BackendType, get_backend
 

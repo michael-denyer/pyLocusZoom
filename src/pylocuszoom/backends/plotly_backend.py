@@ -1391,8 +1391,8 @@ class PlotlyBackend:
 
         trace = go.Heatmap(
             z=z.tolist(),
-            x=list(range(len(x_coords))),
-            y=list(range(len(y_coords))),
+            x=list(x_coords),
+            y=list(y_coords),
             colorscale=colorscale,
             zmin=vmin,
             zmax=vmax,
