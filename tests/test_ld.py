@@ -1,12 +1,15 @@
 """Tests for LD calculation module."""
 
 import os
+import subprocess
 import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.ld import (
+    _add_species_flags,
     build_ld_command,
     build_pairwise_ld_command,
     calculate_ld,
@@ -175,13 +178,10 @@ class TestParseLdOutput:
         assert len(lead_row) == 1
         assert lead_row["R2"].iloc[0] == 1.0
 
-    def test_handles_missing_file(self, tmp_path):
-        """Should return empty DataFrame for missing file."""
-        result = parse_ld_output(str(tmp_path / "nonexistent.ld"), "rs12345")
-
-        assert len(result) == 0
-        assert "SNP" in result.columns
-        assert "R2" in result.columns
+    def test_raises_for_missing_file(self, tmp_path):
+        """Should raise PlinkError for missing output file."""
+        with pytest.raises(PlinkError, match="output file not found"):
+            parse_ld_output(str(tmp_path / "nonexistent.ld"), "rs12345")
 
     def test_parses_r2_boundary_values(self, tmp_path):
         """Should correctly parse R2 boundary values."""
@@ -223,55 +223,88 @@ class TestCalculateLd:
                     lead_snp="rs12345",
                 )
 
-    def test_returns_empty_dataframe_on_plink_failure(self, tmp_path, mock_plink_files):
-        """Should return empty DataFrame when PLINK fails."""
+    def test_raises_plink_error_on_plink_failure(self, tmp_path, mock_plink_files):
+        """Should raise PlinkError when PLINK returns non-zero exit code."""
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=1)
-
-                result = calculate_ld(
-                    bfile_path=mock_plink_files,
-                    lead_snp="rs12345",
-                    working_dir=str(tmp_path),
+                mock_run.return_value = MagicMock(
+                    returncode=1, stderr="Error: invalid SNP"
                 )
 
-                assert len(result) == 0
-                assert "SNP" in result.columns
-                assert "R2" in result.columns
+                with pytest.raises(PlinkError, match="exit code 1"):
+                    calculate_ld(
+                        bfile_path=mock_plink_files,
+                        lead_snp="rs12345",
+                        working_dir=str(tmp_path),
+                    )
 
-    def test_cleans_up_temp_directory(self, mock_plink_files):
-        """Should clean up temp directory when working_dir not specified."""
+    def test_plink_error_includes_stderr_in_message(self, tmp_path, mock_plink_files):
+        """PlinkError message should include PLINK's stderr output."""
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=1)
+                mock_run.return_value = MagicMock(
+                    returncode=1, stderr="Error: variant not found"
+                )
+
+                with pytest.raises(PlinkError, match="variant not found"):
+                    calculate_ld(
+                        bfile_path=mock_plink_files,
+                        lead_snp="rs12345",
+                        working_dir=str(tmp_path),
+                    )
+
+    def test_raises_plink_error_on_timeout(self, tmp_path, mock_plink_files):
+        """Should raise PlinkError when PLINK times out."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.side_effect = subprocess.TimeoutExpired(
+                    cmd="plink", timeout=300
+                )
+
+                with pytest.raises(PlinkError, match="timed out"):
+                    calculate_ld(
+                        bfile_path=mock_plink_files,
+                        lead_snp="rs12345",
+                        working_dir=str(tmp_path),
+                    )
+
+    def test_cleans_up_temp_directory(self, mock_plink_files):
+        """Should clean up temp directory even when PlinkError is raised."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
                 # Get initial temp dir count
                 temp_base = tempfile.gettempdir()
                 initial_dirs = set(os.listdir(temp_base))
 
-                calculate_ld(
-                    bfile_path=mock_plink_files,
-                    lead_snp="rs12345",
-                    working_dir=None,
-                )
+                with pytest.raises(PlinkError):
+                    calculate_ld(
+                        bfile_path=mock_plink_files,
+                        lead_snp="rs12345",
+                        working_dir=None,
+                    )
 
-                # Check no new dirs remain
+                # Check no new dirs remain (finally block should clean up)
                 final_dirs = set(os.listdir(temp_base))
                 new_dirs = final_dirs - initial_dirs
-                snp_scope_dirs = [d for d in new_dirs if d.startswith("snp_scope_ld_")]
-                assert len(snp_scope_dirs) == 0
+                pylocuszoom_dirs = [
+                    d for d in new_dirs if d.startswith("pylocuszoom_ld_")
+                ]
+                assert len(pylocuszoom_dirs) == 0
 
     def test_uses_specified_plink_path(self, tmp_path, mock_plink_files):
         """Should use specified PLINK path instead of auto-detecting."""
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=1)
+            mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
-            calculate_ld(
-                bfile_path=mock_plink_files,
-                lead_snp="rs12345",
-                plink_path="/custom/path/plink",
-                working_dir=str(tmp_path),
-            )
+            with pytest.raises(PlinkError):
+                calculate_ld(
+                    bfile_path=mock_plink_files,
+                    lead_snp="rs12345",
+                    plink_path="/custom/path/plink",
+                    working_dir=str(tmp_path),
+                )
 
             # Check the command used the custom path
             call_args = mock_run.call_args
@@ -514,33 +547,29 @@ rs3"""
         assert math.isnan(matrix.loc["rs1", "rs2"])
         assert math.isnan(matrix.loc["rs2", "rs1"])
 
-    def test_returns_empty_for_missing_ld_file(self, tmp_path):
-        """Should return empty matrix for missing .ld file."""
+    def test_raises_for_missing_ld_file(self, tmp_path):
+        """Should raise PlinkError for missing .ld file."""
         snplist_content = """rs1
 rs2"""
         snplist_file = tmp_path / "test.snplist"
         snplist_file.write_text(snplist_content)
 
-        matrix, snp_ids = parse_pairwise_ld_output(
-            str(tmp_path / "nonexistent.ld"), str(snplist_file)
-        )
+        with pytest.raises(PlinkError, match="output files missing"):
+            parse_pairwise_ld_output(
+                str(tmp_path / "nonexistent.ld"), str(snplist_file)
+            )
 
-        assert matrix.empty
-        assert snp_ids == []
-
-    def test_returns_empty_for_missing_snplist_file(self, tmp_path):
-        """Should return empty matrix for missing .snplist file."""
+    def test_raises_for_missing_snplist_file(self, tmp_path):
+        """Should raise PlinkError for missing .snplist file."""
         ld_content = """1.0\t0.85
 0.85\t1.0"""
         ld_file = tmp_path / "test.ld"
         ld_file.write_text(ld_content)
 
-        matrix, snp_ids = parse_pairwise_ld_output(
-            str(ld_file), str(tmp_path / "nonexistent.snplist")
-        )
-
-        assert matrix.empty
-        assert snp_ids == []
+        with pytest.raises(PlinkError, match="output files missing"):
+            parse_pairwise_ld_output(
+                str(ld_file), str(tmp_path / "nonexistent.snplist")
+            )
 
     def test_parses_space_separated_values(self, tmp_path):
         """Should parse space-separated values (not just tab-separated)."""
@@ -583,20 +612,18 @@ class TestCalculatePairwiseLd:
                     snp_list=["rs1", "rs2"],
                 )
 
-    def test_returns_empty_on_plink_failure(self, tmp_path, mock_plink_files):
-        """Should return empty DataFrame when PLINK fails."""
+    def test_raises_plink_error_on_plink_failure(self, tmp_path, mock_plink_files):
+        """Should raise PlinkError when PLINK returns non-zero exit code."""
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
-                matrix, snp_ids = calculate_pairwise_ld(
-                    bfile_path=mock_plink_files,
-                    snp_list=["rs1", "rs2"],
-                    working_dir=str(tmp_path),
-                )
-
-                assert matrix.empty
-                assert snp_ids == []
+                with pytest.raises(PlinkError, match="exit code 1"):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2"],
+                        working_dir=str(tmp_path),
+                    )
 
     def test_writes_snp_list_file(self, tmp_path, mock_plink_files):
         """Should write SNP list to file when snp_list provided."""
@@ -604,13 +631,14 @@ class TestCalculatePairwiseLd:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
-                calculate_pairwise_ld(
-                    bfile_path=mock_plink_files,
-                    snp_list=["rs1", "rs2", "rs3"],
-                    working_dir=str(tmp_path),
-                )
+                with pytest.raises(PlinkError):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2", "rs3"],
+                        working_dir=str(tmp_path),
+                    )
 
-                # Check the SNP list file was written
+                # Check the SNP list file was written (before PLINK ran)
                 snp_list_file = tmp_path / "snp_list.txt"
                 assert snp_list_file.exists()
                 content = snp_list_file.read_text()
@@ -624,11 +652,12 @@ class TestCalculatePairwiseLd:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
-                calculate_pairwise_ld(
-                    bfile_path=mock_plink_files,
-                    snp_list=["rs1", "rs2"],
-                    working_dir=str(tmp_path),
-                )
+                with pytest.raises(PlinkError):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2"],
+                        working_dir=str(tmp_path),
+                    )
 
                 # Check command included --extract
                 call_args = mock_run.call_args
@@ -641,13 +670,14 @@ class TestCalculatePairwiseLd:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
-                calculate_pairwise_ld(
-                    bfile_path=mock_plink_files,
-                    chrom=1,
-                    start=1000000,
-                    end=2000000,
-                    working_dir=str(tmp_path),
-                )
+                with pytest.raises(PlinkError):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        chrom=1,
+                        start=1000000,
+                        end=2000000,
+                        working_dir=str(tmp_path),
+                    )
 
                 # Check command included region flags
                 call_args = mock_run.call_args
@@ -680,7 +710,7 @@ class TestCalculatePairwiseLd:
                     )
 
     def test_cleans_up_temp_directory(self, mock_plink_files):
-        """Should clean up temp directory when working_dir not specified."""
+        """Should clean up temp directory even when PlinkError is raised."""
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
@@ -688,16 +718,18 @@ class TestCalculatePairwiseLd:
                 temp_base = tempfile.gettempdir()
                 initial_dirs = set(os.listdir(temp_base))
 
-                calculate_pairwise_ld(
-                    bfile_path=mock_plink_files,
-                    snp_list=["rs1", "rs2"],
-                    working_dir=None,
-                )
+                with pytest.raises(PlinkError):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2"],
+                        working_dir=None,
+                    )
 
+                # finally block should still clean up
                 final_dirs = set(os.listdir(temp_base))
                 new_dirs = final_dirs - initial_dirs
                 pairwise_dirs = [
-                    d for d in new_dirs if d.startswith("snp_scope_pairwise_ld_")
+                    d for d in new_dirs if d.startswith("pylocuszoom_pairwise_ld_")
                 ]
                 assert len(pairwise_dirs) == 0
 
@@ -729,14 +761,81 @@ class TestCalculatePairwiseLd:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
 
-                calculate_pairwise_ld(
-                    bfile_path=mock_plink_files,
-                    snp_list=["rs1", "rs2"],
-                    working_dir=str(tmp_path),
-                    metric="dprime",
-                )
+                with pytest.raises(PlinkError):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2"],
+                        working_dir=str(tmp_path),
+                        metric="dprime",
+                    )
 
                 call_args = mock_run.call_args
                 cmd = call_args[0][0]
                 assert "--r" in cmd
                 assert "dprime" in cmd
+
+    def test_raises_plink_error_on_timeout(self, tmp_path, mock_plink_files):
+        """Should raise PlinkError when PLINK times out."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.side_effect = subprocess.TimeoutExpired(
+                    cmd="plink", timeout=300
+                )
+
+                with pytest.raises(PlinkError, match="timed out"):
+                    calculate_pairwise_ld(
+                        bfile_path=mock_plink_files,
+                        snp_list=["rs1", "rs2"],
+                        working_dir=str(tmp_path),
+                    )
+
+
+class TestAddSpeciesFlags:
+    """Tests for _add_species_flags shared helper."""
+
+    def test_canine_adds_dog_flag(self):
+        """Should append --dog for canine species."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "canine")
+        assert cmd == ["plink", "--dog"]
+
+    def test_feline_adds_chr_set_18(self):
+        """Should append --chr-set 18 for feline species."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "feline")
+        assert cmd == ["plink", "--chr-set", "18"]
+
+    def test_human_adds_no_flags(self):
+        """Should not add any flags for human (None species)."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, None)
+        assert cmd == ["plink"]
+
+    def test_unknown_species_adds_no_flags(self):
+        """Should not add any flags for unrecognized species."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "bovine")
+        assert cmd == ["plink"]
+
+    def test_build_ld_command_uses_shared_helper(self):
+        """build_ld_command should produce same species flags as _add_species_flags."""
+        for species, expected_flag in [("canine", "--dog"), ("feline", "--chr-set")]:
+            cmd = build_ld_command(
+                plink_path="plink",
+                bfile_path="data",
+                lead_snp="rs1",
+                output_path="out",
+                species=species,
+            )
+            assert expected_flag in cmd
+
+    def test_build_pairwise_ld_command_uses_shared_helper(self):
+        """build_pairwise_ld_command should produce same species flags."""
+        for species, expected_flag in [("canine", "--dog"), ("feline", "--chr-set")]:
+            cmd = build_pairwise_ld_command(
+                plink_path="plink",
+                bfile_path="data",
+                output_path="out",
+                species=species,
+            )
+            assert expected_flag in cmd

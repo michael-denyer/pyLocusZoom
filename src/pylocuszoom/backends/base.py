@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, Tuple
 import pandas as pd
 
 if TYPE_CHECKING:
-    pass
+    from ..colors import EQTLBin, LDBin
 
 
 class PlotBackend(Protocol):
@@ -693,7 +693,7 @@ class PlotBackend(Protocol):
     def add_ld_legend(
         self,
         ax: Any,
-        ld_bins: List[Tuple[float, str, str]],
+        ld_bins: "List[LDBin]",
         lead_snp_color: str,
     ) -> None:
         """Add LD color legend.
@@ -702,7 +702,7 @@ class PlotBackend(Protocol):
 
         Args:
             ax: Axes or panel.
-            ld_bins: List of (threshold, label, color) tuples defining LD bins.
+            ld_bins: List of LDBin(threshold, label, color) defining LD bins.
             lead_snp_color: Color for lead SNP marker in legend.
         """
         ...
@@ -725,15 +725,15 @@ class PlotBackend(Protocol):
     def add_eqtl_legend(
         self,
         ax: Any,
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
+        eqtl_positive_bins: "List[EQTLBin]",
+        eqtl_negative_bins: "List[EQTLBin]",
     ) -> None:
         """Add eQTL effect size legend to the axes.
 
         Args:
             ax: Axes or panel.
-            eqtl_positive_bins: List of (min, max, label, color) for positive effects.
-            eqtl_negative_bins: List of (min, max, label, color) for negative effects.
+            eqtl_positive_bins: List of EQTLBin(min_val, max_val, label, color).
+            eqtl_negative_bins: List of EQTLBin(min_val, max_val, label, color).
         """
         ...
 
@@ -921,6 +921,37 @@ class PlotBackend(Protocol):
 
         Returns:
             Colorbar object.
+        """
+        ...
+
+    # =========================================================================
+    # Heatmap SNP Highlighting
+    # =========================================================================
+
+    def highlight_heatmap_snp(
+        self,
+        ax: Any,
+        fig: Any,
+        snp_idx: int,
+        n_snps: int,
+        color: str = "#FF0000",
+        linewidth: float = 2,
+    ) -> None:
+        """Highlight a SNP's row and column in a heatmap.
+
+        Draws unfilled rectangles around the cells in the SNP's row (lower
+        triangle) and column (below diagonal) to visually mark the lead SNP.
+
+        Args:
+            ax: Axes/figure object.
+            fig: Figure object (used by plotly for shapes).
+            snp_idx: Index of SNP to highlight (0-indexed, must be < n_snps).
+            n_snps: Total number of SNPs in matrix (must be > 0).
+            color: Highlight color.
+            linewidth: Line width for highlight rectangles.
+
+        Raises:
+            ValueError: If snp_idx is out of bounds or n_snps < 1.
         """
         ...
 

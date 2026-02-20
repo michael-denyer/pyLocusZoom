@@ -25,8 +25,20 @@ class LoaderValidationError(ValidationError):
     """Raised when loaded data fails validation."""
 
 
+class PheWASValidationError(ValidationError):
+    """Raised when PheWAS DataFrame validation fails."""
+
+
+class ForestValidationError(ValidationError):
+    """Raised when forest plot DataFrame validation fails."""
+
+
 class BackendError(PyLocusZoomError):
     """Raised when backend operations fail."""
+
+
+class PlinkError(PyLocusZoomError, RuntimeError):
+    """Raised when PLINK subprocess fails."""
 
 
 class DataDownloadError(PyLocusZoomError, RuntimeError):

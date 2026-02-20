@@ -444,6 +444,72 @@ class TestAutoFormatDetection:
         assert "ps" in df.columns
         assert len(df) == 3
 
+    def test_load_gwas_detects_bolt_from_stats_ext(self, tmp_path):
+        """Test that .stats extension is detected as BOLT-LMM format."""
+        content = """SNP\tCHR\tBP\tALLELE1\tALLELE0\tA1FREQ\tBETA\tSE\tP_BOLT_LMM_INF
+rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
+"""
+        filepath = tmp_path / "result.stats"
+        filepath.write_text(content)
+        df = load_gwas(filepath)
+        assert "ps" in df.columns
+        assert len(df) == 1
+
+    def test_load_gwas_unknown_format_warns_and_defaults_plink(self, tmp_path):
+        """Unknown file extension logs warning and defaults to plink loader."""
+        content = """CHR SNP BP A1 TEST NMISS BETA STAT P
+1 rs123 1000000 A ADD 1000 0.5 2.5 0.01
+"""
+        filepath = tmp_path / "results.unknown_ext"
+        filepath.write_text(content)
+
+        from pylocuszoom.logging import enable_logging
+
+        # Enable logging so the warning message gets emitted
+        enable_logging("WARNING")
+
+        # The function should still succeed (defaults to plink)
+        df = load_gwas(filepath)
+        assert "ps" in df.columns
+        assert len(df) == 1
+
+    def test_load_gwas_explicit_format_overrides_detection(self, tmp_path):
+        """Explicit format= parameter overrides auto-detection."""
+        # File with .stats extension but content is PLINK format
+        content = """CHR SNP BP A1 TEST NMISS BETA STAT P
+1 rs123 1000000 A ADD 1000 0.5 2.5 0.01
+"""
+        filepath = tmp_path / "tricky.stats"
+        filepath.write_text(content)
+        # Force plink format despite .stats extension
+        df = load_gwas(filepath, format="plink")
+        assert "ps" in df.columns
+
+    def test_load_gwas_invalid_format_raises(self):
+        """Invalid format name raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown format"):
+            load_gwas("/fake/path", format="nonexistent_format")
+
+    def test_load_gwas_detects_assoc_linear(self, tmp_path):
+        """Test .assoc.linear extension is detected as plink."""
+        content = """CHR SNP BP A1 TEST NMISS BETA STAT P
+1 rs123 1000000 A ADD 1000 0.5 2.5 0.01
+"""
+        filepath = tmp_path / "result.assoc.linear"
+        filepath.write_text(content)
+        df = load_gwas(filepath)
+        assert "ps" in df.columns
+
+    def test_load_gwas_detects_qassoc(self, tmp_path):
+        """Test .qassoc extension is detected as plink."""
+        content = """CHR SNP BP A1 TEST NMISS BETA STAT P
+1 rs123 1000000 A ADD 1000 0.5 2.5 0.01
+"""
+        filepath = tmp_path / "result.qassoc"
+        filepath.write_text(content)
+        df = load_gwas(filepath)
+        assert "ps" in df.columns
+
 
 # =============================================================================
 # Test Fine-mapping Loaders
@@ -975,6 +1041,22 @@ class TestFileValidation:
 
         with pytest.raises(Exception):  # FileNotFoundError or LoaderValidationError
             load_plink_assoc(fake_path)
+
+    def test_corrupt_file_raises_error(self, tmp_path):
+        """Test that corrupt/empty file raises an error during loading."""
+        filepath = tmp_path / "corrupt.assoc"
+        filepath.write_text("this is not valid tabular data\n!!!\n")
+
+        with pytest.raises(Exception):
+            load_plink_assoc(filepath)
+
+    def test_empty_file_raises_error(self, tmp_path):
+        """Test that empty file raises an error."""
+        filepath = tmp_path / "empty.assoc"
+        filepath.write_text("")
+
+        with pytest.raises(Exception):
+            load_plink_assoc(filepath)
 
 
 # =============================================================================

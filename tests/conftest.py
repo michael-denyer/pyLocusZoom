@@ -1,4 +1,4 @@
-"""Pytest configuration for snp-scope-plot tests."""
+"""Pytest configuration for pyLocusZoom tests."""
 
 import os
 

@@ -40,6 +40,25 @@ from .schemas import (
     validate_gwas_dataframe,
 )
 
+
+def _validate_or_warn(
+    df: pd.DataFrame,
+    required: list[str],
+    loader_name: str,
+    validate_fn,
+    **validate_kwargs,
+) -> None:
+    """Run validation if required columns are present, otherwise warn."""
+    if all(col in df.columns for col in required):
+        validate_fn(df, **validate_kwargs)
+    else:
+        missing = [c for c in required if c not in df.columns]
+        logger.warning(
+            f"{loader_name} loader could not map columns: {missing}. "
+            f"Validation skipped. Available columns: {list(df.columns)}"
+        )
+
+
 # =============================================================================
 # GWAS Loaders
 # =============================================================================
@@ -371,9 +390,9 @@ def load_gtex_eqtl(
 
     logger.debug(f"Loaded GTEx eQTL file with {len(df)} associations")
 
-    # Validate if required columns present
-    if "pos" in df.columns and "p_value" in df.columns and "gene" in df.columns:
-        validate_eqtl_dataframe(df)
+    _validate_or_warn(
+        df, ["pos", "p_value", "gene"], "GTEx eQTL", validate_eqtl_dataframe
+    )
 
     return df
 
@@ -409,8 +428,9 @@ def load_eqtl_catalogue(
 
     logger.debug(f"Loaded eQTL Catalogue file with {len(df)} associations")
 
-    if "pos" in df.columns and "p_value" in df.columns and "gene" in df.columns:
-        validate_eqtl_dataframe(df)
+    _validate_or_warn(
+        df, ["pos", "p_value", "gene"], "eQTL Catalogue", validate_eqtl_dataframe
+    )
 
     return df
 
@@ -513,8 +533,9 @@ def load_susie(
 
     logger.debug(f"Loaded SuSiE file with {len(df)} variants")
 
-    if "pos" in df.columns and "pip" in df.columns:
-        validate_finemapping_dataframe(df, cs_col=cs_col)
+    _validate_or_warn(
+        df, ["pos", "pip"], "SuSiE", validate_finemapping_dataframe, cs_col=cs_col
+    )
 
     return df
 
@@ -556,8 +577,9 @@ def load_finemap(
 
     logger.debug(f"Loaded FINEMAP file with {len(df)} variants")
 
-    if "pos" in df.columns and "pip" in df.columns:
-        validate_finemapping_dataframe(df, cs_col=cs_col)
+    _validate_or_warn(
+        df, ["pos", "pip"], "FINEMAP", validate_finemapping_dataframe, cs_col=cs_col
+    )
 
     return df
 
@@ -630,8 +652,9 @@ def load_polyfun(
 
     logger.debug(f"Loaded PolyFun file with {len(df)} variants")
 
-    if "pos" in df.columns and "pip" in df.columns:
-        validate_finemapping_dataframe(df, cs_col=cs_col)
+    _validate_or_warn(
+        df, ["pos", "pip"], "PolyFun", validate_finemapping_dataframe, cs_col=cs_col
+    )
 
     return df
 
@@ -767,8 +790,9 @@ def load_bed(
 
     logger.debug(f"Loaded {len(df)} features from BED")
 
-    if all(col in df.columns for col in ["chr", "start", "end", "gene_name"]):
-        validate_genes_dataframe(df)
+    _validate_or_warn(
+        df, ["chr", "start", "end", "gene_name"], "BED", validate_genes_dataframe
+    )
 
     return df
 
@@ -807,8 +831,12 @@ def load_ensembl_genes(
 
     logger.debug(f"Loaded {len(df)} genes from Ensembl export")
 
-    if all(col in df.columns for col in ["chr", "start", "end", "gene_name"]):
-        validate_genes_dataframe(df)
+    _validate_or_warn(
+        df,
+        ["chr", "start", "end", "gene_name"],
+        "Ensembl genes",
+        validate_genes_dataframe,
+    )
 
     return df
 
@@ -863,7 +891,12 @@ def load_gwas(
         elif "saige" in name:
             format = "saige"
         else:
-            format = "plink"  # Default fallback
+            logger.warning(
+                "Could not detect GWAS file format for '%s'. "
+                "Defaulting to 'plink'. Specify format= parameter explicitly.",
+                filepath,
+            )
+            format = "plink"
 
     loaders = {
         "plink": load_plink_assoc,

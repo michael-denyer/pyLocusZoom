@@ -17,6 +17,9 @@ from pylocuszoom.colors import (
     LD_NA_LABEL,
     LEAD_SNP_HIGHLIGHT_COLOR,
     SECONDARY_HIGHLIGHT_COLOR,
+    EQTLBin,
+    LDBin,
+    _find_eqtl_bin,
     get_credible_set_color,
     get_credible_set_color_palette,
     get_eqtl_bin,
@@ -453,3 +456,96 @@ class TestLdHeatmapColors:
     def test_highlight_colors_are_distinct(self):
         """LEAD_SNP_HIGHLIGHT_COLOR and SECONDARY_HIGHLIGHT_COLOR should be different."""
         assert LEAD_SNP_HIGHLIGHT_COLOR != SECONDARY_HIGHLIGHT_COLOR
+
+
+# =============================================================================
+# NamedTuple Tests
+# =============================================================================
+
+
+class TestLDBinNamedTuple:
+    """Tests for LDBin NamedTuple."""
+
+    def test_ld_bins_are_ldbin_instances(self):
+        """All entries in LD_BINS should be LDBin instances."""
+        for ld_bin in LD_BINS:
+            assert isinstance(ld_bin, LDBin)
+
+    def test_ldbin_named_access(self):
+        """LDBin fields should be accessible by name."""
+        first = LD_BINS[0]
+        assert first.threshold == 0.8
+        assert first.label == "0.8 - 1.0"
+        assert first.color == "#FF0000"
+
+    def test_ldbin_backward_compatible_with_tuple_indexing(self):
+        """LDBin should still work with index access."""
+        first = LD_BINS[0]
+        assert first[0] == 0.8
+        assert first[1] == "0.8 - 1.0"
+        assert first[2] == "#FF0000"
+
+    def test_ldbin_backward_compatible_with_unpacking(self):
+        """LDBin should still work with tuple unpacking."""
+        threshold, label, color = LD_BINS[0]
+        assert threshold == 0.8
+        assert label == "0.8 - 1.0"
+        assert color == "#FF0000"
+
+
+class TestEQTLBinNamedTuple:
+    """Tests for EQTLBin NamedTuple."""
+
+    def test_eqtl_positive_bins_are_eqtlbin_instances(self):
+        """All entries in EQTL_POSITIVE_BINS should be EQTLBin instances."""
+        for eqtl_bin in EQTL_POSITIVE_BINS:
+            assert isinstance(eqtl_bin, EQTLBin)
+
+    def test_eqtl_negative_bins_are_eqtlbin_instances(self):
+        """All entries in EQTL_NEGATIVE_BINS should be EQTLBin instances."""
+        for eqtl_bin in EQTL_NEGATIVE_BINS:
+            assert isinstance(eqtl_bin, EQTLBin)
+
+    def test_eqtlbin_named_access(self):
+        """EQTLBin fields should be accessible by name."""
+        first_pos = EQTL_POSITIVE_BINS[0]
+        assert first_pos.min_val == 0.3
+        assert first_pos.max_val == 0.4
+        assert first_pos.label == "0.3 : 0.4"
+        assert first_pos.color == "#8B1A1A"
+
+    def test_eqtlbin_backward_compatible_with_unpacking(self):
+        """EQTLBin should still work with tuple unpacking."""
+        min_val, max_val, label, color = EQTL_POSITIVE_BINS[0]
+        assert min_val == 0.3
+        assert max_val == 0.4
+        assert label == "0.3 : 0.4"
+        assert color == "#8B1A1A"
+
+
+class TestFindEqtlBinConsistency:
+    """Tests for _find_eqtl_bin shared lookup."""
+
+    def test_find_eqtl_bin_returns_eqtlbin(self):
+        """_find_eqtl_bin should return an EQTLBin instance."""
+        result = _find_eqtl_bin(0.35)
+        assert isinstance(result, EQTLBin)
+
+    def test_color_and_bin_agree(self):
+        """get_eqtl_color and get_eqtl_bin should return matching color/label."""
+        test_effects = [0.35, 0.25, 0.15, 0.05, 0.0, -0.15, -0.25, -0.35, -0.5]
+        for effect in test_effects:
+            color = get_eqtl_color(effect)
+            label = get_eqtl_bin(effect)
+            found_bin = _find_eqtl_bin(effect)
+            assert color == found_bin.color, f"Color mismatch for effect={effect}"
+            assert label == found_bin.label, f"Label mismatch for effect={effect}"
+
+    @given(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False))
+    def test_color_and_bin_always_consistent(self, effect):
+        """For any valid effect, color and label come from the same bin."""
+        color = get_eqtl_color(effect)
+        label = get_eqtl_bin(effect)
+        found_bin = _find_eqtl_bin(effect)
+        assert color == found_bin.color
+        assert label == found_bin.label

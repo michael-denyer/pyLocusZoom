@@ -7,6 +7,7 @@ Provides:
 """
 
 import os
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -38,7 +39,8 @@ def _normalize_build(build: Optional[str]) -> Optional[str]:
         build: Build name (e.g., "canfam4", "CanFam4.0", "UU_Cfam_GSD_1.0")
 
     Returns:
-        Normalized build name ("canfam3" or "canfam4"), or None if not specified.
+        Normalized build name ("canfam3", "canfam4", or the input lowercased
+        for unrecognized builds). None if not specified.
     """
     if build is None:
         return None
@@ -47,7 +49,11 @@ def _normalize_build(build: Optional[str]) -> Optional[str]:
         return "canfam4"
     if "canfam3" in build_lower:
         return "canfam3"
-    return build.lower()
+    normalized = build.lower()
+    logger.debug(
+        f"Genome build '{build}' not recognized as canine; using as-is: '{normalized}'"
+    )
+    return normalized
 
 
 def get_chain_file_path() -> Path:
@@ -95,6 +101,9 @@ def download_liftover_chain(force: bool = False) -> Path:
 
     Returns:
         Path to the downloaded chain file.
+
+    Raises:
+        requests.HTTPError: If the download fails with an HTTP error.
     """
     chain_path = get_chain_file_path()
 
@@ -106,11 +115,17 @@ def download_liftover_chain(force: bool = False) -> Path:
     logger.info("Downloading CanFam3 to CanFam4 liftover chain...")
     logger.debug(f"Source: {CANFAM3_TO_CANFAM4_CHAIN_URL}")
 
-    _download_with_progress(
-        CANFAM3_TO_CANFAM4_CHAIN_URL,
-        chain_path,
-        desc="Liftover chain",
-    )
+    try:
+        _download_with_progress(
+            CANFAM3_TO_CANFAM4_CHAIN_URL,
+            chain_path,
+            desc="Liftover chain",
+        )
+    except requests.HTTPError as e:
+        raise requests.HTTPError(
+            f"HTTP error downloading liftover chain file from "
+            f"{CANFAM3_TO_CANFAM4_CHAIN_URL}: {e}"
+        ) from e
 
     logger.info(f"Chain file saved to: {chain_path}")
     return chain_path
@@ -182,11 +197,11 @@ def get_default_data_dir() -> Path:
     """Get default directory for recombination map data.
 
     Returns platform-appropriate cache directory:
-    - macOS/Linux: ~/.cache/snp-scope-plot (or $XDG_CACHE_HOME if set)
-    - Windows: %LOCALAPPDATA%/snp-scope-plot
+    - macOS/Linux: ~/.cache/pylocuszoom (or $XDG_CACHE_HOME if set)
+    - Windows: %LOCALAPPDATA%/pylocuszoom
     - Databricks: /dbfs/FileStore/reference_data/recombination_maps
     """
-    if os.name == "nt":  # Windows
+    if sys.platform == "win32":  # Windows
         base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
     elif os.path.exists("/dbfs"):  # Databricks
         return Path("/dbfs/FileStore/reference_data/recombination_maps")
@@ -198,7 +213,7 @@ def get_default_data_dir() -> Path:
         else:
             base = Path.home() / ".cache"
 
-    return base / "snp-scope-plot" / "recombination_maps"
+    return base / "pylocuszoom" / "recombination_maps"
 
 
 def download_canine_recombination_maps(
@@ -263,7 +278,7 @@ def download_canine_recombination_maps(
                 try:
                     member_path.resolve().relative_to(Path(tmpdir).resolve())
                     safe_members.append(member)
-                except ValueError:
+                except (ValueError, OSError):
                     logger.warning(f"Skipping unsafe path in archive: {member.name}")
             tar.extractall(tmpdir, members=safe_members)
 
@@ -337,9 +352,17 @@ def load_recombination_map(
 
     df = pd.read_csv(map_file, sep="\t")
 
-    # Ensure numeric columns
-    df["pos"] = pd.to_numeric(df["pos"], errors="coerce")
-    df["rate"] = pd.to_numeric(df["rate"], errors="coerce")
+    for col in ["pos", "rate"]:
+        original = df[col]
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        bad_mask = df[col].isna() & original.notna()
+        bad_count = bad_mask.sum()
+        if bad_count > 0:
+            sample_vals = original[bad_mask].head(3).tolist()
+            logger.warning(
+                f"Recombination map chr{chrom_str}: {bad_count} non-numeric "
+                f"values in '{col}' column dropped. Sample values: {sample_vals}"
+            )
     if "cM" in df.columns:
         df["cM"] = pd.to_numeric(df["cM"], errors="coerce")
 
@@ -428,6 +451,6 @@ def ensure_recomb_maps(
     logger.info("Downloading canine recombination maps...")
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
-    except (requests.RequestException, OSError, tarfile.TarError) as e:
-        logger.warning(f"Could not download recombination maps: {e}")
+    except (requests.RequestException, tarfile.TarError, OSError) as e:
+        logger.error(f"Could not download recombination maps: {e!r}")
         return None

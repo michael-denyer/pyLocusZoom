@@ -1300,6 +1300,50 @@ class PlotlyBackend:
             yaxis_name=secondary_y,
         )
 
+    def highlight_heatmap_snp(
+        self,
+        ax: Tuple[go.Figure, int],
+        fig: go.Figure,
+        snp_idx: int,
+        n_snps: int,
+        color: str = "#FF0000",
+        linewidth: float = 2,
+    ) -> None:
+        """Highlight a SNP's row and column in the heatmap.
+
+        Args:
+            ax: Tuple of (figure, row_number) (unused, shapes added to fig).
+            fig: Plotly figure for adding shapes.
+            snp_idx: Index of SNP to highlight.
+            n_snps: Total number of SNPs in matrix.
+            color: Highlight color.
+            linewidth: Line width for highlight rectangles.
+        """
+        if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
+            raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
+        # Row highlights (lower triangle: columns 0..snp_idx)
+        for j in range(snp_idx + 1):
+            fig.add_shape(
+                type="rect",
+                x0=j - 0.5,
+                x1=j + 0.5,
+                y0=snp_idx - 0.5,
+                y1=snp_idx + 0.5,
+                line=dict(color=color, width=linewidth),
+                fillcolor="rgba(0,0,0,0)",
+            )
+        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
+        for i in range(snp_idx + 1, n_snps):
+            fig.add_shape(
+                type="rect",
+                x0=snp_idx - 0.5,
+                x1=snp_idx + 0.5,
+                y0=i - 0.5,
+                y1=i + 0.5,
+                line=dict(color=color, width=linewidth),
+                fillcolor="rgba(0,0,0,0)",
+            )
+
     def add_heatmap(
         self,
         ax: Tuple[go.Figure, int],

@@ -105,17 +105,17 @@ class LDConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_ld_config(self) -> "LDConfig":
-        """Validate LD configuration consistency.
+        """Validate LD configuration is not contradictory.
 
-        When ld_reference_file is provided, lead_pos is required to identify
-        the index SNP for LD calculation.
-
-        Note: For StackedPlotConfig, ld_reference_file may be provided without
-        lead_pos when lead_positions list is used (broadcast mode). This is
-        validated at the StackedPlotConfig level, not here.
+        ld_col means LD is pre-computed in a DataFrame column.
+        ld_reference_file means LD should be calculated from a PLINK fileset.
+        These are mutually exclusive -- using both is ambiguous.
         """
-        # Validation moved to StackedPlotConfig.validate_broadcast_ld
-        # to allow broadcast mode where lead_positions list is used instead
+        if self.ld_col is not None and self.ld_reference_file is not None:
+            raise ValueError(
+                "Cannot specify both ld_col (pre-computed LD) and "
+                "ld_reference_file (compute LD). Choose one."
+            )
         return self
 
 

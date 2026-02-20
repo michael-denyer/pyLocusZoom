@@ -10,6 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom._plotter_utils import transform_pvalues
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
@@ -787,7 +788,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = plotter._transform_pvalues(df.copy(), "p_wald")
+            result = transform_pvalues(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -823,7 +824,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = plotter._transform_pvalues(df.copy(), "p_wald")
+            result = transform_pvalues(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -857,7 +858,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = plotter._transform_pvalues(df.copy(), "p_wald")
+            result = transform_pvalues(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -879,7 +880,7 @@ class TestPValueValidation:
             }
         )
 
-        result = plotter._transform_pvalues(df.copy(), "p_wald")
+        result = transform_pvalues(df.copy(), "p_wald")
 
         assert len(result) == 3
         assert result["neglog10p"].iloc[0] == pytest.approx(3.0)
@@ -1300,9 +1301,8 @@ class TestPvalueTransformation:
     def test_transform_pvalues_adds_neglog10p_column(self):
         """Helper creates neglog10p column from p-values."""
         df = pd.DataFrame({"pval": [0.01, 0.001, 1e-8]})
-        plotter = LocusZoomPlotter()
 
-        result = plotter._transform_pvalues(df.copy(), "pval")
+        result = transform_pvalues(df.copy(), "pval")
 
         assert "neglog10p" in result.columns
         assert result["neglog10p"].iloc[0] == pytest.approx(2.0)  # -log10(0.01)
@@ -1312,9 +1312,8 @@ class TestPvalueTransformation:
     def test_transform_pvalues_clips_extreme_values(self):
         """Extremely small p-values are clipped to avoid -inf."""
         df = pd.DataFrame({"pval": [1e-350, 0.0]})  # Would be -inf without clipping
-        plotter = LocusZoomPlotter()
 
-        result = plotter._transform_pvalues(df.copy(), "pval")
+        result = transform_pvalues(df.copy(), "pval")
 
         # Should be clipped to 1e-300, giving ~300
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
@@ -1860,3 +1859,61 @@ class TestLDHeatmapIntegration:
                 ld_heatmap_df=ld_matrix,
                 # ld_heatmap_snp_ids not provided
             )
+
+
+class TestHighlightHeatmapSnpBackendProtocol:
+    """Tests that highlight_heatmap_snp works on all backends."""
+
+    def test_matplotlib_highlight_heatmap_snp(self):
+        """Matplotlib backend highlight_heatmap_snp creates rectangle patches."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+        )
+        ax = axes[0]
+
+        # Should not raise
+        backend.highlight_heatmap_snp(ax, fig, snp_idx=2, n_snps=5)
+
+        # Verify patches were added (3 for row + 2 for column = 5 total)
+        rect_patches = [
+            p for p in ax.patches if hasattr(p, "get_edgecolor") and not p.get_fill()
+        ]
+        assert len(rect_patches) == 5
+        plt.close(fig)
+
+    def test_plotly_highlight_heatmap_snp(self):
+        """Plotly backend highlight_heatmap_snp adds shapes to figure."""
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, panels = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+        )
+        ax = panels[0]
+
+        # Should not raise
+        backend.highlight_heatmap_snp(ax, fig, snp_idx=2, n_snps=5)
+
+        # Verify shapes were added
+        shapes = fig.layout.shapes
+        assert len(shapes) == 5  # 3 for row + 2 for column
+
+    def test_bokeh_highlight_heatmap_snp(self):
+        """Bokeh backend highlight_heatmap_snp adds rect glyphs to figure."""
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        layout, figures = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+        )
+        ax = figures[0]
+        renderers_before = len(ax.renderers)
+
+        # Should not raise
+        backend.highlight_heatmap_snp(ax, layout, snp_idx=2, n_snps=5)
+
+        # Verify renderers were added (5 rect calls)
+        assert len(ax.renderers) == renderers_before + 5
