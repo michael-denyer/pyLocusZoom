@@ -369,6 +369,7 @@ class TestInvalidPValueFiltering:
         )
         result = prepare_manhattan_data(df, species="human")
         assert len(result) == 2
+        assert set(result["pos"].tolist()) == {100, 300}
         assert (result["_neg_log_p"] < 300).all()
 
     def test_nan_p_values_dropped(self):
@@ -384,6 +385,7 @@ class TestInvalidPValueFiltering:
         )
         result = prepare_manhattan_data(df, species="human")
         assert len(result) == 2
+        assert set(result["pos"].tolist()) == {100, 300}
 
     def test_p_values_greater_than_one_dropped(self):
         """P-values > 1 should be dropped from Manhattan data."""
@@ -398,6 +400,7 @@ class TestInvalidPValueFiltering:
         )
         result = prepare_manhattan_data(df, species="human")
         assert len(result) == 2
+        assert set(result["pos"].tolist()) == {100, 300}
 
     def test_categorical_negative_p_values_dropped(self):
         """Negative p-values should be dropped from categorical Manhattan data."""
@@ -411,9 +414,10 @@ class TestInvalidPValueFiltering:
         )
         result = prepare_categorical_data(df, category_col="category")
         assert len(result) == 2
+        assert set(result["p"].tolist()) == {0.5, 0.01}
 
     def test_zero_p_value_not_dropped(self):
-        """P-value of exactly 0 should be clipped to 1e-300, not dropped."""
+        """P-value of exactly 0 should not be dropped by the validity filter."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
         df = pd.DataFrame(
@@ -426,6 +430,7 @@ class TestInvalidPValueFiltering:
         result = prepare_manhattan_data(df, species="human")
         # 0 is in the valid range [0, 1] — clipped to 1e-300 for -log10
         assert len(result) == 1
+        assert result["_neg_log_p"].iloc[0] == pytest.approx(300.0)
 
 
 class TestCategoricalManhattanIntegerCategories:

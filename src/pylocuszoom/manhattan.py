@@ -6,6 +6,8 @@ import colorcet as cc
 import numpy as np
 import pandas as pd
 
+from .logging import logger
+
 # Species aliases
 SPECIES_ALIASES: dict[str, str] = {
     "dog": "canine",
@@ -90,6 +92,29 @@ def get_chromosome_colors(n_chromosomes: int) -> list[str]:
     return [palette[i % len(palette)] for i in range(n_chromosomes)]
 
 
+def _filter_invalid_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
+    """Filter rows with invalid p-values and compute -log10(p).
+
+    Drops rows where p is NaN, negative, or > 1, then clips remaining
+    values at 1e-300 before -log10 transformation.
+
+    Args:
+        df: DataFrame with p-value column.
+        p_col: Name of p-value column.
+
+    Returns:
+        DataFrame with invalid rows removed and _neg_log_p column added.
+    """
+    valid_mask = df[p_col].between(0, 1, inclusive="both")
+    n_invalid = (~valid_mask).sum()
+    if n_invalid > 0:
+        logger.warning(f"Dropped {n_invalid} invalid p-values (NaN or outside [0, 1])")
+        df = df[valid_mask].copy()
+
+    df["_neg_log_p"] = -np.log10(df[p_col].clip(lower=1e-300))
+    return df
+
+
 def prepare_manhattan_data(
     df: pd.DataFrame,
     chrom_col: str = "chrom",
@@ -125,8 +150,8 @@ def prepare_manhattan_data(
     # Get chromosome order
     chrom_order = get_chromosome_order(species, custom_order)
 
-    # Create working copy
-    result = df.copy()
+    # Create working copy and filter invalid p-values early
+    result = _filter_invalid_pvalues(df.copy(), p_col)
 
     # Normalize chromosome names (handle int vs str)
     result["_chrom_str"] = result[chrom_col].astype(str)
@@ -162,18 +187,6 @@ def prepare_manhattan_data(
     result["_cumulative_pos"] = (
         result["_chrom_str"].map(chrom_offsets).fillna(0) + result[pos_col]
     )
-
-    # Filter invalid p-values (NaN, negative, > 1)
-    valid_mask = result[p_col].between(0, 1, inclusive="both") & result[p_col].notna()
-    n_invalid = (~valid_mask).sum()
-    if n_invalid > 0:
-        from .logging import logger as _logger
-
-        _logger.warning(f"Dropped {n_invalid} invalid p-values (NaN or outside [0, 1])")
-        result = result[valid_mask].copy()
-
-    # Calculate -log10(p)
-    result["_neg_log_p"] = -np.log10(result[p_col].clip(lower=1e-300))
 
     # Assign colors
     all_chroms = chrom_order + sorted(unknown_chroms)
@@ -217,7 +230,8 @@ def prepare_categorical_data(
     if p_col not in df.columns:
         raise ValueError(f"Column '{p_col}' not found in DataFrame")
 
-    result = df.copy()
+    # Filter invalid p-values early, before derived calculations
+    result = _filter_invalid_pvalues(df.copy(), p_col)
 
     # Get category order
     if category_order is None:
@@ -240,18 +254,6 @@ def prepare_categorical_data(
     result["_x_pos"] = result["_cat_idx"] + np.random.uniform(
         -0.3, 0.3, size=len(result)
     )
-
-    # Filter invalid p-values (NaN, negative, > 1)
-    valid_mask = result[p_col].between(0, 1, inclusive="both") & result[p_col].notna()
-    n_invalid = (~valid_mask).sum()
-    if n_invalid > 0:
-        from .logging import logger as _logger
-
-        _logger.warning(f"Dropped {n_invalid} invalid p-values (NaN or outside [0, 1])")
-        result = result[valid_mask].copy()
-
-    # Calculate -log10(p)
-    result["_neg_log_p"] = -np.log10(result[p_col].clip(lower=1e-300))
 
     # Assign colors (use string values for lookup)
     colors = get_chromosome_colors(len(category_order))

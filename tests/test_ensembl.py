@@ -519,3 +519,11 @@ class TestPathTraversalProtection:
         df = pd.DataFrame({"gene": ["BRCA1"]})
         with pytest.raises(ValidationError, match="Invalid species name"):
             save_cached_genes(df, tmp_path, "../../etc/passwd", "1", 1, 100)
+
+    def test_clear_ensembl_cache_rejects_traversal(self, tmp_path):
+        """clear_ensembl_cache should reject path traversal species."""
+        from pylocuszoom.ensembl import clear_ensembl_cache
+        from pylocuszoom.utils import ValidationError
+
+        with pytest.raises(ValidationError, match="Invalid species name"):
+            clear_ensembl_cache(tmp_path, species="../../etc/passwd")

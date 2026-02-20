@@ -1153,11 +1153,15 @@ class BokehBackend:
 
         source = ColumnDataSource({"x": xs, "y": ys, "value": values})
 
+        # Compute cell dimensions from coordinate spacing
+        cell_width = abs(x_coords[1] - x_coords[0]) if len(x_coords) > 1 else 1
+        cell_height = abs(y_coords[1] - y_coords[0]) if len(y_coords) > 1 else 1
+
         ax.rect(
             x="x",
             y="y",
-            width=1,
-            height=1,
+            width=cell_width,
+            height=cell_height,
             fill_color={"field": "value", "transform": mapper},
             line_color=None,
             source=source,
