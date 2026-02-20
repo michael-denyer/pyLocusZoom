@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-02-20
+
+### Added
+
+- Exception hierarchy: `PyLocusZoomError` base, with `PheWASValidationError`, `ForestValidationError`, `EQTLValidationError`, `LoaderValidationError`, `FinemappingValidationError`, `DataDownloadError`, `BackendError` — all backward-compatible (still catchable as `ValueError`/`RuntimeError`)
+- `highlight_heatmap_snp()` added to `PlotBackend` protocol — all three backends implement SNP highlighting natively
+- Schema validation edge case tests, loader format detection tests, LD test coverage improvements
+
+### Changed
+
+- `LD_BINS` and `EQTL_BINS` converted from bare tuples to `NamedTuple` (`LDBin`, `EQTLBin`) for self-documenting field access
+- Extracted `_find_ld_bin()` helper in `colors.py` (DRY with existing `_find_eqtl_bin`)
+- Extracted `_validate_or_warn()` helper in `loaders.py` replacing 7 copy-pasted validation blocks
+- Extracted `_add_species_flags()` helper in `ld.py` deduplicating species flag dispatch
+- `eqtl.py` migrated to `error_class=` validation pattern (matching finemapping/phewas/forest)
+- Removed vestigial `_transform_pvalues` wrapper from `LocusZoomPlotter` — callers use `transform_pvalues()` directly
+- Capped `pandas>=1.4.0,<3` to avoid pandas 3.0 breaking changes (StringDtype default, Copy-on-Write)
+
+### Fixed
+
+- CI flaky test failures on Python 3.11: loguru capture tests in `test_recombination.py` now use production logger API instead of raw handlers (xdist-safe)
+- Consolidated 3 separate `except` blocks in `ensure_recomb_maps()` into one
+
+### Removed
+
+- Dead `AxesType`/`FigureType` type aliases in `base.py` (never referenced outside definition)
+- Dead `TestStdlibWrapperDirect` test class (146 lines testing a locally-defined fake wrapper instead of the actual `_StdlibWrapper`)
+- Dead `REQUIRED_EQTL_COLS`/`OPTIONAL_EQTL_COLS` constants from `eqtl.py`
+
 ## [1.3.2] - 2026-02-12
 
 ### Changed
