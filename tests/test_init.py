@@ -17,17 +17,17 @@ def test_plot_finemapping_exported():
 
 def test_version_matches_pyproject():
     """Package __version__ should match the version in pyproject.toml."""
+    import re
     from pathlib import Path
-
-    import tomllib
 
     import pylocuszoom
 
     pyproject = Path(__file__).parent.parent / "pyproject.toml"
-    with open(pyproject, "rb") as f:
-        meta = tomllib.load(f)
+    text = pyproject.read_text()
+    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    assert match, "Could not find version in pyproject.toml"
 
-    expected = meta["project"]["version"]
+    expected = match.group(1)
     assert pylocuszoom.__version__ == expected, (
         f"__version__={pylocuszoom.__version__!r} != pyproject.toml version={expected!r}"
     )
