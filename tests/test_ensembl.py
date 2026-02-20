@@ -494,6 +494,14 @@ class TestPathTraversalProtection:
         with pytest.raises(ValidationError, match="Invalid species name"):
             _safe_species_dir(tmp_path, "../../etc")
 
+    def test_absolute_path_species_raises_validation_error(self, tmp_path):
+        """Absolute path as species should raise ValidationError."""
+        from pylocuszoom.ensembl import _safe_species_dir
+        from pylocuszoom.utils import ValidationError
+
+        with pytest.raises(ValidationError, match="Invalid species name"):
+            _safe_species_dir(tmp_path, "/etc/passwd")
+
     def test_safe_species_stays_within_cache(self, tmp_path):
         """Normal species name should resolve within cache_dir."""
         from pylocuszoom.ensembl import _safe_species_dir

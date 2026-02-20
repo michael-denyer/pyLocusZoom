@@ -428,9 +428,36 @@ class TestInvalidPValueFiltering:
             }
         )
         result = prepare_manhattan_data(df, species="human")
-        # 0 is in the valid range [0, 1] — clipped to 1e-300 for -log10
+        # 0 passes the [0, 1] filter; -log10(clip(0, lower=1e-300)) = 300.0
         assert len(result) == 1
         assert result["_neg_log_p"].iloc[0] == pytest.approx(300.0)
+
+    def test_all_invalid_p_values_raises(self):
+        """All-invalid p-values should raise ValueError, not produce a blank plot."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1", "1", "1"],
+                "pos": [100, 200, 300],
+                "p": [float("nan"), -0.1, 1.5],
+            }
+        )
+        with pytest.raises(ValueError, match="All rows have invalid p-values"):
+            prepare_manhattan_data(df, species="human")
+
+    def test_all_invalid_categorical_p_values_raises(self):
+        """All-invalid p-values in categorical data should raise ValueError."""
+        from pylocuszoom.manhattan import prepare_categorical_data
+
+        df = pd.DataFrame(
+            {
+                "category": ["A", "B"],
+                "p": [float("nan"), -0.5],
+            }
+        )
+        with pytest.raises(ValueError, match="All rows have invalid p-values"):
+            prepare_categorical_data(df, category_col="category")
 
 
 class TestCategoricalManhattanIntegerCategories:

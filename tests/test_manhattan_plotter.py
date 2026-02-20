@@ -81,7 +81,7 @@ class TestCategoricalManhattanIntegerCategories:
     """Test categorical Manhattan with integer category columns."""
 
     def test_integer_categories_render_all_points(self):
-        """Categorical Manhattan should render points even with integer categories."""
+        """Categorical Manhattan should render all points, not silently drop by type mismatch."""
         import matplotlib.pyplot as plt
 
         df = pd.DataFrame(
@@ -93,4 +93,8 @@ class TestCategoricalManhattanIntegerCategories:
         plotter = ManhattanPlotter(species="human")
         fig = plotter.plot_manhattan(df, category_col="cat", p_col="p")
         assert fig is not None
+
+        ax = fig.axes[0]
+        total_points = sum(len(coll.get_offsets()) for coll in ax.collections)
+        assert total_points == 5, f"Expected 5 points rendered, got {total_points}"
         plt.close(fig)

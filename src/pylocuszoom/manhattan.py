@@ -96,7 +96,8 @@ def _filter_invalid_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
     """Filter rows with invalid p-values and compute -log10(p).
 
     Drops rows where p is NaN, negative, or > 1, then clips remaining
-    values at 1e-300 before -log10 transformation.
+    values at 1e-300 before -log10 transformation. Always returns a
+    copy — the input DataFrame is never mutated.
 
     Args:
         df: DataFrame with p-value column.
@@ -104,15 +105,25 @@ def _filter_invalid_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
 
     Returns:
         DataFrame with invalid rows removed and _neg_log_p column added.
+
+    Raises:
+        ValueError: If all rows have invalid p-values.
     """
     valid_mask = df[p_col].between(0, 1, inclusive="both")
     n_invalid = (~valid_mask).sum()
     if n_invalid > 0:
         logger.warning(f"Dropped {n_invalid} invalid p-values (NaN or outside [0, 1])")
-        df = df[valid_mask].copy()
 
-    df["_neg_log_p"] = -np.log10(df[p_col].clip(lower=1e-300))
-    return df
+    result = df[valid_mask].copy()
+
+    if len(result) == 0:
+        raise ValueError(
+            f"All rows have invalid p-values in column '{p_col}' "
+            f"(NaN, negative, or > 1). Cannot create plot."
+        )
+
+    result["_neg_log_p"] = -np.log10(result[p_col].clip(lower=1e-300))
+    return result
 
 
 def prepare_manhattan_data(
@@ -137,6 +148,7 @@ def prepare_manhattan_data(
 
     Returns:
         DataFrame with additional columns:
+        - _chrom_str: String-normalized chromosome name
         - _chrom_idx: Integer index for chromosome
         - _cumulative_pos: X-axis position
         - _neg_log_p: -log10(p-value)
@@ -150,13 +162,13 @@ def prepare_manhattan_data(
     # Get chromosome order
     chrom_order = get_chromosome_order(species, custom_order)
 
-    # Create working copy and filter invalid p-values early
-    result = _filter_invalid_pvalues(df.copy(), p_col)
+    # Filter invalid p-values early (returns a copy)
+    result = _filter_invalid_pvalues(df, p_col)
 
     # Normalize chromosome names (handle int vs str)
     result["_chrom_str"] = result[chrom_col].astype(str)
 
-    # Map chromosomes to order index (-1 for unknown)
+    # Map chromosomes to order index (len(chrom_order) for unknown)
     chrom_to_idx = {chrom: i for i, chrom in enumerate(chrom_order)}
     result["_chrom_idx"] = result["_chrom_str"].map(
         lambda x: chrom_to_idx.get(x, len(chrom_order))
@@ -230,8 +242,8 @@ def prepare_categorical_data(
     if p_col not in df.columns:
         raise ValueError(f"Column '{p_col}' not found in DataFrame")
 
-    # Filter invalid p-values early, before derived calculations
-    result = _filter_invalid_pvalues(df.copy(), p_col)
+    # Filter invalid p-values early, before derived calculations (returns a copy)
+    result = _filter_invalid_pvalues(df, p_col)
 
     # Get category order
     if category_order is None:

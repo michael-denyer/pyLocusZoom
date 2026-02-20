@@ -41,7 +41,6 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
-# Main plotter class
 # Backend types
 from .backends import BackendType, get_backend
 
