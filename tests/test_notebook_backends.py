@@ -1032,3 +1032,51 @@ class TestPlotlySecondaryAxisNaming:
         assert len(set(secondary_names)) == 5, (
             f"Secondary axis names are not unique: {secondary_names}"
         )
+
+
+class TestHeatmapCoordinates:
+    """Tests that heatmap backends use actual genomic coordinates, not indices."""
+
+    def test_plotly_heatmap_uses_actual_x_coords(self):
+        """Plotly heatmap should use passed x_coords, not range(len(x_coords))."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        data = np.array([[1.0, 0.5], [0.5, 1.0]])
+        x_coords = [1_000_000.0, 2_000_000.0]
+        y_coords = [1_000_000.0, 2_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+
+        fig_obj = ax[0]
+        heatmap_trace = [t for t in fig_obj.data if hasattr(t, "z")][0]
+        assert list(heatmap_trace.x) == [1_000_000.0, 2_000_000.0], (
+            f"Expected genomic coords, got {heatmap_trace.x}"
+        )
+
+    def test_bokeh_heatmap_uses_actual_x_coords(self):
+        """Bokeh heatmap should use passed x_coords, not index values."""
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        data = np.array([[1.0, 0.5], [0.5, 1.0]])
+        x_coords = [1_000_000.0, 2_000_000.0]
+        y_coords = [1_000_000.0, 2_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+
+        # Get the rect glyph data source
+        renderers = ax.renderers
+        rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
+        xs = list(rect_renderer.data_source.data["x"])
+        assert all(x >= 1_000_000 for x in xs), (
+            f"Expected genomic coords (>= 1M), got {xs}"
+        )

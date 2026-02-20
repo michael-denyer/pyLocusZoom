@@ -1147,8 +1147,8 @@ class BokehBackend:
                 if mask_upper and j > i:
                     continue
                 val = data[i, j]
-                xs.append(j)
-                ys.append(i)
+                xs.append(x_coords[j])
+                ys.append(y_coords[i])
                 values.append(val if not np.isnan(val) else float("nan"))
 
         source = ColumnDataSource({"x": xs, "y": ys, "value": values})

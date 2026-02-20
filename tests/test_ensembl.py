@@ -481,3 +481,41 @@ def test_ensembl_functions_exported():
     assert callable(get_genes_for_region)
     assert callable(fetch_genes_from_ensembl)
     assert callable(clear_ensembl_cache)
+
+
+class TestPathTraversalProtection:
+    """Tests that malicious species names cannot escape the cache directory."""
+
+    def test_path_traversal_species_raises_validation_error(self, tmp_path):
+        """Species name with '../' should raise ValidationError."""
+        from pylocuszoom.ensembl import _safe_species_dir
+        from pylocuszoom.utils import ValidationError
+
+        with pytest.raises(ValidationError, match="Invalid species name"):
+            _safe_species_dir(tmp_path, "../../etc")
+
+    def test_safe_species_stays_within_cache(self, tmp_path):
+        """Normal species name should resolve within cache_dir."""
+        from pylocuszoom.ensembl import _safe_species_dir
+
+        result = _safe_species_dir(tmp_path, "canis_lupus_familiaris")
+        assert result.is_relative_to(tmp_path)
+
+    def test_get_cached_genes_rejects_traversal(self, tmp_path):
+        """get_cached_genes should reject path traversal species."""
+        from pylocuszoom.ensembl import get_cached_genes
+        from pylocuszoom.utils import ValidationError
+
+        with pytest.raises(ValidationError, match="Invalid species name"):
+            get_cached_genes(tmp_path, "../../etc/passwd", "1", 1, 100)
+
+    def test_save_cached_genes_rejects_traversal(self, tmp_path):
+        """save_cached_genes should reject path traversal species."""
+        import pandas as pd
+
+        from pylocuszoom.ensembl import save_cached_genes
+        from pylocuszoom.utils import ValidationError
+
+        df = pd.DataFrame({"gene": ["BRCA1"]})
+        with pytest.raises(ValidationError, match="Invalid species name"):
+            save_cached_genes(df, tmp_path, "../../etc/passwd", "1", 1, 100)

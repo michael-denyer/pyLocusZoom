@@ -23,6 +23,32 @@ from .utils import ValidationError, normalize_chrom
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
 
+
+def _safe_species_dir(cache_dir: Path, ensembl_species: str) -> Path:
+    """Resolve species subdirectory and validate it stays within cache_dir.
+
+    Prevents path traversal attacks from untrusted species strings
+    (e.g., "../../etc" would escape the cache root).
+
+    Args:
+        cache_dir: Root cache directory.
+        ensembl_species: Ensembl species name (from get_ensembl_species_name).
+
+    Returns:
+        Resolved Path to species subdirectory.
+
+    Raises:
+        ValidationError: If resolved path escapes cache_dir.
+    """
+    species_dir = (cache_dir / ensembl_species).resolve()
+    if not species_dir.is_relative_to(cache_dir.resolve()):
+        raise ValidationError(
+            f"Invalid species name: {ensembl_species!r} "
+            f"(resolved path escapes cache directory)"
+        )
+    return species_dir
+
+
 # Species name aliases -> Ensembl species names
 SPECIES_ALIASES: dict[str, str] = {
     # Canine
@@ -127,7 +153,7 @@ def get_cached_genes(
     chrom_str = normalize_chrom(chrom)
     cache_key = _cache_key(ensembl_species, chrom_str, start, end)
 
-    species_dir = cache_dir / ensembl_species
+    species_dir = _safe_species_dir(cache_dir, ensembl_species)
     cache_file = species_dir / f"genes_{cache_key}.csv"
 
     if not cache_file.exists():
@@ -163,7 +189,7 @@ def save_cached_genes(
     chrom_str = normalize_chrom(chrom)
     cache_key = _cache_key(ensembl_species, chrom_str, start, end)
 
-    species_dir = cache_dir / ensembl_species
+    species_dir = _safe_species_dir(cache_dir, ensembl_species)
     species_dir.mkdir(parents=True, exist_ok=True)
 
     cache_file = species_dir / f"genes_{cache_key}.csv"
@@ -474,7 +500,7 @@ def clear_ensembl_cache(
     if species:
         # Clear only specific species
         ensembl_species = get_ensembl_species_name(species)
-        species_dir = cache_dir / ensembl_species
+        species_dir = _safe_species_dir(cache_dir, ensembl_species)
         if species_dir.exists():
             for cache_file in species_dir.glob("*.csv"):
                 cache_file.unlink()

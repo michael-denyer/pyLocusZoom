@@ -75,3 +75,22 @@ class TestManhattanPlotterBackends:
         plotter = ManhattanPlotter(species="canine", backend="plotly")
         fig = plotter.plot_manhattan(gwas_data)
         assert fig is not None
+
+
+class TestCategoricalManhattanIntegerCategories:
+    """Test categorical Manhattan with integer category columns."""
+
+    def test_integer_categories_render_all_points(self):
+        """Categorical Manhattan should render points even with integer categories."""
+        import matplotlib.pyplot as plt
+
+        df = pd.DataFrame(
+            {
+                "cat": [1, 1, 2, 2, 3],
+                "p": [0.01, 0.05, 0.1, 0.001, 0.5],
+            }
+        )
+        plotter = ManhattanPlotter(species="human")
+        fig = plotter.plot_manhattan(df, category_col="cat", p_col="p")
+        assert fig is not None
+        plt.close(fig)

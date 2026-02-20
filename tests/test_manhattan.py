@@ -351,3 +351,96 @@ class TestManhattanProperties:
 
         assert fig is not None
         plt.close(fig)
+
+
+class TestInvalidPValueFiltering:
+    """Tests that invalid p-values are dropped, not plotted as ultra-significant."""
+
+    def test_negative_p_values_dropped(self):
+        """Negative p-values should be dropped from Manhattan data."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1", "1", "1"],
+                "pos": [100, 200, 300],
+                "p": [0.5, -0.1, 0.01],
+            }
+        )
+        result = prepare_manhattan_data(df, species="human")
+        assert len(result) == 2
+        assert (result["_neg_log_p"] < 300).all()
+
+    def test_nan_p_values_dropped(self):
+        """NaN p-values should be dropped from Manhattan data."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1", "1", "1"],
+                "pos": [100, 200, 300],
+                "p": [0.5, float("nan"), 0.01],
+            }
+        )
+        result = prepare_manhattan_data(df, species="human")
+        assert len(result) == 2
+
+    def test_p_values_greater_than_one_dropped(self):
+        """P-values > 1 should be dropped from Manhattan data."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1", "1", "1"],
+                "pos": [100, 200, 300],
+                "p": [0.5, 1.5, 0.01],
+            }
+        )
+        result = prepare_manhattan_data(df, species="human")
+        assert len(result) == 2
+
+    def test_categorical_negative_p_values_dropped(self):
+        """Negative p-values should be dropped from categorical Manhattan data."""
+        from pylocuszoom.manhattan import prepare_categorical_data
+
+        df = pd.DataFrame(
+            {
+                "category": ["A", "A", "B"],
+                "p": [0.5, -0.1, 0.01],
+            }
+        )
+        result = prepare_categorical_data(df, category_col="category")
+        assert len(result) == 2
+
+    def test_zero_p_value_not_dropped(self):
+        """P-value of exactly 0 should be clipped to 1e-300, not dropped."""
+        from pylocuszoom.manhattan import prepare_manhattan_data
+
+        df = pd.DataFrame(
+            {
+                "chrom": ["1"],
+                "pos": [100],
+                "p": [0.0],
+            }
+        )
+        result = prepare_manhattan_data(df, species="human")
+        # 0 is in the valid range [0, 1] — clipped to 1e-300 for -log10
+        assert len(result) == 1
+
+
+class TestCategoricalManhattanIntegerCategories:
+    """Tests that categorical Manhattan works with non-string categories."""
+
+    def test_integer_categories_produce_points(self):
+        """Integer category column should still produce scatter points."""
+        from pylocuszoom.manhattan import prepare_categorical_data
+
+        df = pd.DataFrame(
+            {
+                "cat": [1, 1, 2, 2, 3],
+                "p": [0.01, 0.05, 0.1, 0.001, 0.5],
+            }
+        )
+        result = prepare_categorical_data(df, category_col="cat")
+        assert len(result) == 5
+        assert "_neg_log_p" in result.columns

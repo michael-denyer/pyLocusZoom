@@ -163,6 +163,15 @@ def prepare_manhattan_data(
         result["_chrom_str"].map(chrom_offsets).fillna(0) + result[pos_col]
     )
 
+    # Filter invalid p-values (NaN, negative, > 1)
+    valid_mask = result[p_col].between(0, 1, inclusive="both") & result[p_col].notna()
+    n_invalid = (~valid_mask).sum()
+    if n_invalid > 0:
+        from .logging import logger as _logger
+
+        _logger.warning(f"Dropped {n_invalid} invalid p-values (NaN or outside [0, 1])")
+        result = result[valid_mask].copy()
+
     # Calculate -log10(p)
     result["_neg_log_p"] = -np.log10(result[p_col].clip(lower=1e-300))
 
@@ -231,6 +240,15 @@ def prepare_categorical_data(
     result["_x_pos"] = result["_cat_idx"] + np.random.uniform(
         -0.3, 0.3, size=len(result)
     )
+
+    # Filter invalid p-values (NaN, negative, > 1)
+    valid_mask = result[p_col].between(0, 1, inclusive="both") & result[p_col].notna()
+    n_invalid = (~valid_mask).sum()
+    if n_invalid > 0:
+        from .logging import logger as _logger
+
+        _logger.warning(f"Dropped {n_invalid} invalid p-values (NaN or outside [0, 1])")
+        result = result[valid_mask].copy()
 
     # Calculate -log10(p)
     result["_neg_log_p"] = -np.log10(result[p_col].clip(lower=1e-300))
