@@ -7,6 +7,7 @@
 [![Plotly](https://img.shields.io/badge/Plotly-5.15+-3F4F75.svg)](https://plotly.com/python/)
 [![Bokeh](https://img.shields.io/badge/Bokeh-3.8+-E6526F.svg)](https://bokeh.org/)
 [![Pandas](https://img.shields.io/badge/Pandas-1.4+-150458.svg)](https://pandas.pydata.org/)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/codenyer)
 <img src="https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/logo.svg" alt="pyLocusZoom logo" width="120" align="right">
 # pyLocusZoom
 
