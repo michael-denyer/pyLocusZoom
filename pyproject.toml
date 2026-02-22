@@ -57,9 +57,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/michael-denyer/pylocuszoom"
-Documentation = "https://github.com/michael-denyer/pylocuszoom#readme"
-Repository = "https://github.com/michael-denyer/pylocuszoom"
+Homepage = "https://github.com/michael-denyer/pyLocusZoom"
+Documentation = "https://github.com/michael-denyer/pyLocusZoom#readme"
+Repository = "https://github.com/michael-denyer/pyLocusZoom"
+Issues = "https://github.com/michael-denyer/pyLocusZoom/issues"
+Changelog = "https://github.com/michael-denyer/pyLocusZoom/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pylocuszoom"]
