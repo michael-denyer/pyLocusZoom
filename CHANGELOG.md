@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-02-22
+
+### Fixed
+
+- PyPI project URLs now use correct repository casing (`pyLocusZoom`) for Trusted Publisher verification
+- Added Issues and Changelog links to PyPI project metadata
+
 ## [1.3.5] - 2026-02-20
 
 ### Added
