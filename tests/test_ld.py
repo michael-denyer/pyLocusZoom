@@ -293,6 +293,45 @@ class TestCalculateLd:
                 ]
                 assert len(pylocuszoom_dirs) == 0
 
+    def test_sanitizes_snp_id_in_file_path(self, tmp_path, mock_plink_files):
+        """SNP IDs with special characters should be sanitized for file paths."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                # SNP with colons (VCF-style) should not crash on file creation
+                with pytest.raises(PlinkError):
+                    calculate_ld(
+                        bfile_path=mock_plink_files,
+                        lead_snp="1:12345:A:G",
+                        working_dir=str(tmp_path),
+                    )
+
+                # Verify the output path used sanitized ID
+                cmd_args = mock_run.call_args[0][0]
+                out_arg_idx = cmd_args.index("--out") + 1
+                output_path = cmd_args[out_arg_idx]
+                assert ":" not in output_path
+                assert "1_12345_A_G" in output_path
+
+    def test_normal_snp_id_unchanged_in_path(self, tmp_path, mock_plink_files):
+        """Normal rs-style SNP IDs should pass through unchanged."""
+        with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1, stderr="error")
+
+                with pytest.raises(PlinkError):
+                    calculate_ld(
+                        bfile_path=mock_plink_files,
+                        lead_snp="rs12345",
+                        working_dir=str(tmp_path),
+                    )
+
+                cmd_args = mock_run.call_args[0][0]
+                out_arg_idx = cmd_args.index("--out") + 1
+                output_path = cmd_args[out_arg_idx]
+                assert "ld_rs12345" in output_path
+
     def test_uses_specified_plink_path(self, tmp_path, mock_plink_files):
         """Should use specified PLINK path instead of auto-detecting."""
         with patch("subprocess.run") as mock_run:

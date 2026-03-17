@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **eQTL effect size bin gap**: Added missing bins for near-zero effects (0.0-0.1, -0.1-0.0) and fixed negative fallback returning most extreme instead of least extreme bin
+- **Feline chromosome support**: `RegionConfig.chrom` now accepts string chromosomes (e.g., "A1", "X") with validation rejecting empty strings and non-positive integers
+- **pyliftover ImportError**: Wrapped optional pyliftover import with actionable install message; plotter surfaces it as `UserWarning` visible in notebooks
+- **eQTL significance line**: Added `eqtl_threshold` parameter to `plot_stacked()` so eQTL panel uses its own threshold instead of genome-wide significance
+- **Stacked plot height**: `plot_stacked()` now uses `max(figsize[1], sum(height_ratios))` instead of ignoring user-provided height
+- **LD file path safety**: Sanitize SNP IDs containing special characters (e.g., `chr1:12345:A:G`) for safe use in temp file paths
+- **Global RNG pollution**: Categorical Manhattan jitter now uses local `numpy.random.default_rng(42)` instead of mutating global `numpy.random.seed(42)`
+- **Plotly monkey-patching**: Replaced `fig._n_cols`/`fig._n_rows` with explicit tuple format; added length guard for unexpected tuple sizes
+- **Empty DataFrame validation**: `validate_gwas_df()` now raises `ValidationError` early for empty DataFrames
+- **Bokeh heatmap cell sizing**: LD heatmap uses per-cell midpoint-based sizing for correct rendering with non-uniform SNP spacing
+- **NaN in range validation**: `DataFrameValidator.require_range()` now drops NaN before range checks to avoid false positives
+
 ## [1.3.6] - 2026-02-22
 
 ### Fixed

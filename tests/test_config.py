@@ -36,6 +36,22 @@ class TestRegionConfig:
         config_x = RegionConfig(chrom="X", start=1000, end=2000)
         assert config_x.chrom == "X"
 
+    def test_chrom_rejects_invalid_inputs(self):
+        """Invalid chromosome values should raise ValidationError."""
+        from pylocuszoom.config import RegionConfig
+
+        with pytest.raises(ValidationError, match="must be >= 1"):
+            RegionConfig(chrom=0, start=1000, end=2000)
+
+        with pytest.raises(ValidationError, match="must be >= 1"):
+            RegionConfig(chrom=-1, start=1000, end=2000)
+
+        with pytest.raises(ValidationError, match="must not be empty"):
+            RegionConfig(chrom="", start=1000, end=2000)
+
+        with pytest.raises(ValidationError, match="must not be empty"):
+            RegionConfig(chrom="  ", start=1000, end=2000)
+
     def test_start_must_be_less_than_end(self):
         """Start >= end should raise ValidationError."""
         from pylocuszoom.config import RegionConfig

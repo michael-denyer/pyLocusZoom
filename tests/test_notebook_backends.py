@@ -1141,3 +1141,34 @@ class TestHeatmapCoordinates:
         assert all(h == 1_000_000.0 for h in heights), (
             f"Expected heights 1M, got {heights}"
         )
+
+    def test_bokeh_heatmap_nonuniform_spacing(self):
+        """Bokeh heatmap per-cell sizing handles non-uniform coordinate spacing."""
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        ax = axes[0]
+
+        # 3x3 matrix with non-uniform spacing
+        data = np.eye(3)
+        x_coords = [1_000_000.0, 2_000_000.0, 4_000_000.0]  # gap doubles
+        y_coords = [1_000_000.0, 2_000_000.0, 4_000_000.0]
+
+        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+
+        renderers = ax.renderers
+        rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
+        source = rect_renderer.data_source
+        widths = list(source.data["w"])
+
+        # First cell: midpoint boundary at 1.5M, extrapolated left to 0.5M → width 1M
+        # Second cell: boundaries at 1.5M and 3M → width 1.5M
+        # Third cell: boundary at 3M, extrapolated right to 5M → width 2M
+        # Pattern repeats for each row (9 cells total)
+        assert len(widths) == 9
+        # Widths should NOT all be equal (non-uniform spacing)
+        assert len(set(round(w, 1) for w in widths)) > 1, (
+            f"Expected non-uniform widths, got {widths}"
+        )

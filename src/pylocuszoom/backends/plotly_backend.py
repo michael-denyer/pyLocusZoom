@@ -191,9 +191,13 @@ class PlotlyBackend:
         """Extract figure, row, col, and n_cols from ax tuple.
 
         Handles (fig, row), (fig, row, col), and (fig, row, col, n_cols) formats.
+        The 3-tuple format assumes single-column layout (n_cols=1).
 
         Returns:
             Tuple of (figure, row, col, n_cols).
+
+        Raises:
+            ValueError: If ax tuple has unexpected length.
         """
         if len(ax) == 2:
             fig, row = ax
@@ -201,9 +205,11 @@ class PlotlyBackend:
         elif len(ax) == 3:
             fig, row, col = ax
             return fig, row, col, 1
-        else:
+        elif len(ax) == 4:
             fig, row, col, n_cols = ax
             return fig, row, col, n_cols
+        else:
+            raise ValueError(f"Expected ax tuple of length 2, 3, or 4, got {len(ax)}")
 
     def scatter(
         self,

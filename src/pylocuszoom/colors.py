@@ -101,8 +101,8 @@ def _find_eqtl_bin(effect: float) -> EQTLBin:
         effect: Effect size (beta coefficient). Must not be None/NaN.
 
     Returns:
-        Matching EQTLBin, or the smallest-magnitude bin as fallback
-        when no range matches (e.g., effect=0.05).
+        Matching EQTLBin. Falls back to the smallest-magnitude bin
+        if no range matches.
     """
     if effect >= 0:
         for b in EQTL_POSITIVE_BINS:

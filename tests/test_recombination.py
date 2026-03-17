@@ -234,6 +234,26 @@ class TestDownloadLiftoverChain:
 class TestLiftoverRecombinationMap:
     """Tests for liftover_recombination_map function."""
 
+    def test_raises_import_error_when_pyliftover_missing(self):
+        """Should raise ImportError with install instructions when pyliftover unavailable."""
+        import sys
+
+        # Temporarily hide pyliftover from imports
+        original = sys.modules.get("pyliftover")
+        sys.modules["pyliftover"] = None  # type: ignore[assignment]
+        # Force re-import of the function's local import
+        try:
+            # The import happens inside liftover_recombination_map, so we need
+            # to call it. Create minimal valid input.
+            df = pd.DataFrame({"pos": [1000000], "rate": [0.5]})
+            with pytest.raises(ImportError, match="pip install pyliftover"):
+                liftover_recombination_map(df, chrom=1)
+        finally:
+            if original is not None:
+                sys.modules["pyliftover"] = original
+            else:
+                sys.modules.pop("pyliftover", None)
+
     @patch("pylocuszoom.recombination.download_liftover_chain")
     @patch("pyliftover.LiftOver")
     def test_lifts_positions(self, mock_liftover_class, mock_download, tmp_path):

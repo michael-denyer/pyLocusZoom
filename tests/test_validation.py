@@ -143,6 +143,20 @@ class TestRequireRange:
         error_msg = str(exc_info.value)
         assert "Column 'p': 1 values < 0" in error_msg
 
+    def test_nan_values_ignored_in_range_check(self):
+        """NaN values should be skipped during range validation."""
+        df = pd.DataFrame({"p": [0.1, np.nan, 0.5, np.nan, 0.9]})
+        validator = DataFrameValidator(df, name="test_df")
+        validator.require_range("p", min_val=0, max_val=1).validate()
+        # Should not raise — NaN values are dropped before range check
+
+    def test_all_nan_column_passes_range_check(self):
+        """Column with all NaN values should pass range check."""
+        df = pd.DataFrame({"p": [np.nan, np.nan, np.nan]})
+        validator = DataFrameValidator(df, name="test_df")
+        validator.require_range("p", min_val=0, max_val=1).validate()
+        # Should not raise — no non-NaN values to check
+
     def test_exclusive_min(self):
         """Error when values equal to exclusive min."""
         df = pd.DataFrame({"p": [0.0, 0.5, 1.0]})

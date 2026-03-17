@@ -15,7 +15,7 @@ Example:
 
 from typing import List, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class RegionConfig(BaseModel):
@@ -32,6 +32,16 @@ class RegionConfig(BaseModel):
     chrom: Union[int, str] = Field(..., description="Chromosome number or name")
     start: int = Field(..., ge=0, description="Start position (bp)")
     end: int = Field(..., gt=0, description="End position (bp)")
+
+    @field_validator("chrom")
+    @classmethod
+    def validate_chrom(cls, v: Union[int, str]) -> Union[int, str]:
+        """Validate chromosome: int must be >= 1, string must be non-empty."""
+        if isinstance(v, int) and v < 1:
+            raise ValueError(f"Integer chromosome must be >= 1, got {v}")
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("Chromosome string must not be empty")
+        return v
 
     @model_validator(mode="after")
     def validate_region(self) -> "RegionConfig":

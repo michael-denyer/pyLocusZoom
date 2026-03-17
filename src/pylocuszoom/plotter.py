@@ -172,8 +172,12 @@ class LocusZoomPlotter:
             )
             return None
         except ImportError as e:
-            logger.warning(f"{e}. Recombination overlay will be skipped.")
-            return None
+            if "pyliftover" in str(e):
+                import warnings
+
+                warnings.warn(str(e), stacklevel=2)
+                return None
+            raise
 
     def plot(
         self,
@@ -770,7 +774,7 @@ class LocusZoomPlotter:
         if heatmap_data is not None:
             height_ratios.append(heatmap_height_inches)
 
-        total_height = sum(height_ratios)
+        total_height = max(figsize[1], sum(height_ratios))
         actual_figsize = (figsize[0], total_height)
 
         logger.debug(

@@ -307,7 +307,12 @@ def calculate_ld(
 
     try:
         os.makedirs(working_dir, exist_ok=True)
+        # Sanitize SNP ID for safe use in file paths (e.g., chr1:12345 contains ':')
         safe_snp_id = re.sub(r"[^\w\-.]", "_", lead_snp)
+        if safe_snp_id != lead_snp:
+            logger.debug(
+                f"Sanitized SNP ID for file path: {lead_snp!r} -> {safe_snp_id!r}"
+            )
         output_prefix = os.path.join(working_dir, f"ld_{safe_snp_id}")
 
         # Build and run PLINK command
