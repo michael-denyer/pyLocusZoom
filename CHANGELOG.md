@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Removed `submit-bioconda-pr` job from publish workflow; BiocondaBot handles recipe updates automatically
+
 ## [1.3.7] - 2026-03-17
 
 ### Fixed
