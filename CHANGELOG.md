@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.7] - 2026-03-17
+
 ### Fixed
 
 - **eQTL effect size bin gap**: Added missing bins for near-zero effects (0.0-0.1, -0.1-0.0) and fixed negative fallback returning most extreme instead of least extreme bin
