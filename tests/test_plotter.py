@@ -354,15 +354,17 @@ class TestLocusZoomPlotterPlot:
         # Test passes if no exception
 
     def test_handles_empty_dataframe(self, plotter):
-        """Should handle empty GWAS DataFrame."""
+        """Empty GWAS DataFrame should raise ValidationError."""
+        from pylocuszoom.exceptions import ValidationError
+
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
-        fig = plotter.plot(
-            empty_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-        )
-        plt.close(fig)
+        with pytest.raises(ValidationError, match="empty"):
+            plotter.plot(
+                empty_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+            )
 
     def test_custom_column_names(self, plotter):
         """Should work with custom column names."""

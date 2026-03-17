@@ -5,6 +5,7 @@ using PLINK 1.9's --r2 command.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -306,7 +307,8 @@ def calculate_ld(
 
     try:
         os.makedirs(working_dir, exist_ok=True)
-        output_prefix = os.path.join(working_dir, f"ld_{lead_snp}")
+        safe_snp_id = re.sub(r"[^\w\-.]", "_", lead_snp)
+        output_prefix = os.path.join(working_dir, f"ld_{safe_snp_id}")
 
         # Build and run PLINK command
         cmd = build_ld_command(

@@ -198,8 +198,11 @@ def validate_gwas_df(
         rs_col: Column name for SNP IDs (optional).
 
     Raises:
-        ValidationError: If required columns are missing.
+        ValidationError: If required columns are missing or DataFrame is empty.
     """
+    if df.empty:
+        raise ValidationError("gwas_df is empty — no rows to plot")
+
     required = [pos_col, p_col]
     if rs_col:
         required.append(rs_col)

@@ -23,15 +23,18 @@ class TestRegionConfig:
         assert config.start == 1000
         assert config.end == 2000
 
-    def test_chrom_must_be_positive(self):
-        """Chromosome 0 or negative should raise ValidationError."""
+    def test_chrom_accepts_string_and_int(self):
+        """Chromosome can be int or string (e.g., feline 'A1')."""
         from pylocuszoom.config import RegionConfig
 
-        with pytest.raises(ValidationError, match="chrom"):
-            RegionConfig(chrom=0, start=1000, end=2000)
+        config_int = RegionConfig(chrom=1, start=1000, end=2000)
+        assert config_int.chrom == 1
 
-        with pytest.raises(ValidationError, match="chrom"):
-            RegionConfig(chrom=-1, start=1000, end=2000)
+        config_str = RegionConfig(chrom="A1", start=1000, end=2000)
+        assert config_str.chrom == "A1"
+
+        config_x = RegionConfig(chrom="X", start=1000, end=2000)
+        assert config_x.chrom == "X"
 
     def test_start_must_be_less_than_end(self):
         """Start >= end should raise ValidationError."""

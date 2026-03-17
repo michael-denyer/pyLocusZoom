@@ -148,7 +148,13 @@ def liftover_recombination_map(
     Returns:
         DataFrame with lifted coordinates. Positions that fail to map are dropped.
     """
-    from pyliftover import LiftOver
+    try:
+        from pyliftover import LiftOver
+    except ImportError:
+        raise ImportError(
+            "pyliftover is required for CanFam4 liftover. "
+            "Install it with: pip install pyliftover"
+        )
 
     # Download chain file if needed
     chain_path = download_liftover_chain()

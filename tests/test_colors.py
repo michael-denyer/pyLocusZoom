@@ -128,9 +128,9 @@ class TestEqtlColors:
         assert get_eqtl_color(0.1) == "#FFB347"  # Boundary
 
     def test_positive_effect_below_threshold(self):
-        """Small positive effects return smallest bin color."""
-        assert get_eqtl_color(0.05) == "#FFB347"
-        assert get_eqtl_color(0.0) == "#FFB347"
+        """Small positive effects (0.0-0.1) return near-zero positive color."""
+        assert get_eqtl_color(0.05) == "#FFDAB9"  # peach puff
+        assert get_eqtl_color(0.0) == "#FFDAB9"
 
     def test_negative_effect_high(self):
         """Negative effects <= -0.3 should return dark blue."""
@@ -148,11 +148,8 @@ class TestEqtlColors:
         assert get_eqtl_color(-0.1) == "#66CDAA"  # Boundary
 
     def test_negative_effect_below_threshold(self):
-        """Small negative effects (below -0.1) return last defined bin color."""
-        # NOTE: The implementation returns the last bin for effects outside all ranges
-        # Effects like -0.05 don't fall in any bin, so get_eqtl_color returns
-        # EQTL_NEGATIVE_BINS[-1] (dark blue)
-        assert get_eqtl_color(-0.05) == "#00008B"
+        """Small negative effects (-0.1 to 0.0) return near-zero negative color."""
+        assert get_eqtl_color(-0.05) == "#B0E0E6"  # powder blue
 
     def test_nan_returns_grey(self):
         """NaN should return grey."""
@@ -184,13 +181,10 @@ class TestEqtlBins:
         assert get_eqtl_bin(float("nan")) == LD_NA_LABEL
         assert get_eqtl_bin(None) == LD_NA_LABEL
 
-    def test_small_effects_return_fallback_bin(self):
-        """Effects below threshold return last defined bin (fallback behavior)."""
-        # NOTE: The implementation returns the last bin in the list for values
-        # that don't match any range. This is the smallest magnitude bin for
-        # positive (0.1 : 0.2) and largest for negative (-0.4 : -0.3).
-        assert get_eqtl_bin(0.05) == "0.1 : 0.2"
-        assert get_eqtl_bin(-0.05) == "-0.4 : -0.3"
+    def test_small_effects_return_correct_bin(self):
+        """Near-zero effects return the appropriate near-zero bins."""
+        assert get_eqtl_bin(0.05) == "0.0 : 0.1"
+        assert get_eqtl_bin(-0.05) == "-0.1 : 0.0"
 
 
 class TestEqtlColorPalette:

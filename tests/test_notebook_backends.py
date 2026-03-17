@@ -458,22 +458,24 @@ class TestBackendConsistency:
             )
             assert fig is not None, f"{backend_name} returned None"
 
-    def test_all_backends_handle_empty_dataframe(self):
-        """All backends should handle empty DataFrames gracefully."""
+    def test_all_backends_reject_empty_dataframe(self):
+        """All backends should raise ValidationError for empty DataFrames."""
+        from pylocuszoom.exceptions import ValidationError
+
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
 
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
-            fig = plotter.plot(
-                empty_df,
-                chrom=1,
-                start=1_000_000,
-                end=2_000_000,
-                show_recombination=False,
-            )
-            assert fig is not None, f"{backend_name} failed with empty DataFrame"
+            with pytest.raises(ValidationError, match="empty"):
+                plotter.plot(
+                    empty_df,
+                    chrom=1,
+                    start=1_000_000,
+                    end=2_000_000,
+                    show_recombination=False,
+                )
 
     def test_all_backends_handle_lead_position(self, sample_gwas_df):
         """All backends should handle lead_pos parameter."""
@@ -1126,7 +1128,16 @@ class TestHeatmapCoordinates:
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
         glyph = rect_renderer.glyph
-        assert glyph.width == 1_000_000.0, f"Expected rect width 1M, got {glyph.width}"
-        assert glyph.height == 1_000_000.0, (
-            f"Expected rect height 1M, got {glyph.height}"
+        # Width/height are now per-cell column references ("w", "h")
+        assert glyph.width == "w", f"Expected column ref 'w', got {glyph.width}"
+        assert glyph.height == "h", f"Expected column ref 'h', got {glyph.height}"
+        # Verify the data source contains correct cell sizes
+        source = rect_renderer.data_source
+        widths = source.data["w"]
+        heights = source.data["h"]
+        assert all(w == 1_000_000.0 for w in widths), (
+            f"Expected widths 1M, got {widths}"
+        )
+        assert all(h == 1_000_000.0 for h in heights), (
+            f"Expected heights 1M, got {heights}"
         )

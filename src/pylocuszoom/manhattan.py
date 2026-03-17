@@ -262,10 +262,8 @@ def prepare_categorical_data(
     )
 
     # Use category index as x position (with jitter for multiple points per category)
-    np.random.seed(42)  # Reproducible jitter
-    result["_x_pos"] = result["_cat_idx"] + np.random.uniform(
-        -0.3, 0.3, size=len(result)
-    )
+    rng = np.random.default_rng(42)  # Local RNG for reproducible jitter
+    result["_x_pos"] = result["_cat_idx"] + rng.uniform(-0.3, 0.3, size=len(result))
 
     # Assign colors (use string values for lookup)
     colors = get_chromosome_colors(len(category_order))

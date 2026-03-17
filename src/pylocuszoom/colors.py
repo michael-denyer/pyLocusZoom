@@ -80,9 +80,11 @@ EQTL_POSITIVE_BINS: tuple[EQTLBin, ...] = (
     EQTLBin(0.3, _EQTL_EFFECT_BOUNDARY, "0.3 : 0.4", "#8B1A1A"),  # dark red/maroon
     EQTLBin(0.2, 0.3, "0.2 : 0.3", "#FF6600"),  # orange
     EQTLBin(0.1, 0.2, "0.1 : 0.2", "#FFB347"),  # light orange
+    EQTLBin(0.0, 0.1, "0.0 : 0.1", "#FFDAB9"),  # peach puff (near-zero positive)
 )
 # Negative effects (downward triangles)
 EQTL_NEGATIVE_BINS: tuple[EQTLBin, ...] = (
+    EQTLBin(-0.1, 0.0, "-0.1 : 0.0", "#B0E0E6"),  # powder blue (near-zero negative)
     EQTLBin(-0.2, -0.1, "-0.2 : -0.1", "#66CDAA"),  # medium aquamarine
     EQTLBin(-0.3, -0.2, "-0.3 : -0.2", "#4682B4"),  # steel blue
     EQTLBin(-_EQTL_EFFECT_BOUNDARY, -0.3, "-0.4 : -0.3", "#00008B"),  # dark blue
@@ -108,6 +110,7 @@ def _find_eqtl_bin(effect: float) -> EQTLBin:
                 b.max_val == _EQTL_EFFECT_BOUNDARY and effect >= b.max_val
             ):
                 return b
+        # Fallback: smallest-magnitude positive bin (last in list, 0.0-0.1)
         return EQTL_POSITIVE_BINS[-1]
     else:
         for b in EQTL_NEGATIVE_BINS:
@@ -115,7 +118,8 @@ def _find_eqtl_bin(effect: float) -> EQTLBin:
                 b.min_val == -_EQTL_EFFECT_BOUNDARY and effect <= b.min_val
             ):
                 return b
-        return EQTL_NEGATIVE_BINS[-1]
+        # Fallback: smallest-magnitude negative bin (first in list, -0.1-0.0)
+        return EQTL_NEGATIVE_BINS[0]
 
 
 def get_eqtl_color(effect: Optional[float]) -> str:

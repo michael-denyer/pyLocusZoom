@@ -33,24 +33,20 @@ class TestEmptyDataFrames:
         """Empty DataFrame with correct columns."""
         return pd.DataFrame(columns=["chrom", "ps", "p_wald", "rs"])
 
-    def test_plot_with_empty_df_succeeds(self, plotter, empty_gwas_df):
-        """Regional plot with empty DataFrame renders without error.
+    def test_plot_with_empty_df_raises(self, plotter, empty_gwas_df):
+        """Regional plot with empty DataFrame raises ValidationError."""
+        from pylocuszoom.exceptions import ValidationError
 
-        The current behavior allows empty DataFrames through and produces
-        an empty plot. The plot contains no data points but still has
-        axes and labels.
-        """
-        fig = plotter.plot(
-            empty_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            pos_col="ps",
-            p_col="p_wald",
-            show_recombination=False,
-        )
-        assert fig is not None
-        plt.close(fig)
+        with pytest.raises(ValidationError, match="empty"):
+            plotter.plot(
+                empty_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                pos_col="ps",
+                p_col="p_wald",
+                show_recombination=False,
+            )
 
     def test_manhattan_with_empty_df_raises(self):
         """Manhattan plot with empty DataFrame raises ValueError.

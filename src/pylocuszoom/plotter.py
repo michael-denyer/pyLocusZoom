@@ -10,7 +10,7 @@ Supports multiple backends:
 """
 
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -171,12 +171,15 @@ class LocusZoomPlotter:
                 f"Recombination overlay will be skipped."
             )
             return None
+        except ImportError as e:
+            logger.warning(f"{e}. Recombination overlay will be skipped.")
+            return None
 
     def plot(
         self,
         gwas_df: pd.DataFrame,
         *,
-        chrom: int,
+        chrom: Union[int, str],
         start: int,
         end: int,
         pos_col: str = "ps",
@@ -622,7 +625,7 @@ class LocusZoomPlotter:
         self,
         gwas_dfs: List[pd.DataFrame],
         *,
-        chrom: int,
+        chrom: Union[int, str],
         start: int,
         end: int,
         pos_col: str = "ps",
@@ -641,6 +644,7 @@ class LocusZoomPlotter:
         exons_df: Optional[pd.DataFrame] = None,
         eqtl_df: Optional[pd.DataFrame] = None,
         eqtl_gene: Optional[str] = None,
+        eqtl_threshold: float = 1e-5,
         finemapping_df: Optional[pd.DataFrame] = None,
         finemapping_cs_col: Optional[str] = "cs",
         recomb_df: Optional[pd.DataFrame] = None,
@@ -766,7 +770,7 @@ class LocusZoomPlotter:
         if heatmap_data is not None:
             height_ratios.append(heatmap_height_inches)
 
-        total_height = figsize[1] if figsize[1] else sum(height_ratios)
+        total_height = sum(height_ratios)
         actual_figsize = (figsize[0], total_height)
 
         logger.debug(
@@ -993,9 +997,10 @@ class LocusZoomPlotter:
                     self._backend.add_simple_legend(ax, label, loc="upper right")
 
             self._backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
+            eqtl_sig_line = -np.log10(eqtl_threshold)
             self._backend.axhline(
                 ax,
-                y=self._genomewide_line,
+                y=eqtl_sig_line,
                 color="red",
                 linestyle="--",
                 linewidth=1,

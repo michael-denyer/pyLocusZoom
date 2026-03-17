@@ -113,7 +113,7 @@ class DataFrameValidator:
         if column not in self._df.columns:
             return self
 
-        col_data = self._df[column]
+        col_data = self._df[column].dropna()
 
         # Check minimum bound
         if min_val is not None:

@@ -1154,18 +1154,47 @@ class BokehBackend:
                 ys.append(y_coords[i])
                 values.append(val if not np.isnan(val) else float("nan"))
 
-        source = ColumnDataSource({"x": xs, "y": ys, "value": values})
+        # Compute per-cell widths and heights based on actual coordinate spacing.
+        # Uses midpoints between adjacent coordinates for cell boundaries.
+        def _cell_sizes(coords: List[float]) -> List[float]:
+            if len(coords) <= 1:
+                return [1.0] * len(coords)
+            sizes = []
+            for i in range(len(coords)):
+                left = (
+                    (coords[i - 1] + coords[i]) / 2
+                    if i > 0
+                    else coords[i] - (coords[1] - coords[0]) / 2
+                )
+                right = (
+                    (coords[i] + coords[i + 1]) / 2
+                    if i < len(coords) - 1
+                    else coords[i] + (coords[-1] - coords[-2]) / 2
+                )
+                sizes.append(abs(right - left))
+            return sizes
 
-        # Approximate cell size from first pair of coordinates.
-        # Assumes roughly uniform spacing; adequate for typical LD heatmap grids.
-        cell_width = abs(x_coords[1] - x_coords[0]) if len(x_coords) > 1 else 1
-        cell_height = abs(y_coords[1] - y_coords[0]) if len(y_coords) > 1 else 1
+        x_sizes = _cell_sizes(x_coords)
+        y_sizes = _cell_sizes(y_coords)
+
+        # Build per-cell width/height arrays matching the flattened xs/ys
+        widths, heights = [], []
+        for i in range(n):
+            for j in range(n):
+                if mask_upper and j > i:
+                    continue
+                widths.append(x_sizes[j])
+                heights.append(y_sizes[i])
+
+        source = ColumnDataSource(
+            {"x": xs, "y": ys, "value": values, "w": widths, "h": heights}
+        )
 
         ax.rect(
             x="x",
             y="y",
-            width=cell_width,
-            height=cell_height,
+            width="w",
+            height="h",
             fill_color={"field": "value", "transform": mapper},
             line_color=None,
             source=source,

@@ -165,10 +165,6 @@ class PlotlyBackend:
             template="plotly_white",
         )
 
-        # Store grid dimensions for axis naming
-        fig._n_cols = n_cols
-        fig._n_rows = n_rows
-
         # Style all panels
         axis_style = dict(
             showgrid=False,
@@ -184,29 +180,30 @@ class PlotlyBackend:
                 yaxis = f"yaxis{subplot_idx}" if subplot_idx > 1 else "yaxis"
                 fig.update_layout(**{xaxis: axis_style, yaxis: axis_style})
 
-        # Return flattened list of (fig, row, col) tuples
+        # Return flattened list of (fig, row, col, n_cols) tuples
         panel_refs = []
         for row in range(1, n_rows + 1):
             for col in range(1, n_cols + 1):
-                panel_refs.append((fig, row, col))
+                panel_refs.append((fig, row, col, n_cols))
         return fig, panel_refs
 
     def _extract_row_col(self, ax: Any) -> Tuple[go.Figure, int, int, int]:
         """Extract figure, row, col, and n_cols from ax tuple.
 
-        Handles both (fig, row) for create_figure and (fig, row, col) for create_figure_grid.
+        Handles (fig, row), (fig, row, col), and (fig, row, col, n_cols) formats.
 
         Returns:
             Tuple of (figure, row, col, n_cols).
         """
         if len(ax) == 2:
             fig, row = ax
-            col = 1
-        else:
+            return fig, row, 1, 1
+        elif len(ax) == 3:
             fig, row, col = ax
-        # Get n_cols from figure if stored, default to 1 for single-column layouts
-        n_cols = getattr(fig, "_n_cols", 1)
-        return fig, row, col, n_cols
+            return fig, row, col, 1
+        else:
+            fig, row, col, n_cols = ax
+            return fig, row, col, n_cols
 
     def scatter(
         self,

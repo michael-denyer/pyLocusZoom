@@ -13,7 +13,7 @@ Example:
     >>> config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -22,14 +22,14 @@ class RegionConfig(BaseModel):
     """Genomic region specification.
 
     Attributes:
-        chrom: Chromosome number (must be >= 1).
+        chrom: Chromosome number or name (e.g., 1, "A1", "X").
         start: Start position in base pairs (must be >= 0).
         end: End position in base pairs (must be > start).
     """
 
     model_config = ConfigDict(frozen=True)
 
-    chrom: int = Field(..., ge=1, description="Chromosome number")
+    chrom: Union[int, str] = Field(..., description="Chromosome number or name")
     start: int = Field(..., ge=0, description="Start position (bp)")
     end: int = Field(..., gt=0, description="End position (bp)")
 
@@ -165,7 +165,7 @@ class PlotConfig(BaseModel):
         cls,
         *,
         # Region params (required)
-        chrom: int,
+        chrom: Union[int, str],
         start: int,
         end: int,
         # Column params
@@ -188,7 +188,7 @@ class PlotConfig(BaseModel):
         signature, enabling backward compatibility with existing code.
 
         Args:
-            chrom: Chromosome number.
+            chrom: Chromosome number or name.
             start: Start position (bp).
             end: End position (bp).
             pos_col: Column name for position.
@@ -288,7 +288,7 @@ class StackedPlotConfig(BaseModel):
         cls,
         *,
         # Region params (required)
-        chrom: int,
+        chrom: Union[int, str],
         start: int,
         end: int,
         # Column params
@@ -314,7 +314,7 @@ class StackedPlotConfig(BaseModel):
         method signature, enabling backward compatibility.
 
         Args:
-            chrom: Chromosome number.
+            chrom: Chromosome number or name.
             start: Start position (bp).
             end: End position (bp).
             pos_col: Column name for position.
