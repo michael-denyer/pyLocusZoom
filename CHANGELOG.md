@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.8] - 2026-04-01
+
+### Fixed
+
+- **Lead SNP marker clipping**: Set axis limits (`set_ylim`, `set_xlim`) before `add_snp_labels` so adjustText has finalized bounds for label positioning
+- **adjustText arrow artifacts**: Switched to single-pass `adjust=True` instead of deferred two-pass adjustment, eliminating stale FancyArrowPatch remnants
+- **Y-axis headroom**: Added 5% headroom above max data point to prevent top markers from being clipped
+
 ### Changed
 
 - Removed `submit-bioconda-pr` job from publish workflow; BiocondaBot handles recipe updates automatically
