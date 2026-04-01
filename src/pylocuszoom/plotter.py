@@ -323,10 +323,15 @@ class LocusZoomPlotter:
             zorder=1,
         )
 
-        snp_label_texts: list = []
+        self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
+        y_max = df["neglog10p"].max()
+        if pd.notna(y_max) and y_max > 0:
+            self._backend.set_ylim(ax, 0, y_max * 1.05)
+        self._backend.set_xlim(ax, start, end)
+
         if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
             if self._backend.supports_snp_labels:
-                snp_label_texts = self._backend.add_snp_labels(
+                self._backend.add_snp_labels(
                     ax,
                     df,
                     pos_col=pos_col,
@@ -335,15 +340,13 @@ class LocusZoomPlotter:
                     label_top_n=label_top_n,
                     genes_df=genes_df,
                     chrom=chrom,
-                    adjust=False,
+                    adjust=True,
                 )
 
         if recomb_df is not None and not recomb_df.empty:
             if self._backend.supports_secondary_axis:
                 self._add_recombination_overlay(ax, recomb_df, start, end)
 
-        self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
-        self._backend.set_xlim(ax, start, end)
         has_recomb = recomb_df is not None and not recomb_df.empty
         if has_recomb and self._backend.supports_secondary_axis:
             self._backend.hide_spines(ax, ["top"])
@@ -387,9 +390,6 @@ class LocusZoomPlotter:
 
         self._backend.format_xaxis_mb(ax)
         self._backend.finalize_layout(fig, hspace=0.1)
-
-        if snp_label_texts:
-            self._backend.adjust_snp_labels(ax, snp_label_texts)
 
         return fig
 
@@ -791,8 +791,6 @@ class LocusZoomPlotter:
             sharex=True,
         )
 
-        all_snp_label_texts: list[tuple] = []
-
         for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
             ax = axes[i]
             df = transform_pvalues(gwas_df, p_col)
@@ -840,9 +838,15 @@ class LocusZoomPlotter:
                 zorder=1,
             )
 
+            self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
+            y_max = df["neglog10p"].max()
+            if pd.notna(y_max) and y_max > 0:
+                self._backend.set_ylim(ax, 0, y_max * 1.05)
+            self._backend.set_xlim(ax, start, end)
+
             if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
                 if self._backend.supports_snp_labels:
-                    texts = self._backend.add_snp_labels(
+                    self._backend.add_snp_labels(
                         ax,
                         df,
                         pos_col=pos_col,
@@ -851,17 +855,13 @@ class LocusZoomPlotter:
                         label_top_n=label_top_n,
                         genes_df=genes_df,
                         chrom=chrom,
-                        adjust=False,
+                        adjust=True,
                     )
-                    if texts:
-                        all_snp_label_texts.append((ax, texts))
 
             if i == 0 and recomb_df is not None and not recomb_df.empty:
                 if self._backend.supports_secondary_axis:
                     self._add_recombination_overlay(ax, recomb_df, start, end)
 
-            self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
-            self._backend.set_xlim(ax, start, end)
             self._backend.hide_spines(ax, ["top", "right"])
 
             if panel_labels and i < len(panel_labels):
@@ -1052,8 +1052,5 @@ class LocusZoomPlotter:
             self._backend.format_xaxis_mb(ax)
 
         self._backend.finalize_layout(fig, hspace=0.1)
-
-        for ax, texts in all_snp_label_texts:
-            self._backend.adjust_snp_labels(ax, texts)
 
         return fig
