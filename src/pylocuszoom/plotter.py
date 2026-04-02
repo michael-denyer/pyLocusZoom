@@ -326,7 +326,7 @@ class LocusZoomPlotter:
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
         y_max = df["neglog10p"].max()
         if pd.notna(y_max) and y_max > 0:
-            self._backend.set_ylim(ax, 0, y_max * 1.05)
+            self._backend.set_ylim(ax, 0, y_max * 1.15)
         self._backend.set_xlim(ax, start, end)
 
         if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:
@@ -841,7 +841,7 @@ class LocusZoomPlotter:
             self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
             y_max = df["neglog10p"].max()
             if pd.notna(y_max) and y_max > 0:
-                self._backend.set_ylim(ax, 0, y_max * 1.05)
+                self._backend.set_ylim(ax, 0, y_max * 1.15)
             self._backend.set_xlim(ax, start, end)
 
             if snp_labels and rs_col in df.columns and label_top_n > 0 and not df.empty:

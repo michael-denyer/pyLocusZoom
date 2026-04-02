@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.9] - 2026-04-02
+
+### Fixed
+
+- **adjustText arrow artifacts**: Hide connector lines by setting arrow color to `none`, eliminating gray line artifacts from repositioned labels
+- **Lead SNP marker clipping**: Increase y-axis headroom from 5% to 15% so diamond markers and labels render without clipping
+
 ## [1.3.8] - 2026-04-01
 
 ### Fixed

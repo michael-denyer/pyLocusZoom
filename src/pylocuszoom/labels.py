@@ -136,7 +136,7 @@ def adjust_snp_labels(ax: Axes, texts: List[Annotation]) -> None:
         adjust_text(
             texts,
             ax=ax,
-            arrowprops=dict(arrowstyle="-", color="gray", lw=0.5),
+            arrowprops=dict(arrowstyle="-", color="none", lw=0),
             expand_points=(1.5, 1.5),
         )
     except ImportError:
