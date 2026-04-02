@@ -334,6 +334,8 @@ class PlotBackend(Protocol):
         genes_df: Optional[pd.DataFrame],
         chrom: int,
         adjust: bool = True,
+        lead_pos: Optional[int] = None,
+        region_span: Optional[int] = None,
     ) -> List[Any]:
         """Add SNP labels to plot.
 
@@ -351,6 +353,9 @@ class PlotBackend(Protocol):
             chrom: Chromosome number (unused, for signature compatibility).
             adjust: If True, run adjustText immediately. If False, caller
                 must call adjust_snp_labels() after setting axis limits.
+            lead_pos: Position of the lead SNP. Non-lead SNPs nearby are
+                excluded to avoid overlapping connector lines.
+            region_span: Width of the visible region in base pairs.
 
         Returns:
             List of text annotation objects (empty for non-matplotlib backends).

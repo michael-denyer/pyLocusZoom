@@ -166,6 +166,77 @@ class TestAddSnpLabels:
         assert len(texts) == 0
         plt.close(fig)
 
+    def test_filters_labels_near_lead_snp(self):
+        """Non-lead SNPs within min_label_distance of lead are excluded."""
+        # Region is 1Mb wide, 5% threshold = 50kb
+        # Lead at 1500000, nearby SNP at 1510000 (10kb away = within 5%)
+        # Distant SNP at 1800000 (300kb away = outside 5%)
+        df = pd.DataFrame(
+            {
+                "rs": ["lead", "nearby", "distant"],
+                "ps": [1500000, 1510000, 1800000],
+                "neglog10p": [20, 15, 10],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        texts = add_snp_labels(
+            ax,
+            df,
+            label_top_n=3,
+            lead_pos=1500000,
+            region_span=1000000,
+        )
+
+        labels = [t.get_text() for t in texts]
+        assert "lead" in labels
+        assert "distant" in labels
+        assert "nearby" not in labels
+        plt.close(fig)
+
+    def test_no_filtering_without_lead_pos(self):
+        """All top N labels shown when lead_pos is not provided."""
+        df = pd.DataFrame(
+            {
+                "rs": ["a", "b", "c"],
+                "ps": [1500000, 1510000, 1800000],
+                "neglog10p": [20, 15, 10],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        texts = add_snp_labels(ax, df, label_top_n=3)
+
+        assert len(texts) == 3
+        plt.close(fig)
+
+    def test_lead_snp_always_labeled(self):
+        """Lead SNP is always labeled even if other nearby SNPs are filtered."""
+        df = pd.DataFrame(
+            {
+                "rs": ["lead", "neighbor1", "neighbor2"],
+                "ps": [1500000, 1500100, 1499900],
+                "neglog10p": [20, 18, 16],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        texts = add_snp_labels(
+            ax,
+            df,
+            label_top_n=3,
+            lead_pos=1500000,
+            region_span=1000000,
+        )
+
+        labels = [t.get_text() for t in texts]
+        assert "lead" in labels
+        assert len(labels) == 1  # Only lead survives
+        plt.close(fig)
+
 
 class TestAdjustTextWarning:
     """Test warning is logged when adjustText is unavailable."""

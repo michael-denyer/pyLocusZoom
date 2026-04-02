@@ -341,6 +341,8 @@ class LocusZoomPlotter:
                     genes_df=genes_df,
                     chrom=chrom,
                     adjust=True,
+                    lead_pos=lead_pos,
+                    region_span=end - start,
                 )
 
         if recomb_df is not None and not recomb_df.empty:
@@ -856,6 +858,8 @@ class LocusZoomPlotter:
                         genes_df=genes_df,
                         chrom=chrom,
                         adjust=True,
+                        lead_pos=lead_pos,
+                        region_span=end - start,
                     )
 
             if i == 0 and recomb_df is not None and not recomb_df.empty:

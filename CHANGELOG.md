@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-02
+
+### Added
+
+- **Lead SNP proximity filtering for labels**: Non-lead SNPs within 5% of the region width of the lead SNP are excluded from labeling, eliminating the ugly triangle/fan of connector lines when multiple top SNPs cluster near the peak. The lead SNP is always labeled. Controlled by new `lead_pos`, `region_span`, and `min_label_distance` parameters on `add_snp_labels()`.
+
 ## [1.3.9] - 2026-04-02
 
 ### Fixed

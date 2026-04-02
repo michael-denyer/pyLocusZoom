@@ -25,11 +25,16 @@ def add_snp_labels(
     chrom: Optional[Union[int, str]] = None,
     max_label_length: int = 15,
     adjust: bool = True,
+    lead_pos: Optional[int] = None,
+    region_span: Optional[int] = None,
+    min_label_distance: float = 0.05,
     **kwargs: Any,
 ) -> List[Annotation]:
     """Add text labels to top SNPs in the regional plot.
 
     Labels the most significant SNPs with their SNP ID (rs number).
+    When a lead SNP position is provided, nearby non-lead SNPs are
+    excluded to avoid overlapping connector lines.
 
     Args:
         ax: Matplotlib axes object.
@@ -44,6 +49,13 @@ def add_snp_labels(
         max_label_length: Maximum label length before truncation.
         adjust: If True, run adjustText immediately. If False, caller must
             call adjust_snp_labels() after setting axis limits.
+        lead_pos: Position of the lead/index SNP. Non-lead SNPs closer
+            than ``min_label_distance`` fraction of the region are skipped.
+        region_span: Width of the visible region in base pairs. Required
+            when ``lead_pos`` is provided.
+        min_label_distance: Minimum distance from lead SNP as a fraction
+            of ``region_span``. Non-lead SNPs closer than this are not
+            labeled. Defaults to 0.05 (5%).
 
     Returns:
         List of matplotlib text annotation objects.
@@ -63,6 +75,14 @@ def add_snp_labels(
 
     # Get top N SNPs by -log10(p)
     top_snps = df.nlargest(label_top_n, neglog10p_col)
+
+    # Drop non-lead SNPs that are too close to the lead
+    if lead_pos is not None and region_span is not None and region_span > 0:
+        min_dist_bp = min_label_distance * region_span
+        mask = (top_snps[pos_col] == lead_pos) | (
+            (top_snps[pos_col] - lead_pos).abs() >= min_dist_bp
+        )
+        top_snps = top_snps[mask]
 
     texts = []
     used_labels = set()  # Track used labels to avoid duplicates
