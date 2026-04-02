@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Lead SNP proximity filtering for labels**: Non-lead SNPs within 5% of the region width of the lead SNP are excluded from labeling, eliminating the ugly triangle/fan of connector lines when multiple top SNPs cluster near the peak. The lead SNP is always labeled. Controlled by new `lead_pos`, `region_span`, and `min_label_distance` parameters on `add_snp_labels()`.
 
+### Fixed
+
+- **Plotly/Bokeh backend signature mismatch**: Updated `add_snp_labels` signatures on Plotly and Bokeh backends to match the protocol, preventing `TypeError` when using interactive backends
+- **Silent no-op on partial parameters**: Now logs a warning when `lead_pos` is provided without a valid `region_span` instead of silently skipping filtering
+- **Input validation for `min_label_distance`**: Raises `ValueError` if value is outside `[0, 1]` range
+
 ## [1.3.9] - 2026-04-02
 
 ### Fixed

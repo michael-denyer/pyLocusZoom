@@ -625,6 +625,8 @@ class BokehBackend:
         genes_df: Optional[pd.DataFrame],
         chrom: int,
         adjust: bool = True,
+        lead_pos: Optional[int] = None,
+        region_span: Optional[int] = None,
     ) -> List[Any]:
         """No-op: Bokeh uses hover tooltips instead of text labels."""
         return []

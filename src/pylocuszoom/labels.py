@@ -50,12 +50,15 @@ def add_snp_labels(
         adjust: If True, run adjustText immediately. If False, caller must
             call adjust_snp_labels() after setting axis limits.
         lead_pos: Position of the lead/index SNP. Non-lead SNPs closer
-            than ``min_label_distance`` fraction of the region are skipped.
-        region_span: Width of the visible region in base pairs. Required
-            when ``lead_pos`` is provided.
+            than ``min_label_distance * region_span`` base pairs are skipped.
+            The lead SNP is identified by exact position match.
+        region_span: Width of the visible region in base pairs. Must be
+            positive for filtering to take effect. If not provided when
+            ``lead_pos`` is set, a warning is logged and filtering is
+            skipped.
         min_label_distance: Minimum distance from lead SNP as a fraction
             of ``region_span``. Non-lead SNPs closer than this are not
-            labeled. Defaults to 0.05 (5%).
+            labeled. Defaults to 0.05 (5%). Must be between 0 and 1.
 
     Returns:
         List of matplotlib text annotation objects.
@@ -78,11 +81,20 @@ def add_snp_labels(
 
     # Drop non-lead SNPs that are too close to the lead
     if lead_pos is not None and region_span is not None and region_span > 0:
+        if not 0 <= min_label_distance <= 1:
+            raise ValueError(
+                f"min_label_distance must be between 0 and 1, got {min_label_distance}"
+            )
         min_dist_bp = min_label_distance * region_span
         mask = (top_snps[pos_col] == lead_pos) | (
             (top_snps[pos_col] - lead_pos).abs() >= min_dist_bp
         )
         top_snps = top_snps[mask]
+    elif lead_pos is not None and (region_span is None or region_span <= 0):
+        logger.warning(
+            "lead_pos provided without valid region_span — "
+            "proximity filtering disabled. Pass region_span=(end - start) to enable."
+        )
 
     texts = []
     used_labels = set()  # Track used labels to avoid duplicates

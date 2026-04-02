@@ -213,7 +213,7 @@ class TestAddSnpLabels:
         plt.close(fig)
 
     def test_lead_snp_always_labeled(self):
-        """Lead SNP is always labeled even if other nearby SNPs are filtered."""
+        """Lead SNP within top-N is always labeled even when neighbors filtered."""
         df = pd.DataFrame(
             {
                 "rs": ["lead", "neighbor1", "neighbor2"],
@@ -235,6 +235,117 @@ class TestAddSnpLabels:
         labels = [t.get_text() for t in texts]
         assert "lead" in labels
         assert len(labels) == 1  # Only lead survives
+        plt.close(fig)
+
+    def test_snp_exactly_at_threshold_survives(self):
+        """SNP exactly at min_label_distance threshold is kept (>= boundary)."""
+        # 5% of 1Mb = 50kb; SNP at exactly 50kb from lead should survive
+        df = pd.DataFrame(
+            {
+                "rs": ["lead", "boundary"],
+                "ps": [1500000, 1550000],
+                "neglog10p": [20, 15],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        texts = add_snp_labels(
+            ax, df, label_top_n=2, lead_pos=1500000, region_span=1000000
+        )
+
+        labels = [t.get_text() for t in texts]
+        assert "boundary" in labels
+        plt.close(fig)
+
+    def test_no_filtering_when_region_span_zero(self):
+        """region_span=0 disables filtering and logs a warning."""
+        df = pd.DataFrame(
+            {
+                "rs": ["a", "b", "c"],
+                "ps": [1500000, 1510000, 1800000],
+                "neglog10p": [20, 15, 10],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        texts = add_snp_labels(ax, df, label_top_n=3, lead_pos=1500000, region_span=0)
+
+        assert len(texts) == 3
+        plt.close(fig)
+
+    def test_warns_when_lead_pos_without_region_span(self, caplog):
+        """Warning logged when lead_pos set but region_span missing."""
+        df = pd.DataFrame(
+            {
+                "rs": ["a", "b"],
+                "ps": [1500000, 1800000],
+                "neglog10p": [20, 10],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        with caplog.at_level("WARNING"):
+            texts = add_snp_labels(
+                ax, df, label_top_n=2, lead_pos=1500000, region_span=None
+            )
+
+        # All labels kept (filtering disabled)
+        assert len(texts) == 2
+        plt.close(fig)
+
+    def test_custom_min_label_distance(self):
+        """Custom min_label_distance widens the exclusion zone."""
+        # 10% of 1Mb = 100kb; SNP 60kb away should be filtered at 10%
+        # but would survive at the default 5% (50kb threshold)
+        df = pd.DataFrame(
+            {
+                "rs": ["lead", "mid_range", "far"],
+                "ps": [1500000, 1560000, 1800000],
+                "neglog10p": [20, 15, 10],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        texts = add_snp_labels(
+            ax,
+            df,
+            label_top_n=3,
+            lead_pos=1500000,
+            region_span=1000000,
+            min_label_distance=0.10,
+        )
+
+        labels = [t.get_text() for t in texts]
+        assert "lead" in labels
+        assert "far" in labels
+        assert "mid_range" not in labels
+        plt.close(fig)
+
+    def test_invalid_min_label_distance_raises(self):
+        """min_label_distance outside [0, 1] raises ValueError."""
+        df = pd.DataFrame(
+            {
+                "rs": ["a", "b"],
+                "ps": [1500000, 1800000],
+                "neglog10p": [20, 10],
+            }
+        )
+        fig, ax = plt.subplots()
+        ax.scatter(df["ps"], df["neglog10p"])
+
+        with pytest.raises(ValueError, match="min_label_distance"):
+            add_snp_labels(
+                ax,
+                df,
+                label_top_n=2,
+                lead_pos=1500000,
+                region_span=1000000,
+                min_label_distance=-0.5,
+            )
         plt.close(fig)
 
 
