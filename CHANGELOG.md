@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-14
+
+### Security
+
+- **Dependency upgrades** resolving 8 Dependabot alerts (pillow, tornado, orjson, pytest, requests, pygments) via `uv lock --upgrade`
+- **SHA-pinned GitHub Actions** in CI and publish workflows to prevent tag-hijack supply-chain attacks
+- **Sigstore build provenance attestations** added to PyPI publish workflow — consumers can now verify package provenance
+- **Pinned `hatchling==1.29.0`** build backend to prevent compromised build-time dep execution
+- Added Dependabot config for weekly github-actions updates
+
 ## [1.4.0] - 2026-04-02
 
 ### Added
