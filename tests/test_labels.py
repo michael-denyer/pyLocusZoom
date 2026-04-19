@@ -481,3 +481,92 @@ class TestDeferredAdjustment:
 
         assert len(texts) == 1
         plt.close(fig)
+
+
+class TestNearLeadFilterBackfill:
+    """Regression: filter near-lead SNPs BEFORE nlargest, not after.
+
+    Pre-fix bug: nlargest(label_top_n) was taken first, then the
+    proximity mask dropped near-lead neighbors. On a strong peak the
+    top N are clustered around the lead, so the user got 1 label
+    instead of label_top_n.
+    """
+
+    def test_near_lead_filter_backfills_to_label_top_n(self):
+        """All top-N labels should fit in budget after near-lead filter."""
+        # Lead at 1500000; many strong-but-near neighbors that should be
+        # excluded; weaker far-away SNPs that should backfill the budget.
+        df = pd.DataFrame(
+            {
+                "rs": [f"rs{i}" for i in range(10)],
+                "ps": [
+                    1500000,  # lead
+                    1500100,  # near (excluded)
+                    1500200,  # near (excluded)
+                    1500300,  # near (excluded)
+                    1500400,  # near (excluded)
+                    1100000,  # far - should be picked
+                    1200000,  # far - should be picked
+                    1300000,  # far - should be picked
+                    1700000,  # far - should be picked
+                    1900000,  # far - should be picked (5th non-lead)
+                ],
+                "neglog10p": [
+                    20.0,  # lead - strongest
+                    19.0,
+                    18.0,
+                    17.0,
+                    16.0,
+                    5.0,
+                    4.0,
+                    3.0,
+                    2.5,
+                    2.0,
+                ],
+            }
+        )
+
+        fig, ax = plt.subplots()
+        try:
+            texts = add_snp_labels(
+                ax,
+                df,
+                label_top_n=5,
+                lead_pos=1500000,
+                region_span=1_000_000,
+                min_label_distance=0.05,
+                adjust=False,
+            )
+            # Pre-fix: only the lead survives the post-filter mask -> 1 label.
+            # Post-fix: lead + 4 farthest backfill to 5.
+            assert len(texts) == 5
+            label_strs = [t.get_text() for t in texts]
+            assert "rs0" in label_strs  # lead always present
+        finally:
+            plt.close(fig)
+
+    def test_near_lead_filter_preserves_lead_when_only_neighbors_compete(self):
+        """If only near-lead points exist, lead is still labeled."""
+        df = pd.DataFrame(
+            {
+                "rs": ["lead", "near1", "near2"],
+                "ps": [1500000, 1500100, 1500200],
+                "neglog10p": [20.0, 19.0, 18.0],
+            }
+        )
+        fig, ax = plt.subplots()
+        try:
+            texts = add_snp_labels(
+                ax,
+                df,
+                label_top_n=3,
+                lead_pos=1500000,
+                region_span=1_000_000,
+                adjust=False,
+            )
+            label_strs = [t.get_text() for t in texts]
+            assert "lead" in label_strs
+            # Near neighbors are excluded; only lead is eligible.
+            assert len(texts) == 1
+        finally:
+            plt.close(fig)

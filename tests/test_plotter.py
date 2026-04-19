@@ -1924,3 +1924,58 @@ class TestHighlightHeatmapSnpBackendProtocol:
         # snp_idx=2, n_snps=5: row cells (0,2),(1,2),(2,2) + col cells (2,3),(2,4) = 5
         renderer = ax.renderers[-1]
         assert len(renderer.data_source.data["x"]) == 5
+
+
+class TestStackedPlotLeadDetectionCrossChrom:
+    """Regression: plot_stacked() lead auto-detection must filter by chromosome.
+
+    Pre-fix bug: when lead_positions is None, the auto-detect loop did
+    `df[(df[pos_col] >= start) & (df[pos_col] <= end)]` with no chrom
+    filter. On a multi-chromosome GWAS DataFrame, the strongest p-value
+    in [start, end] could come from a different chromosome than the
+    plotted region, anchoring the diamond marker to the wrong locus.
+    """
+
+    @pytest.fixture
+    def plotter(self):
+        return LocusZoomPlotter(species="canine", log_level=None)
+
+    def test_lead_autodetect_filters_by_chrom(self, plotter):
+        """Lead position must come from the requested chromosome."""
+        # Two chromosomes share a position range. The strongest p-value
+        # is on chr2 at position 1_500_000, but we are plotting chr1.
+        # Pre-fix: lead = chr2's strongest hit. Post-fix: lead = chr1's.
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3", "rs4"],
+                "chr": [1, 1, 2, 2],
+                "ps": [1_200_000, 1_800_000, 1_500_000, 1_900_000],
+                "p_wald": [1e-5, 1e-3, 1e-12, 1e-10],
+            }
+        )
+
+        # Patch the lead-aware code to capture what got computed.
+        captured = {}
+        original = plotter._plot_association
+
+        def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
+            captured.setdefault("lead_positions", []).append(lead_pos)
+            return original(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs)
+
+        plotter._plot_association = spy
+        try:
+            plotter.plot_stacked(
+                [gwas_df],
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+                pos_col="ps",
+                p_col="p_wald",
+                show_recombination=False,
+            )
+        finally:
+            plotter._plot_association = original
+
+        assert captured["lead_positions"] == [1_200_000], (
+            "Lead must be chr1's strongest hit (1_200_000), not chr2's (1_500_000)"
+        )

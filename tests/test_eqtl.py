@@ -307,3 +307,54 @@ class TestPrepareEqtlForPlotting:
         result = prepare_eqtl_for_plotting(df)
         assert "neglog10p" not in df.columns
         assert "neglog10p" in result.columns
+
+
+class TestEqtlPValueValidation:
+    """Regression: drop NaN/<=0/>1 p-values before -log10 transform.
+
+    Pre-fix bug: prepare_eqtl_for_plotting() ran -log10(p.clip(1e-300))
+    with no NaN/range filtering, so p>1 produced negative neglog10p
+    and NaN poisoned downstream axis-limit calculations.
+    """
+
+    def test_drops_nan_pvalues(self):
+        from pylocuszoom.eqtl import prepare_eqtl_for_plotting
+
+        df = pd.DataFrame(
+            {
+                "pos": [1, 2, 3],
+                "p_value": [1e-6, float("nan"), 1e-3],
+            }
+        )
+        result = prepare_eqtl_for_plotting(df)
+        assert len(result) == 2
+        assert result["neglog10p"].notna().all()
+
+    def test_drops_pvalues_above_one(self):
+        from pylocuszoom.eqtl import prepare_eqtl_for_plotting
+
+        df = pd.DataFrame(
+            {
+                "pos": [1, 2, 3],
+                "p_value": [1e-6, 1.5, 0.5],
+            }
+        )
+        result = prepare_eqtl_for_plotting(df)
+        assert len(result) == 2
+        # No negative neglog10p (which would happen for p>1)
+        assert (result["neglog10p"] >= 0).all()
+
+    def test_drops_pvalues_at_or_below_zero(self):
+        from pylocuszoom.eqtl import prepare_eqtl_for_plotting
+
+        df = pd.DataFrame(
+            {
+                "pos": [1, 2, 3, 4],
+                "p_value": [1e-6, 0.0, -0.1, 0.5],
+            }
+        )
+        result = prepare_eqtl_for_plotting(df)
+        assert len(result) == 2
+        # All finite, all non-negative
+        assert result["neglog10p"].notna().all()
+        assert (result["neglog10p"] >= 0).all()

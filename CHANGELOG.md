@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Label backfill regression**: `add_snp_labels()` now filters near-lead non-lead SNPs *before* selecting the top N, so a strong peak no longer collapses to a single label when multiple top hits cluster around the lead.
-- **Cross-chromosome lead in stacked plots**: `plot_stacked()` lead auto-detection now filters by chromosome via `filter_by_region`, preventing the diamond marker from being placed at a position from the wrong chromosome on multi-chromosome GWAS DataFrames.
+- **Cross-chromosome lead in stacked plots**: `plot_stacked()` lead auto-detection now filters by chromosome via `filter_by_region`, recognizing both `chrom` and `chr` column conventions, preventing the diamond marker from being placed at a position from the wrong chromosome on multi-chromosome GWAS DataFrames.
 - **eQTL p-value validation**: `prepare_eqtl_for_plotting()` now drops rows with NaN, non-positive, or `>1` p-values (with a warning) instead of producing negative or NaN `neglog10p` values that poisoned axis limits.
 - **Gene track strand arrows on missing data**: NaN strand values now render with the neutral color and skip directional arrows, instead of silently picking the wrong direction.
 - **Global matplotlib state leak**: Removed `plt.ioff()` / `plt.ion()` calls that flipped matplotlib's interactive mode globally, breaking auto-display in caller notebooks.

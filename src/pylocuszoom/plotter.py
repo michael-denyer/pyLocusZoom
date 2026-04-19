@@ -717,11 +717,17 @@ class LocusZoomPlotter:
         if lead_positions is None:
             lead_positions = []
             for df in gwas_dfs:
-                # filter_by_region also applies chrom filtering when a chrom
-                # column exists, preventing cross-chromosome lead selection on
-                # whole-genome summary stats DataFrames.
+                # Detect a chrom column under either common convention
+                # ("chrom" or "chr") to prevent cross-chromosome lead
+                # selection on whole-genome summary stats DataFrames.
+                chrom_col = next(
+                    (c for c in ("chrom", "chr") if c in df.columns), "chrom"
+                )
                 region_df = filter_by_region(
-                    df, region=(chrom, start, end), pos_col=pos_col
+                    df,
+                    region=(chrom, start, end),
+                    chrom_col=chrom_col,
+                    pos_col=pos_col,
                 )
                 if not region_df.empty:
                     valid_p = region_df[p_col].dropna()

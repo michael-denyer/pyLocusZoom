@@ -336,3 +336,70 @@ class TestGeneTrackProperties:
             plot_gene_track(ax, genes_df, chrom, start, end)
         finally:
             plt.close(fig)
+
+
+class TestStrandNaNHandling:
+    """Regression: NaN strand should not silently render reversed arrows.
+
+    Pre-fix bug: _draw_strand_arrows_matplotlib was called whenever the
+    'strand' column existed; inside it `if strand == "+"` is False for
+    NaN, falling through to the else branch and pointing arrows the
+    wrong way. STRAND_COLORS.get(NaN) also missed the dict and used
+    a fallback inconsistently.
+    """
+
+    def test_nan_strand_does_not_raise(self):
+        """Plotting genes with NaN strand renders without error."""
+        import numpy as np
+
+        genes_df = pd.DataFrame(
+            {
+                "chr": [1, 1],
+                "start": [1_000_000, 1_500_000],
+                "end": [1_100_000, 1_600_000],
+                "gene_name": ["KNOWN", "UNKNOWN_STRAND"],
+                "strand": ["+", np.nan],
+            }
+        )
+        fig, ax = plt.subplots()
+        try:
+            from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+            from pylocuszoom.gene_track import plot_gene_track_generic
+
+            plot_gene_track_generic(
+                ax,
+                MatplotlibBackend(),
+                genes_df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+            )
+        finally:
+            plt.close(fig)
+
+    def test_invalid_strand_string_treated_as_missing(self):
+        """A garbage strand value (not '+' or '-') is treated like NaN."""
+        genes_df = pd.DataFrame(
+            {
+                "chr": [1],
+                "start": [1_000_000],
+                "end": [1_100_000],
+                "gene_name": ["FOO"],
+                "strand": ["?"],
+            }
+        )
+        fig, ax = plt.subplots()
+        try:
+            from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+            from pylocuszoom.gene_track import plot_gene_track_generic
+
+            plot_gene_track_generic(
+                ax,
+                MatplotlibBackend(),
+                genes_df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+            )
+        finally:
+            plt.close(fig)
