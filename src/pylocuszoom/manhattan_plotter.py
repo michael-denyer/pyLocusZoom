@@ -161,7 +161,9 @@ class ManhattanPlotter:
         self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
 
         y_max = prepared_df["_neg_log_p"].max()
-        self._backend.set_ylim(ax, 0, y_max * 1.1)
+        # Guard against degenerate ylim(0, 0) when all p=1 or DataFrame is empty.
+        y_top = max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
+        self._backend.set_ylim(ax, 0, y_top)
 
         # Labels and title
         self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
@@ -316,7 +318,9 @@ class ManhattanPlotter:
         self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
 
         y_max = prepared_df["_neg_log_p"].max()
-        self._backend.set_ylim(ax, 0, y_max * 1.1)
+        # Guard against degenerate ylim(0, 0) when all p=1 or DataFrame is empty.
+        y_top = max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
+        self._backend.set_ylim(ax, 0, y_top)
 
         # Labels and title
         self._backend.set_xlabel(ax, "Category", fontsize=12)

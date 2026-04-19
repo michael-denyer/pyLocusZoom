@@ -196,9 +196,12 @@ class MiamiPlotter:
         self._backend.set_xlim(top_ax, x_min - x_padding, x_max + x_padding)
         self._backend.set_xlim(bottom_ax, x_min - x_padding, x_max + x_padding)
 
-        # Set y limits - critical for Miami plot
-        top_y_max = top_prepared["_neg_log_p"].max() * 1.1
-        bottom_y_max = bottom_prepared["_neg_log_p"].max() * 1.1
+        # Set y limits - critical for Miami plot.
+        # Guard against degenerate ylim(0, 0) when all p=1 or DataFrames empty.
+        raw_top = top_prepared["_neg_log_p"].max()
+        raw_bot = bottom_prepared["_neg_log_p"].max()
+        top_y_max = max(raw_top * 1.1, 1.0) if pd.notna(raw_top) else 1.0
+        bottom_y_max = max(raw_bot * 1.1, 1.0) if pd.notna(raw_bot) else 1.0
 
         # Top panel: normal y-axis (0 at bottom, max at top)
         self._backend.set_ylim(top_ax, 0, top_y_max)

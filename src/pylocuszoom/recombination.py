@@ -313,9 +313,18 @@ def download_canine_recombination_maps(
                 with open(map_file, "r") as f:
                     content = f.read()
 
-                # Ensure header is present
+                # Ensure header is present. Detect by trying to parse the
+                # first non-whitespace token as a number — if it parses, the
+                # row is data and a header must be prepended. Case-sensitive
+                # token matching missed mirrors that ship "Chr"/"CHR".
                 lines = content.strip().split("\n")
-                if not lines[0].startswith("chr") and not lines[0].startswith("pos"):
+                first_token = lines[0].split()[0] if lines[0].split() else ""
+                try:
+                    float(first_token)
+                    has_header = False
+                except ValueError:
+                    has_header = True
+                if not has_header:
                     content = "chr\tpos\trate\tcM\n" + content
 
                 with open(output_file, "w") as f:

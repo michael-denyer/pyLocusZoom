@@ -12,7 +12,6 @@ Supports multiple backends:
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -50,7 +49,7 @@ from .recombination import (
     ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
-from .utils import validate_genes_df, validate_gwas_df
+from .utils import filter_by_region, validate_genes_df, validate_gwas_df
 
 # Precomputed significance line value (used for plotting)
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
@@ -245,11 +244,13 @@ class LocusZoomPlotter:
             validate_genes_df(genes_df)
 
         logger.debug(f"Creating plot for chr{chrom}:{start}-{end}")
-        plt.ioff()
+        # Don't flip global matplotlib interactive mode here — it leaks into
+        # the caller's notebook session and disables auto-display for all
+        # subsequent plots from any library. Backends manage their own state.
 
         df = transform_pvalues(gwas_df, p_col)
 
-        if ld_reference_file and lead_pos and ld_col is None:
+        if ld_reference_file and lead_pos is not None and ld_col is None:
             if rs_col not in df.columns:
                 logger.warning(
                     f"Cannot calculate LD: column '{rs_col}' not found in GWAS data. "
@@ -564,6 +565,9 @@ class LocusZoomPlotter:
         hover_builder = HoverDataBuilder(hover_config)
 
         if ld_col is not None and ld_col in df.columns:
+            # Defensive copy: callers in some code paths pass user-owned
+            # DataFrames; mutating in place would leak the ld_bin column.
+            df = df.copy()
             df["ld_bin"] = df[ld_col].apply(get_ld_bin)
             df = df.sort_values(ld_col, ascending=True, na_position="first")
 
@@ -713,7 +717,12 @@ class LocusZoomPlotter:
         if lead_positions is None:
             lead_positions = []
             for df in gwas_dfs:
-                region_df = df[(df[pos_col] >= start) & (df[pos_col] <= end)]
+                # filter_by_region also applies chrom filtering when a chrom
+                # column exists, preventing cross-chromosome lead selection on
+                # whole-genome summary stats DataFrames.
+                region_df = filter_by_region(
+                    df, region=(chrom, start, end), pos_col=pos_col
+                )
                 if not region_df.empty:
                     valid_p = region_df[p_col].dropna()
                     valid_p = valid_p[(valid_p >= 0) & (valid_p <= 1)]
@@ -798,7 +807,12 @@ class LocusZoomPlotter:
             df = transform_pvalues(gwas_df, p_col)
 
             panel_ld_col = ld_col
-            if ld_reference_files and ld_reference_files[i] and lead_pos and not ld_col:
+            if (
+                ld_reference_files
+                and ld_reference_files[i]
+                and lead_pos is not None
+                and not ld_col
+            ):
                 if rs_col not in df.columns:
                     logger.warning(
                         f"Cannot calculate LD for panel {i + 1}: column '{rs_col}' "

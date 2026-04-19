@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Label backfill regression**: `add_snp_labels()` now filters near-lead non-lead SNPs *before* selecting the top N, so a strong peak no longer collapses to a single label when multiple top hits cluster around the lead.
+- **Cross-chromosome lead in stacked plots**: `plot_stacked()` lead auto-detection now filters by chromosome via `filter_by_region`, preventing the diamond marker from being placed at a position from the wrong chromosome on multi-chromosome GWAS DataFrames.
+- **eQTL p-value validation**: `prepare_eqtl_for_plotting()` now drops rows with NaN, non-positive, or `>1` p-values (with a warning) instead of producing negative or NaN `neglog10p` values that poisoned axis limits.
+- **Gene track strand arrows on missing data**: NaN strand values now render with the neutral color and skip directional arrows, instead of silently picking the wrong direction.
+- **Global matplotlib state leak**: Removed `plt.ioff()` / `plt.ion()` calls that flipped matplotlib's interactive mode globally, breaking auto-display in caller notebooks.
+- **`lead_pos=0` silently disabling LD**: Truthiness checks (`if lead_pos`) replaced with `is not None`, so a valid lead position of 0 no longer skips LD calculation.
+- **PLINK prefix with dots**: `validate_plink_files()` no longer truncates prefixes containing `.` (e.g. `ukbb.v3`); existence checks now use string concatenation rather than `Path.with_suffix()`.
+- **Degenerate y-axis on flat data**: Manhattan and Miami plots clamp `ylim` to a minimum of 1.0 when all p-values are 1 or NaN, preventing matplotlib's singular-axis warning.
+- **Recombination map header detection**: `download_canine_recombination_maps()` detects headers by attempting numeric parsing of the first token rather than case-sensitive string matching, so mirrors shipping `Chr`/`CHR` headers no longer corrupt the saved file.
+- **PheWAS NaN-effect rows dropped**: Variants with missing effect direction are now rendered as circles instead of being silently filtered out by `>= 0` / `< 0` comparisons.
+- **Defensive copy in `_plot_association`**: Adds `df = df.copy()` before assigning `ld_bin`, removing a latent landmine where the function could mutate caller-owned DataFrames.
+
 ## [1.4.1] - 2026-04-14
 
 ### Security

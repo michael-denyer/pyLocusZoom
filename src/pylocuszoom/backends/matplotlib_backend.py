@@ -65,9 +65,6 @@ class MatplotlibBackend:
         Returns:
             Tuple of (figure, list of axes).
         """
-        # Prevent auto-display in interactive environments
-        plt.ioff()
-
         if n_panels == 1:
             fig, ax = plt.subplots(figsize=figsize)
             return fig, [ax]
@@ -102,8 +99,6 @@ class MatplotlibBackend:
         Returns:
             Tuple of (figure, flattened list of axes).
         """
-        plt.ioff()
-
         gridspec_kw = {}
         if width_ratios is not None:
             gridspec_kw["width_ratios"] = width_ratios
@@ -580,7 +575,6 @@ class MatplotlibBackend:
 
     def show(self, fig: Figure) -> None:
         """Display the figure."""
-        plt.ion()
         plt.show()
 
     def close(self, fig: Figure) -> None:

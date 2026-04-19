@@ -237,8 +237,11 @@ def validate_plink_files(bfile_path: Union[str, Path]) -> Path:
     """
     path = Path(bfile_path)
     missing = []
+    # Use string concatenation rather than with_suffix() — PLINK prefixes
+    # frequently contain dots (e.g. "ukbb.v3"), which with_suffix would
+    # truncate, causing validation to check the wrong file.
     for ext in [".bed", ".bim", ".fam"]:
-        if not path.with_suffix(ext).exists():
+        if not Path(str(path) + ext).exists():
             missing.append(ext)
 
     if missing:

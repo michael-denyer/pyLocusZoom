@@ -112,11 +112,26 @@ class StatsPlotter:
                     cat_data = df[df[category_col].isna()]
                 else:
                     cat_data = df[df[category_col] == cat]
-                # Use upward triangles for positive effects, circles otherwise
+                # Use upward triangles for positive effects, downward for
+                # negative, and circles for missing/NaN effects (otherwise
+                # NaN-effect rows fall through both filters and are dropped).
                 if effect_col and effect_col in cat_data.columns:
-                    # Vectorized: split by effect sign, 2 scatter calls per category
-                    pos_data = cat_data[cat_data[effect_col] >= 0]
-                    neg_data = cat_data[cat_data[effect_col] < 0]
+                    effect_vals = cat_data[effect_col]
+                    pos_data = cat_data[effect_vals >= 0]
+                    neg_data = cat_data[effect_vals < 0]
+                    nan_data = cat_data[effect_vals.isna()]
+                    if not nan_data.empty:
+                        self._backend.scatter(
+                            ax,
+                            nan_data["neglog10p"],
+                            nan_data["y_pos"],
+                            colors=palette[cat],
+                            sizes=60,
+                            marker="o",
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                        )
 
                     if not pos_data.empty:
                         self._backend.scatter(

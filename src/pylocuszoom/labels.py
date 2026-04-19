@@ -76,25 +76,27 @@ def add_snp_labels(
             "Ensure -log10(p) values are calculated before calling add_snp_labels."
         )
 
-    # Get top N SNPs by -log10(p)
-    top_snps = df.nlargest(label_top_n, neglog10p_col)
-
-    # Drop non-lead SNPs that are too close to the lead
+    # Filter eligible SNPs FIRST (drop near-lead non-lead rows), then take top N.
+    # Otherwise nlargest can be saturated by the lead's neighbors and the mask
+    # leaves only the lead itself, producing far fewer labels than requested.
+    eligible = df
     if lead_pos is not None and region_span is not None and region_span > 0:
         if not 0 <= min_label_distance <= 1:
             raise ValueError(
                 f"min_label_distance must be between 0 and 1, got {min_label_distance}"
             )
         min_dist_bp = min_label_distance * region_span
-        mask = (top_snps[pos_col] == lead_pos) | (
-            (top_snps[pos_col] - lead_pos).abs() >= min_dist_bp
+        mask = (df[pos_col] == lead_pos) | (
+            (df[pos_col] - lead_pos).abs() >= min_dist_bp
         )
-        top_snps = top_snps[mask]
+        eligible = df[mask]
     elif lead_pos is not None and (region_span is None or region_span <= 0):
         logger.warning(
             "lead_pos provided without valid region_span — "
             "proximity filtering disabled. Pass region_span=(end - start) to enable."
         )
+
+    top_snps = eligible.nlargest(label_top_n, neglog10p_col)
 
     texts = []
     used_labels = set()  # Track used labels to avoid duplicates

@@ -328,8 +328,11 @@ def plot_gene_track(
         row = positions[idx]
         gene_name = gene.get("gene_name", "")
 
-        # Get strand-specific color
-        strand = gene.get("strand") if "strand" in gene.index else None
+        # Get strand-specific color. NaN strand falls back to neutral color
+        # and disables arrow direction (otherwise NaN != "+" silently picks
+        # the wrong direction).
+        raw_strand = gene.get("strand") if "strand" in gene.index else None
+        strand = raw_strand if raw_strand in ("+", "-") else None
         gene_col = STRAND_COLORS.get(strand, STRAND_COLORS[None])
 
         # Y position: bottom of row + offset for gene area
@@ -384,8 +387,8 @@ def plot_gene_track(
                 )
             )
 
-        # Add strand direction triangles
-        if "strand" in gene.index:
+        # Add strand direction triangles only when strand is "+" or "-".
+        if strand is not None:
             _draw_strand_arrows_matplotlib(
                 ax, gene, gene_start, gene_end, y_gene, region_width
             )
@@ -479,8 +482,11 @@ def plot_gene_track_generic(
         row = positions[idx]
         gene_name = gene.get("gene_name", "")
 
-        # Get strand-specific color
-        strand = gene.get("strand") if "strand" in gene.index else None
+        # Get strand-specific color. NaN strand falls back to neutral color
+        # and disables arrow direction (otherwise NaN != "+" silently picks
+        # the wrong direction).
+        raw_strand = gene.get("strand") if "strand" in gene.index else None
+        strand = raw_strand if raw_strand in ("+", "-") else None
         gene_col = STRAND_COLORS.get(strand, STRAND_COLORS[None])
 
         # Y position: bottom of row + offset for gene area
@@ -532,8 +538,8 @@ def plot_gene_track_generic(
                 zorder=2,
             )
 
-        # Add strand direction triangles
-        if "strand" in gene.index:
+        # Add strand direction triangles only when strand is "+" or "-".
+        if strand is not None:
             _draw_strand_arrows_generic(
                 ax, backend, gene, gene_start, gene_end, y_gene, region_width
             )
