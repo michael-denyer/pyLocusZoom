@@ -1,7 +1,7 @@
 """Tests for LocusZoomPlotter class."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,44 +31,6 @@ class TestBackendIntegration:
             }
         )
 
-    def test_plot_uses_backend_create_figure(self, sample_gwas_df):
-        """plot() should use self._backend.create_figure() instead of plt.subplots()."""
-        plotter = LocusZoomPlotter(species="canine")
-
-        # Spy on the backend's create_figure method
-        original_create_figure = plotter._backend.create_figure
-        plotter._backend.create_figure = MagicMock(side_effect=original_create_figure)
-
-        fig = plotter.plot(
-            sample_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-        )
-
-        # Backend's create_figure should have been called
-        plotter._backend.create_figure.assert_called()
-        plt.close(fig)
-
-    def test_plot_stacked_uses_backend_create_figure(self, sample_gwas_df):
-        """plot_stacked() should use self._backend.create_figure()."""
-        plotter = LocusZoomPlotter(species="canine")
-
-        original_create_figure = plotter._backend.create_figure
-        plotter._backend.create_figure = MagicMock(side_effect=original_create_figure)
-
-        fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-        )
-
-        plotter._backend.create_figure.assert_called()
-        plt.close(fig)
-
     def test_default_backend_is_matplotlib(self):
         """Default backend should be matplotlib."""
         plotter = LocusZoomPlotter()
@@ -85,7 +47,13 @@ class TestBackendIntegration:
         assert isinstance(plotter._backend, PlotlyBackend)
 
     def test_plotly_backend_creates_figure(self, sample_gwas_df):
-        """plot() with backend='plotly' should create a plotly figure."""
+        """plot() with backend='plotly' produces a plotly Figure.
+
+        This also implicitly confirms plot() routes through the backend
+        protocol: if plot() bypassed the backend and called matplotlib
+        directly, the returned object would be a matplotlib Figure and
+        this isinstance check would fail.
+        """
         import plotly.graph_objects as go
 
         plotter = LocusZoomPlotter(species="canine", backend="plotly")
@@ -100,12 +68,14 @@ class TestBackendIntegration:
 
         assert isinstance(fig, go.Figure)
 
-    def test_plot_uses_backend_scatter(self, sample_gwas_df):
-        """plot() should use self._backend.scatter() for association points."""
-        plotter = LocusZoomPlotter(species="canine")
+    def test_matplotlib_plot_renders_expected_artists(self, sample_gwas_df):
+        """plot() renders scatter points, a significance line, and axis labels.
 
-        original_scatter = plotter._backend.scatter
-        plotter._backend.scatter = MagicMock(side_effect=original_scatter)
+        Assertions query the rendered axes directly (scatter collections,
+        line objects, y-label text) rather than mocking backend methods
+        and counting calls — per CLAUDE.md's observable-outputs rule.
+        """
+        plotter = LocusZoomPlotter(species="canine")
 
         fig = plotter.plot(
             sample_gwas_df,
@@ -114,48 +84,50 @@ class TestBackendIntegration:
             end=2000000,
             show_recombination=False,
         )
+        try:
+            ax = fig.axes[0]
 
-        plotter._backend.scatter.assert_called()
-        plt.close(fig)
+            # At least one scatter collection (association points)
+            assert len(ax.collections) >= 1, (
+                "expected at least one scatter collection on association axes"
+            )
 
-    def test_plot_uses_backend_axhline(self, sample_gwas_df):
-        """plot() should use self._backend.axhline() for significance line."""
+            # At least one line (the significance threshold)
+            lines = ax.get_lines()
+            assert len(lines) >= 1, "expected a significance threshold line"
+
+            # Y-axis labelled with -log10(p)
+            ylabel = ax.get_ylabel()
+            assert "log" in ylabel.lower() or "-log" in ylabel.lower(), (
+                f"expected -log10(p) y-label, got {ylabel!r}"
+            )
+
+            # X-limits cover the requested region
+            xlim = ax.get_xlim()
+            assert xlim[0] <= 1_000_000 and xlim[1] >= 2_000_000
+        finally:
+            plt.close(fig)
+
+    def test_plot_stacked_renders_two_panels(self, sample_gwas_df):
+        """plot_stacked() with two GWAS inputs produces two association panels."""
         plotter = LocusZoomPlotter(species="canine")
 
-        original_axhline = plotter._backend.axhline
-        plotter._backend.axhline = MagicMock(side_effect=original_axhline)
-
-        fig = plotter.plot(
-            sample_gwas_df,
+        fig = plotter.plot_stacked(
+            [sample_gwas_df, sample_gwas_df.copy()],
             chrom=1,
             start=1000000,
             end=2000000,
             show_recombination=False,
         )
-
-        plotter._backend.axhline.assert_called()
-        plt.close(fig)
-
-    def test_plot_uses_backend_axis_methods(self, sample_gwas_df):
-        """plot() should use backend methods for axis configuration."""
-        plotter = LocusZoomPlotter(species="canine")
-
-        original_set_ylabel = plotter._backend.set_ylabel
-        original_set_xlim = plotter._backend.set_xlim
-        plotter._backend.set_ylabel = MagicMock(side_effect=original_set_ylabel)
-        plotter._backend.set_xlim = MagicMock(side_effect=original_set_xlim)
-
-        fig = plotter.plot(
-            sample_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-        )
-
-        plotter._backend.set_ylabel.assert_called()
-        plotter._backend.set_xlim.assert_called()
-        plt.close(fig)
+        try:
+            # Each GWAS gets its own association axes; gene track axes
+            # may also be present but at minimum we need two scatter axes.
+            scatter_axes = [ax for ax in fig.axes if ax.collections]
+            assert len(scatter_axes) >= 2, (
+                f"expected >=2 axes with scatter data, got {len(scatter_axes)}"
+            )
+        finally:
+            plt.close(fig)
 
 
 class TestLocusZoomPlotterInit:
@@ -1326,39 +1298,64 @@ class TestPlotterDelegation:
     """Tests for plotter delegation to specialized classes."""
 
     def test_plotter_delegates_to_plot_finemapping(self):
-        """Test that plot_stacked delegates finemapping to module function."""
-        with patch("pylocuszoom.plotter.plot_finemapping") as mock_plot_fm:
-            plotter = LocusZoomPlotter(
-                species="canine", backend="matplotlib", log_level=None
-            )
+        """plot_stacked() forwards the finemapping DataFrame to plot_finemapping.
 
-            gwas_df = pd.DataFrame(
-                {
-                    "ps": [1000, 2000],
-                    "p_wald": [0.01, 0.001],
-                }
-            )
-            fm_df = pd.DataFrame(
-                {
-                    "pos": [1000, 2000],
-                    "pip": [0.5, 0.3],
-                    "cs": [1, 1],
-                }
-            )
+        This test pins a dispatch contract — plot_stacked delegates
+        fine-map rendering to the module-level ``plot_finemapping``
+        function rather than reimplementing it. Per CLAUDE.md, this is
+        a legitimate boundary assertion (the delegation target IS the
+        observable behaviour).
 
-            with patch.object(plotter, "_get_recomb_for_region", return_value=None):
-                try:
-                    plotter.plot_stacked(
-                        [gwas_df],
-                        chrom=1,
-                        start=0,
-                        end=3000,
-                        finemapping_df=fm_df,
-                    )
-                except Exception:
-                    pass  # We just want to verify the call was made
+        We assert on the DataFrame handed to plot_finemapping, not just
+        that it was called. A prior version of this test wrapped the
+        plot_stacked call in ``try/except Exception: pass`` — a silent-
+        failure anti-pattern that let real regressions pass. This
+        version requires plot_stacked to complete normally.
+        """
+        plotter = LocusZoomPlotter(
+            species="canine", backend="matplotlib", log_level=None
+        )
 
-            mock_plot_fm.assert_called()
+        gwas_df = pd.DataFrame(
+            {
+                "ps": [1000, 2000],
+                "p_wald": [0.01, 0.001],
+            }
+        )
+        fm_df = pd.DataFrame(
+            {
+                "pos": [1000, 2000],
+                "pip": [0.5, 0.3],
+                "cs": [1, 1],
+            }
+        )
+
+        with (
+            patch.object(plotter, "_get_recomb_for_region", return_value=None),
+            patch("pylocuszoom.plotter.plot_finemapping") as mock_plot_fm,
+        ):
+            fig = plotter.plot_stacked(
+                [gwas_df],
+                chrom=1,
+                start=0,
+                end=3000,
+                finemapping_df=fm_df,
+            )
+            try:
+                mock_plot_fm.assert_called_once()
+                # Signature: plot_finemapping(backend, ax, df, ...). The
+                # DataFrame is positional index 2 (or kwarg 'df').
+                args, kwargs = mock_plot_fm.call_args
+                forwarded = kwargs.get("df")
+                if forwarded is None and len(args) >= 3:
+                    forwarded = args[2]
+                assert forwarded is not None, (
+                    "plot_finemapping was called without the finemapping DataFrame"
+                )
+                assert list(forwarded["pos"]) == [1000, 2000]
+                assert list(forwarded["pip"]) == [0.5, 0.3]
+            finally:
+                plt.close(fig)
 
 
 def test_plotter_uses_ensure_recomb_maps():

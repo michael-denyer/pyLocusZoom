@@ -1,12 +1,12 @@
 """Tests for shared plotter utilities."""
 
-from unittest.mock import MagicMock
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom._plotter_utils import add_significance_line, transform_pvalues
+from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
 
 class TestTransformPvalues:
@@ -44,27 +44,42 @@ class TestTransformPvalues:
 
 
 class TestAddSignificanceLine:
-    """Tests for the add_significance_line utility."""
+    """Tests for the add_significance_line utility.
+
+    Assertions query the rendered matplotlib axes directly rather than
+    mocking the backend and counting calls — per CLAUDE.md's rule that
+    tests should assert on observable outputs, not internal wiring.
+    """
 
     def test_adds_line_at_threshold(self):
-        """Test that significance line is added at correct position."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
+        """Significance line at -log10(5e-8) with red dashed style."""
+        backend = MatplotlibBackend()
+        fig, ax = plt.subplots()
 
-        add_significance_line(mock_backend, mock_ax, 5e-8)
+        try:
+            add_significance_line(backend, ax, 5e-8)
 
-        mock_backend.axhline.assert_called_once()
-        call_kwargs = mock_backend.axhline.call_args[1]
-        # -log10(5e-8) ≈ 7.3
-        assert call_kwargs["y"] == pytest.approx(7.3, abs=0.1)
-        assert call_kwargs["color"] == "red"
-        assert call_kwargs["linestyle"] == "--"
+            lines = ax.get_lines()
+            assert len(lines) == 1, "exactly one horizontal line should be drawn"
+            line = lines[0]
+
+            # Horizontal line: both y-data points equal -log10(5e-8) ≈ 7.301
+            y_data = line.get_ydata()
+            assert y_data[0] == pytest.approx(7.301, abs=0.01)
+            assert y_data[-1] == pytest.approx(7.301, abs=0.01)
+
+            assert line.get_color() == "red"
+            assert line.get_linestyle() == "--"
+        finally:
+            plt.close(fig)
 
     def test_skips_when_threshold_is_none(self):
-        """Test that no line is added when threshold is None."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
+        """No line is added when threshold is None."""
+        backend = MatplotlibBackend()
+        fig, ax = plt.subplots()
 
-        add_significance_line(mock_backend, mock_ax, None)
-
-        mock_backend.axhline.assert_not_called()
+        try:
+            add_significance_line(backend, ax, None)
+            assert ax.get_lines() == [], "no lines should be drawn"
+        finally:
+            plt.close(fig)
