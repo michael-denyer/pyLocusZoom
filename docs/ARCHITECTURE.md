@@ -87,6 +87,35 @@ graph TD
     MPL --> STATIC
     PLOTLY --> HTML
     BOKEH --> HTML
+
+    %% Palette matches docs/CODEMAP.md layer colours
+    style GWAS fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+    style REF fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+    style LOAD fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+
+    style SCHEMA fill:#d84315,stroke:#ff7043,color:#ffffff
+    style EQTLV fill:#d84315,stroke:#ff7043,color:#ffffff
+    style UTILS fill:#d84315,stroke:#ff7043,color:#ffffff
+
+    style LD fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style RECOMB fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style ENSEMBL fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style COLORS fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+
+    style LZ fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style MP fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style SP fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style MIAMI fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style LDH fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style CP fill:#1565c0,stroke:#42a5f5,color:#ffffff
+
+    style PROTO fill:#ad1457,stroke:#f06292,color:#ffffff
+    style MPL fill:#ad1457,stroke:#f06292,color:#ffffff
+    style PLOTLY fill:#ad1457,stroke:#f06292,color:#ffffff
+    style BOKEH fill:#ad1457,stroke:#f06292,color:#ffffff
+
+    style STATIC fill:#37474f,stroke:#78909c,color:#ffffff
+    style HTML fill:#37474f,stroke:#78909c,color:#ffffff
 ```
 
 ## Data Flow
