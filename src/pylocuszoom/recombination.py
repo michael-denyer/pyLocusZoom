@@ -320,23 +320,23 @@ def download_canine_recombination_maps(
                 # body) is rejected rather than silently treated as a header.
                 lines = content.strip().split("\n")
                 first_token = lines[0].split()[0] if lines[0].split() else ""
+                # Case-insensitive match against common header variants, and
+                # strip a leading '#' (used by some map mirrors as comment
+                # syntax on the header row).
                 known_header_tokens = {
                     "chr",
-                    "Chr",
-                    "CHR",
+                    "chrom",
                     "chromosome",
-                    "Chromosome",
                     "pos",
-                    "Pos",
-                    "POS",
                     "position",
-                    "Position",
+                    "bp",
                 }
+                normalised_token = first_token.lstrip("#").lower()
                 try:
                     float(first_token)
                     has_header = False
                 except ValueError:
-                    if first_token not in known_header_tokens:
+                    if normalised_token not in known_header_tokens:
                         raise RuntimeError(
                             f"Unrecognised first token {first_token!r} in "
                             f"recombination map {map_file.name}; refusing to "

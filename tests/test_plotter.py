@@ -2040,7 +2040,9 @@ class TestLeadPosBoundary:
             }
         )
 
-        with pytest.raises(Exception, match="greater than or equal to 1"):
+        from pydantic import ValidationError as PydanticValidationError
+
+        with pytest.raises(PydanticValidationError, match="greater than or equal to 1"):
             plotter.plot(
                 gwas_df,
                 chrom=1,

@@ -74,7 +74,7 @@ class TestValidateColocGwasDf:
     def test_p_above_one_raises(self, valid_df):
         df = valid_df.copy()
         df.loc[0, "p"] = 1.5
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match=r"values\s*>\s*1"):
             validate_coloc_gwas_df(df, pos_col="pos", p_col="p")
 
     def test_p_equal_zero_raises(self, valid_df):
@@ -87,7 +87,7 @@ class TestValidateColocGwasDf:
     def test_p_negative_raises(self, valid_df):
         df = valid_df.copy()
         df.loc[0, "p"] = -0.1
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match=r"values\s*<=\s*0"):
             validate_coloc_gwas_df(df, pos_col="pos", p_col="p")
 
     def test_p_equal_one_passes(self, valid_df):

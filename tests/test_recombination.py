@@ -559,3 +559,74 @@ class TestTarTraversalOSError:
             plz_logger.enable("INFO")
 
         assert "Skipping unsafe path in archive" in log_capture.getvalue()
+
+
+class TestDownloadCanineRecombHeaderDetection:
+    """Regression: download_canine_recombination_maps must reject unknown
+    non-numeric first tokens (corrupted mirror / HTML error body) and
+    accept all plausible header variants (case-insensitive, optional '#').
+    """
+
+    @staticmethod
+    def _make_tarball(tar_path: Path, filename: str, content: str) -> None:
+        """Create a minimal .tar.gz containing one chromosome map file."""
+        with tarfile.open(tar_path, "w:gz") as tar:
+            data = content.encode("utf-8")
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+
+    def _fake_download(self, filename: str, content: str):
+        """Return a _download_with_progress mock that writes our fake tarball."""
+
+        def side_effect(url, dest_path, desc=None):
+            self._make_tarball(dest_path, filename, content)
+
+        return side_effect
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_raises_on_html_corrupted_body(self, mock_download, tmp_path):
+        """An HTML error body masquerading as a map must raise RuntimeError."""
+        html_content = "<html><body>502 Bad Gateway</body></html>\n"
+        mock_download.side_effect = self._fake_download("chr1.txt", html_content)
+
+        with pytest.raises(RuntimeError, match="Unrecognised first token"):
+            download_canine_recombination_maps(tmp_path / "out")
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_accepts_lowercase_chr_header(self, mock_download, tmp_path):
+        """Pre-existing canonical header form must still be accepted."""
+        content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        mock_download.side_effect = self._fake_download("chr1.txt", content)
+
+        result = download_canine_recombination_maps(tmp_path / "out")
+        assert (result / "chr1_recomb.tsv").exists()
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_accepts_capitalised_chromosome_header(self, mock_download, tmp_path):
+        """'Chromosome' is used by several mirrors; must pass."""
+        content = "Chromosome\tPosition\tRate\tcM\n1\t1000\t0.5\t0.1\n"
+        mock_download.side_effect = self._fake_download("chr1.txt", content)
+
+        result = download_canine_recombination_maps(tmp_path / "out")
+        assert (result / "chr1_recomb.tsv").exists()
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_accepts_hash_prefixed_header(self, mock_download, tmp_path):
+        """Some maps use '#chr' as a commented header; must pass."""
+        content = "#chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        mock_download.side_effect = self._fake_download("chr1.txt", content)
+
+        result = download_canine_recombination_maps(tmp_path / "out")
+        assert (result / "chr1_recomb.tsv").exists()
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_accepts_numeric_first_token_prepends_header(self, mock_download, tmp_path):
+        """Numeric first token means no header; one is prepended."""
+        content = "1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
+        mock_download.side_effect = self._fake_download("chr1.txt", content)
+
+        result = download_canine_recombination_maps(tmp_path / "out")
+        out_file = result / "chr1_recomb.tsv"
+        assert out_file.exists()
+        assert out_file.read_text().startswith("chr\tpos\trate\tcM\n")

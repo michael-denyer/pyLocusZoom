@@ -274,15 +274,14 @@ class LocusZoomPlotter:
                         plink_path=self.plink_path,
                         species=self.species,
                     )
-                    if not ld_df.empty:
-                        df = df.merge(
-                            ld_df,
-                            left_on=rs_col,
-                            right_on="SNP",
-                            how="left",
-                            validate="many_to_one",
-                        )
-                        ld_col = "R2"
+                    df = df.merge(
+                        ld_df,
+                        left_on=rs_col,
+                        right_on="SNP",
+                        how="left",
+                        validate="many_to_one",
+                    )
+                    ld_col = "R2"
 
         if show_recombination and recomb_df is None:
             recomb_df = self._get_recomb_for_region(chrom, start, end)
@@ -837,15 +836,14 @@ class LocusZoomPlotter:
                             plink_path=self.plink_path,
                             species=self.species,
                         )
-                        if not ld_df.empty:
-                            df = df.merge(
-                                ld_df,
-                                left_on=rs_col,
-                                right_on="SNP",
-                                how="left",
-                                validate="many_to_one",
-                            )
-                            panel_ld_col = "R2"
+                        df = df.merge(
+                            ld_df,
+                            left_on=rs_col,
+                            right_on="SNP",
+                            how="left",
+                            validate="many_to_one",
+                        )
+                        panel_ld_col = "R2"
 
             self._plot_association(
                 ax, df, pos_col, panel_ld_col, lead_pos, rs_col, p_col
