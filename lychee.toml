@@ -23,8 +23,10 @@ retry_wait_time = 2
 
 # 403 is accepted because some sites (e.g. GitHub release pages for
 # other repos, some journal publishers) reject unauthenticated HEAD
-# requests even for valid URLs.
-accept = ["200", "206", "301", "302", "403", "429"]
+# requests even for valid URLs. 429 is not accepted — a rate-limited
+# check should be retried (see max_retries/retry_wait_time), not
+# silently treated as success.
+accept = ["200", "206", "301", "302", "403"]
 
 cache = true
 max_cache_age = "1d"

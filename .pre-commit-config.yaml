@@ -47,7 +47,7 @@ repos:
         entry: >-
           bash -c 'for f in "$@"; do
           output=$(npx @probelabs/maid@0.0.29 "$f" 2>&1) || true;
-          real_errors=$(echo "$output" | grep -v "FL-STYLE-TARGET-UNKNOWN" | grep -c "error" || true);
+          real_errors=$(echo "$output" | grep -v "FL-STYLE-TARGET-UNKNOWN" | grep -cE "\\berror\\b");
           if [ "$real_errors" -gt 0 ]; then echo "$output"; exit 1; fi;
           done' --
         language: system
@@ -57,9 +57,10 @@ repos:
       - id: mermaid-render
         name: Validate mermaid diagrams (renderer parity)
         entry: >-
-          bash -c 'for f in "$@"; do
-          npx -y @mermaid-js/mermaid-cli@11.4.2 -i "$f" -o /tmp/mmdc_check.svg 2>&1 | grep -v "^$" || true;
-          done' --
+          bash -c 'fail=0; for f in "$@"; do
+          if ! npx -y @mermaid-js/mermaid-cli@11.4.2 -i "$f" -o /tmp/mmdc_check.svg;
+          then echo "mmdc failed on $f"; fail=1; fi;
+          done; exit $fail' --
         language: system
         types: [markdown]
         files: "\\.md$"
@@ -87,7 +88,7 @@ repos:
         entry: >-
           bash -c 'staged=$(git diff --cached --diff-filter=ACMR --name-only);
           [ -z "$staged" ] && exit 0;
-          ignored=$(echo "$staged" | xargs -I{} git check-ignore -v -- {} 2>/dev/null || true);
+          ignored=$(printf "%s\n" "$staged" | git check-ignore --stdin --verbose) || true;
           if [ -n "$ignored" ]; then
           echo "ERROR: refusing to commit gitignored files:";
           echo "$ignored";

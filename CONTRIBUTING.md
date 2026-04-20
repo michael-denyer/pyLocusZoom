@@ -15,12 +15,25 @@ Thank you for your interest in contributing to pyLocusZoom!
    uv sync --all-extras
    ```
 
-3. Run tests:
+3. Install Node.js (required for pre-commit hooks):
+
+   The `mermaid-lint` and `mermaid-render` pre-commit hooks validate
+   Mermaid diagrams in Markdown via `npx`. You need Node.js 20+ on
+   your PATH. On macOS: `brew install node`. On Ubuntu/Debian:
+   `sudo apt install nodejs npm` (or use [nvm](https://github.com/nvm-sh/nvm)).
+   Without it, pre-commit will fail with `npx: command not found`.
+
+4. Install pre-commit hooks:
+   ```bash
+   uv run pre-commit install
+   ```
+
+5. Run tests:
    ```bash
    uv run python -m pytest tests/ -v
    ```
 
-4. Run linting:
+6. Run linting:
    ```bash
    uv run ruff check src/
    uv run ruff format --check src/ tests/
