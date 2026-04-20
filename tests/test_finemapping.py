@@ -1,10 +1,10 @@
 """Tests for fine-mapping/SuSiE data handling."""
 
-from unittest.mock import MagicMock
-
+import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.finemapping import (
     FinemappingValidationError,
     filter_by_credible_set,
@@ -157,30 +157,44 @@ class TestPrepareFinemappingForPlotting:
 
 
 class TestPlotFinemapping:
-    """Tests for plot_finemapping function."""
+    """Tests for plot_finemapping function.
 
-    def test_plot_finemapping_plots_pip_line(self):
-        """Test that plot_finemapping renders PIP as line."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
+    Assertions query the rendered matplotlib axes directly — per
+    CLAUDE.md's observable-outputs rule. Previously these tests mocked
+    the backend protocol and asserted on ``.line.assert_called_once()``
+    / ``.scatter.call_count``, coupling to implementation rather than
+    output.
+    """
 
-        df = pd.DataFrame(
-            {
-                "pos": [1000, 2000, 3000],
-                "pip": [0.1, 0.5, 0.2],
-            }
-        )
+    @pytest.fixture
+    def rendering_axes(self):
+        """Provide a real MatplotlibBackend and matplotlib Axes.
 
-        plot_finemapping(mock_backend, mock_ax, df)
+        Yields (backend, ax) and closes the figure after the test.
+        """
+        backend = MatplotlibBackend()
+        fig, ax = plt.subplots()
+        try:
+            yield backend, ax
+        finally:
+            plt.close(fig)
 
-        # Should call line method for PIP
-        mock_backend.line.assert_called_once()
+    def test_plot_finemapping_plots_pip_line(self, rendering_axes):
+        """PIP values are rendered as a single line on the axes."""
+        backend, ax = rendering_axes
+        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
-    def test_plot_finemapping_colors_by_credible_set(self):
-        """Test that plot_finemapping colors points by credible set."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
+        plot_finemapping(backend, ax, df)
 
+        lines = ax.get_lines()
+        assert len(lines) >= 1, "expected a PIP line on the axes"
+        # The first line should carry the input PIP values
+        y = list(lines[0].get_ydata())
+        assert y == [0.1, 0.5, 0.2]
+
+    def test_plot_finemapping_colors_by_credible_set(self, rendering_axes):
+        """Each credible set contributes its own scatter collection."""
+        backend, ax = rendering_axes
         df = pd.DataFrame(
             {
                 "pos": [1000, 2000, 3000, 4000],
@@ -189,61 +203,52 @@ class TestPlotFinemapping:
             }
         )
 
-        plot_finemapping(mock_backend, mock_ax, df, cs_col="cs")
+        plot_finemapping(backend, ax, df, cs_col="cs")
 
-        # Should call scatter for each credible set
-        assert mock_backend.scatter.call_count >= 2  # CS 1 and CS 2
+        # CS 1 and CS 2 are non-zero credible sets → two scatter collections.
+        # CS 0 is the "no credible set" placeholder and is excluded.
+        assert len(ax.collections) >= 2, (
+            f"expected >=2 scatter collections for CS 1 and CS 2, "
+            f"got {len(ax.collections)}"
+        )
 
-    def test_plot_finemapping_handles_missing_cs_col(self):
-        """Test that plot_finemapping works without credible set column."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
+    def test_plot_finemapping_handles_missing_cs_col(self, rendering_axes):
+        """PIP line renders even when no credible-set column is provided."""
+        backend, ax = rendering_axes
+        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
+        plot_finemapping(backend, ax, df, cs_col=None)
+
+        assert len(ax.get_lines()) >= 1
+
+    def test_plot_finemapping_with_pip_threshold(self, rendering_axes):
+        """pip_threshold filters scatter points to high-PIP variants only."""
+        backend, ax = rendering_axes
         df = pd.DataFrame(
             {
                 "pos": [1000, 2000, 3000],
-                "pip": [0.1, 0.5, 0.2],
+                "pip": [0.05, 0.5, 0.02],  # Only 0.5 passes 0.1 threshold
             }
         )
 
-        # Should not raise
-        plot_finemapping(mock_backend, mock_ax, df, cs_col=None)
+        plot_finemapping(backend, ax, df, cs_col=None, pip_threshold=0.1)
 
-        mock_backend.line.assert_called_once()
+        # Line is always drawn
+        assert len(ax.get_lines()) >= 1
+        # Exactly one scatter collection (above-threshold points)
+        assert len(ax.collections) == 1
+        # That collection contains exactly one point (pip=0.5 at pos=2000)
+        offsets = ax.collections[0].get_offsets()
+        assert len(offsets) == 1
+        assert offsets[0][0] == 2000 and offsets[0][1] == pytest.approx(0.5)
 
-    def test_plot_finemapping_with_pip_threshold(self):
-        """Test that pip_threshold filters scatter points."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
+    def test_plot_finemapping_empty_dataframe(self, rendering_axes):
+        """Empty DataFrame does not raise; produces an empty line."""
+        backend, ax = rendering_axes
+        df = pd.DataFrame({"pos": [], "pip": []})
 
-        df = pd.DataFrame(
-            {
-                "pos": [1000, 2000, 3000],
-                "pip": [0.05, 0.5, 0.02],  # Only 0.5 > 0.1 threshold
-            }
-        )
+        plot_finemapping(backend, ax, df)
 
-        plot_finemapping(mock_backend, mock_ax, df, cs_col=None, pip_threshold=0.1)
-
-        # Line should still be plotted
-        mock_backend.line.assert_called_once()
-        # With no credible sets and pip_threshold > 0, scatter should be called for high-PIP points
-        mock_backend.scatter.assert_called_once()
-
-    def test_plot_finemapping_empty_dataframe(self):
-        """Test that plot_finemapping handles empty DataFrame."""
-        mock_backend = MagicMock()
-        mock_ax = MagicMock()
-
-        df = pd.DataFrame(
-            {
-                "pos": [],
-                "pip": [],
-            }
-        )
-
-        # Should not raise
-        plot_finemapping(mock_backend, mock_ax, df)
-
-        # Line should still be called (with empty data)
-        mock_backend.line.assert_called_once()
+        lines = ax.get_lines()
+        assert len(lines) >= 1
+        assert len(lines[0].get_xdata()) == 0

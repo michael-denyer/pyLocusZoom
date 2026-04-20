@@ -228,7 +228,12 @@ class TestDownloadLiftoverChain:
         mock_download.side_effect = create_file
 
         download_liftover_chain(force=True)
-        mock_download.assert_called_once()
+
+        # Observable behaviour: the existing file's contents were
+        # overwritten with the freshly-fetched bytes.
+        assert chain_file.read_bytes() == b"new data", (
+            "force=True must replace existing chain file contents"
+        )
 
 
 class TestLiftoverRecombinationMap:
