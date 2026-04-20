@@ -12,12 +12,6 @@ except ImportError:
     MIAMI_PLOTTER_AVAILABLE = False
     MiamiPlotter = None
 
-# Check if optional backends are available
-import importlib.util
-
-PLOTLY_AVAILABLE = importlib.util.find_spec("plotly") is not None
-BOKEH_AVAILABLE = importlib.util.find_spec("bokeh") is not None
-
 
 @pytest.mark.skipif(
     not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
@@ -70,7 +64,6 @@ class TestMiamiPlotter:
         assert fig is not None
         assert isinstance(fig, Figure)
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_plotly_backend(self, gwas_data):
         """Test MiamiPlotter with plotly backend."""
         import plotly.graph_objects as go
@@ -81,7 +74,6 @@ class TestMiamiPlotter:
         assert fig is not None
         assert isinstance(fig, go.Figure)
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_bokeh_backend(self, gwas_data):
         """Test MiamiPlotter with bokeh backend."""
         from bokeh.models.layouts import LayoutDOM
@@ -280,7 +272,6 @@ class TestMiamiPlotterHoverData:
         )
         return top_df, bottom_df
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_plotly_hover_data(self, gwas_data_with_rs):
         """Test that plotly backend creates figure with hover data."""
         plotter = MiamiPlotter(species="canine", backend="plotly")
@@ -291,7 +282,6 @@ class TestMiamiPlotterHoverData:
         # Verify traces exist (plotly-specific)
         assert len(fig.data) > 0, "Plotly figure should have traces for hover data"
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_bokeh_hover_data(self, gwas_data_with_rs):
         """Test that bokeh backend creates figure with hover tools."""
         plotter = MiamiPlotter(species="canine", backend="bokeh")
@@ -630,7 +620,6 @@ class TestMiamiHighlight:
         # facecolor is RGBA tuple - red should have high R value
         assert facecolor[0] >= 0.9, f"Expected red color, got {facecolor}"
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_highlight_plotly_backend(self, gwas_data):
         """Test region highlighting works with plotly backend."""
         plotter = MiamiPlotter(species="canine", backend="plotly")
@@ -646,7 +635,6 @@ class TestMiamiHighlight:
         # Plotly should have shapes added for the highlights
         assert hasattr(fig.layout, "shapes") or len(fig.layout.shapes or []) >= 0
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_highlight_bokeh_backend(self, gwas_data):
         """Test region highlighting works with bokeh backend."""
         from bokeh.models.layouts import LayoutDOM

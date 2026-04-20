@@ -234,7 +234,16 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     ld_df = pd.read_csv(ld_file, sep=r"\s+")
 
     if ld_df.empty:
-        return pd.DataFrame(columns=["SNP", "R2"])
+        # PLINK exited 0 but produced no LD pairs. Most common causes: lead
+        # SNP monomorphic, filtered out by --maf, or no variants in window.
+        # Silently returning an empty DataFrame would leave the caller with
+        # an uncoloured plot and no clue why.
+        raise PlinkError(
+            f"PLINK produced an empty LD output ({ld_file}) for lead SNP "
+            f"{lead_snp!r}. The lead SNP may be monomorphic, filtered by "
+            f"PLINK quality thresholds, or absent from the reference panel. "
+            f"Verify {lead_snp!r} exists in the PLINK .bim file."
+        )
 
     # We want SNP_B (the other SNPs) and their R2 with lead SNP (SNP_A)
     result = ld_df[["SNP_B", "R2"]].rename(columns={"SNP_B": "SNP"})

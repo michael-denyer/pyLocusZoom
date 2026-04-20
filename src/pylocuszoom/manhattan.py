@@ -178,23 +178,21 @@ def prepare_manhattan_data(
     # Sort by chromosome index then position
     result = result.sort_values(["_chrom_idx", pos_col])
 
-    # Calculate cumulative positions
-    # First get max position per chromosome
+    # Calculate cumulative positions. Single groupby pass replaces repeated
+    # boolean masking per chromosome, which was O(N·C) on GWAS-scale data.
+    max_by_chrom = result.groupby("_chrom_str", sort=False)[pos_col].max()
     chrom_offsets = {}
     cumulative = 0
     for chrom in chrom_order:
-        chrom_data = result[result["_chrom_str"] == chrom]
-        if len(chrom_data) > 0:
+        if chrom in max_by_chrom.index:
             chrom_offsets[chrom] = cumulative
-            cumulative += chrom_data[pos_col].max() + 1_000_000  # 1Mb gap
+            cumulative += int(max_by_chrom[chrom]) + 1_000_000  # 1Mb gap
 
     # Handle chromosomes not in order
-    unknown_chroms = set(result["_chrom_str"]) - set(chrom_order)
-    for chrom in sorted(unknown_chroms):
-        chrom_data = result[result["_chrom_str"] == chrom]
-        if len(chrom_data) > 0:
-            chrom_offsets[chrom] = cumulative
-            cumulative += chrom_data[pos_col].max() + 1_000_000
+    unknown_chroms = sorted(set(max_by_chrom.index) - set(chrom_order))
+    for chrom in unknown_chroms:
+        chrom_offsets[chrom] = cumulative
+        cumulative += int(max_by_chrom[chrom]) + 1_000_000
 
     # Calculate cumulative position (vectorized — avoids apply(axis=1))
     result["_cumulative_pos"] = (
@@ -207,12 +205,16 @@ def prepare_manhattan_data(
     chrom_to_color = {chrom: colors[i] for i, chrom in enumerate(all_chroms)}
     result["_color"] = result["_chrom_str"].map(chrom_to_color)
 
-    # Calculate chromosome centers for x-axis labels
-    chrom_centers = {}
-    for chrom in all_chroms:
-        chrom_data = result[result["_chrom_str"] == chrom]
-        if len(chrom_data) > 0:
-            chrom_centers[chrom] = chrom_data["_cumulative_pos"].mean()
+    # Calculate chromosome centers for x-axis labels. Single groupby.mean()
+    # replaces a per-chromosome boolean mask (O(N·C) -> O(N)).
+    centers_by_chrom = result.groupby("_chrom_str", sort=False)[
+        "_cumulative_pos"
+    ].mean()
+    chrom_centers = {
+        chrom: centers_by_chrom[chrom]
+        for chrom in all_chroms
+        if chrom in centers_by_chrom.index
+    }
 
     result.attrs["chrom_centers"] = chrom_centers
     result.attrs["chrom_order"] = all_chroms

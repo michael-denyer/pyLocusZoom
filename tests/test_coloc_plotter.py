@@ -1,16 +1,10 @@
 """Tests for ColocPlotter class."""
 
-import importlib.util
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom import ValidationError
-
-# Check if optional backends are available
-PLOTLY_AVAILABLE = importlib.util.find_spec("plotly") is not None
-BOKEH_AVAILABLE = importlib.util.find_spec("bokeh") is not None
 
 
 @pytest.fixture
@@ -60,7 +54,6 @@ class TestColocPlotterInit:
         plotter = ColocPlotter()
         assert plotter.backend_name == "matplotlib"
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_accepts_plotly_backend(self):
         """Test that plotly backend is accepted."""
         from pylocuszoom.coloc_plotter import ColocPlotter
@@ -68,7 +61,6 @@ class TestColocPlotterInit:
         plotter = ColocPlotter(backend="plotly")
         assert plotter.backend_name == "plotly"
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_accepts_bokeh_backend(self):
         """Test that bokeh backend is accepted."""
         from pylocuszoom.coloc_plotter import ColocPlotter
@@ -290,7 +282,6 @@ class TestColocPlotterValidation:
 class TestColocPlotterBackends:
     """Tests for ColocPlotter with different backends."""
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_plotly_backend(self, gwas_data, eqtl_data):
         """Test plotly backend returns plotly Figure."""
         import plotly.graph_objects as go
@@ -301,7 +292,6 @@ class TestColocPlotterBackends:
         fig = plotter.plot_coloc(gwas_data, eqtl_data)
         assert isinstance(fig, go.Figure)
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_bokeh_backend(self, gwas_data, eqtl_data):
         """Test bokeh backend returns bokeh layout."""
         from bokeh.models.layouts import LayoutDOM

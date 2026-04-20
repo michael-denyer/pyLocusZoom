@@ -1,16 +1,10 @@
 """Tests for LDHeatmapPlotter class."""
 
-import importlib.util
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom.ld_heatmap_plotter import LDHeatmapPlotter
-
-# Check if optional backends are available
-PLOTLY_AVAILABLE = importlib.util.find_spec("plotly") is not None
-BOKEH_AVAILABLE = importlib.util.find_spec("bokeh") is not None
 
 
 @pytest.fixture
@@ -68,13 +62,11 @@ class TestLDHeatmapPlotterInit:
         plotter = LDHeatmapPlotter()
         assert plotter.backend_name == "matplotlib"
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_accepts_plotly_backend(self):
         """Test that plotly backend is accepted."""
         plotter = LDHeatmapPlotter(backend="plotly")
         assert plotter.backend_name == "plotly"
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_accepts_bokeh_backend(self):
         """Test that bokeh backend is accepted."""
         plotter = LDHeatmapPlotter(backend="bokeh")
@@ -237,7 +229,6 @@ class TestLDHeatmapBackends:
 
         assert isinstance(fig, Figure)
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_plotly_returns_figure(self, small_ld_matrix):
         """Test that plotly backend returns plotly Figure."""
         import plotly.graph_objects as go
@@ -247,7 +238,6 @@ class TestLDHeatmapBackends:
 
         assert isinstance(fig, go.Figure)
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_bokeh_returns_figure(self, small_ld_matrix):
         """Test that bokeh backend returns bokeh layout."""
         from bokeh.models.layouts import LayoutDOM
@@ -263,14 +253,12 @@ class TestLDHeatmapBackends:
         fig = plotter.plot_ld_heatmap(matrix_with_nan)
         assert fig is not None
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_plotly_handles_nan_values(self, matrix_with_nan):
         """Test that plotly backend handles NaN values."""
         plotter = LDHeatmapPlotter(backend="plotly")
         fig = plotter.plot_ld_heatmap(matrix_with_nan)
         assert fig is not None
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_bokeh_handles_nan_values(self, matrix_with_nan):
         """Test that bokeh backend handles NaN values."""
         plotter = LDHeatmapPlotter(backend="bokeh")
@@ -350,7 +338,6 @@ class TestLDHeatmapHighlighting:
         patches = [p for p in main_ax.patches if hasattr(p, "get_edgecolor")]
         assert len(patches) > 0, "Lead SNP highlighting should add patches"
 
-    @pytest.mark.skipif(not PLOTLY_AVAILABLE, reason="Plotly not installed")
     def test_lead_snp_highlighting_plotly(self, sample_ld_matrix):
         """Test that lead SNP highlighting works in plotly."""
         plotter = LDHeatmapPlotter(backend="plotly")
@@ -362,7 +349,6 @@ class TestLDHeatmapHighlighting:
         shapes = fig.layout.shapes
         assert shapes is not None and len(shapes) > 0
 
-    @pytest.mark.skipif(not BOKEH_AVAILABLE, reason="Bokeh not installed")
     def test_lead_snp_highlighting_bokeh(self, sample_ld_matrix):
         """Test that lead SNP highlighting works in bokeh."""
         plotter = LDHeatmapPlotter(backend="bokeh")

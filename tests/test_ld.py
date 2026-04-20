@@ -183,6 +183,21 @@ class TestParseLdOutput:
         with pytest.raises(PlinkError, match="output file not found"):
             parse_ld_output(str(tmp_path / "nonexistent.ld"), "rs12345")
 
+    def test_raises_for_empty_ld_output(self, tmp_path):
+        """Empty .ld file (header only) must raise, not return empty DataFrame.
+
+        Regression: PLINK exits 0 but writes no LD pairs when the lead SNP
+        is monomorphic, filtered by --maf, or absent from the reference.
+        Silently returning an empty DataFrame left callers with an
+        uncoloured plot and no diagnostic.
+        """
+        ld_content = "CHR_A   BP_A    SNP_A   CHR_B   BP_B    SNP_B   R2\n"
+        ld_file = tmp_path / "empty.ld"
+        ld_file.write_text(ld_content)
+
+        with pytest.raises(PlinkError, match="empty LD output"):
+            parse_ld_output(str(ld_file), "rs12345")
+
     def test_parses_r2_boundary_values(self, tmp_path):
         """Should correctly parse R2 boundary values."""
         ld_content = """CHR_A   BP_A    SNP_A   CHR_B   BP_B    SNP_B   R2
