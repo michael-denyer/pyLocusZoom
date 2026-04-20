@@ -88,7 +88,7 @@ repos:
         entry: >-
           bash -c 'staged=$(git diff --cached --diff-filter=ACMR --name-only);
           [ -z "$staged" ] && exit 0;
-          ignored=$(printf "%s\n" "$staged" | git check-ignore --stdin --verbose) || true;
+          ignored=$(printf "%s\n" "$staged" | git check-ignore --stdin --verbose --no-index) || true;
           if [ -n "$ignored" ]; then
           echo "ERROR: refusing to commit gitignored files:";
           echo "$ignored";
