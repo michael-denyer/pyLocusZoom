@@ -66,7 +66,7 @@ The common development commands are:
 | `uv run python examples/generate_example_plots.py` | Regenerate example plots shown in the README. |
 | `uv lock` | Refresh `uv.lock` after changing dependencies in `pyproject.toml`. |
 
-See [CLAUDE.md](../CLAUDE.md) for the full pre-commit and pre-PR checklists.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full pre-commit and pre-PR checklists.
 
 ## Code Style
 
@@ -132,7 +132,7 @@ Use **Google-style docstrings** for all public functions and classes. See the ex
 
 1. Work on a feature branch off `main` (see above).
 2. Write tests **before** the implementation where practical
-   (see [CLAUDE.md](../CLAUDE.md) on test-driven development).
+   (see [docs/TESTING.md](TESTING.md) on test-driven development).
 3. Before opening the PR, run the pre-commit checklist locally:
 
    ```bash
@@ -144,7 +144,8 @@ Use **Google-style docstrings** for all public functions and classes. See the ex
 4. Update [CHANGELOG.md](../CHANGELOG.md) under the `## [Unreleased]` section. Every
    PR is expected to add an entry under `Added`, `Changed`, `Fixed`, or `Removed`.
 5. If your change alters architecture, data flow, or adds a new module, update the
-   mermaid diagram in [CLAUDE.md](../CLAUDE.md) and [docs/ARCHITECTURE.md](ARCHITECTURE.md).
+   mermaid diagram in [docs/ARCHITECTURE.md](ARCHITECTURE.md) and the layer-keyed
+   anchors in [docs/CODEMAP.md](CODEMAP.md).
 6. If visualization changed, regenerate example plots:
 
    ```bash
@@ -160,7 +161,8 @@ Use **Google-style docstrings** for all public functions and classes. See the ex
 8. There is no `.github/PULL_REQUEST_TEMPLATE.md` at time of writing — write a concise
    description covering *what* changed and *why*, and reference any related GitHub
    issues. Do not include AI-assistant attribution in commit messages or PR bodies.
-9. Releases are cut from `main` by bumping `version` in `pyproject.toml` and adding a
-   dated CHANGELOG heading; `.github/workflows/publish.yml` handles the PyPI publish on
-   GitHub release creation. See the "Release Procedure" section of
-   [CLAUDE.md](../CLAUDE.md) for the full flow.
+9. Releases are cut from `main` by bumping `version` in `pyproject.toml`, changing the
+   `## [Unreleased]` CHANGELOG heading to `## [X.Y.Z] - YYYY-MM-DD`, committing, and
+   creating a GitHub release with tag `vX.Y.Z`. `.github/workflows/publish.yml` then
+   publishes to PyPI via Trusted Publishing. BiocondaBot opens a follow-up PR against
+   bioconda-recipes automatically once the PyPI release is detected.
