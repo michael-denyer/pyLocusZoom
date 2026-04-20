@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-```
+```text
 pyLocusZoom/
 ├── .github/workflows/
 │   ├── ci.yml                    # CI pipeline (tests, lint)
@@ -151,7 +151,7 @@ classDiagram
     }
 
     class PlotlyBackend {
-        +fig: go.Figure
+        +fig: goFigure
     }
 
     class BokehBackend {
@@ -181,6 +181,7 @@ classDiagram
 ## Dependencies
 
 ### Required
+
 - matplotlib >= 3.5.0
 - pandas >= 1.4.0
 - numpy >= 1.21.0
@@ -192,7 +193,9 @@ classDiagram
 - adjustText >= 0.8
 
 ### Optional
+
 - pyspark >= 3.0.0 (for large-scale data)
 
 ### External
+
 - PLINK 1.9 (for LD calculations)

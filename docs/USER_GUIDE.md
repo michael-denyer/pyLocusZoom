@@ -130,6 +130,7 @@ fig = plotter.plot(
 ```
 
 **Features:**
+
 - SNPs colored by R² with lead variant (purple → red gradient)
 - Lead SNP shown as purple diamond
 - Gene track with intron/exon structure
@@ -156,6 +157,7 @@ fig = plotter.plot_stacked(
 ```
 
 **Features:**
+
 - Vertical stacking with aligned x-axes
 - Independent LD coloring per panel
 - Shared gene track at bottom
@@ -187,6 +189,7 @@ fig = plotter.plot_stacked(
 ```
 
 **Features:**
+
 - Separate panel for eQTL associations
 - Color by effect direction (red = positive, blue = negative)
 - Filter to specific target gene
@@ -216,6 +219,7 @@ fig = plotter.plot_stacked(
 ```
 
 **Features:**
+
 - PIP values shown as line plot
 - Credible sets colored distinctly (CS1 = red, CS2 = blue, etc.)
 - Variants not in credible sets shown in gray
@@ -243,6 +247,7 @@ fig.savefig("ld_heatmap.png", dpi=150)
 ```
 
 **Features:**
+
 - Triangular heatmap showing pairwise LD (R² or D')
 - White-to-red color gradient
 - Optional lead SNP highlighting
@@ -270,6 +275,7 @@ fig = plotter.plot(
 ```
 
 **Features:**
+
 - Heatmap panel automatically added below association plot
 - SNPs aligned with x-axis coordinates from GWAS data
 - Works with both `plot()` and `plot_stacked()`
@@ -311,6 +317,7 @@ fig.savefig("colocalization.png", dpi=150)
 ```
 
 **Features:**
+
 - Scatter plot comparing GWAS -log10(p) vs eQTL -log10(p)
 - Points colored by LD (R²) with lead SNP (purple → red gradient)
 - Lead SNP labeled on plot
@@ -414,6 +421,7 @@ fig = plotter.plot_phewas(
 ```
 
 **Features:**
+
 - Phenotypes grouped and colored by category
 - Genome-wide significance line (red dashed)
 - Optional effect direction markers (triangles for +/-)
@@ -447,6 +455,7 @@ fig = plotter.plot_forest(
 ```
 
 **Features:**
+
 - Effect sizes as squares with confidence interval whiskers
 - Marker size scaled by study weight (optional)
 - Null effect reference line
@@ -481,6 +490,7 @@ fig.savefig("miami.png", dpi=150)
 ```
 
 **Features:**
+
 - Mirrored panels with shared x-axis and consistent chromosome colors
 - Per-panel significance thresholds (`top_threshold`, `bottom_threshold`)
 - Panel labels to identify datasets
@@ -592,6 +602,7 @@ fig.savefig("manhattan.png", dpi=150)
 ```
 
 **Features:**
+
 - Chromosomes colored alternately for distinction
 - Genome-wide significance threshold line (red dashed)
 - Automatic cumulative position calculation
@@ -618,6 +629,7 @@ fig.savefig("qq_plot.png", dpi=150)
 ```
 
 **Features:**
+
 - Expected vs observed -log10(p) values
 - 95% confidence band (beta distribution)
 - Genomic inflation factor (λ) in title
@@ -647,6 +659,7 @@ fig.savefig("manhattan_stacked.png", dpi=150)
 ```
 
 **Features:**
+
 - Vertically stacked panels with aligned x-axes
 - Shared chromosome coloring across panels
 - Independent y-axes per panel
@@ -678,6 +691,7 @@ fig.savefig("manhattan_qq.png", dpi=150)
 ```
 
 **Features:**
+
 - Manhattan plot on left (wider), QQ plot on right
 - Shared significance threshold line on Manhattan
 - Confidence band and λ on QQ plot
@@ -707,6 +721,7 @@ fig.savefig("plot.pdf")  # Vector format for publications
 ```
 
 **Unique features:**
+
 - SNP labels with automatic positioning (adjustText library)
 - High DPI for print quality
 - Vector formats (PDF, SVG) supported
@@ -723,6 +738,7 @@ fig.show()  # Opens in browser
 ```
 
 **Unique features:**
+
 - Hover tooltips showing SNP ID, position, p-value, LD
 - Pan and zoom
 - Export to PNG/SVG from browser
@@ -741,6 +757,7 @@ save(fig)
 ```
 
 **Unique features:**
+
 - Hover tooltips
 - Pan and zoom
 - Easy integration with Bokeh server applications
@@ -1191,6 +1208,7 @@ fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 ```
 
 **Supported Species:**
+
 | Alias | Ensembl Name |
 |-------|--------------|
 | human | homo_sapiens |
@@ -1206,6 +1224,7 @@ Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
 **Error Handling:** By default, API errors result in warnings and an empty gene track. Use `raise_on_error=True` in low-level functions to get exceptions instead.
 
 **Cache Location:**
+
 - Linux/macOS: `~/.cache/snp-scope-plot/ensembl/{species}/`
 - Windows: `%LOCALAPPDATA%/snp-scope-plot/ensembl/{species}/`
 
@@ -1296,7 +1315,7 @@ fig = plotter.plot(pandas_df, chrom=1, start=1e6, end=2e6)
 
 ### PLINK Not Found
 
-```
+```text
 ValidationError: Could not find PLINK executable
 ```
 
@@ -1329,6 +1348,7 @@ Image("plot.png")
 ### LD Calculation Fails
 
 Ensure:
+
 1. GWAS DataFrame has `rs` column (or specify `rs_col`)
 2. SNP IDs match those in PLINK fileset
 3. Lead SNP exists in both datasets

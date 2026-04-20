@@ -1,0 +1,20 @@
+{
+  // MD013: Line length — too noisy for docs with tables and long URLs
+  // MD060: Dollar sign in code spans — false positives with shell variables
+  // MD024: Duplicate headings — changelogs reuse Added/Changed/Fixed per section
+  // MD036: Emphasis as heading — changelogs use bold text as section descriptions
+  // MD022/MD031: Blank lines around headings/fences — author style preference
+  // MD033: Inline HTML — README uses <img> for logo/badges
+  // MD041: First-line H1 — README starts with CI badges, intentional
+  "config": {
+    "MD013": false,
+    "MD060": false,
+    "MD024": false,
+    "MD036": false,
+    "MD022": false,
+    "MD031": false,
+    "MD033": false,
+    "MD041": false
+  },
+  "ignores": [".venv/**", ".planning/**", ".claude/**", "examples/**", "LICENSE.md", "CLAUDE.md", "AGENTS.md"]
+}

@@ -46,6 +46,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-randomly>=3.0.0",
     "pytest-xdist>=3.0.0",
+    "pytest-timeout>=2.0.0",
     "hypothesis>=6.0.0",
     "ruff>=0.1.0",
 ]
@@ -72,7 +73,7 @@ testpaths = ["tests"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
-addopts = "-n 8 --cov=pylocuszoom --cov-report=term-missing -v -m 'not integration'"
+addopts = "-n 3 --timeout=30 --cov=pylocuszoom --cov-report=term-missing -v -m 'not integration'"
 
 [tool.coverage.run]
 source = ["src/pylocuszoom"]

@@ -17,8 +17,8 @@ class TestLambdaCalculation:
         """Lambda should be ~1 for uniform p-values (no inflation)."""
         from pylocuszoom.qq import calculate_lambda_gc
 
-        np.random.seed(42)
-        p_values = np.random.uniform(0, 1, 10000)
+        rng = np.random.default_rng(42)
+        p_values = rng.uniform(0, 1, 10000)
         lambda_gc = calculate_lambda_gc(p_values)
         assert 0.95 < lambda_gc < 1.05
 
@@ -27,8 +27,8 @@ class TestLambdaCalculation:
         from pylocuszoom.qq import calculate_lambda_gc
 
         # Create inflated distribution (more small p-values than expected)
-        np.random.seed(42)
-        p_values = np.random.beta(0.5, 1, 10000)  # Skewed toward 0
+        rng = np.random.default_rng(42)
+        p_values = rng.beta(0.5, 1, 10000)  # Skewed toward 0
         lambda_gc = calculate_lambda_gc(p_values)
         assert lambda_gc > 1.5
 

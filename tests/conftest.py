@@ -24,16 +24,16 @@ import pytest  # noqa: E402
 @pytest.fixture
 def sample_gwas_df():
     """Sample GWAS results DataFrame for testing."""
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_snps = 100
-    positions = np.sort(np.random.randint(1000000, 2000000, n_snps))
+    positions = np.sort(rng.integers(1000000, 2000000, n_snps))
 
     return pd.DataFrame(
         {
             "rs": [f"rs{i}" for i in range(n_snps)],
             "chr": [1] * n_snps,
             "ps": positions,
-            "p_wald": np.random.uniform(1e-10, 1, n_snps),
+            "p_wald": rng.uniform(1e-10, 1, n_snps),
         }
     )
 

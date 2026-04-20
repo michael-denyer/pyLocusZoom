@@ -18,15 +18,15 @@ from pylocuszoom.stats_plotter import StatsPlotter
 @pytest.fixture
 def sample_gwas_df():
     """Sample GWAS results DataFrame."""
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_snps = 50
-    positions = np.sort(np.random.randint(1_000_000, 2_000_000, n_snps))
+    positions = np.sort(rng.integers(1_000_000, 2_000_000, n_snps))
     return pd.DataFrame(
         {
             "rs": [f"rs{i}" for i in range(n_snps)],
             "chrom": [1] * n_snps,
             "pos": positions,
-            "p": np.random.uniform(1e-10, 1, n_snps),
+            "p": rng.uniform(1e-10, 1, n_snps),
         }
     )
 

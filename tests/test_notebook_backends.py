@@ -20,15 +20,15 @@ from pylocuszoom.plotter import LocusZoomPlotter
 @pytest.fixture
 def sample_gwas_df():
     """Sample GWAS results DataFrame."""
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_snps = 50
-    positions = np.sort(np.random.randint(1_000_000, 2_000_000, n_snps))
+    positions = np.sort(rng.integers(1_000_000, 2_000_000, n_snps))
     return pd.DataFrame(
         {
             "rs": [f"rs{i}" for i in range(n_snps)],
             "chr": [1] * n_snps,
             "ps": positions,
-            "p_wald": np.random.uniform(1e-10, 1, n_snps),
+            "p_wald": rng.uniform(1e-10, 1, n_snps),
         }
     )
 
@@ -496,7 +496,7 @@ class TestBackendConsistency:
     def test_all_backends_handle_precomputed_ld(self, sample_gwas_df):
         """All backends should handle pre-computed LD column."""
         df = sample_gwas_df.copy()
-        df["R2"] = np.random.uniform(0, 1, len(df))
+        df["R2"] = np.random.default_rng(0).uniform(0, 1, len(df))
 
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(

@@ -1,0 +1,32 @@
+# Lychee configuration for markdown link checking.
+# See https://lychee.cli.rs/ for the full schema.
+
+exclude = [
+  '^https?://localhost',
+  # CHANGELOG footer compare-URLs for historical tags; some pre-v1.3 tags
+  # were never pushed to GitHub. Not worth blocking commits over.
+  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v0\.',
+  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.',
+  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.\.\.',
+  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.2\.\.\.v1\.1\.0',
+]
+
+exclude_path = [
+  # LICENSE.md is verbatim GPL text with external policy URLs; don't
+  # treat rate-limits on fsf.org/gnu.org as commit-blocking issues.
+  "LICENSE.md",
+]
+
+timeout = 10
+max_retries = 2
+retry_wait_time = 2
+
+# 403 is accepted because some sites (e.g. GitHub release pages for
+# other repos, some journal publishers) reject unauthenticated HEAD
+# requests even for valid URLs.
+accept = ["200", "206", "301", "302", "403", "429"]
+
+cache = true
+max_cache_age = "1d"
+
+include_fragments = false

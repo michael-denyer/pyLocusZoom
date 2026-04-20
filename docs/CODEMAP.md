@@ -181,7 +181,7 @@ Rendering implementations.
 
 ### Exception Hierarchy
 
-```
+```text
 PyLocusZoomError (base)
 ├── ValidationError (also ValueError)
 │   ├── EQTLValidationError

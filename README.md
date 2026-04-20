@@ -24,8 +24,8 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
     - **SNP labels (matplotlib)**: Automatic labeling of top SNPs by p-value (RS IDs)
     - **Hover tooltips (Plotly and Bokeh)**: Detailed SNP data on hover
 
-![Example regional association plot with LD coloring, gene track, and recombination overlay](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/regional_plot_with_recomb.png)
-*Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
+    ![Example regional association plot with LD coloring, gene track, and recombination overlay](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/regional_plot_with_recomb.png)
+    *Regional association plot with LD coloring, gene/exon track, recombination rate overlay (blue line), and top SNP labels.*
 
 2. **Stacked plots**: Compare multiple GWAS/phenotypes vertically
 3. **Miami plots**: Mirrored Manhattan plots for comparing two GWAS datasets (discovery vs replication)
@@ -38,9 +38,9 @@ Inspired by [LocusZoom](http://locuszoom.org/) and [locuszoomr](https://github.c
 10. **LD heatmaps**: Triangular heatmaps showing pairwise LD patterns, standalone or integrated below regional plots
 11. **Colocalization plots**: GWAS-eQTL scatter plots with LD coloring, correlation statistics, and effect direction visualization
 12. **Multiple backends**: matplotlib (publication-ready), plotly (interactive), bokeh (dashboard integration)
-12. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
-13. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
-14. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
+13. **Pandas and PySpark support**: Works with both Pandas and PySpark DataFrames for large-scale genomics data
+14. **Convenience data file loaders**: Load and validate common GWAS, eQTL and fine-mapping file formats
+15. **Automatic gene annotations**: Fetch gene/exon data from Ensembl REST API with caching (human, mouse, rat, canine, feline, and any Ensembl species)
 
 ## Installation
 
@@ -703,11 +703,11 @@ Format: Tab-separated with header row:
 | `rate` | Recombination rate (cM/Mb) |
 | `cM` | Cumulative genetic distance (optional, not used for plotting) |
 
-```
-chr	pos	rate	cM
-1	10000	0.5	0.005
-1	20000	1.2	0.017
-1	30000	0.8	0.025
+```text
+chr     pos     rate    cM
+1       10000   0.5     0.005
+1       20000   1.2     0.017
+1       30000   0.8     0.025
 ```
 
 ## Reference Data
@@ -748,6 +748,7 @@ plotter = LocusZoomPlotter(log_level="DEBUG")
 - [PLINK 1.9](https://www.cog-genomics.org/plink/) (for LD calculations) - must be on PATH or specify `plink_path`
 
 Optional:
+
 - pyspark >= 3.0.0 (for PySpark DataFrame support) - `uv add pylocuszoom[spark]`
 
 ## Documentation

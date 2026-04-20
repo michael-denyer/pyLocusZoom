@@ -404,8 +404,8 @@ class TestQQWithVariousPvalueDistributions:
 
     def test_qq_uniform_pvalues(self, plotter):
         """QQ plot with uniform p-values should show lambda ~ 1."""
-        np.random.seed(42)
-        df = pd.DataFrame({"p": np.random.uniform(0, 1, 1000)})
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame({"p": rng.uniform(0, 1, 1000)})
 
         fig = plotter.plot_qq(df, p_col="p", show_lambda=True)
         assert fig is not None

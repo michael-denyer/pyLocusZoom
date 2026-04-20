@@ -1,7 +1,6 @@
 """Tests for SNP label placement module."""
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -14,7 +13,6 @@ class TestAddSnpLabels:
     @pytest.fixture
     def sample_gwas_df(self):
         """Sample GWAS results with neglog10p calculated."""
-        np.random.seed(42)
         return pd.DataFrame(
             {
                 "rs": [
@@ -355,7 +353,6 @@ class TestAdjustTextWarning:
     @pytest.fixture
     def sample_gwas_df(self):
         """Sample GWAS results with neglog10p calculated."""
-        np.random.seed(42)
         return pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],

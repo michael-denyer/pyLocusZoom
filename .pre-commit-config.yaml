@@ -1,16 +1,105 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-ast
+      - id: check-json
+        exclude: "^\\.vscode/|^examples/"
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: "^examples/|\\.ipynb$"
+      - id: trailing-whitespace
+        exclude: "^examples/|\\.ipynb$"
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.1
+    rev: v0.15.2
     hooks:
       - id: ruff
-        args: [--fix]
+        args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+
+  # Lychee markdown link checker — Rust binary with built-in cache.
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.23.0
+    hooks:
+      - id: lychee
+        args: ["--config", "lychee.toml", "--no-progress"]
+        types: [markdown]
+        exclude: "^\\.venv/|^\\.planning/"
 
   - repo: local
     hooks:
+      - id: markdownlint
+        name: Lint markdown files
+        entry: markdownlint-cli2
+        language: node
+        types: [markdown]
+        exclude: "^\\.venv/|^\\.planning/"
+        additional_dependencies: ['markdownlint-cli2@0.22.0']
+
+      - id: mermaid-lint
+        name: Validate mermaid diagrams (maid)
+        entry: >-
+          bash -c 'for f in "$@"; do
+          output=$(npx @probelabs/maid@0.0.29 "$f" 2>&1) || true;
+          real_errors=$(echo "$output" | grep -v "FL-STYLE-TARGET-UNKNOWN" | grep -c "error" || true);
+          if [ "$real_errors" -gt 0 ]; then echo "$output"; exit 1; fi;
+          done' --
+        language: system
+        types: [markdown]
+        exclude: "^\\.venv/|^\\.planning/"
+
+      - id: mermaid-render
+        name: Validate mermaid diagrams (renderer parity)
+        entry: >-
+          bash -c 'for f in "$@"; do
+          npx -y @mermaid-js/mermaid-cli@11.4.2 -i "$f" -o /tmp/mmdc_check.svg 2>&1 | grep -v "^$" || true;
+          done' --
+        language: system
+        types: [markdown]
+        files: "\\.md$"
+        exclude: "^\\.venv/|^\\.planning/"
+
+      - id: yamllint
+        name: Lint YAML files
+        entry: yamllint
+        language: python
+        types: [yaml]
+        args: [-c, .yamllint.yaml]
+        additional_dependencies: ['yamllint==1.37.0']
+
+      - id: no-planning-files
+        name: Block .planning/ from commits
+        entry: >-
+          bash -c 'if git diff --cached --diff-filter=ACMR --name-only | grep -q "^\.planning/";
+          then echo "ERROR: .planning/ files should not be committed (gitignored)" && exit 1; fi'
+        language: system
+        always_run: true
+        pass_filenames: false
+
+      - id: no-gitignored-files
+        name: Block staging of gitignored files
+        entry: >-
+          bash -c 'staged=$(git diff --cached --diff-filter=ACMR --name-only);
+          [ -z "$staged" ] && exit 0;
+          ignored=$(echo "$staged" | xargs -I{} git check-ignore -v -- {} 2>/dev/null || true);
+          if [ -n "$ignored" ]; then
+          echo "ERROR: refusing to commit gitignored files:";
+          echo "$ignored";
+          echo "If this is intentional, remove the ignore rule or use git add -f explicitly.";
+          exit 1; fi'
+        language: system
+        always_run: true
+        pass_filenames: false
+
       - id: pytest-cov
         name: pytest with coverage
-        entry: uv run python -m pytest -n auto -q
+        entry: uv run python -m pytest -n 3
         language: system
         types: [python]
         pass_filenames: false

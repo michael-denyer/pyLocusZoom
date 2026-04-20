@@ -24,6 +24,52 @@ jobs:
       - name: Run ruff format check
         run: uvx ruff format --check src tests
 
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5.0.0
+        with:
+          node-version: "24"
+
+      - name: Install markdownlint-cli2
+        run: npm install -g markdownlint-cli2@0.22.0
+
+      - name: Run markdownlint
+        run: markdownlint-cli2 "**/*.md"
+
+      - name: Validate mermaid diagrams (maid)
+        run: |
+          set -e
+          fail=0
+          for f in $(git ls-files '*.md'); do
+            output=$(npx -y @probelabs/maid@0.0.29 "$f" 2>&1 || true)
+            real_errors=$(echo "$output" | grep -v "FL-STYLE-TARGET-UNKNOWN" | grep -c "error" || true)
+            if [ "$real_errors" -gt 0 ]; then
+              echo "$f:"; echo "$output"; fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Validate mermaid diagrams (renderer parity)
+        run: |
+          for f in $(git ls-files '*.md'); do
+            npx -y @mermaid-js/mermaid-cli@11.4.2 -i "$f" -o /tmp/mmdc_check.svg 2>&1 | grep -v "^$" || true
+          done
+
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
+        with:
+          config_file: .yamllint.yaml
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@885c65f3dc543b57c898c8099f4e08c8afd178a2  # v2.6.1
+        with:
+          args: --config lychee.toml --no-progress "**/*.md"
+          fail: true
+
   test:
     runs-on: ubuntu-latest
     strategy:

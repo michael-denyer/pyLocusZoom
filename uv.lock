@@ -1624,6 +1624,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-randomly" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "ruff" },
 ]
@@ -1655,6 +1656,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pytest-randomly", marker = "extra == 'dev'", specifier = ">=3.0.0" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "requests", specifier = ">=2.25.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },

@@ -14,19 +14,19 @@ class TestPlotManhattan:
     @pytest.fixture
     def sample_gwas_df(self):
         """Sample GWAS DataFrame for testing."""
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
         n_variants = 100
         return pd.DataFrame(
             {
                 "chrom": np.repeat([1, 2, 3], [40, 30, 30]),
                 "pos": np.concatenate(
                     [
-                        np.sort(np.random.randint(1e6, 1e8, 40)),
-                        np.sort(np.random.randint(1e6, 1e8, 30)),
-                        np.sort(np.random.randint(1e6, 1e8, 30)),
+                        np.sort(rng.integers(int(1e6), int(1e8), 40)),
+                        np.sort(rng.integers(int(1e6), int(1e8), 30)),
+                        np.sort(rng.integers(int(1e6), int(1e8), 30)),
                     ]
                 ),
-                "p": np.random.uniform(1e-10, 1, n_variants),
+                "p": rng.uniform(1e-10, 1, n_variants),
             }
         )
 
@@ -143,8 +143,8 @@ class TestPlotQQ:
     @pytest.fixture
     def sample_pvalues_df(self):
         """Sample DataFrame with p-values for QQ plot."""
-        np.random.seed(42)
-        return pd.DataFrame({"p": np.random.uniform(0, 1, 1000)})
+        rng = np.random.default_rng(42)
+        return pd.DataFrame({"p": rng.uniform(0, 1, 1000)})
 
     @pytest.fixture
     def plotter(self):
@@ -159,7 +159,7 @@ class TestPlotQQ:
 
     def test_plot_qq_with_custom_column(self, plotter):
         """plot_qq should work with custom p-value column name."""
-        df = pd.DataFrame({"pvalue": np.random.uniform(0, 1, 100)})
+        df = pd.DataFrame({"pvalue": np.random.default_rng(0).uniform(0, 1, 100)})
         fig = plotter.plot_qq(df, p_col="pvalue")
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
@@ -287,7 +287,7 @@ class TestPlotManhattanStacked:
     @pytest.fixture
     def sample_gwas_dfs(self):
         """Multiple sample GWAS DataFrames for stacked testing."""
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
         dfs = []
         for i in range(3):
             n_variants = 50
@@ -297,11 +297,11 @@ class TestPlotManhattanStacked:
                         "chrom": np.repeat([1, 2], [25, 25]),
                         "pos": np.concatenate(
                             [
-                                np.sort(np.random.randint(1e6, 1e8, 25)),
-                                np.sort(np.random.randint(1e6, 1e8, 25)),
+                                np.sort(rng.integers(int(1e6), int(1e8), 25)),
+                                np.sort(rng.integers(int(1e6), int(1e8), 25)),
                             ]
                         ),
-                        "p": np.random.uniform(1e-10, 1, n_variants),
+                        "p": rng.uniform(1e-10, 1, n_variants),
                     }
                 )
             )
@@ -383,19 +383,19 @@ class TestPlotManhattanQQSideBySide:
     @pytest.fixture
     def sample_gwas_df(self):
         """Sample GWAS DataFrame for testing."""
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
         n_variants = 100
         return pd.DataFrame(
             {
                 "chrom": np.repeat([1, 2, 3], [40, 30, 30]),
                 "pos": np.concatenate(
                     [
-                        np.sort(np.random.randint(1e6, 1e8, 40)),
-                        np.sort(np.random.randint(1e6, 1e8, 30)),
-                        np.sort(np.random.randint(1e6, 1e8, 30)),
+                        np.sort(rng.integers(int(1e6), int(1e8), 40)),
+                        np.sort(rng.integers(int(1e6), int(1e8), 30)),
+                        np.sort(rng.integers(int(1e6), int(1e8), 30)),
                     ]
                 ),
-                "p": np.random.uniform(1e-10, 1, n_variants),
+                "p": rng.uniform(1e-10, 1, n_variants),
             }
         )
 
@@ -469,14 +469,14 @@ class TestPlotManhattanQQStacked:
     @pytest.fixture
     def sample_gwas_dfs(self):
         """Create sample GWAS DataFrames for testing."""
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
         dfs = []
         for _ in range(2):
             data = []
             for chrom in [1, 2, 3]:
                 n = 50
-                positions = np.sort(np.random.randint(1e6, 5e7, n))
-                pvalues = np.random.uniform(0, 1, n)
+                positions = np.sort(rng.integers(int(1e6), int(5e7), n))
+                pvalues = rng.uniform(0, 1, n)
                 # Add some significant hits
                 pvalues[:3] = [1e-10, 1e-8, 1e-6]
                 for i in range(n):
@@ -533,7 +533,6 @@ class TestPlotManhattanQQStacked:
 
     def test_plot_manhattan_qq_stacked_three_studies(self, plotter):
         """plot_manhattan_qq_stacked should work with three GWAS datasets."""
-        np.random.seed(123)
         dfs = []
         for _ in range(3):
             data = [
