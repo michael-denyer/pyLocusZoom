@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CLAUDE.md and AGENTS.md are now gitignored**: these files hold agent-local instructions, not project docs. They should never have been committed; the repo now enforces this via `.gitignore` plus a `no-gitignored-files` pre-commit hook. Project-facing setup and release guidance lives in `CONTRIBUTING.md`, `README.md`, and `docs/`.
+
 ### Fixed
 
 - **Label backfill regression**: `add_snp_labels()` now filters near-lead non-lead SNPs *before* selecting the top N, so a strong peak no longer collapses to a single label when multiple top hits cluster around the lead.

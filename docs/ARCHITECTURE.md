@@ -151,7 +151,7 @@ classDiagram
     }
 
     class PlotlyBackend {
-        +fig: goFigure
+        +fig : "go.Figure"
     }
 
     class BokehBackend {

@@ -76,9 +76,15 @@ repos:
       - id: no-gitignored-files
         name: Block staging of gitignored files
         entry: >-
-          bash -c 'staged=$(git diff --cached --diff-filter=ACMR --name-only);
+          bash -c 'set -e;
+          staged=$(git diff --cached --diff-filter=ACMR --name-only);
           [ -z "$staged" ] && exit 0;
-          ignored=$(printf "%s\n" "$staged" | git check-ignore --stdin --verbose --no-index) || true;
+          set +e;
+          ignored=$(printf "%s\n" "$staged" | git check-ignore --stdin --verbose --no-index);
+          rc=$?;
+          set -e;
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then
+          echo "ERROR: git check-ignore failed (exit $rc)"; exit 2; fi;
           if [ -n "$ignored" ]; then
           echo "ERROR: refusing to commit gitignored files:";
           echo "$ignored";
@@ -94,4 +100,3 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        always_run: true
