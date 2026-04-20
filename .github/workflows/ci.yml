@@ -55,9 +55,17 @@ jobs:
 
       - name: Validate mermaid diagrams (renderer parity)
         run: |
+          # Puppeteer's bundled Chromium can't use the user-namespace
+          # sandbox on GitHub's Ubuntu runners (AppArmor restriction),
+          # so configure mmdc to launch Chromium with --no-sandbox.
+          cat > /tmp/puppeteer-config.json <<'EOF'
+          {"args": ["--no-sandbox"]}
+          EOF
           fail=0
           for f in $(git ls-files '*.md'); do
-            if ! npx -y @mermaid-js/mermaid-cli@11.4.2 -i "$f" -o /tmp/mmdc_check.svg; then
+            if ! npx -y @mermaid-js/mermaid-cli@11.4.2 \
+              -p /tmp/puppeteer-config.json \
+              -i "$f" -o /tmp/mmdc_check.svg; then
               echo "mmdc failed on $f"
               fail=1
             fi
