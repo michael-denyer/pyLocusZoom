@@ -1978,3 +1978,76 @@ class TestStackedPlotLeadDetectionCrossChrom:
         assert captured["lead_positions"] == [1_200_000], (
             "Lead must be chr1's strongest hit (1_200_000), not chr2's (1_500_000)"
         )
+
+
+class TestLeadPosBoundary:
+    """Regression: small non-None lead_pos must reach _plot_association.
+
+    Pre-fix bug: internal guards of the form ``if lead_pos`` treated any
+    falsy integer as missing, so small positions near the validation
+    boundary (``ge=1``) could be silently dropped if the value were ever
+    propagated through a path that went falsy (e.g. coerced to 0 by a
+    cast bug). The fix replaces falsy-checks with ``lead_pos is not
+    None``. This test pins the smallest valid lead_pos to the scatter
+    highlight path, and also confirms the public API rejects ``0``.
+    """
+
+    def test_lead_pos_one_reaches_plot_association(self):
+        """lead_pos=1 (smallest valid position) propagates to _plot_association."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs_lead", "rs2", "rs3"],
+                "ps": [1, 100_000, 200_000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+        captured = {}
+        original = plotter._plot_association
+
+        def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
+            captured["lead_pos"] = lead_pos
+            return original(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs)
+
+        plotter._plot_association = spy
+        try:
+            plotter.plot(
+                gwas_df,
+                chrom=1,
+                start=1,
+                end=300_000,
+                pos_col="ps",
+                p_col="p_wald",
+                lead_pos=1,
+                show_recombination=False,
+            )
+        finally:
+            plotter._plot_association = original
+
+        assert captured["lead_pos"] == 1, (
+            "lead_pos=1 must pass through; falsy-check regression would drop it to None"
+        )
+
+    def test_lead_pos_zero_rejected_at_api(self):
+        """Public API enforces genomic coords are 1-based; lead_pos=0 rejected."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2"],
+                "ps": [100_000, 200_000],
+                "p_wald": [1e-8, 1e-5],
+            }
+        )
+
+        with pytest.raises(Exception, match="greater than or equal to 1"):
+            plotter.plot(
+                gwas_df,
+                chrom=1,
+                start=1,
+                end=300_000,
+                pos_col="ps",
+                p_col="p_wald",
+                lead_pos=0,
+                show_recombination=False,
+            )

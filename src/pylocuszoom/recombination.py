@@ -313,16 +313,36 @@ def download_canine_recombination_maps(
                 with open(map_file, "r") as f:
                     content = f.read()
 
-                # Ensure header is present. Detect by trying to parse the
-                # first non-whitespace token as a number — if it parses, the
-                # row is data and a header must be prepended. Case-sensitive
-                # token matching missed mirrors that ship "Chr"/"CHR".
+                # Ensure header is present. A numeric first token means the
+                # row is data and a header must be prepended. Any non-numeric
+                # first token must be one of the known header names; anything
+                # else (e.g. "<html>" from a corrupted mirror, an HTTP error
+                # body) is rejected rather than silently treated as a header.
                 lines = content.strip().split("\n")
                 first_token = lines[0].split()[0] if lines[0].split() else ""
+                known_header_tokens = {
+                    "chr",
+                    "Chr",
+                    "CHR",
+                    "chromosome",
+                    "Chromosome",
+                    "pos",
+                    "Pos",
+                    "POS",
+                    "position",
+                    "Position",
+                }
                 try:
                     float(first_token)
                     has_header = False
                 except ValueError:
+                    if first_token not in known_header_tokens:
+                        raise RuntimeError(
+                            f"Unrecognised first token {first_token!r} in "
+                            f"recombination map {map_file.name}; refusing to "
+                            f"treat as header. The downloaded archive may be "
+                            f"corrupted."
+                        )
                     has_header = True
                 if not has_header:
                     content = "chr\tpos\trate\tcM\n" + content

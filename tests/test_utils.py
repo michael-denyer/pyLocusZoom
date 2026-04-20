@@ -360,6 +360,33 @@ class TestValidatePlinkFiles:
         assert ".bim" in str(exc_info.value)
         assert ".fam" in str(exc_info.value)
 
+    def test_prefix_with_dots_preserved(self, tmp_path):
+        """Prefixes containing dots (e.g. 'ukbb.v3') must not be truncated.
+
+        Regression: an earlier implementation used Path.with_suffix(),
+        which would rewrite 'ukbb.v3' -> 'ukbb.bed', checking the wrong
+        file on disk. Real files with the full prefix would appear
+        missing, and the existence check would pass only against files
+        that don't exist.
+        """
+        prefix = tmp_path / "ukbb.v3"
+        (tmp_path / "ukbb.v3.bed").touch()
+        (tmp_path / "ukbb.v3.bim").touch()
+        (tmp_path / "ukbb.v3.fam").touch()
+
+        result = validate_plink_files(prefix)
+        assert result == prefix
+
+    def test_prefix_with_dots_missing_raises(self, tmp_path):
+        """Dot-containing prefix with missing files raises (not silently passes)."""
+        prefix = tmp_path / "ukbb.v3"
+        (tmp_path / "ukbb.bed").touch()
+        (tmp_path / "ukbb.bim").touch()
+        (tmp_path / "ukbb.fam").touch()
+
+        with pytest.raises(ValidationError):
+            validate_plink_files(prefix)
+
 
 class TestNormalizeChrom:
     """Tests for normalize_chrom function."""
