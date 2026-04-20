@@ -16,6 +16,7 @@ from . import register_backend
 
 
 @register_backend("matplotlib")
+# [4b] Static publication-quality backend — see docs/CODEMAP.md
 class MatplotlibBackend:
     """Matplotlib backend for static plot generation.
 

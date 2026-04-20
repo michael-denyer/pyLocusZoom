@@ -237,11 +237,12 @@ from pylocuszoom import LDHeatmapPlotter
 # snp_ids is a list of SNP IDs in matrix order
 
 ld_plotter = LDHeatmapPlotter()
-fig = ld_plotter.plot(
+fig = ld_plotter.plot_ld_heatmap(
     ld_matrix,
-    snp_ids,
-    highlight_snp_id="rs12345",  # Highlight lead SNP
-    metric="r2",                  # or "dprime"
+    snp_ids=snp_ids,
+    lead_snp="rs12345",    # Highlight lead SNP (red)
+    highlight_snps=None,   # Optional extra SNPs to mark (blue)
+    metric="r2",           # or "dprime"
 )
 fig.savefig("ld_heatmap.png", dpi=150)
 ```
@@ -514,9 +515,10 @@ fig = plotter.plot_miami(
     # Panel labels
     top_label="Discovery Cohort",
     bottom_label="Replication Cohort",
-    # SNP annotations (dict of {position: "label"})
-    top_snp_annotations={12345678: "rs123"},
-    bottom_snp_annotations={87654321: "rs456"},
+    # SNP annotations (list of SNP IDs — requires rs_col to be set)
+    rs_col="rs",
+    top_snp_annotations=["rs123"],
+    bottom_snp_annotations=["rs456"],
     # Highlight regions (list of (chrom, start, end) tuples)
     highlight_regions=[(1, 1000000, 2000000), (5, 50000000, 51000000)],
 )
@@ -774,7 +776,10 @@ pyLocusZoom provides specialized plotter classes for different plot types:
 |-------|---------|
 | `LocusZoomPlotter` | Regional association plots with LD coloring |
 | `ManhattanPlotter` | Genome-wide Manhattan and QQ plots |
+| `MiamiPlotter` | Two-trait mirrored Manhattan plots |
 | `StatsPlotter` | PheWAS and forest plots |
+| `LDHeatmapPlotter` | Pairwise LD heatmaps |
+| `ColocPlotter` | GWAS × eQTL colocalisation scatter |
 
 ```python
 from pylocuszoom import LocusZoomPlotter, ManhattanPlotter, StatsPlotter
@@ -798,13 +803,14 @@ The main class for creating regional association plots.
 
 ```python
 plotter = LocusZoomPlotter(
-    species="canine",           # "canine", "feline", or None
-    genome_build="canfam3.1",   # Build for coordinate system
+    species="canine",           # "canine", "feline", "human", etc.
+    genome_build="canfam3.1",   # Build for coordinate system (auto-selected)
     backend="matplotlib",       # "matplotlib", "plotly", "bokeh"
     plink_path=None,            # Path to PLINK (auto-detects)
     recomb_data_dir=None,       # Custom recombination maps
     genomewide_threshold=5e-8,  # Significance line threshold
     log_level="INFO",           # "DEBUG", "INFO", "WARNING", None
+    auto_genes=False,           # Auto-fetch gene track from Ensembl
 )
 ```
 
@@ -817,6 +823,7 @@ plotter = LocusZoomPlotter(
 | `recomb_data_dir` | str | Auto | Directory with recombination maps. |
 | `genomewide_threshold` | float | `5e-8` | P-value for significance line. |
 | `log_level` | str | `"INFO"` | Logging verbosity or `None` to disable. |
+| `auto_genes` | bool | `False` | If `True`, fetch gene track from Ensembl when `genes_df` is not supplied. |
 
 ### plot() Method
 
@@ -865,6 +872,12 @@ fig = plotter.plot(
 | `genes_df` | DataFrame | None | Gene annotations for track. |
 | `exons_df` | DataFrame | None | Exon annotations for gene structure. |
 | `recomb_df` | DataFrame | None | Custom recombination rate data. |
+| `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel when supplied. |
+| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. |
+| `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
+| `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
+
+> **Note:** all arguments after `gwas_df` are keyword-only.
 
 ### plot_stacked() Method
 
@@ -922,9 +935,14 @@ fig = plotter.plot_stacked(
 | `exons_df` | DataFrame | None | Exon annotations. |
 | `eqtl_df` | DataFrame | None | eQTL data for additional panel. |
 | `eqtl_gene` | str | None | Filter eQTL to specific gene. |
+| `eqtl_threshold` | float | `1e-5` | eQTL significance line. |
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
 | `recomb_df` | DataFrame | None | Custom recombination data. |
+| `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel at bottom. |
+| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. |
+| `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
+| `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
 
 ### Parameter Naming Conventions
 
@@ -1225,8 +1243,8 @@ Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
 
 **Cache Location:**
 
-- Linux/macOS: `~/.cache/snp-scope-plot/ensembl/{species}/`
-- Windows: `%LOCALAPPDATA%/snp-scope-plot/ensembl/{species}/`
+- Linux/macOS: `~/.cache/pylocuszoom/ensembl/{species}/`
+- Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{species}/`
 
 ```python
 # Clear cache when needed

@@ -5,6 +5,7 @@ catch all library errors with `except PyLocusZoomError`.
 """
 
 
+# [5a] Exception hierarchy root — see docs/CODEMAP.md
 class PyLocusZoomError(Exception):
     """Base exception for all pyLocusZoom errors."""
 

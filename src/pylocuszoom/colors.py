@@ -1,3 +1,4 @@
+# [3b] Palette module: LD, eQTL effect, credible-set, PheWAS colours — see docs/CODEMAP.md
 """LD color schemes for regional association plots.
 
 Implements LocusZoom-style coloring based on R² linkage disequilibrium values.

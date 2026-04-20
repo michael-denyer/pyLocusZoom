@@ -1,3 +1,4 @@
+# [5c] Shared utilities: PySpark bridge, region filter, GWAS/genes validators — see docs/CODEMAP.md
 """Utility functions for pyLocusZoom.
 
 Shared helpers used across multiple modules.

@@ -126,6 +126,7 @@ def _filter_invalid_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
     return result
 
 
+# [3e] Cumulative-position Manhattan prep — see docs/CODEMAP.md
 def prepare_manhattan_data(
     df: pd.DataFrame,
     chrom_col: str = "chrom",

@@ -384,6 +384,7 @@ def load_recombination_map(
     return df.dropna(subset=["pos", "rate"])
 
 
+# [3d] Region-filtered recombination rate — see docs/CODEMAP.md
 def get_recombination_rate_for_region(
     chrom: int,
     start: int,

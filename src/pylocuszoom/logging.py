@@ -1,3 +1,4 @@
+# [5b] Loguru/stdlib logging facade (_LoguruWrapper / _StdlibWrapper) — see docs/CODEMAP.md
 """Logging configuration for pylocuszoom.
 
 Provides logging with sensible defaults:

@@ -1,3 +1,4 @@
+# [2b] Schema validators: GWAS, eQTL, fine-mapping, genes, file paths — see docs/CODEMAP.md
 """Validation schemas for loaded data.
 
 Provides validation for GWAS, eQTL, fine-mapping, and gene annotation

@@ -246,6 +246,7 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     return result
 
 
+# [3a] PLINK wrapper, lead-SNP R² — see docs/CODEMAP.md
 def calculate_ld(
     bfile_path: str,
     lead_snp: str,

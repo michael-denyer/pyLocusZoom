@@ -55,6 +55,7 @@ from .utils import filter_by_region, validate_genes_df, validate_gwas_df
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
+# [1a] Regional association plots (single / stacked) — see docs/CODEMAP.md
 class LocusZoomPlotter:
     """Regional association plot generator with LD coloring and annotations.
 

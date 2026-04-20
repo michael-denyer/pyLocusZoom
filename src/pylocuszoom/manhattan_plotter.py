@@ -30,6 +30,7 @@ from .manhattan import prepare_categorical_data, prepare_manhattan_data
 from .qq import prepare_qq_data
 
 
+# [1b] Genome-wide Manhattan / QQ plots — see docs/CODEMAP.md
 class ManhattanPlotter:
     """Manhattan and QQ plot generator for genome-wide visualizations.
 

@@ -1,201 +1,204 @@
-# pyLocusZoom Architecture
+# Architecture
 
-## Project Structure
+## System Overview
 
-```text
-pyLocusZoom/
-├── .github/workflows/
-│   ├── ci.yml                    # CI pipeline (tests, lint)
-│   └── publish.yml               # PyPI publish (Trusted Publishing)
-│
-├── src/pylocuszoom/
-│   ├── __init__.py               # Public API exports
-│   ├── plotter.py                # LocusZoomPlotter - main entry point
-│   │                             #   plot(), plot_stacked(), plot_manhattan(), etc.
-│   ├── backends/
-│   │   ├── __init__.py           # Backend registry, get_backend()
-│   │   ├── base.py               # PlotBackend protocol
-│   │   ├── matplotlib_backend.py # Static plots
-│   │   ├── plotly_backend.py     # Interactive with hover
-│   │   └── bokeh_backend.py      # Dashboard-friendly
-│   │
-│   ├── colors.py                 # LD color palettes
-│   ├── gene_track.py             # Gene/exon rendering
-│   ├── labels.py                 # SNP label positioning
-│   ├── ld.py                     # PLINK LD calculation
-│   ├── eqtl.py                   # eQTL data handling
-│   ├── recombination.py          # Recomb map loading/liftover
-│   ├── logging.py                # Loguru configuration
-│   ├── utils.py                  # Validation, PySpark support
-│   └── reference_data/           # Cached recomb maps location
-│
-├── tests/                        # pytest suite
-├── examples/
-│   └── getting_started.ipynb     # Tutorial notebook
-│
-├── pyproject.toml                # Build config, dependencies
-├── README.md                     # Documentation
-└── LICENSE.md                    # GPL-3.0-or-later
-```
+pyLocusZoom is a Python library for producing publication-ready regional
+association plots for GWAS and related genetic studies, without depending on a
+web service. It takes GWAS summary statistics (and optionally gene annotations,
+recombination maps, PLINK genotype data, eQTL tables, fine-mapping output, or
+PheWAS tables) as pandas/PySpark DataFrames, validates them at the API
+boundary, assigns colors based on linkage disequilibrium (LD) or fine-mapping
+credible sets, and dispatches rendering through a `PlotBackend` protocol to one
+of three interchangeable backends: matplotlib (static PNG/PDF), plotly
+(interactive HTML), or bokeh (interactive HTML). The architecture is a layered,
+backend-pluggable pipeline: validation → data preparation → backend-agnostic
+plot assembly → backend-specific rendering.
 
-## Architecture Diagram
+## Component Diagram
 
 ```mermaid
 graph TD
-    subgraph User API
-        LZP[LocusZoomPlotter]
+    subgraph Input["Input Layer"]
+        GWAS[GWAS / eQTL / PheWAS DataFrames]
+        REF[Reference Data: genes, recomb maps, PLINK]
+        LOAD[loaders.py: format adapters]
     end
 
-    subgraph Backends
+    subgraph Validate["Validation Layer"]
+        SCHEMA[schemas.py / validation.py]
+        EQTLV[eqtl.py / phewas.py / forest.py / finemapping.py]
+        UTILS[utils.py: to_pandas, PySpark support]
+    end
+
+    subgraph Prepare["Data Preparation"]
+        LD[ld.py: PLINK wrapper]
+        RECOMB[recombination.py: maps + CanFam4 liftover]
+        ENSEMBL[ensembl.py: gene fetch]
+        COLORS[colors.py: LD bins, eQTL, credible sets]
+    end
+
+    subgraph Plotters["Plotter Classes"]
+        LZ[LocusZoomPlotter]
+        MP[ManhattanPlotter]
+        SP[StatsPlotter]
+        MIAMI[MiamiPlotter]
+        LDH[LDHeatmapPlotter]
+        CP[ColocPlotter]
+    end
+
+    subgraph Backends["Backend Protocol"]
+        PROTO[PlotBackend protocol]
         MPL[MatplotlibBackend]
-        PLY[PlotlyBackend]
-        BOK[BokehBackend]
+        PLOTLY[PlotlyBackend]
+        BOKEH[BokehBackend]
     end
 
-    subgraph Components
-        LD[ld.py<br/>calculate_ld]
-        GT[gene_track.py<br/>plot_gene_track]
-        RC[recombination.py<br/>add_recombination_overlay]
-        LB[labels.py<br/>add_snp_labels]
-        EQ[eqtl.py<br/>prepare_eqtl_for_plotting]
-        CO[colors.py<br/>get_ld_color]
+    subgraph Output["Output"]
+        STATIC[PNG / PDF]
+        HTML[Interactive HTML]
     end
 
-    LZP --> MPL
-    LZP --> PLY
-    LZP --> BOK
-
-    LZP --> LD
-    LZP --> GT
-    LZP --> RC
-    LZP --> LB
-    LZP --> EQ
-    LZP --> CO
+    GWAS --> LOAD
+    LOAD --> SCHEMA
+    GWAS --> SCHEMA
+    GWAS --> UTILS
+    REF --> ENSEMBL
+    REF --> LD
+    REF --> RECOMB
+    SCHEMA --> EQTLV
+    EQTLV --> COLORS
+    LD --> COLORS
+    COLORS --> LZ
+    COLORS --> MP
+    COLORS --> SP
+    COLORS --> MIAMI
+    COLORS --> LDH
+    COLORS --> CP
+    RECOMB --> LZ
+    LZ --> PROTO
+    MP --> PROTO
+    SP --> PROTO
+    MIAMI --> PROTO
+    LDH --> PROTO
+    CP --> PROTO
+    PROTO --> MPL
+    PROTO --> PLOTLY
+    PROTO --> BOKEH
+    MPL --> STATIC
+    PLOTLY --> HTML
+    BOKEH --> HTML
 ```
 
 ## Data Flow
 
-```mermaid
-flowchart LR
-    subgraph Input
-        GWAS[GWAS DataFrame]
-        GENES[Genes DataFrame]
-        EQTL[eQTL DataFrame]
-        PLINK[PLINK files]
-    end
+A typical call to `LocusZoomPlotter.plot(df, chrom, start, end)` follows these
+stages:
 
-    subgraph Processing
-        VAL[Validation]
-        LDC[LD Calculation]
-        REC[Recombination Lookup]
-        COL[Color Assignment]
-    end
+1. **Entry.** The user constructs `LocusZoomPlotter(species=..., backend=...)`
+   from `src/pylocuszoom/plotter.py` and calls `plot()` or `plot_stacked()`.
+   The plotter resolves the backend via `backends.get_backend(name)`, which
+   lazily imports and registers the concrete backend class.
+2. **Validation.** The input DataFrame is normalized through
+   `utils.to_pandas()` (supports PySpark input) and validated against expected
+   columns using `validation.py` and `schemas.py`. Specialized inputs (eQTL,
+   PheWAS, forest, fine-mapping) validate through their respective modules.
+3. **Region filtering and LD.** Rows are filtered to `[start, end]` on the
+   requested chromosome. If `ld_reference_file` is supplied, `ld.py` shells
+   out to PLINK via a wrapper to compute R² against the lead variant; if
+   `ld_col` is already present in the DataFrame, PLINK is skipped.
+4. **Color assignment.** `colors.py` maps each SNP to an LD bin color (or an
+   eQTL effect-size color, credible-set color, or PheWAS category color
+   depending on the plotter).
+5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py` (or
+   fetched via `ensembl.py`). Recombination rates are loaded via
+   `recombination.py`, which handles download of bundled canine maps and
+   CanFam3.1 → CanFam4 liftover through pyliftover.
+6. **Backend dispatch.** The plotter walks the prepared data and calls the
+   `PlotBackend` protocol methods (`create_figure`, `scatter`, `line`,
+   `add_rectangle`, `add_recombination_overlay`, `add_ld_legend`, etc.) on
+   the selected backend. Backend implementations translate these calls into
+   matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
+7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
+   their respective figure objects that serialize to HTML via `save()` or
+   their native export methods.
 
-    subgraph Rendering
-        BE[Backend]
-        SC[Scatter Plot]
-        GT[Gene Track]
-        OV[Recomb Overlay]
-        LB[Labels]
-    end
+## Key Abstractions
 
-    subgraph Output
-        FIG[Figure]
-    end
+| Abstraction | Kind | Location | Purpose |
+|-------------|------|----------|---------|
+| `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
+| `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
+| `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
+| `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
+| `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
+| `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
+| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy (figure creation, scatter/line/fill primitives, legends, recombination overlay, heatmap) |
+| `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
+| `get_backend(name)` | Function | `src/pylocuszoom/backends/__init__.py` | Lazy-imports and returns a backend instance by name, raising `ImportError` with install instructions when an optional backend is missing |
+| `PyLocusZoomError` hierarchy | Exceptions | `src/pylocuszoom/exceptions.py` | Root type for all library errors; specialized subclasses (`ValidationError`, `BackendError`, `PlinkError`, `DataDownloadError`, plus per-data-type validation errors) |
+| Loader functions | Functions | `src/pylocuszoom/loaders.py` | Format adapters that read PLINK `.assoc`, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog, GTEx, SuSiE, FINEMAP, CAVIAR, PolyFun, GTF, BED, and Ensembl into canonical DataFrames |
 
-    GWAS --> VAL --> LDC
-    PLINK --> LDC
-    LDC --> COL --> SC
-    GENES --> GT
-    EQTL --> SC
-    VAL --> REC --> OV
-    SC --> BE
-    GT --> BE
-    OV --> BE
-    LB --> BE
-    BE --> FIG
+## Directory Structure Rationale
+
+The project uses a standard `src/`-layout Python package (`pyproject.toml` with
+`hatchling` as the build backend), so the package lives under
+`src/pylocuszoom/` and is installed via `uv` or `pip`. Within the package,
+modules are organized by responsibility rather than by data flow stage — this
+keeps related validation, data-prep, and rendering code for each feature
+co-located, while cross-cutting concerns (colors, backends, utilities) live in
+shared modules.
+
+```text
+pyLocusZoom/
+├── src/pylocuszoom/           # The installable package
+│   ├── __init__.py            # Public API re-exports (stable surface)
+│   ├── plotter.py             # LocusZoomPlotter — regional plot orchestration
+│   ├── manhattan_plotter.py   # Manhattan/QQ plotter class
+│   ├── manhattan.py           # Lower-level Manhattan helpers
+│   ├── qq.py                  # QQ plot primitives
+│   ├── stats_plotter.py       # StatsPlotter — PheWAS and forest plots
+│   ├── miami_plotter.py       # Miami (mirrored Manhattan) plotter
+│   ├── ld_heatmap_plotter.py  # Pairwise LD heatmap plotter
+│   ├── coloc_plotter.py       # Colocalization plotter
+│   ├── coloc.py               # Colocalization statistics
+│   ├── _plotter_utils.py      # Shared internals (transform_pvalues, sig lines)
+│   ├── backends/              # Pluggable rendering backends
+│   │   ├── base.py            # PlotBackend protocol definition
+│   │   ├── matplotlib_backend.py
+│   │   ├── plotly_backend.py
+│   │   ├── bokeh_backend.py
+│   │   └── hover.py           # Hover tooltip helpers for interactive backends
+│   ├── colors.py              # LD bins, eQTL, credible-set, PheWAS palettes
+│   ├── ld.py                  # PLINK wrapper for R² calculation
+│   ├── recombination.py       # Recomb map loading + CanFam4 liftover
+│   ├── reference_data/        # Bundled reference datasets (auto-populated)
+│   ├── gene_track.py          # Gene/exon rendering with overlap resolution
+│   ├── ensembl.py             # Ensembl REST client with caching
+│   ├── labels.py              # adjustText-based SNP label placement
+│   ├── eqtl.py                # eQTL validation and filtering
+│   ├── phewas.py              # PheWAS validation
+│   ├── forest.py              # Forest-plot validation
+│   ├── finemapping.py         # SuSiE / fine-mapping validation + plot_finemapping()
+│   ├── loaders.py             # Format adapters (PLINK, REGENIE, GTEx, SuSiE, GTF, BED, …)
+│   ├── schemas.py             # Canonical DataFrame column schemas
+│   ├── validation.py          # Shared validation primitives
+│   ├── utils.py               # DataFrame helpers; to_pandas() handles PySpark
+│   ├── config.py              # Internal PlotConfig / StackedPlotConfig (not public)
+│   ├── exceptions.py          # PyLocusZoomError hierarchy
+│   ├── logging.py             # enable_logging / disable_logging (loguru)
+│   └── py.typed               # PEP 561 marker — ships with type hints
+├── tests/                     # pytest suite (parallelized, randomized, timeout 30s)
+├── docs/                      # Project documentation (this file lives here)
+├── examples/                  # Runnable example scripts, incl. README plot generator
+├── CLAUDE.md                  # Developer-facing workflow and gotchas
+├── CHANGELOG.md               # Release notes
+└── pyproject.toml             # Build system, deps, ruff/pytest config
 ```
 
-## Key Entry Points
-
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `LocusZoomPlotter()` | `plotter.py` | Main constructor |
-| `.plot()` | `plotter.py` | Single regional plot |
-| `.plot_stacked()` | `plotter.py` | Multi-GWAS stacked plot |
-| `.plot_manhattan()` | `plotter.py` | Genome-wide Manhattan plot |
-| `.plot_qq()` | `plotter.py` | QQ plot |
-| `get_backend()` | `backends/__init__.py` | Backend factory |
-
-## Backend Protocol
-
-All backends implement the `PlotBackend` protocol defined in `backends/base.py`:
-
-```mermaid
-classDiagram
-    class PlotBackend {
-        <<Protocol>>
-        +create_figure()
-        +scatter()
-        +line()
-        +fill_between()
-        +axhline()
-        +set_xlabel()
-        +set_ylabel()
-        +add_ld_legend()
-    }
-
-    class MatplotlibBackend {
-        +fig: Figure
-        +ax: Axes
-    }
-
-    class PlotlyBackend {
-        +fig : "go.Figure"
-    }
-
-    class BokehBackend {
-        +fig: figure
-    }
-
-    PlotBackend <|.. MatplotlibBackend
-    PlotBackend <|.. PlotlyBackend
-    PlotBackend <|.. BokehBackend
-```
-
-## Module Responsibilities
-
-| Module | Responsibility |
-|--------|----------------|
-| `plotter.py` | Orchestrates plot creation, manages backends |
-| `backends/` | Rendering abstraction for matplotlib/plotly/bokeh |
-| `ld.py` | PLINK subprocess for LD calculation |
-| `gene_track.py` | Gene/exon rectangle rendering |
-| `recombination.py` | Load/cache/liftover recombination maps |
-| `colors.py` | LD-to-color mapping with standard palette |
-| `labels.py` | Non-overlapping SNP label placement |
-| `eqtl.py` | eQTL data validation and preparation |
-| `utils.py` | DataFrame validation, PySpark conversion |
-| `logging.py` | Loguru configuration |
-
-## Dependencies
-
-### Required
-
-- matplotlib >= 3.5.0
-- pandas >= 1.4.0
-- numpy >= 1.21.0
-- loguru >= 0.7.0
-- plotly >= 5.0.0
-- bokeh >= 3.8.2
-- kaleido >= 0.2.0
-- pyliftover >= 0.4
-- adjustText >= 0.8
-
-### Optional
-
-- pyspark >= 3.0.0 (for large-scale data)
-
-### External
-
-- PLINK 1.9 (for LD calculations)
+The `backends/` subpackage is the single point of extensibility for new
+renderers — adding a backend means writing one module that implements
+`PlotBackend` and decorating it with `@register_backend("name")`. No plotter
+class needs to change. The `reference_data/` directory is populated lazily at
+runtime by `recombination.ensure_recomb_maps()` and
+`download_canine_recombination_maps()` rather than shipping ~50 MB of maps in
+the wheel.

@@ -409,6 +409,7 @@ def fetch_exons_from_ensembl(
     return df
 
 
+# [3h] Ensembl REST fetch with disk cache — see docs/CODEMAP.md
 def get_genes_for_region(
     species: str,
     chrom: str | int,
