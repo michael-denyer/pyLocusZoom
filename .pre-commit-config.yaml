@@ -44,26 +44,16 @@ repos:
 
       - id: mermaid-lint
         name: Validate mermaid diagrams (maid)
-        entry: >-
-          bash -c 'for f in "$@"; do
-          output=$(npx @probelabs/maid@0.0.29 "$f" 2>&1) || true;
-          real_errors=$(echo "$output" | grep -v "FL-STYLE-TARGET-UNKNOWN" | grep -cE "\\berror\\b");
-          if [ "$real_errors" -gt 0 ]; then echo "$output"; exit 1; fi;
-          done' --
+        entry: scripts/check-mermaid-maid.sh
         language: system
         types: [markdown]
         exclude: "^\\.venv/|^\\.planning/"
 
       - id: mermaid-render
         name: Validate mermaid diagrams (renderer parity)
-        entry: >-
-          bash -c 'fail=0; for f in "$@"; do
-          if ! npx -y @mermaid-js/mermaid-cli@11.4.2 -i "$f" -o /tmp/mmdc_check.svg;
-          then echo "mmdc failed on $f"; fail=1; fi;
-          done; exit $fail' --
+        entry: scripts/check-mermaid-render.sh
         language: system
         types: [markdown]
-        files: "\\.md$"
         exclude: "^\\.venv/|^\\.planning/"
 
       - id: yamllint

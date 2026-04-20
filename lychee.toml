@@ -3,14 +3,13 @@
 
 exclude = [
   '^https?://localhost',
-  # CHANGELOG footer compare-URLs for historical tags; some pre-v1.3 tags
-  # were never pushed to GitHub. Not worth blocking commits over.
-  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v0\.',
-  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.',
-  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.\.\.',
-  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.2\.\.\.v1\.1\.0',
-  # gnu.org aggressively rate-limits CI runner IPs; the license link is
-  # stable and doesn't need link-checking on every run.
+  # CHANGELOG footer compare-URLs for pre-v1.1 tags; several were never
+  # pushed to GitHub, so the compare pages 404. Anchored to the exact tag
+  # prefixes (v0.x, v1.0.x) so typos elsewhere still fail the check.
+  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v0\.\d+\.\d+\.{3}v',
+  '^https?://github\.com/michael-denyer/pyLocusZoom/compare/v1\.0\.\d+\.{3}v',
+  # gnu.org aggressively rate-limits CI runner IPs. LICENSE.md is already
+  # excluded via exclude_path; this catches inline GPL links in other docs.
   '^https?://www\.gnu\.org/licenses/',
 ]
 

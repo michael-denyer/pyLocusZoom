@@ -42,35 +42,13 @@ jobs:
 
       - name: Validate mermaid diagrams (maid)
         run: |
-          set -e
-          fail=0
-          for f in $(git ls-files '*.md'); do
-            output=$(npx -y @probelabs/maid@0.0.29 "$f" 2>&1 || true)
-            real_errors=$(echo "$output" | grep -v "FL-STYLE-TARGET-UNKNOWN" | grep -cE '\berror\b' || true)
-            if [ "$real_errors" -gt 0 ]; then
-              echo "$f:"; echo "$output"; fail=1
-            fi
-          done
-          exit $fail
+          # shellcheck disable=SC2046
+          bash scripts/check-mermaid-maid.sh $(git ls-files '*.md')
 
       - name: Validate mermaid diagrams (renderer parity)
         run: |
-          # Puppeteer's bundled Chromium can't use the user-namespace
-          # sandbox on GitHub's Ubuntu runners (AppArmor restriction),
-          # so configure mmdc to launch Chromium with --no-sandbox.
-          cat > /tmp/puppeteer-config.json <<'EOF'
-          {"args": ["--no-sandbox"]}
-          EOF
-          fail=0
-          for f in $(git ls-files '*.md'); do
-            if ! npx -y @mermaid-js/mermaid-cli@11.4.2 \
-              -p /tmp/puppeteer-config.json \
-              -i "$f" -o /tmp/mmdc_check.svg; then
-              echo "mmdc failed on $f"
-              fail=1
-            fi
-          done
-          exit $fail
+          # shellcheck disable=SC2046
+          bash scripts/check-mermaid-render.sh $(git ls-files '*.md')
 
       - name: Lint YAML
         uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
