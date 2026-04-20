@@ -159,11 +159,8 @@ class TestPrepareFinemappingForPlotting:
 class TestPlotFinemapping:
     """Tests for plot_finemapping function.
 
-    Assertions query the rendered matplotlib axes directly — per
-    CLAUDE.md's observable-outputs rule. Previously these tests mocked
-    the backend protocol and asserted on ``.line.assert_called_once()``
-    / ``.scatter.call_count``, coupling to implementation rather than
-    output.
+    Assertions query the rendered matplotlib axes directly per
+    CLAUDE.md's observable-outputs rule.
     """
 
     @pytest.fixture

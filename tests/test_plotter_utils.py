@@ -46,9 +46,8 @@ class TestTransformPvalues:
 class TestAddSignificanceLine:
     """Tests for the add_significance_line utility.
 
-    Assertions query the rendered matplotlib axes directly rather than
-    mocking the backend and counting calls — per CLAUDE.md's rule that
-    tests should assert on observable outputs, not internal wiring.
+    Assertions query the rendered matplotlib axes directly per
+    CLAUDE.md's observable-outputs rule.
     """
 
     def test_adds_line_at_threshold(self):

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **CLAUDE.md and AGENTS.md are now gitignored**: these files hold agent-local instructions, not project docs. They should never have been committed; the repo now enforces this via `.gitignore` plus a `no-gitignored-files` pre-commit hook. Project-facing setup and release guidance lives in `CONTRIBUTING.md`, `README.md`, and `docs/`.
+- **Empty PLINK LD output now raises `PlinkError`**: `parse_ld_output()` previously returned an empty DataFrame when PLINK exited 0 but produced no LD pairs (lead SNP monomorphic, MAF-filtered, or absent from the `.bim` file), leading to silently uncoloured plots with no diagnostic. It now raises `PlinkError` with an actionable message naming the likely cause and the lead SNP. `LocusZoomPlotter.plot()` and `plot_stacked()` propagate the exception rather than swallowing it.
 
 ### Fixed
 

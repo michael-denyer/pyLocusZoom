@@ -449,6 +449,38 @@ class TestLocusZoomPlotterLdCalculation:
             mock_ld.assert_called_once()
             plt.close(fig)
 
+    def test_plink_error_propagates_through_plot(self, plotter):
+        """End-to-end: a PlinkError from calculate_ld must surface to the caller.
+
+        Regression: an earlier `if not ld_df.empty` guard in plotter.plot()
+        would have masked the new empty-output PlinkError from parse_ld_output
+        by short-circuiting on an empty merge. The guard is gone, so any
+        future swallow of this exception would be caught here.
+        """
+        from pylocuszoom.exceptions import PlinkError
+
+        df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
+            mock_ld.side_effect = PlinkError(
+                "PLINK produced an empty LD output for lead SNP 'rs1'."
+            )
+            with pytest.raises(PlinkError, match="empty LD output"):
+                plotter.plot(
+                    df,
+                    chrom=1,
+                    start=1000000,
+                    end=2000000,
+                    lead_pos=1100000,
+                    ld_reference_file="/path/to/genotypes",
+                )
+
 
 class TestLocusZoomPlotterRecombination:
     """Tests for recombination data handling."""
@@ -1300,17 +1332,11 @@ class TestPlotterDelegation:
     def test_plotter_delegates_to_plot_finemapping(self):
         """plot_stacked() forwards the finemapping DataFrame to plot_finemapping.
 
-        This test pins a dispatch contract — plot_stacked delegates
-        fine-map rendering to the module-level ``plot_finemapping``
-        function rather than reimplementing it. Per CLAUDE.md, this is
-        a legitimate boundary assertion (the delegation target IS the
-        observable behaviour).
-
-        We assert on the DataFrame handed to plot_finemapping, not just
-        that it was called. A prior version of this test wrapped the
-        plot_stacked call in ``try/except Exception: pass`` — a silent-
-        failure anti-pattern that let real regressions pass. This
-        version requires plot_stacked to complete normally.
+        Pins the dispatch contract: plot_stacked delegates fine-map
+        rendering to the module-level ``plot_finemapping`` rather than
+        reimplementing it. Per CLAUDE.md this is a legitimate boundary
+        assertion. Asserts on the DataFrame handed to plot_finemapping,
+        not just that it was called.
         """
         plotter = LocusZoomPlotter(
             species="canine", backend="matplotlib", log_level=None
@@ -1978,15 +2004,11 @@ class TestStackedPlotLeadDetectionCrossChrom:
 
 
 class TestLeadPosBoundary:
-    """Regression: small non-None lead_pos must reach _plot_association.
+    """Pins the lead_pos=1 boundary.
 
-    Pre-fix bug: internal guards of the form ``if lead_pos`` treated any
-    falsy integer as missing, so small positions near the validation
-    boundary (``ge=1``) could be silently dropped if the value were ever
-    propagated through a path that went falsy (e.g. coerced to 0 by a
-    cast bug). The fix replaces falsy-checks with ``lead_pos is not
-    None``. This test pins the smallest valid lead_pos to the scatter
-    highlight path, and also confirms the public API rejects ``0``.
+    Smallest valid position (``ge=1`` in config) reaches
+    ``_plot_association`` intact, and the public API rejects ``0``
+    (1-based genomic coords).
     """
 
     def test_lead_pos_one_reaches_plot_association(self):

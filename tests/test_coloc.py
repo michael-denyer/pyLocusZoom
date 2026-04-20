@@ -56,19 +56,20 @@ class TestValidateColocGwasDf:
         with pytest.raises(ValidationError):
             validate_coloc_gwas_df(df, pos_col="pos", p_col="p")
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "pyLocusZoom-y23: validator does not short-circuit dtype check "
+            "before range check; string p-values surface as TypeError from "
+            "the range comparison instead of a structured ValidationError. "
+            "Flip to pytest.raises(ValidationError) once fixed."
+        ),
+    )
     def test_non_numeric_p_raises(self, valid_df):
-        """String p-values must be rejected (ValidationError or TypeError).
-
-        Current validator chain runs ``require_range`` after
-        ``require_numeric`` without short-circuiting on dtype errors, so
-        string p-values surface as TypeError from the range comparison
-        rather than a structured ValidationError. Either outcome
-        indicates the upstream data is rejected — the test accepts both
-        so the behaviour is pinned without prescribing the fix.
-        """
+        """String p-values must raise ValidationError, not TypeError."""
         df = valid_df.copy()
         df["p"] = ["NS", "NS", "NS"]
-        with pytest.raises((ValidationError, TypeError)):
+        with pytest.raises(ValidationError):
             validate_coloc_gwas_df(df, pos_col="pos", p_col="p")
 
     def test_p_above_one_raises(self, valid_df):
@@ -124,16 +125,18 @@ class TestValidateColocDfSharedHelper:
         )
         _validate_coloc_df(df, "empty", pos_col="pos", p_col="p")
 
-    def test_nan_in_p_column_is_tolerated(self, valid_df):
-        """Current contract: NaN p-values are dropped by `require_range`.
-
-        `DataFrameValidator.require_range` calls ``.dropna()`` before the
-        bound checks, so NaN silently passes validation here. This is a
-        latent silent-failure risk — downstream ``-log10(p)`` on NaN
-        yields NaN, which can blank axes — but the validator contract is
-        documented by this test. Tightening it is out of scope for the
-        coloc test file; track as a separate bead if desired.
-        """
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "pyLocusZoom-y0l: require_range calls .dropna() before bound "
+            "checks, so NaN p-values silently pass validation. Downstream "
+            "-log10(p) yields NaN which can blank axes. Flip to "
+            "pytest.raises(ValidationError) once fixed."
+        ),
+    )
+    def test_nan_in_p_rejected(self, valid_df):
+        """NaN p-values must be rejected, not silently dropped."""
         df = valid_df.copy()
         df.loc[0, "p"] = np.nan
-        _validate_coloc_df(df, "gwas", pos_col="pos", p_col="p")
+        with pytest.raises(ValidationError):
+            _validate_coloc_df(df, "gwas", pos_col="pos", p_col="p")

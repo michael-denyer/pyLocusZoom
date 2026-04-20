@@ -7,6 +7,7 @@ Provides:
 """
 
 import os
+import shutil
 import sys
 import tarfile
 import tempfile
@@ -261,6 +262,11 @@ def download_canine_recombination_maps(
     logger.info("Downloading canine recombination maps from GitHub...")
     logger.debug(f"Source: {CANINE_RECOMB_URL}")
 
+    # Write all per-chromosome files into a staging dir first and only
+    # promote them to output_path on full success. A mid-loop raise
+    # (e.g. corrupted-archive header rejection) would otherwise leave a
+    # partial set of *_recomb.tsv files behind that the cache-hit check
+    # at the top of this function might later treat as valid.
     with tempfile.TemporaryDirectory() as tmpdir:
         # Download tar.gz file with progress bar
         tar_path = Path(tmpdir) / "dog_genetic_maps.tar.gz"
@@ -303,12 +309,17 @@ def download_canine_recombination_maps(
 
         logger.debug(f"Found {len(map_files)} chromosome files")
 
+        # Stage outputs in tmpdir first; promote to output_path only after
+        # every chromosome file is written successfully.
+        staging_dir = Path(tmpdir) / "_staging"
+        staging_dir.mkdir(exist_ok=True)
+
         # Copy and rename files
         for map_file in map_files:
             name = map_file.stem
             if "chr" in name.lower():
                 chrom = name.lower().split("chr")[-1].split("_")[0].split(".")[0]
-                output_file = output_path / f"chr{chrom}_recomb.tsv"
+                output_file = staging_dir / f"chr{chrom}_recomb.tsv"
 
                 with open(map_file, "r") as f:
                     content = f.read()
@@ -320,9 +331,6 @@ def download_canine_recombination_maps(
                 # body) is rejected rather than silently treated as a header.
                 lines = content.strip().split("\n")
                 first_token = lines[0].split()[0] if lines[0].split() else ""
-                # Case-insensitive match against common header variants, and
-                # strip a leading '#' (used by some map mirrors as comment
-                # syntax on the header row).
                 known_header_tokens = {
                     "chr",
                     "chrom",
@@ -349,6 +357,11 @@ def download_canine_recombination_maps(
 
                 with open(output_file, "w") as f:
                     f.write(content)
+
+        # All chromosomes wrote successfully — promote staged files to
+        # the final output directory.
+        for staged_file in staging_dir.glob("chr*_recomb.tsv"):
+            shutil.move(str(staged_file), str(output_path / staged_file.name))
 
     logger.info(f"Recombination maps saved to: {output_path}")
     return output_path
