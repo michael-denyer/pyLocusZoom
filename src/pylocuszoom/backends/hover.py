@@ -30,7 +30,7 @@ class HoverConfig:
     extra_cols: dict[str, str] = field(default_factory=dict)
 
 
-# [4e] Uniform hover tooltip construction — see docs/CODEMAP.md
+# [4e:HoverDataBuilder] Uniform hover tooltip construction — see docs/CODEMAP.md
 class HoverDataBuilder:
     """Builder for constructing hover data and templates across backends.
 

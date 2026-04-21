@@ -219,7 +219,6 @@ pyLocusZoom/
 ├── tests/                     # pytest suite (parallelized, randomized, timeout 30s)
 ├── docs/                      # Project documentation (this file lives here)
 ├── examples/                  # Runnable example scripts, incl. README plot generator
-├── CLAUDE.md                  # Developer-facing workflow and gotchas
 ├── CHANGELOG.md               # Release notes
 └── pyproject.toml             # Build system, deps, ruff/pytest config
 ```

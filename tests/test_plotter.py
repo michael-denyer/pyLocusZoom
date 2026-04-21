@@ -449,13 +449,12 @@ class TestLocusZoomPlotterLdCalculation:
             mock_ld.assert_called_once()
             plt.close(fig)
 
-    def test_plink_error_propagates_through_plot(self, plotter):
-        """End-to-end: a PlinkError from calculate_ld must surface to the caller.
+    def test_empty_ld_output_is_downgraded_to_warning(self, plotter, caplog):
+        """An empty-output PlinkError (singleton lead SNP) should not abort.
 
-        Regression: an earlier `if not ld_df.empty` guard in plotter.plot()
-        would have masked the new empty-output PlinkError from parse_ld_output
-        by short-circuiting on an empty merge. The guard is gone, so any
-        future swallow of this exception would be caught here.
+        Singleton lead SNPs with no LD neighbours in the window are a real
+        scenario; plotter.plot() catches only this specific PlinkError and
+        continues without LD colouring, leaving a warning in the log.
         """
         from pylocuszoom.exceptions import PlinkError
 
@@ -471,7 +470,39 @@ class TestLocusZoomPlotterLdCalculation:
             mock_ld.side_effect = PlinkError(
                 "PLINK produced an empty LD output for lead SNP 'rs1'."
             )
-            with pytest.raises(PlinkError, match="empty LD output"):
+            fig = plotter.plot(
+                df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                lead_pos=1100000,
+                ld_reference_file="/path/to/genotypes",
+            )
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plink_misconfiguration_propagates_through_plot(self, plotter):
+        """A non-empty-output PlinkError must surface — it means PLINK is broken.
+
+        Regression boundary: the catch in plotter.plot() is narrow on purpose.
+        Timeout, non-zero exit, and "output file missing after success" all
+        indicate real misconfiguration and should reach the caller.
+        """
+        from pylocuszoom.exceptions import PlinkError
+
+        df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
+            mock_ld.side_effect = PlinkError(
+                "PLINK LD calculation failed (exit code 2): bad bfile"
+            )
+            with pytest.raises(PlinkError, match="exit code"):
                 plotter.plot(
                     df,
                     chrom=1,

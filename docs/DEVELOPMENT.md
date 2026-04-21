@@ -1,7 +1,7 @@
 # Development
 
 Guidance for contributors working on pyLocusZoom locally. For first-run install and
-quickstart, see [GETTING-STARTED.md](GETTING-STARTED.md) (if present) or the
+quickstart, see [GETTING-STARTED.md](GETTING-STARTED.md) or the
 [README](../README.md). For system architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 For environment variables and configuration, see [CONFIGURATION.md](CONFIGURATION.md).
 
@@ -92,13 +92,15 @@ avoid "works locally, fails in CI" drift.
 
 ### Docstrings
 
-Use **Google-style docstrings** for all public functions and classes. See the example in
-[CONTRIBUTING.md](../CONTRIBUTING.md#docstring-example). Key conventions:
+Use **Google-style docstrings** for all public functions and classes. Key conventions:
 
 - First line is a short imperative summary.
 - Do not duplicate type annotations in the docstring — they belong on the signature.
 - Include an `Example` section for non-trivial public APIs.
 - Omit sections (`Raises`, `Example`) that do not apply.
+
+For a concrete example, see `prepare_manhattan_data` in
+[`src/pylocuszoom/manhattan.py`](../src/pylocuszoom/manhattan.py).
 
 ### Pre-commit Hooks
 

@@ -12,7 +12,7 @@ from pandas.api.types import is_numeric_dtype
 from .utils import ValidationError
 
 
-# [2a] Fluent DataFrame validator — see docs/CODEMAP.md
+# [2a:DataFrameValidator] Fluent DataFrame validator — see docs/CODEMAP.md
 class DataFrameValidator:
     """Builder for composable DataFrame validation.
 

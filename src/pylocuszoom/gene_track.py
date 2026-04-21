@@ -31,7 +31,7 @@ ARROW_HEIGHT_RATIO = 0.2625  # EXON_HEIGHT * 0.35 * 0.75 (75% of original height
 ARROW_WIDTH_RATIO = 0.0066  # region_width * 0.006 * 1.1 (10% wider than original)
 
 
-# [3c] Gene track layout and rendering — see docs/CODEMAP.md
+# [3c:assign_gene_positions] Overlap-free gene row layout — see docs/CODEMAP.md
 def assign_gene_positions(genes_df: pd.DataFrame, start: int, end: int) -> List[int]:
     """Assign row indices to genes to minimize overlap.
 
@@ -197,6 +197,7 @@ def _draw_strand_arrows_generic(
         )
 
 
+# [3c:plot_gene_track_generic] Backend-agnostic gene rendering — see docs/CODEMAP.md
 def plot_gene_track_generic(
     ax: Any,
     backend: Any,

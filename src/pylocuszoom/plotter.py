@@ -37,6 +37,7 @@ from .colors import (
 from .config import PlotConfig, StackedPlotConfig
 from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
+from .exceptions import PlinkError
 from .finemapping import (
     get_credible_sets,
     plot_finemapping,
@@ -55,7 +56,7 @@ from .utils import filter_by_region, validate_genes_df, validate_gwas_df
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
-# [1a] Regional association plots (single / stacked) — see docs/CODEMAP.md
+# [1a:LocusZoomPlotter] Regional association plots (single / stacked) — see docs/CODEMAP.md
 class LocusZoomPlotter:
     """Regional association plot generator with LD coloring and annotations.
 
@@ -204,7 +205,40 @@ class LocusZoomPlotter:
         ld_heatmap_height: float = 0.25,
         ld_heatmap_metric: str = "r2",
     ) -> Any:
-        """Create a regional association plot."""
+        """Create a regional association plot for a single locus.
+
+        Plots ``-log10(p)`` against genomic position for the specified region,
+        optionally overlaid with LD colouring, recombination rate, SNP labels,
+        a gene track, and/or a fine-mapping / LD-heatmap side panel.
+
+        Coordinates are 1-based genomic positions (so ``lead_pos=0`` is
+        rejected upstream by the Pydantic validator; any position ``>= 1`` is
+        honoured, including small sentinel values).
+
+        Args:
+            gwas_df: GWAS summary statistics. Must contain the columns named
+                by ``pos_col`` and ``p_col``; needs ``rs_col`` only when LD is
+                computed from ``ld_reference_file``.
+            chrom: Chromosome of the region.
+            start: Region start position (bp, inclusive).
+            end: Region end position (bp, inclusive).
+            lead_pos: Genomic position of the lead SNP (``>= 1``). Required
+                when ``ld_reference_file`` is supplied and ``ld_col`` is not.
+
+        Returns:
+            Backend-specific figure object (``matplotlib.figure.Figure``,
+            ``plotly.graph_objects.Figure``, or ``bokeh.layouts.Column``).
+            See keyword args for the full option surface.
+
+        Raises:
+            ValueError: On invalid kwargs (caught by
+                :class:`PlotConfig`) or missing required GWAS columns.
+            pylocuszoom.exceptions.PlinkError: When PLINK itself fails
+                (timeout, non-zero exit, corrupt ``.bed``, missing output).
+                The specific "empty LD output" case — singleton lead SNP with
+                no neighbours in the window — is downgraded to a warning and
+                the plot is drawn without LD colouring.
+        """
         PlotConfig.from_kwargs(
             chrom=chrom,
             start=start,
@@ -267,21 +301,36 @@ class LocusZoomPlotter:
                 else:
                     lead_snp_id = lead_snp_row[rs_col].iloc[0]
                     logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
-                    ld_df = calculate_ld(
-                        bfile_path=ld_reference_file,
-                        lead_snp=lead_snp_id,
-                        window_kb=max((end - start) // 1000, 500),
-                        plink_path=self.plink_path,
-                        species=self.species,
-                    )
-                    df = df.merge(
-                        ld_df,
-                        left_on=rs_col,
-                        right_on="SNP",
-                        how="left",
-                        validate="many_to_one",
-                    )
-                    ld_col = "R2"
+                    try:
+                        ld_df = calculate_ld(
+                            bfile_path=ld_reference_file,
+                            lead_snp=lead_snp_id,
+                            window_kb=max((end - start) // 1000, 500),
+                            plink_path=self.plink_path,
+                            species=self.species,
+                        )
+                    except PlinkError as exc:
+                        # Empty LD output (e.g. singleton lead SNP with no
+                        # neighbors in the window) is recoverable — warn and
+                        # plot without LD coloring rather than aborting. Other
+                        # PlinkError causes (timeout, non-zero exit, missing
+                        # output file) are real misconfiguration and must
+                        # propagate so the caller sees them.
+                        if "empty LD output" not in str(exc):
+                            raise
+                        logger.warning(
+                            f"LD calculation skipped: {exc}. "
+                            "Proceeding without LD coloring."
+                        )
+                    else:
+                        df = df.merge(
+                            ld_df,
+                            left_on=rs_col,
+                            right_on="SNP",
+                            how="left",
+                            validate="many_to_one",
+                        )
+                        ld_col = "R2"
 
         if show_recombination and recomb_df is None:
             recomb_df = self._get_recomb_for_region(chrom, start, end)

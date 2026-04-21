@@ -13,7 +13,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .exceptions import PlinkError
+from .exceptions import PlinkError, ValidationError
 from .logging import logger
 from .utils import validate_plink_files
 
@@ -97,6 +97,7 @@ def build_pairwise_ld_command(
     return cmd
 
 
+# [3a:find_plink] Locate PLINK executable — see docs/CODEMAP.md
 def find_plink() -> Optional[str]:
     """Find PLINK executable on PATH.
 
@@ -255,7 +256,7 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     return result
 
 
-# [3a] PLINK wrapper, lead-SNP R² — see docs/CODEMAP.md
+# [3a:calculate_ld] PLINK wrapper, lead-SNP R² — see docs/CODEMAP.md
 def calculate_ld(
     bfile_path: str,
     lead_snp: str,
@@ -412,8 +413,6 @@ def calculate_pairwise_ld(
         >>> # matrix is 3x3 DataFrame with LD values
         >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2
     """
-    from .utils import ValidationError
-
     # Find PLINK
     if plink_path is None:
         plink_path = find_plink()

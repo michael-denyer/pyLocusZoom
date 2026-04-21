@@ -22,7 +22,7 @@ from .backends.hover import HoverConfig, HoverDataBuilder
 from .manhattan import prepare_manhattan_data
 
 
-# [1c] Two-trait mirrored Manhattan plots — see docs/CODEMAP.md
+# [1c:MiamiPlotter] Two-trait mirrored Manhattan plots — see docs/CODEMAP.md
 class MiamiPlotter:
     """Miami plot generator for comparing two GWAS datasets.
 

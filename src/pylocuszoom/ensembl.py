@@ -17,8 +17,9 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from .exceptions import ValidationError
 from .logging import logger
-from .utils import ValidationError, normalize_chrom
+from .utils import normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
@@ -409,7 +410,7 @@ def fetch_exons_from_ensembl(
     return df
 
 
-# [3h] Ensembl REST fetch with disk cache — see docs/CODEMAP.md
+# [3h:get_genes_for_region] Ensembl REST with disk cache — see docs/CODEMAP.md
 def get_genes_for_region(
     species: str,
     chrom: str | int,

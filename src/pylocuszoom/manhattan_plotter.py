@@ -30,7 +30,16 @@ from .manhattan import prepare_categorical_data, prepare_manhattan_data
 from .qq import prepare_qq_data
 
 
-# [1b] Genome-wide Manhattan / QQ plots — see docs/CODEMAP.md
+def _padded_ymax(y_max: float) -> float:
+    """10% headroom above the tallest point, floored at 1.0.
+
+    Guards against degenerate ``ylim(0, 0)`` when every p-value rounds to 1 or
+    every row was filtered out (``y_max`` is NaN).
+    """
+    return max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
+
+
+# [1b:ManhattanPlotter] Genome-wide Manhattan / QQ plots — see docs/CODEMAP.md
 class ManhattanPlotter:
     """Manhattan and QQ plot generator for genome-wide visualizations.
 
@@ -162,9 +171,7 @@ class ManhattanPlotter:
         self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
 
         y_max = prepared_df["_neg_log_p"].max()
-        # Guard against degenerate ylim(0, 0) when all p=1 or DataFrame is empty.
-        y_top = max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
-        self._backend.set_ylim(ax, 0, y_top)
+        self._backend.set_ylim(ax, 0, _padded_ymax(y_max))
 
         # Labels and title
         self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
@@ -319,9 +326,7 @@ class ManhattanPlotter:
         self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
 
         y_max = prepared_df["_neg_log_p"].max()
-        # Guard against degenerate ylim(0, 0) when all p=1 or DataFrame is empty.
-        y_top = max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
-        self._backend.set_ylim(ax, 0, y_top)
+        self._backend.set_ylim(ax, 0, _padded_ymax(y_max))
 
         # Labels and title
         self._backend.set_xlabel(ax, "Category", fontsize=12)
@@ -486,7 +491,7 @@ class ManhattanPlotter:
             # Set limits
             self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
             y_max = prepared_df["_neg_log_p"].max()
-            self._backend.set_ylim(ax, 0, y_max * 1.1)
+            self._backend.set_ylim(ax, 0, _padded_ymax(y_max))
 
             # Labels
             self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=10)
@@ -588,7 +593,7 @@ class ManhattanPlotter:
         self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
 
         y_max = manhattan_df["_neg_log_p"].max()
-        self._backend.set_ylim(manhattan_ax, 0, y_max * 1.1)
+        self._backend.set_ylim(manhattan_ax, 0, _padded_ymax(y_max))
 
         positions = [
             chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
@@ -715,7 +720,7 @@ class ManhattanPlotter:
 
             self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
             y_max = manhattan_df["_neg_log_p"].max()
-            self._backend.set_ylim(manhattan_ax, 0, y_max * 1.1)
+            self._backend.set_ylim(manhattan_ax, 0, _padded_ymax(y_max))
 
             # Panel label
             if panel_labels and i < len(panel_labels):

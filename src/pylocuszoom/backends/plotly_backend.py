@@ -28,7 +28,7 @@ _DASH_MAP = {
 
 
 @register_backend("plotly")
-# [4c] Interactive HTML backend with hover — see docs/CODEMAP.md
+# [4c:PlotlyBackend] Interactive HTML with hover — see docs/CODEMAP.md
 class PlotlyBackend:
     """Plotly backend for interactive plot generation.
 

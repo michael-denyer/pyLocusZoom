@@ -562,3 +562,65 @@ class TestPlotManhattanQQStacked:
         plotter = ManhattanPlotter(species="human", backend="bokeh")
         fig = plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)
         assert fig is not None
+
+
+class TestYlimClamp:
+    """Regression: Manhattan variants must never emit a degenerate ylim(0, 0).
+
+    When every p-value rounds to 1, ``-log10(p) == 0`` everywhere so ``y_max``
+    would be 0 and the historical ``ylim(0, 0.0)`` collapsed the axis. The
+    plotter now floors the upper bound at 1.0 via ``_padded_ymax``. Covers the
+    four Manhattan entry points. (All-NaN p-values are rejected earlier by the
+    p-value validator, so no ``_padded_ymax`` codepath sees ``NaN`` in
+    practice.)
+    """
+
+    @pytest.fixture
+    def plotter(self):
+        return ManhattanPlotter(species="human")
+
+    @staticmethod
+    def _flat_df():
+        return pd.DataFrame(
+            {
+                "chrom": np.repeat([1, 2, 3], 10),
+                "pos": np.tile(np.arange(int(1e6), int(1e6) + 10) * 1000, 3),
+                "p": [1.0] * 30,
+            }
+        )
+
+    def test_plot_manhattan_ylim_floor(self, plotter):
+        fig = plotter.plot_manhattan(self._flat_df())
+        assert fig.get_axes()[0].get_ylim()[1] >= 1.0
+        plt.close(fig)
+
+    def test_plot_manhattan_stacked_ylim_floor(self, plotter):
+        fig = plotter.plot_manhattan_stacked([self._flat_df(), self._flat_df()])
+        for ax in fig.get_axes():
+            assert ax.get_ylim()[1] >= 1.0
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_ylim_floor(self, plotter):
+        df = self._flat_df()
+        # Keep one real p so the QQ half doesn't trip its own all-NaN guard.
+        df.loc[0, "p"] = 0.5
+        fig = plotter.plot_manhattan_qq(df)
+        # Manhattan axis is the wider one; QQ is roughly square.
+        manhattan_ax = max(fig.get_axes(), key=lambda a: a.get_position().width)
+        assert manhattan_ax.get_ylim()[1] >= 1.0
+        plt.close(fig)
+
+    def test_plot_manhattan_qq_stacked_ylim_floor(self, plotter):
+        dfs = []
+        for _ in range(2):
+            df = self._flat_df()
+            df.loc[0, "p"] = 0.5
+            dfs.append(df)
+        fig = plotter.plot_manhattan_qq_stacked(dfs)
+        # Pick the widest axis per panel row; those are Manhattan panels.
+        axes_by_y = sorted(fig.get_axes(), key=lambda a: -a.get_position().y0)
+        for panel in range(2):
+            row = axes_by_y[panel * 2 : panel * 2 + 2]
+            manhattan_ax = max(row, key=lambda a: a.get_position().width)
+            assert manhattan_ax.get_ylim()[1] >= 1.0
+        plt.close(fig)

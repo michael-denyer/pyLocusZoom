@@ -223,6 +223,7 @@ def get_default_data_dir() -> Path:
     return base / "pylocuszoom" / "recombination_maps"
 
 
+# [3d:download_canine_recombination_maps] Lazy-download bundled maps — see docs/CODEMAP.md
 def download_canine_recombination_maps(
     output_dir: Optional[str] = None,
     force: bool = False,
@@ -426,7 +427,7 @@ def load_recombination_map(
     return df.dropna(subset=["pos", "rate"])
 
 
-# [3d] Region-filtered recombination rate — see docs/CODEMAP.md
+# [3d:get_recombination_rate_for_region] Region-filtered recomb rate — see docs/CODEMAP.md
 def get_recombination_rate_for_region(
     chrom: int,
     start: int,

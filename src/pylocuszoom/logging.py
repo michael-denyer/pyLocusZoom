@@ -1,4 +1,3 @@
-# [5b] Loguru/stdlib logging facade (_LoguruWrapper / _StdlibWrapper) — see docs/CODEMAP.md
 """Logging configuration for pylocuszoom.
 
 Provides logging with sensible defaults:
@@ -171,6 +170,7 @@ else:
 logger.enable("INFO")
 
 
+# [5b:enable_logging] Loguru/stdlib logging facade — see docs/CODEMAP.md
 def enable_logging(level: str = "INFO", sink=sys.stderr) -> None:
     """Enable logging output.
 

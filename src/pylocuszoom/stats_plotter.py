@@ -17,7 +17,7 @@ from .forest import validate_forest_df
 from .phewas import validate_phewas_df
 
 
-# [1d] PheWAS and forest plots — see docs/CODEMAP.md
+# [1d:StatsPlotter] PheWAS and forest plots — see docs/CODEMAP.md
 class StatsPlotter:
     """Statistical visualization plotter for PheWAS and forest plots.
 
