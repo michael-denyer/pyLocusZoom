@@ -10,7 +10,6 @@ from pylocuszoom.gene_track import (
     STRAND_COLORS,
     assign_gene_positions,
     get_nearest_gene,
-    plot_gene_track,
 )
 from tests.strategies import gene_dataframes
 
@@ -187,88 +186,16 @@ class TestGetNearestGene:
         assert result == "GENE_C"
 
 
-class TestPlotGeneTrack:
-    """Tests for plot_gene_track function."""
+class TestStrandColors:
+    """Strand color constants are used by plot_gene_track_generic."""
 
-    @pytest.fixture
-    def sample_genes(self):
-        """Sample gene DataFrame."""
-        return pd.DataFrame(
-            {
-                "chr": [1, 1, 1],
-                "start": [1100000, 1400000, 1700000],
-                "end": [1150000, 1500000, 1800000],
-                "gene_name": ["GENE_A", "GENE_B", "GENE_C"],
-                "strand": ["+", "-", "+"],
-            }
-        )
-
-    @pytest.fixture
-    def sample_exons(self):
-        """Sample exon DataFrame."""
-        return pd.DataFrame(
-            {
-                "chr": [1, 1, 1, 1],
-                "start": [1100000, 1120000, 1400000, 1450000],
-                "end": [1110000, 1130000, 1420000, 1470000],
-                "gene_name": ["GENE_A", "GENE_A", "GENE_B", "GENE_B"],
-            }
-        )
-
-    def test_creates_gene_track(self, sample_genes):
-        """Should create gene track without errors."""
-        fig, ax = plt.subplots()
-        plot_gene_track(ax, sample_genes, chrom=1, start=1000000, end=2000000)
-        plt.close(fig)
-        # Test passes if no exception raised
-
-    def test_handles_empty_genes(self):
-        """Should handle empty gene DataFrame gracefully."""
-        fig, ax = plt.subplots()
-        empty_genes = pd.DataFrame(columns=["chr", "start", "end", "gene_name"])
-        plot_gene_track(ax, empty_genes, chrom=1, start=1000000, end=2000000)
-        plt.close(fig)
-
-    def test_handles_no_genes_in_region(self, sample_genes):
-        """Should handle region with no genes."""
-        fig, ax = plt.subplots()
-        # Query chromosome 2 where no genes exist
-        plot_gene_track(ax, sample_genes, chrom=2, start=1000000, end=2000000)
-        plt.close(fig)
-
-    def test_plots_with_exons(self, sample_genes, sample_exons):
-        """Should plot exon structure when provided."""
-        fig, ax = plt.subplots()
-        plot_gene_track(
-            ax, sample_genes, chrom=1, start=1000000, end=2000000, exons_df=sample_exons
-        )
-        plt.close(fig)
-
-    def test_uses_strand_colors(self, sample_genes):
-        """Gene colors should match strand direction."""
-        # Just verify the color constants exist and are valid
+    def test_strand_color_constants(self):
         assert "+" in STRAND_COLORS
         assert "-" in STRAND_COLORS
         assert None in STRAND_COLORS
-        # All should be valid hex colors
         for color in STRAND_COLORS.values():
             assert color.startswith("#")
             assert len(color) == 7
-
-    def test_sets_axis_limits(self, sample_genes):
-        """Should set correct x-axis limits."""
-        fig, ax = plt.subplots()
-        plot_gene_track(ax, sample_genes, chrom=1, start=1000000, end=2000000)
-        xlim = ax.get_xlim()
-        assert xlim == (1000000, 2000000)
-        plt.close(fig)
-
-    def test_emits_deprecation_warning(self, sample_genes):
-        """plot_gene_track should emit DeprecationWarning."""
-        fig, ax = plt.subplots()
-        with pytest.warns(DeprecationWarning, match="plot_gene_track is deprecated"):
-            plot_gene_track(ax, sample_genes, chrom=1, start=1000000, end=2000000)
-        plt.close(fig)
 
 
 # =============================================================================
@@ -322,10 +249,13 @@ class TestGeneTrackProperties:
 
     @hyp_settings(max_examples=10, deadline=None)
     @given(gene_dataframes(min_genes=1, max_genes=15))
-    def test_plot_gene_track_renders(self, genes_df):
-        """plot_gene_track should render without crashing."""
+    def test_plot_gene_track_generic_renders(self, genes_df):
+        """plot_gene_track_generic should render without crashing."""
         if len(genes_df) == 0:
             return
+
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+        from pylocuszoom.gene_track import plot_gene_track_generic
 
         chrom = genes_df["chr"].iloc[0]
         start = int(genes_df["start"].min())
@@ -333,7 +263,9 @@ class TestGeneTrackProperties:
 
         fig, ax = plt.subplots()
         try:
-            plot_gene_track(ax, genes_df, chrom, start, end)
+            plot_gene_track_generic(
+                ax, MatplotlibBackend(), genes_df, chrom, start, end
+            )
         finally:
             plt.close(fig)
 

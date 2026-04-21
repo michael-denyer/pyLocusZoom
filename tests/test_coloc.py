@@ -56,15 +56,6 @@ class TestValidateColocGwasDf:
         with pytest.raises(ValidationError):
             validate_coloc_gwas_df(df, pos_col="pos", p_col="p")
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "pyLocusZoom-y23: validator does not short-circuit dtype check "
-            "before range check; string p-values surface as TypeError from "
-            "the range comparison instead of a structured ValidationError. "
-            "Flip to pytest.raises(ValidationError) once fixed."
-        ),
-    )
     def test_non_numeric_p_raises(self, valid_df):
         """String p-values must raise ValidationError, not TypeError."""
         df = valid_df.copy()
@@ -125,15 +116,6 @@ class TestValidateColocDfSharedHelper:
         )
         _validate_coloc_df(df, "empty", pos_col="pos", p_col="p")
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "pyLocusZoom-y0l: require_range calls .dropna() before bound "
-            "checks, so NaN p-values silently pass validation. Downstream "
-            "-log10(p) yields NaN which can blank axes. Flip to "
-            "pytest.raises(ValidationError) once fixed."
-        ),
-    )
     def test_nan_in_p_rejected(self, valid_df):
         """NaN p-values must be rejected, not silently dropped."""
         df = valid_df.copy()

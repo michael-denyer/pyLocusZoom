@@ -46,6 +46,7 @@ class DataFrameValidator:
         self._name = name
         self._error_class = error_class
         self._errors: List[str] = []
+        self._non_numeric_cols: set[str] = set()
 
     def require_columns(self, columns: List[str]) -> "DataFrameValidator":
         """Check that required columns exist in DataFrame.
@@ -87,6 +88,7 @@ class DataFrameValidator:
                 self._errors.append(
                     f"Column '{col}' must be numeric, got {actual_dtype}"
                 )
+                self._non_numeric_cols.add(col)
 
         return self
 
@@ -112,6 +114,12 @@ class DataFrameValidator:
         """
         # Skip missing columns
         if column not in self._df.columns:
+            return self
+
+        # Short-circuit if require_numeric already flagged this column as
+        # non-numeric — comparing strings against numeric bounds would raise
+        # TypeError and mask the structured ValidationError.
+        if column in self._non_numeric_cols:
             return self
 
         col_data = self._df[column].dropna()

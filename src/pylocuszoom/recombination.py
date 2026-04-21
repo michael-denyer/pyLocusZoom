@@ -412,7 +412,16 @@ def load_recombination_map(
                 f"values in '{col}' column dropped. Sample values: {sample_vals}"
             )
     if "cM" in df.columns:
+        original = df["cM"]
         df["cM"] = pd.to_numeric(df["cM"], errors="coerce")
+        bad_mask = df["cM"].isna() & original.notna()
+        bad_count = bad_mask.sum()
+        if bad_count > 0:
+            sample_vals = original[bad_mask].head(3).tolist()
+            logger.warning(
+                f"Recombination map chr{chrom_str}: {bad_count} non-numeric "
+                f"values in 'cM' column dropped. Sample values: {sample_vals}"
+            )
 
     return df.dropna(subset=["pos", "rate"])
 

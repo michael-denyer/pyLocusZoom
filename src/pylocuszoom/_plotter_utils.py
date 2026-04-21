@@ -136,3 +136,27 @@ def calculate_gene_track_rows(
         )
         return max(temp_positions) + 1 if temp_positions else 1
     return 1
+
+
+def calculate_gene_track_height(
+    genes_df: pd.DataFrame, chrom: int, start: int, end: int
+) -> float:
+    """Calculate subplot height-ratio units for a gene track panel.
+
+    Extracted from duplicated logic in LocusZoomPlotter.plot() and
+    plot_stacked(). The height grows linearly with the number of stacked
+    gene rows so multi-row regions stay legible.
+
+    Args:
+        genes_df: Gene annotations DataFrame.
+        chrom: Chromosome number.
+        start: Region start position.
+        end: Region end position.
+
+    Returns:
+        Height in the same units as other panel height_ratios.
+    """
+    n_rows = calculate_gene_track_rows(genes_df, chrom, start, end)
+    base_height = 1.0
+    per_row_height = 0.5
+    return base_height + (n_rows - 1) * per_row_height

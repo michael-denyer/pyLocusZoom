@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Deprecated matplotlib-only `plot_gene_track`** (pyLocusZoom-x61): removed `plot_gene_track` and `_draw_strand_arrows_matplotlib` from `gene_track.py`, along with the `plot_gene_track` export from `pylocuszoom.__init__`. Use `plot_gene_track_generic` (backend-agnostic) instead. The function has carried a `DeprecationWarning` since 1.3.0.
+
 ### Changed
 
 - **CLAUDE.md and AGENTS.md are now gitignored**: these files hold agent-local instructions, not project docs. They should never have been committed; the repo now enforces this via `.gitignore` plus a `no-gitignored-files` pre-commit hook. Project-facing setup and release guidance lives in `CONTRIBUTING.md`, `README.md`, and `docs/`.
 - **Empty PLINK LD output now raises `PlinkError`**: `parse_ld_output()` previously returned an empty DataFrame when PLINK exited 0 but produced no LD pairs (lead SNP monomorphic, MAF-filtered, or absent from the `.bim` file), leading to silently uncoloured plots with no diagnostic. It now raises `PlinkError` with an actionable message naming the likely cause and the lead SNP. `LocusZoomPlotter.plot()` and `plot_stacked()` propagate the exception rather than swallowing it.
+- **Gene-track height calculation** (pyLocusZoom-9dm): extracted duplicated `1.0 + (n_rows - 1) * 0.5` logic from `LocusZoomPlotter.plot()` and `plot_stacked()` into a shared `calculate_gene_track_height()` helper in `_plotter_utils.py`.
 
 ### Fixed
+
+- **NaN p-values silently passing validation** (pyLocusZoom-3oy, pyLocusZoom-y0l): `_validate_coloc_df` and `validate_phewas_df` now reject NaN p-values rather than letting them slip through `require_range`'s `.dropna()` and blank downstream axes. Added `require_not_null([p_col])` between `require_numeric` and `require_range` in the three affected validators.
+- **String p-values crashing range check** (pyLocusZoom-y23): `DataFrameValidator` now short-circuits `require_range` when `require_numeric` has already flagged the column, surfacing a structured `ValidationError` instead of a bare `TypeError` from the bound comparison.
+- **Recombination `cM` column silent coercion** (pyLocusZoom-z7a): `load_recombination_map()` now logs a warning (with a sample of offending values) when `pd.to_numeric(errors="coerce")` drops non-numeric `cM` values, matching the existing behaviour for `pos`/`rate`.
 
 - **Label backfill regression**: `add_snp_labels()` now filters near-lead non-lead SNPs *before* selecting the top N, so a strong peak no longer collapses to a single label when multiple top hits cluster around the lead.
 - **Cross-chromosome lead in stacked plots**: `plot_stacked()` lead auto-detection now filters by chromosome via `filter_by_region`, recognizing both `chrom` and `chr` column conventions, preventing the diamond marker from being placed at a position from the wrong chromosome on multi-chromosome GWAS DataFrames.

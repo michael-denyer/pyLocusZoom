@@ -30,6 +30,7 @@ def validate_phewas_df(
         DataFrameValidator(df, "PheWAS DataFrame", error_class=PheWASValidationError)
         .require_columns([phenotype_col, p_col])
         .require_numeric([p_col])
+        .require_not_null([p_col])
         .require_range(p_col, min_val=0, max_val=1, exclusive_min=True)
         .validate()
     )

@@ -37,6 +37,7 @@ def _validate_coloc_df(
         DataFrameValidator(df, df_name)
         .require_columns(required_cols)
         .require_numeric([pos_col, p_col])
+        .require_not_null([p_col])
         .require_range(p_col, min_val=0, max_val=1, exclusive_min=True)
         .validate()
     )

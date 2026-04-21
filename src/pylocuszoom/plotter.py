@@ -17,7 +17,7 @@ import pandas as pd
 
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
-    calculate_gene_track_rows,
+    calculate_gene_track_height,
     transform_pvalues,
 )
 from .backends import BackendType, get_backend
@@ -411,10 +411,7 @@ class LocusZoomPlotter:
 
         gene_track_height = 0.0
         if genes_df is not None:
-            n_gene_rows = calculate_gene_track_rows(genes_df, chrom, start, end)
-            base_gene_height = 1.0
-            per_row_height = 0.5
-            gene_track_height = base_gene_height + (n_gene_rows - 1) * per_row_height
+            gene_track_height = calculate_gene_track_height(genes_df, chrom, start, end)
 
         actual_heatmap_height = 0.0
         if heatmap_data is not None:
@@ -769,8 +766,7 @@ class LocusZoomPlotter:
         heatmap_height_inches = panel_height * ld_heatmap_height if heatmap_data else 0
 
         if genes_df is not None:
-            n_gene_rows = calculate_gene_track_rows(genes_df, chrom, start, end)
-            gene_track_height = 1.0 + (n_gene_rows - 1) * 0.5
+            gene_track_height = calculate_gene_track_height(genes_df, chrom, start, end)
         else:
             gene_track_height = 0
 

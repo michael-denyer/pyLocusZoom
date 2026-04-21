@@ -108,7 +108,7 @@ from .finemapping import (
 from .forest import validate_forest_df
 
 # Gene track
-from .gene_track import get_nearest_gene, plot_gene_track
+from .gene_track import get_nearest_gene
 
 # Labels
 from .labels import add_snp_labels, adjust_snp_labels
@@ -195,7 +195,6 @@ __all__ = [
     "PHEWAS_CATEGORY_COLORS",
     # Gene track
     "get_nearest_gene",
-    "plot_gene_track",
     # LD
     "calculate_ld",
     "calculate_pairwise_ld",

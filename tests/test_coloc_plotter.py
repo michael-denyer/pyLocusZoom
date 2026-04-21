@@ -340,9 +340,13 @@ class TestColocPlotterEdgeCases:
         fig = plotter.plot_coloc(gwas, eqtl)
         assert fig is not None
 
-    def test_nan_p_values_handled(self):
-        """Test NaN p-values are filtered or handled."""
+    def test_nan_p_values_rejected(self):
+        """NaN p-values must raise ValidationError rather than blanking axes.
+
+        See pyLocusZoom-3oy / pyLocusZoom-y0l.
+        """
         from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.exceptions import ValidationError
 
         gwas = pd.DataFrame(
             {
@@ -354,14 +358,13 @@ class TestColocPlotterEdgeCases:
         eqtl = pd.DataFrame(
             {
                 "pos": [1000, 2000, 3000],
-                "p_eqtl": [1e-7, 1e-5, np.nan],
+                "p_eqtl": [1e-7, 1e-5, 1e-3],
                 "rs": ["rs1", "rs2", "rs3"],
             }
         )
         plotter = ColocPlotter()
-        # Should handle NaN gracefully
-        fig = plotter.plot_coloc(gwas, eqtl)
-        assert fig is not None
+        with pytest.raises(ValidationError, match="null"):
+            plotter.plot_coloc(gwas, eqtl)
 
     def test_lead_snp_not_in_data_raises(self, gwas_data_with_ld, eqtl_data):
         """Test invalid lead_snp raises ValueError."""
