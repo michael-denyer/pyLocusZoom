@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-07-20
+
+### Changed
+
+- **Semantic rendering seams across all plotter families** (#22): every plotter (regional, stacked, Manhattan/QQ, Miami, PheWAS/forest, colocalisation, LD heatmap) now composes through explicit seams instead of one method doing data intake, layout, and rendering inline. New internal modules `_data.py` (p-value intake and the shared `P_VALUE_FLOOR`), `_rendering.py`, `_family_renderers.py`, and `_regional.py` own their respective concerns, and backends declare capability flags (e.g. `supports_secondary_axis`) through the base protocol. The compatibility adapter methods left on `LocusZoomPlotter` during the migration (`_plot_association`, `_create_figure_with_heatmap`, `_render_heatmap_panel`, `_highlight_heatmap_snp`, `_add_recombination_overlay`) were removed; callers use `RegionalPlotComposer` directly. The public plotting API and rendered output are unchanged.
+- **CI tooling bumps**: GitHub Actions updated (checkout 6.0.2 → 7.0.1, setup-node 6.4.0 → 7.0.0, setup-uv 8.1.0 → 8.3.2, attest-build-provenance 4.1.0 → 4.1.1, lychee-action 2.8.0 → 2.9.0), and the redundant `include_fragments = false` was dropped from `lychee.toml` for lychee 0.24 compatibility.
+
+### Security
+
+- **Bumped vulnerable transitive dependencies** (#23): tornado 6.5.5 → 6.5.7, urllib3 2.6.3 → 2.7.0, and idna 3.11 → 3.18, resolving seven Dependabot advisories (four high, two medium, one low). All three are transitive (via bokeh and requests); this is a lockfile-only change within the parents' version constraints.
+
 ## [1.5.1] - 2026-07-20
 
 ### Changed
