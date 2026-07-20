@@ -8,18 +8,17 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
+from ._family_renderers import ColocRenderer
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
 from .colors import (
     EFFECT_CONGRUENT_COLOR,
     EFFECT_INCONGRUENT_COLOR,
-    LD_BINS,
     LD_NA_COLOR,
-    LEAD_SNP_COLOR,
     get_ld_color,
 )
+from .config import ColocConfig
 
 
 def _resolve_merged_column(
@@ -92,6 +91,7 @@ class ColocPlotter:
     ):
         """Initialize the colocalization plotter."""
         self._backend = get_backend(backend)
+        self._renderer = ColocRenderer(self._backend)
         self.backend_name = backend
 
     def plot_coloc(
@@ -161,6 +161,37 @@ class ColocPlotter:
             ...     eqtl_effect_col="beta_eqtl",
             ... )
         """
+        config = ColocConfig(
+            pos_col=pos_col,
+            gwas_p_col=gwas_p_col,
+            eqtl_p_col=eqtl_p_col,
+            rs_col=rs_col,
+            ld_col=ld_col,
+            lead_snp=lead_snp,
+            gwas_threshold=gwas_threshold,
+            eqtl_threshold=eqtl_threshold,
+            show_correlation=show_correlation,
+            color_by_effect=color_by_effect,
+            gwas_effect_col=gwas_effect_col,
+            eqtl_effect_col=eqtl_effect_col,
+            h4_posterior=h4_posterior,
+            figsize=figsize,
+        )
+        pos_col = config.pos_col
+        gwas_p_col = config.gwas_p_col
+        eqtl_p_col = config.eqtl_p_col
+        rs_col = config.rs_col
+        ld_col = config.ld_col
+        lead_snp = config.lead_snp
+        gwas_threshold = config.gwas_threshold
+        eqtl_threshold = config.eqtl_threshold
+        show_correlation = config.show_correlation
+        color_by_effect = config.color_by_effect
+        gwas_effect_col = config.gwas_effect_col
+        eqtl_effect_col = config.eqtl_effect_col
+        h4_posterior = config.h4_posterior
+        figsize = config.figsize
+
         # Validate inputs
         validate_coloc_gwas_df(gwas_df, pos_col, gwas_p_col, rs_col)
         validate_coloc_eqtl_df(eqtl_df, pos_col, eqtl_p_col, rs_col)
@@ -255,136 +286,20 @@ class ColocPlotter:
             merged["combined_score"] = merged["neglog10_gwas"] + merged["neglog10_eqtl"]
             lead_idx = merged["combined_score"].idxmax()
 
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        return self._renderer.render(
+            merged,
+            lead_idx=lead_idx,
+            merged_rs_col=merged_rs_col,
+            ld_col_merged=ld_col_merged,
+            gwas_threshold=gwas_threshold,
+            eqtl_threshold=eqtl_threshold,
+            show_correlation=show_correlation,
+            color_by_effect=color_by_effect,
+            h4_posterior=h4_posterior,
+            title=title,
             figsize=figsize,
         )
-        ax = axes[0]
-
-        # Separate lead SNP from other points
-        if lead_idx is not None:
-            lead_row = merged.loc[[lead_idx]]
-            other_rows = merged.drop(lead_idx)
-        else:
-            lead_row = pd.DataFrame()
-            other_rows = merged
-
-        # Plot non-lead points
-        if len(other_rows) > 0:
-            self._backend.scatter(
-                ax,
-                other_rows["neglog10_gwas"],
-                other_rows["neglog10_eqtl"],
-                colors=other_rows["color"].tolist(),
-                sizes=60,
-                marker="o",
-                edgecolor="black",
-                linewidth=0.5,
-                zorder=2,
-            )
-
-        # Plot lead SNP as diamond
-        if len(lead_row) > 0:
-            self._backend.scatter(
-                ax,
-                lead_row["neglog10_gwas"],
-                lead_row["neglog10_eqtl"],
-                colors=LEAD_SNP_COLOR,
-                sizes=100,
-                marker="D",
-                edgecolor="black",
-                linewidth=0.5,
-                zorder=5,
-            )
-
-            # Add lead SNP label
-            if merged_rs_col is not None:
-                label = lead_row[merged_rs_col].values[0]
-                x_pos = lead_row["neglog10_gwas"].values[0]
-                y_pos = lead_row["neglog10_eqtl"].values[0]
-                self._backend.add_text(
-                    ax,
-                    x_pos,
-                    y_pos + 0.5,  # Offset above the point
-                    label,
-                    fontsize=9,
-                    ha="center",
-                    va="bottom",
-                )
-
-        # Add significance threshold lines
-        gwas_sig_line = -np.log10(gwas_threshold)
-        eqtl_sig_line = -np.log10(eqtl_threshold)
-
-        self._backend.axvline(
-            ax, x=gwas_sig_line, color="grey", linestyle="--", linewidth=1, alpha=0.7
-        )
-        self._backend.axhline(
-            ax, y=eqtl_sig_line, color="grey", linestyle="--", linewidth=1, alpha=0.7
-        )
-
-        # Calculate data bounds once for text positioning
-        x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
-        y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
-        x_range = x_max - x_min
-        y_range = y_max - y_min
-
-        # Display correlation in top-left corner
-        if show_correlation and len(merged) >= 3:
-            r, p = stats.pearsonr(merged["neglog10_gwas"], merged["neglog10_eqtl"])
-            p_str = "p < 0.001" if p < 0.001 else f"p = {p:.3f}"
-            corr_text = f"r = {r:.3f}\n{p_str}"
-            self._backend.add_text(
-                ax,
-                x_min + 0.05 * x_range,
-                y_max - 0.05 * y_range,
-                corr_text,
-                fontsize=10,
-                ha="left",
-                va="top",
-            )
-
-        # Display H4 posterior probability in bottom-right corner
-        if h4_posterior is not None:
-            self._backend.add_text(
-                ax,
-                x_max - 0.05 * x_range,
-                y_min + 0.05 * y_range,
-                f"H4 PP = {h4_posterior:.3f}",
-                fontsize=10,
-                ha="right",
-                va="bottom",
-            )
-
-        # Set axis labels
-        self._backend.set_xlabel(ax, r"GWAS $-\log_{10}$ P")
-        self._backend.set_ylabel(ax, r"eQTL $-\log_{10}$ P")
-
-        # Set title
-        if title:
-            self._backend.set_title(ax, title)
-
-        # Hide top and right spines
-        self._backend.hide_spines(ax, ["top", "right"])
-
-        # Add legend
-        if color_by_effect:
-            self._add_effect_legend(ax)
-        elif ld_col_merged is not None:
-            self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
-
-        # Finalize layout
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def _add_effect_legend(self, ax: Any) -> None:
         """Add effect direction legend to plot (all backends)."""
-        effect_bins = [
-            (0.0, "Same direction", EFFECT_CONGRUENT_COLOR),
-            (0.0, "Opposite direction", EFFECT_INCONGRUENT_COLOR),
-            (0.0, "Missing effect", LD_NA_COLOR),
-        ]
-        self._backend.add_effect_legend(ax, effect_bins)
+        self._renderer.add_effect_legend(ax)

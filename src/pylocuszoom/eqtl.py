@@ -6,9 +6,9 @@ quantitative trait loci (eQTL) data for overlay on regional plots.
 
 from typing import List, Optional
 
-import numpy as np
 import pandas as pd
 
+from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
 from .utils import filter_by_region
@@ -137,19 +137,7 @@ def prepare_eqtl_for_plotting(
     if chrom is not None and start is not None and end is not None:
         result = filter_eqtl_by_region(result, chrom, start, end, pos_col=pos_col)
 
-    # Drop NaN/invalid p-values before transform; clamp tiny values to avoid -inf.
-    # Without this, p > 1 yields negative -log10(p) and NaN poisons axis limits.
-    p_values = pd.Series(pd.to_numeric(result[p_col], errors="coerce"))
-    valid = pd.notna(p_values) & (p_values > 0) & (p_values <= 1)
-    n_dropped = int((~valid).sum())
-    if n_dropped:
-        logger.warning(
-            f"Dropped {n_dropped} eQTL row(s) with invalid p-values (NaN, <=0, or >1)"
-        )
-    result = result.loc[valid].copy()
-    result["neglog10p"] = -np.log10(p_values.loc[valid].clip(lower=1e-300))
-
-    return result
+    return prepare_pvalue_data(result, p_col, allow_zero=False)
 
 
 def get_eqtl_genes(df: pd.DataFrame, gene_col: str = "gene") -> List[str]:

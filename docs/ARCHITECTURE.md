@@ -31,6 +31,7 @@ graph TD
     end
 
     subgraph Prepare["Data Preparation"]
+        DATA[_data.py: shared p-value intake]
         LD[ld.py: PLINK wrapper]
         RECOMB[recombination.py: maps + CanFam4 liftover]
         ENSEMBL[ensembl.py: gene fetch]
@@ -39,6 +40,8 @@ graph TD
 
     subgraph Plotters["Plotter Classes"]
         LZ[LocusZoomPlotter]
+        REGIONAL[_regional.py: RegionalPlotComposer]
+        FAMILIES[_family_renderers.py: family renderers]
         MP[ManhattanPlotter]
         SP[StatsPlotter]
         MIAMI[MiamiPlotter]
@@ -62,6 +65,7 @@ graph TD
     LOAD --> SCHEMA
     GWAS --> SCHEMA
     GWAS --> UTILS
+    GWAS --> DATA
     REF --> ENSEMBL
     REF --> LD
     REF --> RECOMB
@@ -69,6 +73,7 @@ graph TD
     EQTLV --> COLORS
     LD --> COLORS
     COLORS --> LZ
+    DATA --> LZ
     COLORS --> MP
     COLORS --> SP
     COLORS --> MIAMI
@@ -76,11 +81,14 @@ graph TD
     COLORS --> CP
     RECOMB --> LZ
     LZ --> PROTO
+    LZ --> REGIONAL
+    REGIONAL --> PROTO
+    SP --> FAMILIES
+    MIAMI --> FAMILIES
+    LDH --> FAMILIES
+    CP --> FAMILIES
+    FAMILIES --> PROTO
     MP --> PROTO
-    SP --> PROTO
-    MIAMI --> PROTO
-    LDH --> PROTO
-    CP --> PROTO
     PROTO --> MPL
     PROTO --> PLOTLY
     PROTO --> BOKEH
@@ -97,12 +105,15 @@ graph TD
     style EQTLV fill:#d84315,stroke:#ff7043,color:#ffffff
     style UTILS fill:#d84315,stroke:#ff7043,color:#ffffff
 
+    style DATA fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style LD fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style RECOMB fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style ENSEMBL fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style COLORS fill:#2e7d32,stroke:#66bb6a,color:#ffffff
 
     style LZ fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style REGIONAL fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style FAMILIES fill:#1565c0,stroke:#42a5f5,color:#ffffff
     style MP fill:#1565c0,stroke:#42a5f5,color:#ffffff
     style SP fill:#1565c0,stroke:#42a5f5,color:#ffffff
     style MIAMI fill:#1565c0,stroke:#42a5f5,color:#ffffff
@@ -127,10 +138,12 @@ stages:
    from `src/pylocuszoom/plotter.py` and calls `plot()` or `plot_stacked()`.
    The plotter resolves the backend via `backends.get_backend(name)`, which
    lazily imports and registers the concrete backend class.
-2. **Validation.** The input DataFrame is normalized through
+2. **Validation and intake.** The input DataFrame is normalized through
    `utils.to_pandas()` (supports PySpark input) and validated against expected
-   columns using `validation.py` and `schemas.py`. Specialized inputs (eQTL,
-   PheWAS, forest, fine-mapping) validate through their respective modules.
+   columns using `validation.py` and `schemas.py`. P-value-bearing plot paths
+   then share `_data.prepare_pvalue_data()` for null/range filtering and finite
+   `-log10` transformation; specialized inputs (eQTL, PheWAS, forest,
+   fine-mapping) retain their domain-specific column and range checks.
 3. **Region filtering and LD.** Rows are filtered to `[start, end]` on the
    requested chromosome. If `ld_reference_file` is supplied, `ld.py` shells
    out to PLINK via a wrapper to compute R² against the lead variant; if
@@ -142,11 +155,16 @@ stages:
    fetched via `ensembl.py`). Recombination rates are loaded via
    `recombination.py`, which handles download of bundled canine maps and
    CanFam3.1 → CanFam4 liftover through pyliftover.
-6. **Backend dispatch.** The plotter walks the prepared data and calls the
-   `PlotBackend` protocol methods (`create_figure`, `scatter`, `line`,
-   `add_rectangle`, `add_recombination_overlay`, `add_ld_legend`, etc.) on
-   the selected backend. Backend implementations translate these calls into
-   matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
+6. **Regional composition and backend dispatch.** `LocusZoomPlotter` routes
+   both single and stacked association panels through `RegionalPlotComposer`,
+   which owns shared axes, labels, significance line, LD legend, SNP-label,
+   and recombination policy. Manhattan and QQ plotters hand prepared data and
+   figure intent to semantic renderers: `ManhattanQQRenderer`,
+   `MiamiRenderer`, `StatsRenderer`, `ColocRenderer`, and
+   `LDHeatmapRenderer`. These renderers own panel composition, labels, axes,
+   legends, and layout, translating intent through the existing `PlotBackend`
+   primitive contract. Backend implementations translate the primitive calls
+   into matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
 7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
    their respective figure objects that serialize to HTML via `save()` or
    their native export methods.
@@ -156,12 +174,16 @@ stages:
 | Abstraction | Kind | Location | Purpose |
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
+| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Shared single/stacked association-panel composition; plotter methods remain compatibility adapters |
+| Family renderers | Internal module | `src/pylocuszoom/_family_renderers.py` | Semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
 | `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
 | `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy (figure creation, scatter/line/fill primitives, legends, recombination overlay, heatmap) |
+| `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns panel policy while retaining the primitive backend seam for compatibility |
+| `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
 | `get_backend(name)` | Function | `src/pylocuszoom/backends/__init__.py` | Lazy-imports and returns a backend instance by name, raising `ImportError` with install instructions when an optional backend is missing |
 | `PyLocusZoomError` hierarchy | Exceptions | `src/pylocuszoom/exceptions.py` | Root type for all library errors; specialized subclasses (`ValidationError`, `BackendError`, `PlinkError`, `DataDownloadError`, plus per-data-type validation errors) |
@@ -190,7 +212,11 @@ pyLocusZoom/
 │   ├── ld_heatmap_plotter.py  # Pairwise LD heatmap plotter
 │   ├── coloc_plotter.py       # Colocalization plotter
 │   ├── coloc.py               # Colocalization statistics
-│   ├── _plotter_utils.py      # Shared internals (transform_pvalues, sig lines)
+│   ├── _data.py               # Shared p-value intake and transformation policy
+│   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
+│   ├── _regional.py           # Shared single/stacked regional composition
+│   ├── _family_renderers.py    # Semantic renderers for remaining plotter families
+│   ├── _rendering.py          # Semantic Manhattan/QQ rendering module
 │   ├── backends/              # Pluggable rendering backends
 │   │   ├── base.py            # PlotBackend protocol definition
 │   │   ├── matplotlib_backend.py

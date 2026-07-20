@@ -9,12 +9,8 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from ._family_renderers import LDHeatmapRenderer
 from .backends import BackendType, get_backend
-from .colors import (
-    LD_HEATMAP_COLORS,
-    LEAD_SNP_HIGHLIGHT_COLOR,
-    SECONDARY_HIGHLIGHT_COLOR,
-)
 
 
 class LDHeatmapPlotter:
@@ -48,6 +44,7 @@ class LDHeatmapPlotter:
         """Initialize the LD heatmap plotter."""
         self.species = species  # Kept for backward compatibility, currently unused
         self._backend = get_backend(backend)
+        self._renderer = LDHeatmapRenderer(self._backend)
         self.backend_name = backend
 
     def plot_ld_heatmap(
@@ -125,85 +122,13 @@ class LDHeatmapPlotter:
                     raise ValueError(f"highlight_snp '{snp}' not found in snp_ids")
                 highlight_indices.append(snp_ids.index(snp))
 
-        # Create figure with single panel
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        return self._renderer.render(
+            data,
+            snp_ids,
+            lead_idx=lead_idx,
+            highlight_indices=highlight_indices,
+            metric=metric,
             figsize=figsize,
-            sharex=False,
-        )
-        ax = axes[0]
-
-        # Render triangular heatmap
-        mappable = self._backend.add_heatmap(
-            ax,
-            data=data,
-            x_coords=list(range(n_snps)),
-            y_coords=list(range(n_snps)),
-            cmap_colors=LD_HEATMAP_COLORS,
-            vmin=0.0,
-            vmax=1.0,
-            mask_upper=True,
-        )
-
-        # Add colorbar
-        if show_colorbar:
-            label = "R²" if metric == "r2" else "D'"
-            self._backend.add_colorbar(ax, mappable, label=label)
-
-        # Highlight lead SNP
-        if lead_idx is not None:
-            self._highlight_snp(
-                ax=ax,
-                fig=fig,
-                snp_idx=lead_idx,
-                n_snps=n_snps,
-                color=LEAD_SNP_HIGHLIGHT_COLOR,
-            )
-
-        # Highlight additional SNPs
-        for idx in highlight_indices:
-            self._highlight_snp(
-                ax=ax,
-                fig=fig,
-                snp_idx=idx,
-                n_snps=n_snps,
-                color=SECONDARY_HIGHLIGHT_COLOR,
-            )
-
-        # Set axis ticks with SNP labels
-        tick_positions = list(range(n_snps))
-        self._backend.set_xticks(ax, tick_positions, snp_ids, rotation=90)
-        self._backend.set_yticks(ax, tick_positions, snp_ids)
-
-        # Set title
-        if title:
-            self._backend.set_title(ax, title)
-
-        # Finalize layout
-        self._backend.finalize_layout(fig)
-
-        return fig
-
-    def _highlight_snp(
-        self,
-        ax: Any,
-        fig: Any,
-        snp_idx: int,
-        n_snps: int,
-        color: str,
-    ) -> None:
-        """Add visual highlight for a SNP's row/column in the heatmap.
-
-        Delegates to the backend protocol's highlight_heatmap_snp method.
-
-        Args:
-            ax: Axes object from backend.
-            fig: Figure object from backend.
-            snp_idx: Index of the SNP to highlight.
-            n_snps: Total number of SNPs in the matrix.
-            color: Highlight color.
-        """
-        self._backend.highlight_heatmap_snp(
-            ax, fig, snp_idx, n_snps, color=color, linewidth=2
+            title=title,
+            show_colorbar=show_colorbar,
         )

@@ -1305,6 +1305,28 @@ class PlotlyBackend:
             yaxis_name=secondary_y,
         )
 
+    def add_region_highlight(
+        self,
+        fig: go.Figure,
+        axes: List[Any],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight an x-range across multiple plotly subplot rows."""
+        for row in range(1, len(axes) + 1):
+            fig.add_vrect(
+                x0=x_start,
+                x1=x_end,
+                fillcolor=color,
+                opacity=alpha,
+                layer="below",
+                line_width=0,
+                row=row,
+                col=1,
+            )
+
     def highlight_heatmap_snp(
         self,
         ax: Tuple[go.Figure, int],

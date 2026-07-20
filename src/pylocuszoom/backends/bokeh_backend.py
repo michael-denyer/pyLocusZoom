@@ -1048,6 +1048,28 @@ class BokehBackend:
             yaxis_name=yaxis_name,
         )
 
+    def add_region_highlight(
+        self,
+        fig: Any,
+        axes: List[figure],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight an x-range across multiple Bokeh panels."""
+        from bokeh.models import BoxAnnotation
+
+        for ax in axes:
+            ax.add_layout(
+                BoxAnnotation(
+                    left=x_start,
+                    right=x_end,
+                    fill_color=color,
+                    fill_alpha=alpha,
+                )
+            )
+
     def highlight_heatmap_snp(
         self,
         ax: figure,

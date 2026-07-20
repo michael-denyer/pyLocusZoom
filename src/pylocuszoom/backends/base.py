@@ -933,6 +933,18 @@ class PlotBackend(Protocol):
     # Heatmap SNP Highlighting
     # =========================================================================
 
+    def add_region_highlight(
+        self,
+        fig: Any,
+        axes: List[Any],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight one x-range across a set of panels."""
+        ...
+
     def highlight_heatmap_snp(
         self,
         ax: Any,

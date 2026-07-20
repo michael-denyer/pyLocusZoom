@@ -11,32 +11,11 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._plotter_utils import (
-    DEFAULT_GENOMEWIDE_THRESHOLD,
-    MANHATTAN_CATEGORICAL_POINT_SIZE,
-    MANHATTAN_EDGE_WIDTH,
-    MANHATTAN_POINT_SIZE,
-    POINT_EDGE_COLOR,
-    QQ_CI_ALPHA,
-    QQ_CI_COLOR,
-    QQ_EDGE_WIDTH,
-    QQ_POINT_COLOR,
-    QQ_POINT_SIZE,
-    SIGNIFICANCE_LINE_COLOR,
-    add_significance_line,
-)
+from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
+from ._rendering import ManhattanQQRenderer
 from .backends import BackendType, get_backend
 from .manhattan import prepare_categorical_data, prepare_manhattan_data
 from .qq import prepare_qq_data
-
-
-def _padded_ymax(y_max: float) -> float:
-    """10% headroom above the tallest point, floored at 1.0.
-
-    Guards against degenerate ``ylim(0, 0)`` when every p-value rounds to 1 or
-    every row was filtered out (``y_max`` is NaN).
-    """
-    return max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
 
 
 class ManhattanPlotter:
@@ -71,6 +50,7 @@ class ManhattanPlotter:
         """Initialize the Manhattan plotter."""
         self.species = species
         self._backend = get_backend(backend)
+        self._renderer = ManhattanQQRenderer(self._backend)
         self.genomewide_threshold = genomewide_threshold
 
     def plot_manhattan(
@@ -142,128 +122,12 @@ class ManhattanPlotter:
             custom_order=custom_chrom_order,
         )
 
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        return self._renderer.render_manhattan(
+            prepared_df,
             figsize=figsize,
+            significance_threshold=significance_threshold,
+            title=title,
         )
-        ax = axes[0]
-
-        # Plot points and significance line
-        chrom_order = prepared_df.attrs["chrom_order"]
-        self._render_manhattan_points(ax, prepared_df, chrom_order)
-        add_significance_line(self._backend, ax, significance_threshold)
-
-        # Set x-axis ticks to chromosome centers
-        chrom_centers = prepared_df.attrs["chrom_centers"]
-        positions = [
-            chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-        ]
-        labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-        self._backend.set_xticks(ax, positions, labels, fontsize=8)
-
-        # Set limits
-        x_min = prepared_df["_cumulative_pos"].min()
-        x_max = prepared_df["_cumulative_pos"].max()
-        x_padding = (x_max - x_min) * 0.01
-        self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
-
-        y_max = prepared_df["_neg_log_p"].max()
-        self._backend.set_ylim(ax, 0, _padded_ymax(y_max))
-
-        # Labels and title
-        self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
-        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(ax, title or "Manhattan Plot", fontsize=14)
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
-
-    def _render_manhattan_points(
-        self,
-        ax: Any,
-        prepared_df: pd.DataFrame,
-        chrom_order: List[str],
-        point_size: int = MANHATTAN_POINT_SIZE,
-    ) -> None:
-        """Render Manhattan plot scatter points grouped by chromosome.
-
-        Args:
-            ax: Axes object from backend.
-            prepared_df: DataFrame with _chrom_str, _cumulative_pos, _neg_log_p, _color.
-            chrom_order: List of chromosome names in display order.
-            point_size: Size of scatter points.
-        """
-        for chrom in chrom_order:
-            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
-            if len(chrom_data) > 0:
-                self._backend.scatter(
-                    ax,
-                    chrom_data["_cumulative_pos"],
-                    chrom_data["_neg_log_p"],
-                    colors=chrom_data["_color"].iloc[0],
-                    sizes=point_size,
-                    marker="o",
-                    edgecolor=POINT_EDGE_COLOR,
-                    linewidth=MANHATTAN_EDGE_WIDTH,
-                    zorder=2,
-                )
-
-    def _render_qq_plot(
-        self,
-        ax: Any,
-        qq_df: pd.DataFrame,
-        show_confidence_band: bool = True,
-    ) -> None:
-        """Render QQ plot elements on axes.
-
-        Args:
-            ax: Axes object from backend.
-            qq_df: Prepared QQ DataFrame with _expected, _observed, _ci_lower, _ci_upper.
-            show_confidence_band: Whether to show 95% confidence band.
-        """
-        if show_confidence_band:
-            self._backend.fill_between(
-                ax,
-                x=qq_df["_expected"],
-                y1=qq_df["_ci_lower"],
-                y2=qq_df["_ci_upper"],
-                color=QQ_CI_COLOR,
-                alpha=QQ_CI_ALPHA,
-                zorder=1,
-            )
-
-        max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
-
-        # Diagonal reference line
-        self._backend.line(
-            ax,
-            x=pd.Series([0, max_val]),
-            y=pd.Series([0, max_val]),
-            color=SIGNIFICANCE_LINE_COLOR,
-            linestyle="--",
-            linewidth=1,
-            zorder=2,
-        )
-
-        # QQ points
-        self._backend.scatter(
-            ax,
-            qq_df["_expected"],
-            qq_df["_observed"],
-            colors=QQ_POINT_COLOR,
-            sizes=QQ_POINT_SIZE,
-            marker="o",
-            edgecolor=POINT_EDGE_COLOR,
-            linewidth=QQ_EDGE_WIDTH,
-            zorder=3,
-        )
-
-        # Set limits
-        self._backend.set_xlim(ax, 0, max_val * 1.05)
-        self._backend.set_ylim(ax, 0, max_val * 1.05)
 
     def _plot_manhattan_categorical(
         self,
@@ -286,55 +150,12 @@ class ManhattanPlotter:
             p_col=p_col,
             category_order=category_order,
         )
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        return self._renderer.render_categorical(
+            prepared_df,
             figsize=figsize,
+            significance_threshold=significance_threshold,
+            title=title,
         )
-        ax = axes[0]
-
-        # Plot points by category
-        cat_order = prepared_df.attrs["category_order"]
-        for cat in cat_order:
-            cat_data = prepared_df[prepared_df["_cat_str"] == cat]
-            if len(cat_data) > 0:
-                self._backend.scatter(
-                    ax,
-                    cat_data["_x_pos"],
-                    cat_data["_neg_log_p"],
-                    colors=cat_data["_color"].iloc[0],
-                    sizes=MANHATTAN_CATEGORICAL_POINT_SIZE,
-                    marker="o",
-                    edgecolor=POINT_EDGE_COLOR,
-                    linewidth=MANHATTAN_EDGE_WIDTH,
-                    zorder=2,
-                )
-
-        add_significance_line(self._backend, ax, significance_threshold)
-
-        # Set x-axis ticks
-        cat_centers = prepared_df.attrs["category_centers"]
-        positions = [cat_centers[cat] for cat in cat_order]
-        self._backend.set_xticks(
-            ax, positions, cat_order, fontsize=10, rotation=45, ha="right"
-        )
-
-        # Set limits
-        self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
-
-        y_max = prepared_df["_neg_log_p"].max()
-        self._backend.set_ylim(ax, 0, _padded_ymax(y_max))
-
-        # Labels and title
-        self._backend.set_xlabel(ax, "Category", fontsize=12)
-        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(ax, title or "Categorical Manhattan Plot", fontsize=14)
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_qq(
         self,
@@ -366,36 +187,13 @@ class ManhattanPlotter:
         """
         # Prepare data
         prepared_df = prepare_qq_data(df, p_col=p_col)
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=1,
-            height_ratios=[1.0],
+        return self._renderer.render_qq(
+            prepared_df,
             figsize=figsize,
+            show_confidence_band=show_confidence_band,
+            show_lambda=show_lambda,
+            title=title,
         )
-        ax = axes[0]
-
-        # Render QQ plot elements
-        self._render_qq_plot(ax, prepared_df, show_confidence_band)
-
-        # Labels
-        self._backend.set_xlabel(ax, r"Expected $-\log_{10}(p)$", fontsize=12)
-        self._backend.set_ylabel(ax, r"Observed $-\log_{10}(p)$", fontsize=12)
-
-        # Title with lambda
-        if title:
-            plot_title = title
-        elif show_lambda:
-            lambda_gc = prepared_df.attrs["lambda_gc"]
-            plot_title = f"QQ Plot (λ = {lambda_gc:.3f})"
-        else:
-            plot_title = "QQ Plot"
-        self._backend.set_title(ax, plot_title, fontsize=14)
-
-        self._backend.hide_spines(ax, ["top", "right"])
-        self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_manhattan_stacked(
         self,
@@ -457,67 +255,13 @@ class ManhattanPlotter:
                 custom_order=custom_chrom_order,
             )
             prepared_dfs.append(prepared_df)
-
-        # Use first df for chromosome order and centers
-        chrom_order = prepared_dfs[0].attrs["chrom_order"]
-        chrom_centers = prepared_dfs[0].attrs["chrom_centers"]
-
-        # Calculate figure layout
-        panel_height = figsize[1] / n_gwas
-        height_ratios = [panel_height] * n_gwas
-
-        # Create figure
-        fig, axes = self._backend.create_figure(
-            n_panels=n_gwas,
-            height_ratios=height_ratios,
+        return self._renderer.render_manhattan_stacked(
+            prepared_dfs,
             figsize=figsize,
-            sharex=True,
+            significance_threshold=significance_threshold,
+            panel_labels=panel_labels,
+            title=title,
         )
-
-        # Get consistent x limits across all panels
-        x_min = min(df["_cumulative_pos"].min() for df in prepared_dfs)
-        x_max = max(df["_cumulative_pos"].max() for df in prepared_dfs)
-        x_padding = (x_max - x_min) * 0.01
-
-        # Plot each panel
-        for i, prepared_df in enumerate(prepared_dfs):
-            ax = axes[i]
-
-            # Plot points and significance line
-            self._render_manhattan_points(ax, prepared_df, chrom_order)
-            add_significance_line(self._backend, ax, significance_threshold)
-
-            # Set limits
-            self._backend.set_xlim(ax, x_min - x_padding, x_max + x_padding)
-            y_max = prepared_df["_neg_log_p"].max()
-            self._backend.set_ylim(ax, 0, _padded_ymax(y_max))
-
-            # Labels
-            self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=10)
-            self._backend.hide_spines(ax, ["top", "right"])
-
-            # Panel label
-            if panel_labels and i < len(panel_labels):
-                self._backend.add_panel_label(ax, panel_labels[i])
-
-            # Set x-axis ticks for all panels (needed for interactive backends)
-            positions = [
-                chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-            ]
-            labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-            self._backend.set_xticks(ax, positions, labels, fontsize=8)
-
-            # Only show x-axis label on bottom panel
-            if i == n_gwas - 1:
-                self._backend.set_xlabel(ax, "Chromosome", fontsize=12)
-
-        # Overall title
-        if title:
-            self._backend.set_title(axes[0], title, fontsize=14)
-
-        self._backend.finalize_layout(fig, hspace=0.1)
-
-        return fig
 
     def plot_manhattan_qq(
         self,
@@ -568,65 +312,15 @@ class ManhattanPlotter:
 
         # Prepare QQ data
         qq_df = prepare_qq_data(df, p_col=p_col)
-
-        # Create figure with side-by-side layout (Manhattan wider than QQ)
-        fig, axes = self._backend.create_figure_grid(
-            n_rows=1,
-            n_cols=2,
-            width_ratios=[2.5, 1],
+        return self._renderer.render_manhattan_qq(
+            manhattan_df,
+            qq_df,
             figsize=figsize,
+            significance_threshold=significance_threshold,
+            show_confidence_band=show_confidence_band,
+            show_lambda=show_lambda,
+            title=title,
         )
-        manhattan_ax = axes[0]
-        qq_ax = axes[1]
-
-        # --- Manhattan plot ---
-        chrom_order = manhattan_df.attrs["chrom_order"]
-        chrom_centers = manhattan_df.attrs["chrom_centers"]
-
-        self._render_manhattan_points(manhattan_ax, manhattan_df, chrom_order)
-        add_significance_line(self._backend, manhattan_ax, significance_threshold)
-
-        x_min = manhattan_df["_cumulative_pos"].min()
-        x_max = manhattan_df["_cumulative_pos"].max()
-        x_padding = (x_max - x_min) * 0.01
-        self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
-
-        y_max = manhattan_df["_neg_log_p"].max()
-        self._backend.set_ylim(manhattan_ax, 0, _padded_ymax(y_max))
-
-        positions = [
-            chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-        ]
-        labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-        self._backend.set_xticks(manhattan_ax, positions, labels, fontsize=8)
-
-        self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=12)
-        self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(manhattan_ax, "Manhattan Plot", fontsize=12)
-        self._backend.hide_spines(manhattan_ax, ["top", "right"])
-
-        # --- QQ plot ---
-        self._render_qq_plot(qq_ax, qq_df, show_confidence_band)
-
-        self._backend.set_xlabel(qq_ax, r"Expected $-\log_{10}(p)$", fontsize=12)
-        self._backend.set_ylabel(qq_ax, r"Observed $-\log_{10}(p)$", fontsize=12)
-
-        if show_lambda:
-            lambda_gc = qq_df.attrs["lambda_gc"]
-            qq_title = f"QQ Plot (λ = {lambda_gc:.3f})"
-        else:
-            qq_title = "QQ Plot"
-        self._backend.set_title(qq_ax, qq_title, fontsize=12)
-        self._backend.hide_spines(qq_ax, ["top", "right"])
-
-        # Overall title
-        if title:
-            self._backend.set_suptitle(fig, title, fontsize=14)
-            self._backend.finalize_layout(fig, top=0.90)
-        else:
-            self._backend.finalize_layout(fig)
-
-        return fig
 
     def plot_manhattan_qq_stacked(
         self,
@@ -688,82 +382,13 @@ class ManhattanPlotter:
                 )
             )
             qq_dfs.append(prepare_qq_data(df, p_col=p_col))
-
-        # Use chromosome order from first dataset
-        chrom_order = manhattan_dfs[0].attrs["chrom_order"]
-        chrom_centers = manhattan_dfs[0].attrs["chrom_centers"]
-
-        # Create grid: n_gwas rows, 2 columns (Manhattan | QQ)
-        fig, axes = self._backend.create_figure_grid(
-            n_rows=n_gwas,
-            n_cols=2,
-            width_ratios=[2.5, 1],
+        return self._renderer.render_manhattan_qq_stacked(
+            manhattan_dfs,
+            qq_dfs,
             figsize=figsize,
+            significance_threshold=significance_threshold,
+            show_confidence_band=show_confidence_band,
+            show_lambda=show_lambda,
+            panel_labels=panel_labels,
+            title=title,
         )
-
-        # Get consistent x limits for Manhattan plots
-        x_min = min(df["_cumulative_pos"].min() for df in manhattan_dfs)
-        x_max = max(df["_cumulative_pos"].max() for df in manhattan_dfs)
-        x_padding = (x_max - x_min) * 0.01
-
-        # Plot each row
-        for i in range(n_gwas):
-            manhattan_ax = axes[i * 2]  # Even indices: Manhattan
-            qq_ax = axes[i * 2 + 1]  # Odd indices: QQ
-            manhattan_df = manhattan_dfs[i]
-            qq_df = qq_dfs[i]
-
-            # --- Manhattan plot ---
-            self._render_manhattan_points(manhattan_ax, manhattan_df, chrom_order)
-            add_significance_line(self._backend, manhattan_ax, significance_threshold)
-
-            self._backend.set_xlim(manhattan_ax, x_min - x_padding, x_max + x_padding)
-            y_max = manhattan_df["_neg_log_p"].max()
-            self._backend.set_ylim(manhattan_ax, 0, _padded_ymax(y_max))
-
-            # Panel label
-            if panel_labels and i < len(panel_labels):
-                self._backend.add_panel_label(manhattan_ax, panel_labels[i])
-
-            # Y-axis label
-            self._backend.set_ylabel(manhattan_ax, r"$-\log_{10}(p)$", fontsize=10)
-            self._backend.hide_spines(manhattan_ax, ["top", "right"])
-
-            # X-axis: set chromosome ticks for all panels
-            positions = [
-                chrom_centers[chrom] for chrom in chrom_order if chrom in chrom_centers
-            ]
-            chrom_labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-            self._backend.set_xticks(manhattan_ax, positions, chrom_labels, fontsize=8)
-
-            # Only show "Chromosome" label on bottom row
-            if i == n_gwas - 1:
-                self._backend.set_xlabel(manhattan_ax, "Chromosome", fontsize=10)
-
-            # --- QQ plot ---
-            self._render_qq_plot(qq_ax, qq_df, show_confidence_band)
-
-            # Labels for QQ
-            if i == n_gwas - 1:
-                self._backend.set_xlabel(
-                    qq_ax, r"Expected $-\log_{10}(p)$", fontsize=10
-                )
-            self._backend.set_ylabel(qq_ax, r"Observed $-\log_{10}(p)$", fontsize=10)
-
-            # QQ title with lambda
-            if show_lambda:
-                lambda_gc = qq_df.attrs["lambda_gc"]
-                qq_title = f"λ = {lambda_gc:.3f}"
-            else:
-                qq_title = "QQ"
-            self._backend.set_title(qq_ax, qq_title, fontsize=10)
-            self._backend.hide_spines(qq_ax, ["top", "right"])
-
-        # Overall title
-        if title:
-            self._backend.set_suptitle(fig, title, fontsize=14)
-            self._backend.finalize_layout(fig, top=0.90, hspace=0.15)
-        else:
-            self._backend.finalize_layout(fig, hspace=0.15)
-
-        return fig

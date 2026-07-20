@@ -1,0 +1,459 @@
+"""Shared regional association composition.
+
+This module owns the policy shared by single and stacked regional plots.  The
+plotter keeps the public compatibility methods, while this composer owns the
+association panel's axes, labels, optional recombination, and LD legend rules.
+"""
+
+from typing import Any, Callable, List, Optional, Sequence, Tuple
+
+import numpy as np
+import pandas as pd
+
+from ._plotter_utils import calculate_gene_track_height
+from .backends.base import PlotBackend
+from .backends.hover import HoverConfig, HoverDataBuilder
+from .colors import (
+    EQTL_NEGATIVE_BINS,
+    EQTL_POSITIVE_BINS,
+    LD_BINS,
+    LD_HEATMAP_COLORS,
+    LEAD_SNP_COLOR,
+    LEAD_SNP_HIGHLIGHT_COLOR,
+    get_credible_set_color,
+    get_eqtl_color,
+    get_ld_bin,
+    get_ld_color_palette,
+)
+from .logging import logger
+
+AssociationScatter = Callable[
+    [
+        Any,
+        pd.DataFrame,
+        str,
+        Optional[str],
+        Optional[int],
+        Optional[str],
+        Optional[str],
+    ],
+    None,
+]
+
+
+class RegionalPlotComposer:
+    """Compose shared association-panel policy for regional plot modes."""
+
+    def __init__(
+        self,
+        backend: PlotBackend,
+        backend_name: str,
+        genomewide_line: float,
+    ):
+        self._backend = backend
+        self._backend_name = backend_name
+        self._genomewide_line = genomewide_line
+
+    def render_association_panel(
+        self,
+        ax: Any,
+        df: pd.DataFrame,
+        *,
+        draw_scatter: AssociationScatter,
+        pos_col: str,
+        ld_col: Optional[str],
+        lead_pos: Optional[int],
+        rs_col: Optional[str],
+        p_col: Optional[str],
+        chrom: int | str,
+        start: int,
+        end: int,
+        snp_labels: bool,
+        label_top_n: int,
+        genes_df: Optional[pd.DataFrame],
+        recomb_df: Optional[pd.DataFrame],
+        panel_label: Optional[str] = None,
+        add_ld_legend: bool = False,
+    ) -> None:
+        """Render one association panel with shared regional policy."""
+        draw_scatter(ax, df, pos_col, ld_col, lead_pos, rs_col, p_col)
+        self._backend.axhline(
+            ax,
+            y=self._genomewide_line,
+            color="red",
+            linestyle="--",
+            linewidth=1,
+            alpha=0.65,
+            zorder=1,
+        )
+        self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
+        y_max = df["neglog10p"].max()
+        if pd.notna(y_max) and y_max > 0:
+            self._backend.set_ylim(ax, 0, y_max * 1.15)
+        self._backend.set_xlim(ax, start, end)
+
+        if (
+            snp_labels
+            and rs_col is not None
+            and rs_col in df.columns
+            and label_top_n > 0
+            and not df.empty
+            and self._backend.supports_snp_labels
+        ):
+            self._backend.add_snp_labels(
+                ax,
+                df,
+                pos_col=pos_col,
+                neglog10p_col="neglog10p",
+                rs_col=rs_col,
+                label_top_n=label_top_n,
+                genes_df=genes_df,
+                chrom=chrom,
+                adjust=True,
+                lead_pos=lead_pos,
+                region_span=end - start,
+            )
+
+        if recomb_df is not None and not recomb_df.empty:
+            if self._backend.supports_secondary_axis:
+                self.add_recombination_overlay(ax, recomb_df, start, end)
+
+        has_recomb = recomb_df is not None and not recomb_df.empty
+        if has_recomb and self._backend.supports_secondary_axis:
+            self._backend.hide_spines(ax, ["top"])
+        else:
+            self._backend.hide_spines(ax, ["top", "right"])
+
+        if panel_label:
+            self._backend.add_panel_label(ax, panel_label)
+        if add_ld_legend and ld_col is not None and ld_col in df.columns:
+            self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
+
+    def render_association_scatter(
+        self,
+        ax: Any,
+        df: pd.DataFrame,
+        pos_col: str,
+        ld_col: Optional[str],
+        lead_pos: Optional[int],
+        rs_col: Optional[str] = None,
+        p_col: Optional[str] = None,
+    ) -> None:
+        """Render association points, including LD and lead-SNP styling."""
+        hover_config = HoverConfig(
+            snp_col=rs_col if rs_col and rs_col in df.columns else None,
+            pos_col=pos_col if pos_col in df.columns else None,
+            p_col=p_col if p_col and p_col in df.columns else None,
+            ld_col=ld_col if ld_col and ld_col in df.columns else None,
+        )
+        hover_builder = HoverDataBuilder(hover_config)
+
+        if ld_col is not None and ld_col in df.columns:
+            df = df.copy()
+            df["ld_bin"] = df[ld_col].apply(get_ld_bin)
+            df = df.sort_values(ld_col, ascending=True, na_position="first")
+            palette = get_ld_color_palette()
+            for bin_label in df["ld_bin"].unique():
+                bin_data = df[df["ld_bin"] == bin_label]
+                self._backend.scatter(
+                    ax,
+                    bin_data[pos_col],
+                    bin_data["neglog10p"],
+                    colors=palette.get(bin_label, "#BEBEBE"),
+                    sizes=60,
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=2,
+                    hover_data=hover_builder.build_dataframe(bin_data),
+                )
+        else:
+            self._backend.scatter(
+                ax,
+                df[pos_col],
+                df["neglog10p"],
+                colors="#BEBEBE",
+                sizes=60,
+                edgecolor="black",
+                linewidth=0.5,
+                zorder=2,
+                hover_data=hover_builder.build_dataframe(df),
+            )
+
+        if lead_pos is not None:
+            lead_snp = df[df[pos_col] == lead_pos]
+            if not lead_snp.empty:
+                self._backend.scatter(
+                    ax,
+                    lead_snp[pos_col],
+                    lead_snp["neglog10p"],
+                    colors=LEAD_SNP_COLOR,
+                    sizes=120,
+                    marker="D",
+                    edgecolor="black",
+                    linewidth=1.5,
+                    zorder=10,
+                    hover_data=hover_builder.build_dataframe(lead_snp),
+                )
+
+    def add_recombination_overlay(
+        self,
+        ax: Any,
+        recomb_df: pd.DataFrame,
+        start: int,
+        end: int,
+    ) -> None:
+        """Add recombination through the backend capability seam."""
+        if not hasattr(self._backend, "add_recombination_overlay"):
+            logger.warning(
+                "Backend '{}' does not implement add_recombination_overlay, "
+                "skipping recombination overlay",
+                self._backend_name,
+            )
+            return
+        self._backend.add_recombination_overlay(ax, recomb_df, start, end)
+
+    def create_figure_with_heatmap(
+        self,
+        *,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+        start: int,
+        end: int,
+        figsize: Tuple[float, float],
+        heatmap_data: Optional[Tuple[pd.DataFrame, List[int], List[str]]],
+        heatmap_height: float = 0.25,
+    ) -> Tuple[Any, Any, Optional[Any], Optional[Any]]:
+        """Create the shared regional association/gene/heatmap panel layout."""
+        assoc_height = figsize[1] * 0.6
+        gene_height = (
+            calculate_gene_track_height(genes_df, chrom, start, end)
+            if genes_df is not None
+            else 0.0
+        )
+        heatmap_panel_height = (
+            assoc_height * heatmap_height if heatmap_data is not None else 0.0
+        )
+        height_ratios = [assoc_height]
+        if genes_df is not None:
+            height_ratios.append(gene_height)
+        if heatmap_data is not None:
+            height_ratios.append(heatmap_panel_height)
+        fig, axes = self._backend.create_figure(
+            n_panels=len(height_ratios),
+            height_ratios=height_ratios,
+            figsize=(figsize[0], sum(height_ratios)),
+            sharex=True,
+        )
+        panel_idx = 1
+        gene_ax = axes[panel_idx] if genes_df is not None else None
+        if genes_df is not None:
+            panel_idx += 1
+        heatmap_ax = axes[panel_idx] if heatmap_data is not None else None
+        return fig, axes[0], gene_ax, heatmap_ax
+
+    def create_stacked_figure(
+        self,
+        *,
+        n_panels: int,
+        height_ratios: List[float],
+        figsize: Tuple[float, float],
+    ) -> Tuple[Any, List[Any]]:
+        """Create a stacked regional figure from its panel plan."""
+        return self._backend.create_figure(
+            n_panels=n_panels,
+            height_ratios=height_ratios,
+            figsize=figsize,
+            sharex=True,
+        )
+
+    def render_heatmap_panel(
+        self,
+        *,
+        ax: Any,
+        fig: Any,
+        ld_matrix: pd.DataFrame,
+        x_positions: List[int],
+        snp_ids: List[str],
+        metric: str,
+        lead_snp_id: Optional[str],
+        start: int,
+        end: int,
+    ) -> None:
+        """Render an LD heatmap panel in genomic coordinates."""
+        n_snps = len(snp_ids)
+        if n_snps < 2:
+            logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")
+            return
+        mappable = self._backend.add_heatmap(
+            ax,
+            data=ld_matrix.values,
+            x_coords=x_positions,
+            y_coords=list(range(n_snps)),
+            cmap_colors=LD_HEATMAP_COLORS,
+            vmin=0.0,
+            vmax=1.0,
+            mask_upper=True,
+        )
+        self._backend.add_colorbar(ax, mappable, label="R²" if metric == "r2" else "D'")
+        if lead_snp_id is not None and lead_snp_id in snp_ids:
+            self._backend.highlight_heatmap_snp(
+                ax,
+                fig,
+                snp_ids.index(lead_snp_id),
+                n_snps,
+                color=LEAD_SNP_HIGHLIGHT_COLOR,
+                linewidth=2,
+            )
+        self._backend.set_xlim(ax, start, end)
+        self._backend.set_yticks(ax, [], [])
+        self._backend.hide_spines(ax, ["top", "right", "left"])
+
+    def highlight_heatmap_snp(
+        self, ax: Any, fig: Any, snp_idx: int, n_snps: int
+    ) -> None:
+        """Compatibility adapter for heatmap SNP highlighting."""
+        self._backend.highlight_heatmap_snp(
+            ax,
+            fig,
+            snp_idx,
+            n_snps,
+            color=LEAD_SNP_HIGHLIGHT_COLOR,
+            linewidth=2,
+        )
+
+    def render_gene_panel(
+        self,
+        ax: Any,
+        genes_df: pd.DataFrame,
+        *,
+        chrom: int | str,
+        start: int,
+        end: int,
+        exons_df: Optional[pd.DataFrame],
+        draw_gene_track: Callable[..., None],
+        set_xlabel: bool,
+    ) -> None:
+        """Render a gene panel and apply its shared axis policy."""
+        draw_gene_track(ax, self._backend, genes_df, chrom, start, end, exons_df)
+        self._backend.hide_spines(ax, ["top", "right", "left"])
+        self._backend.format_xaxis_mb(ax)
+        if set_xlabel:
+            self._backend.set_xlabel(ax, f"Chromosome {chrom} (Mb)")
+
+    def render_finemapping_panel(
+        self,
+        ax: Any,
+        fm_data: pd.DataFrame,
+        *,
+        cs_col: Optional[str],
+        draw_finemapping: Callable[..., None],
+    ) -> None:
+        """Render a fine-mapping panel and shared panel policy."""
+        if not fm_data.empty:
+            draw_finemapping(
+                self._backend,
+                ax,
+                fm_data,
+                pos_col="pos",
+                pip_col="pip",
+                cs_col=cs_col,
+                show_credible_sets=True,
+                pip_threshold=0.01,
+            )
+            credible_sets = []
+            if cs_col and cs_col in fm_data.columns:
+                credible_sets = sorted(
+                    value for value in fm_data[cs_col].dropna().unique() if value != 0
+                )
+            if credible_sets:
+                self._backend.add_finemapping_legend(
+                    ax, credible_sets, get_credible_set_color
+                )
+        self._backend.set_ylabel(ax, "PIP")
+        self._backend.set_ylim(ax, -0.05, 1.05)
+        self._backend.hide_spines(ax, ["top", "right"])
+
+    def render_eqtl_panel(
+        self,
+        ax: Any,
+        eqtl_data: pd.DataFrame,
+        *,
+        eqtl_gene_filtered: bool,
+        eqtl_gene: Optional[str],
+        eqtl_threshold: float,
+    ) -> None:
+        """Render prepared eQTL points and their semantic legend policy."""
+        if not eqtl_data.empty:
+            extra_cols = {}
+            if "effect_size" in eqtl_data.columns:
+                extra_cols["effect_size"] = "Effect"
+            if "gene" in eqtl_data.columns:
+                extra_cols["gene"] = "Gene"
+            hover_builder = HoverDataBuilder(
+                HoverConfig(
+                    pos_col="pos" if "pos" in eqtl_data.columns else None,
+                    p_col="p_value" if "p_value" in eqtl_data.columns else None,
+                    extra_cols=extra_cols,
+                )
+            )
+            if "effect_size" in eqtl_data.columns:
+                pos_effects = eqtl_data[eqtl_data["effect_size"] >= 0]
+                neg_effects = eqtl_data[eqtl_data["effect_size"] < 0]
+                for subset, marker in ((pos_effects, "^"), (neg_effects, "v")):
+                    if not subset.empty:
+                        self._backend.scatter(
+                            ax,
+                            subset["pos"],
+                            subset["neglog10p"],
+                            colors=subset["effect_size"].apply(get_eqtl_color).tolist(),
+                            sizes=50,
+                            marker=marker,
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                            hover_data=hover_builder.build_dataframe(subset),
+                        )
+                self._backend.add_eqtl_legend(
+                    ax, EQTL_POSITIVE_BINS, EQTL_NEGATIVE_BINS
+                )
+            else:
+                label = f"eQTL ({eqtl_gene})" if eqtl_gene_filtered else "eQTL"
+                self._backend.scatter(
+                    ax,
+                    eqtl_data["pos"],
+                    eqtl_data["neglog10p"],
+                    colors="#FF6B6B",
+                    sizes=60,
+                    marker="D",
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=2,
+                    label=label,
+                    hover_data=hover_builder.build_dataframe(eqtl_data),
+                )
+                self._backend.add_simple_legend(ax, label, loc="upper right")
+        self._backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
+        self._backend.axhline(
+            ax,
+            y=-np.log10(eqtl_threshold),
+            color="red",
+            linestyle="--",
+            linewidth=1,
+            alpha=0.65,
+        )
+        self._backend.hide_spines(ax, ["top", "right"])
+
+    def finalize_figure(
+        self,
+        fig: Any,
+        axes: Sequence[Any],
+        *,
+        label_axis: Any,
+        chrom: int | str,
+        hspace: float = 0.1,
+    ) -> None:
+        """Apply shared x-axis formatting and layout."""
+        self._backend.set_xlabel(label_axis, f"Chromosome {chrom} (Mb)")
+        for ax in axes:
+            self._backend.format_xaxis_mb(ax)
+        self._backend.finalize_layout(fig, hspace=hspace)

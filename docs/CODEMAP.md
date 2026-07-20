@@ -31,6 +31,7 @@ flowchart TB
         QQP["qq prep<br/><small>3f</small>"]
         FM["finemapping<br/><small>3g</small>"]
         ENS["ensembl REST<br/><small>3h</small>"]
+        REND["Semantic family renderers<br/><small>3i</small>"]
     end
 
     subgraph Layer4["🎨 Backends"]
@@ -72,6 +73,13 @@ flowchart TB
     RC --> BP
     MHP --> BP
     FM --> BP
+    LZ --> REND
+    MH --> REND
+    MI --> REND
+    ST --> REND
+    HM --> REND
+    CP --> REND
+    REND --> BP
 
     BP --> MB
     BP --> PB
@@ -177,6 +185,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
 | 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py](../src/pylocuszoom/ensembl.py) |
+| 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_family_renderers.py](../src/pylocuszoom/_family_renderers.py), [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py) |
 
 ### LD Colour Bins [3b]
 
