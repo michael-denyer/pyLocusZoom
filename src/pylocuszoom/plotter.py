@@ -21,16 +21,21 @@ from ._plotter_utils import (
     calculate_gene_track_height,
     transform_pvalues,
 )
-from ._regional import RegionalPlotComposer
+from ._regional import (
+    AssociationPanel,
+    EqtlPanel,
+    FinemappingPanel,
+    GenePanel,
+    HeatmapPanel,
+    RegionalFigurePlan,
+    RegionalPanel,
+    RegionalPlotComposer,
+)
 from .backends import BackendType, get_backend
 from .config import PlotConfig, StackedPlotConfig
 from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
-from .finemapping import (
-    plot_finemapping,
-    prepare_finemapping_for_plotting,
-)
-from .gene_track import plot_gene_track_generic
+from .finemapping import prepare_finemapping_for_plotting
 from .ld import find_plink
 from .logging import enable_logging, logger
 from .recombination import (
@@ -245,24 +250,15 @@ class LocusZoomPlotter:
             ld_reference_file=ld_reference_file,
             ld_col=ld_col,
         )
-        chrom, start, end = (
-            config.region.chrom,
-            config.region.start,
-            config.region.end,
+        region = config.region
+        columns = config.columns
+        display = config.display
+        ld_config = config.ld
+        validate_gwas_df(
+            gwas_df,
+            pos_col=columns.pos_col,
+            p_col=columns.p_col,
         )
-        pos_col, p_col, rs_col = (
-            config.columns.pos_col,
-            config.columns.p_col,
-            config.columns.rs_col,
-        )
-        snp_labels = config.display.snp_labels
-        label_top_n = config.display.label_top_n
-        show_recombination = config.display.show_recombination
-        figsize = config.display.figsize
-        lead_pos = config.ld.lead_pos
-        ld_reference_file = config.ld.ld_reference_file
-        ld_col = config.ld.ld_col
-        validate_gwas_df(gwas_df, pos_col=pos_col, p_col=p_col)
 
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is None:
             raise ValueError(
@@ -271,13 +267,16 @@ class LocusZoomPlotter:
 
         if genes_df is None and self._auto_genes:
             logger.debug(
-                f"auto_genes enabled, fetching genes for chr{chrom}:{start}-{end}"
+                "auto_genes enabled, fetching genes for chr{}:{}-{}",
+                region.chrom,
+                region.start,
+                region.end,
             )
             genes_df = get_genes_for_region(
                 species=self.species,
-                chrom=chrom,
-                start=start,
-                end=end,
+                chrom=region.chrom,
+                start=region.start,
+                end=region.end,
             )
             if genes_df.empty:
                 logger.debug("No genes found in region from Ensembl")
@@ -286,28 +285,30 @@ class LocusZoomPlotter:
         if genes_df is not None:
             validate_genes_df(genes_df)
 
-        logger.debug(f"Creating plot for chr{chrom}:{start}-{end}")
+        logger.debug(f"Creating plot for chr{region.chrom}:{region.start}-{region.end}")
         # Don't flip global matplotlib interactive mode here — it leaks into
         # the caller's notebook session and disables auto-display for all
         # subsequent plots from any library. Backends manage their own state.
 
-        df = transform_pvalues(gwas_df, p_col)
+        df = transform_pvalues(gwas_df, columns.p_col)
 
-        df, ld_col = enrich_with_ld(
+        df, resolved_ld_col = enrich_with_ld(
             df,
-            reference_file=ld_reference_file,
-            lead_pos=lead_pos,
-            ld_col=ld_col,
-            pos_col=pos_col,
-            rs_col=rs_col,
-            start=start,
-            end=end,
+            reference_file=ld_config.ld_reference_file,
+            lead_pos=ld_config.lead_pos,
+            ld_col=ld_config.ld_col,
+            pos_col=columns.pos_col,
+            rs_col=columns.rs_col,
+            start=region.start,
+            end=region.end,
             plink_path=self.plink_path,
             species=self.species,
         )
 
-        if show_recombination and recomb_df is None:
-            recomb_df = self._get_recomb_for_region(chrom, start, end)
+        if display.show_recombination and recomb_df is None:
+            recomb_df = self._get_recomb_for_region(
+                region.chrom, region.start, region.end
+            )
 
         heatmap_data = None
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
@@ -315,91 +316,75 @@ class LocusZoomPlotter:
                 ld_matrix=ld_heatmap_df,
                 snp_ids=ld_heatmap_snp_ids,
                 gwas_df=df,
-                start=start,
-                end=end,
-                rs_col=rs_col,
-                pos_col=pos_col,
+                start=region.start,
+                end=region.end,
+                rs_col=columns.rs_col,
+                pos_col=columns.pos_col,
             )
             if heatmap_data is None:
                 logger.warning(
                     "No SNPs from LD heatmap overlap with region - heatmap not rendered"
                 )
 
-        fig, ax, gene_ax, heatmap_ax = (
-            self._regional_composer.create_figure_with_heatmap(
+        association_height = display.figsize[1] * 0.6
+        panels: List[RegionalPanel] = [
+            AssociationPanel(
+                data=df,
+                height=association_height,
+                pos_col=columns.pos_col,
+                ld_col=resolved_ld_col,
+                lead_pos=ld_config.lead_pos,
+                rs_col=columns.rs_col,
+                p_col=columns.p_col,
+                snp_labels=display.snp_labels,
+                label_top_n=display.label_top_n,
                 genes_df=genes_df,
-                chrom=chrom,
-                start=start,
-                end=end,
-                figsize=figsize,
-                heatmap_data=heatmap_data,
-                heatmap_height=ld_heatmap_height,
+                recomb_df=recomb_df,
+                add_ld_legend=True,
             )
-        )
+        ]
 
-        self._regional_composer.render_association_panel(
-            ax,
-            df,
-            pos_col=pos_col,
-            ld_col=ld_col,
-            lead_pos=lead_pos,
-            rs_col=rs_col,
-            p_col=p_col,
-            chrom=chrom,
-            start=start,
-            end=end,
-            snp_labels=snp_labels,
-            label_top_n=label_top_n,
-            genes_df=genes_df,
-            recomb_df=recomb_df,
-            add_ld_legend=True,
-        )
-
-        if genes_df is not None and gene_ax is not None:
-            self._regional_composer.render_gene_panel(
-                gene_ax,
-                genes_df,
-                chrom=chrom,
-                start=start,
-                end=end,
-                exons_df=exons_df,
-                draw_gene_track=plot_gene_track_generic,
-                set_xlabel=heatmap_ax is None,
+        if genes_df is not None:
+            panels.append(
+                GenePanel(
+                    data=genes_df,
+                    height=calculate_gene_track_height(
+                        genes_df,
+                        region.chrom,
+                        region.start,
+                        region.end,
+                    ),
+                    exons_df=exons_df,
+                )
             )
 
-        if heatmap_ax is not None and heatmap_data is not None:
+        if heatmap_data is not None:
             filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
             lead_snp_id = None
-            if lead_pos is not None and rs_col in df.columns:
-                lead_row = df[df[pos_col] == lead_pos]
+            if ld_config.lead_pos is not None and columns.rs_col in df.columns:
+                lead_row = df[df[columns.pos_col] == ld_config.lead_pos]
                 if not lead_row.empty:
-                    lead_snp_id = lead_row[rs_col].iloc[0]
-            self._regional_composer.render_heatmap_panel(
-                ax=heatmap_ax,
-                fig=fig,
-                ld_matrix=filtered_matrix,
-                x_positions=x_positions,
-                snp_ids=filtered_snp_ids,
-                metric=ld_heatmap_metric,
-                lead_snp_id=lead_snp_id,
-                start=start,
-                end=end,
+                    lead_snp_id = lead_row[columns.rs_col].iloc[0]
+            panels.append(
+                HeatmapPanel(
+                    matrix=filtered_matrix,
+                    height=association_height * ld_heatmap_height,
+                    x_positions=x_positions,
+                    snp_ids=filtered_snp_ids,
+                    metric=ld_heatmap_metric,
+                    lead_snp_id=lead_snp_id,
+                )
             )
-        elif gene_ax is None and heatmap_ax is None:
-            pass
 
-        self._regional_composer.finalize_figure(
-            fig,
-            [ax]
-            + ([gene_ax] if gene_ax is not None else [])
-            + ([heatmap_ax] if heatmap_ax is not None else []),
-            label_axis=ax
-            if gene_ax is None and heatmap_ax is None
-            else (heatmap_ax if heatmap_ax is not None else gene_ax),
-            chrom=chrom,
+        return self._regional_composer.render(
+            RegionalFigurePlan(
+                chrom=region.chrom,
+                start=region.start,
+                end=region.end,
+                panels=panels,
+                figsize=(display.figsize[0], sum(panel.height for panel in panels)),
+            )
         )
-
-        return fig
 
     def _transform_heatmap_to_genomic_coords(
         self,
@@ -488,48 +473,41 @@ class LocusZoomPlotter:
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
         )
-        chrom, start, end = (
-            config.region.chrom,
-            config.region.start,
-            config.region.end,
-        )
-        pos_col, p_col, rs_col = (
-            config.columns.pos_col,
-            config.columns.p_col,
-            config.columns.rs_col,
-        )
-        snp_labels = config.display.snp_labels
-        label_top_n = config.display.label_top_n
-        show_recombination = config.display.show_recombination
-        figsize = config.display.figsize
-        ld_reference_file = config.ld.ld_reference_file
-        ld_col = config.ld.ld_col
-        lead_positions = config.lead_positions
-        panel_labels = config.panel_labels
-        ld_reference_files = config.ld_reference_files
+        region = config.region
+        columns = config.columns
+        display = config.display
+        ld_config = config.ld
 
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
 
-        if lead_positions is not None and len(lead_positions) != n_gwas:
+        if config.lead_positions is not None and len(config.lead_positions) != n_gwas:
             raise ValueError(
-                f"lead_positions length ({len(lead_positions)}) must match "
+                f"lead_positions length ({len(config.lead_positions)}) must match "
                 f"number of GWAS DataFrames ({n_gwas})"
             )
-        if panel_labels is not None and len(panel_labels) != n_gwas:
+        if config.panel_labels is not None and len(config.panel_labels) != n_gwas:
             raise ValueError(
-                f"panel_labels length ({len(panel_labels)}) must match "
+                f"panel_labels length ({len(config.panel_labels)}) must match "
                 f"number of GWAS DataFrames ({n_gwas})"
             )
-        if ld_reference_files is not None and len(ld_reference_files) != n_gwas:
+        if (
+            config.ld_reference_files is not None
+            and len(config.ld_reference_files) != n_gwas
+        ):
             raise ValueError(
-                f"ld_reference_files length ({len(ld_reference_files)}) must match "
+                "ld_reference_files length "
+                f"({len(config.ld_reference_files)}) must match "
                 f"number of GWAS DataFrames ({n_gwas})"
             )
 
-        for i, df in enumerate(gwas_dfs):
-            validate_gwas_df(df, pos_col=pos_col, p_col=p_col)
+        for df in gwas_dfs:
+            validate_gwas_df(
+                df,
+                pos_col=columns.pos_col,
+                p_col=columns.p_col,
+            )
         if genes_df is not None:
             validate_genes_df(genes_df)
         if eqtl_df is not None:
@@ -540,8 +518,10 @@ class LocusZoomPlotter:
                 "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
             )
 
-        if lead_positions is None:
-            lead_positions = []
+        resolved_lead_positions: List[Optional[int]] = (
+            list(config.lead_positions) if config.lead_positions is not None else []
+        )
+        if config.lead_positions is None:
             for df in gwas_dfs:
                 # Detect a chrom column under either common convention
                 # ("chrom" or "chr") to prevent cross-chromosome lead
@@ -551,152 +531,112 @@ class LocusZoomPlotter:
                 )
                 region_df = filter_by_region(
                     df,
-                    region=(chrom, start, end),
+                    region=(region.chrom, region.start, region.end),
                     chrom_col=chrom_col,
-                    pos_col=pos_col,
+                    pos_col=columns.pos_col,
                 )
                 if not region_df.empty:
-                    valid_p = region_df[p_col].dropna()
+                    valid_p = region_df[columns.p_col].dropna()
                     valid_p = valid_p[(valid_p >= 0) & (valid_p <= 1)]
                     if valid_p.empty:
                         logger.warning(
                             "No valid p-values in region, cannot determine lead SNP"
                         )
-                        lead_positions.append(None)
+                        resolved_lead_positions.append(None)
                     else:
                         lead_idx = valid_p.idxmin()
-                        lead_positions.append(int(region_df.loc[lead_idx, pos_col]))
+                        resolved_lead_positions.append(
+                            int(region_df.loc[lead_idx, columns.pos_col])
+                        )
                 else:
-                    lead_positions.append(None)
+                    resolved_lead_positions.append(None)
 
-        if ld_reference_files is None and ld_reference_file is not None:
-            ld_reference_files = [ld_reference_file] * n_gwas
+        resolved_reference_files = config.ld_reference_files
+        if resolved_reference_files is None and ld_config.ld_reference_file is not None:
+            resolved_reference_files = [ld_config.ld_reference_file] * n_gwas
 
         heatmap_data = None
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
-            first_gwas = transform_pvalues(gwas_dfs[0], p_col)
+            first_gwas = transform_pvalues(gwas_dfs[0], columns.p_col)
             heatmap_data = self._transform_heatmap_to_genomic_coords(
                 ld_matrix=ld_heatmap_df,
                 snp_ids=ld_heatmap_snp_ids,
                 gwas_df=first_gwas,
-                start=start,
-                end=end,
-                rs_col=rs_col,
-                pos_col=pos_col,
+                start=region.start,
+                end=region.end,
+                rs_col=columns.rs_col,
+                pos_col=columns.pos_col,
             )
             if heatmap_data is None:
                 logger.warning(
                     "No SNPs from LD heatmap overlap with region - heatmap not rendered"
                 )
 
+        if display.show_recombination and recomb_df is None:
+            recomb_df = self._get_recomb_for_region(
+                region.chrom, region.start, region.end
+            )
+
         panel_height = 2.5
-        eqtl_height = 2.0 if eqtl_df is not None else 0
-        finemapping_height = 1.5 if finemapping_df is not None else 0
-        heatmap_height_inches = panel_height * ld_heatmap_height if heatmap_data else 0
-
-        if genes_df is not None:
-            gene_track_height = calculate_gene_track_height(genes_df, chrom, start, end)
-        else:
-            gene_track_height = 0
-
-        n_panels = (
-            n_gwas
-            + (1 if finemapping_df is not None else 0)
-            + (1 if eqtl_df is not None else 0)
-            + (1 if genes_df is not None else 0)
-            + (1 if heatmap_data is not None else 0)
-        )
-        height_ratios = [panel_height] * n_gwas
-        if finemapping_df is not None:
-            height_ratios.append(finemapping_height)
-        if eqtl_df is not None:
-            height_ratios.append(eqtl_height)
-        if genes_df is not None:
-            height_ratios.append(gene_track_height)
-        if heatmap_data is not None:
-            height_ratios.append(heatmap_height_inches)
-
-        total_height = max(figsize[1], sum(height_ratios))
-        actual_figsize = (figsize[0], total_height)
-
-        logger.debug(
-            f"Creating stacked plot with {n_panels} panels for chr{chrom}:{start}-{end}"
-        )
-
-        if show_recombination and recomb_df is None:
-            recomb_df = self._get_recomb_for_region(chrom, start, end)
-
-        fig, axes = self._regional_composer.create_stacked_figure(
-            n_panels=n_panels,
-            height_ratios=height_ratios,
-            figsize=actual_figsize,
-        )
-        gene_ax = None
-        heatmap_ax = None
-
-        for i, (gwas_df, lead_pos) in enumerate(zip(gwas_dfs, lead_positions)):
-            ax = axes[i]
-            df = transform_pvalues(gwas_df, p_col)
-
-            reference_file = ld_reference_files[i] if ld_reference_files else None
+        panels: List[RegionalPanel] = []
+        for index, (gwas_df, lead_pos) in enumerate(
+            zip(gwas_dfs, resolved_lead_positions)
+        ):
+            df = transform_pvalues(gwas_df, columns.p_col)
+            reference_file = (
+                resolved_reference_files[index] if resolved_reference_files else None
+            )
             df, panel_ld_col = enrich_with_ld(
                 df,
                 reference_file=reference_file,
                 lead_pos=lead_pos,
-                ld_col=ld_col,
-                pos_col=pos_col,
-                rs_col=rs_col,
-                start=start,
-                end=end,
+                ld_col=ld_config.ld_col,
+                pos_col=columns.pos_col,
+                rs_col=columns.rs_col,
+                start=region.start,
+                end=region.end,
                 plink_path=self.plink_path,
                 species=self.species,
-                context=f"panel {i + 1}",
+                context=f"panel {index + 1}",
             )
-
-            self._regional_composer.render_association_panel(
-                ax,
-                df,
-                pos_col=pos_col,
-                ld_col=panel_ld_col,
-                lead_pos=lead_pos,
-                rs_col=rs_col,
-                p_col=p_col,
-                chrom=chrom,
-                start=start,
-                end=end,
-                snp_labels=snp_labels,
-                label_top_n=label_top_n,
-                genes_df=genes_df,
-                recomb_df=recomb_df if i == 0 else None,
-                panel_label=(
-                    panel_labels[i] if panel_labels and i < len(panel_labels) else None
-                ),
-                add_ld_legend=(i == 0),
+            panels.append(
+                AssociationPanel(
+                    data=df,
+                    height=panel_height,
+                    pos_col=columns.pos_col,
+                    ld_col=panel_ld_col,
+                    lead_pos=lead_pos,
+                    rs_col=columns.rs_col,
+                    p_col=columns.p_col,
+                    snp_labels=display.snp_labels,
+                    label_top_n=display.label_top_n,
+                    genes_df=genes_df,
+                    recomb_df=recomb_df if index == 0 else None,
+                    panel_label=(
+                        config.panel_labels[index] if config.panel_labels else None
+                    ),
+                    add_ld_legend=(index == 0),
+                )
             )
-
-        panel_idx = n_gwas
 
         if finemapping_df is not None:
-            ax = axes[panel_idx]
             fm_data = prepare_finemapping_for_plotting(
                 finemapping_df,
                 pos_col="pos",
                 pip_col="pip",
-                chrom=chrom,
-                start=start,
-                end=end,
+                chrom=region.chrom,
+                start=region.start,
+                end=region.end,
             )
-            self._regional_composer.render_finemapping_panel(
-                ax,
-                fm_data,
-                cs_col=finemapping_cs_col,
-                draw_finemapping=plot_finemapping,
+            panels.append(
+                FinemappingPanel(
+                    data=fm_data,
+                    height=1.5,
+                    cs_col=finemapping_cs_col,
+                )
             )
-            panel_idx += 1
 
-        eqtl_panel_idx = panel_idx
         if eqtl_df is not None:
-            ax = axes[eqtl_panel_idx]
             eqtl_data = eqtl_df.copy()
 
             eqtl_gene_filtered = False
@@ -711,9 +651,11 @@ class LocusZoomPlotter:
                     )
 
             if "pos" in eqtl_data.columns:
-                mask = (eqtl_data["pos"] >= start) & (eqtl_data["pos"] <= end)
+                mask = (eqtl_data["pos"] >= region.start) & (
+                    eqtl_data["pos"] <= region.end
+                )
                 if "chr" in eqtl_data.columns:
-                    chrom_str = str(chrom).replace("chr", "")
+                    chrom_str = str(region.chrom).replace("chr", "")
                     eqtl_chrom = (
                         eqtl_data["chr"].astype(str).str.replace("chr", "", regex=False)
                     )
@@ -722,57 +664,69 @@ class LocusZoomPlotter:
 
             if not eqtl_data.empty:
                 eqtl_data = transform_pvalues(eqtl_data, "p_value")
-            self._regional_composer.render_eqtl_panel(
-                ax,
-                eqtl_data,
-                eqtl_gene_filtered=eqtl_gene_filtered,
-                eqtl_gene=eqtl_gene,
-                eqtl_threshold=eqtl_threshold,
+            panels.append(
+                EqtlPanel(
+                    data=eqtl_data,
+                    height=2.0,
+                    gene_filtered=eqtl_gene_filtered,
+                    gene=eqtl_gene,
+                    threshold=eqtl_threshold,
+                )
             )
-            panel_idx += 1
 
         if genes_df is not None:
-            gene_ax = axes[panel_idx]
-            self._regional_composer.render_gene_panel(
-                gene_ax,
-                genes_df,
-                chrom=chrom,
-                start=start,
-                end=end,
-                exons_df=exons_df,
-                draw_gene_track=plot_gene_track_generic,
-                set_xlabel=heatmap_data is None,
+            panels.append(
+                GenePanel(
+                    data=genes_df,
+                    height=calculate_gene_track_height(
+                        genes_df,
+                        region.chrom,
+                        region.start,
+                        region.end,
+                    ),
+                    exons_df=exons_df,
+                )
             )
-            panel_idx += 1
 
         if heatmap_data is not None:
-            heatmap_ax = axes[panel_idx]
             filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
             lead_snp_id = None
-            if lead_positions and lead_positions[0] is not None:
+            if resolved_lead_positions and resolved_lead_positions[0] is not None:
                 first_gwas = gwas_dfs[0]
-                if rs_col in first_gwas.columns:
-                    lead_row = first_gwas[first_gwas[pos_col] == lead_positions[0]]
+                if columns.rs_col in first_gwas.columns:
+                    lead_row = first_gwas[
+                        first_gwas[columns.pos_col] == resolved_lead_positions[0]
+                    ]
                     if not lead_row.empty:
-                        lead_snp_id = lead_row[rs_col].iloc[0]
-            self._regional_composer.render_heatmap_panel(
-                ax=heatmap_ax,
-                fig=fig,
-                ld_matrix=filtered_matrix,
-                x_positions=x_positions,
-                snp_ids=filtered_snp_ids,
-                metric=ld_heatmap_metric,
-                lead_snp_id=lead_snp_id,
-                start=start,
-                end=end,
+                        lead_snp_id = lead_row[columns.rs_col].iloc[0]
+            panels.append(
+                HeatmapPanel(
+                    matrix=filtered_matrix,
+                    height=panel_height * ld_heatmap_height,
+                    x_positions=x_positions,
+                    snp_ids=filtered_snp_ids,
+                    metric=ld_heatmap_metric,
+                    lead_snp_id=lead_snp_id,
+                )
             )
-        label_axis = (
-            heatmap_ax
-            if heatmap_ax is not None
-            else (gene_ax if gene_ax is not None else axes[-1])
-        )
-        self._regional_composer.finalize_figure(
-            fig, axes, label_axis=label_axis, chrom=chrom
-        )
 
-        return fig
+        total_height = max(
+            display.figsize[1],
+            sum(panel.height for panel in panels),
+        )
+        logger.debug(
+            "Creating stacked plot with {} panels for chr{}:{}-{}",
+            len(panels),
+            region.chrom,
+            region.start,
+            region.end,
+        )
+        return self._regional_composer.render(
+            RegionalFigurePlan(
+                chrom=region.chrom,
+                start=region.start,
+                end=region.end,
+                panels=panels,
+                figsize=(display.figsize[0], total_height),
+            )
+        )

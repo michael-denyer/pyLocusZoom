@@ -41,7 +41,7 @@ graph TD
     subgraph Plotters["Plotter Classes"]
         LZ[LocusZoomPlotter]
         REGIONAL[_regional.py: RegionalPlotComposer]
-        FAMILIES[_family_renderers.py: family renderers]
+        FAMILIES[_*_renderer.py: family renderers]
         MP[ManhattanPlotter]
         SP[StatsPlotter]
         MIAMI[MiamiPlotter]
@@ -174,14 +174,15 @@ stages:
 | Abstraction | Kind | Location | Purpose |
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
-| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Shared single/stacked association-panel composition; plotter methods remain compatibility adapters |
-| Family renderers | Internal module | `src/pylocuszoom/_family_renderers.py` | Semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families |
+| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders ordered typed panel plans for single and stacked regional figures |
+| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
 | `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
 | `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy (figure creation, scatter/line/fill primitives, legends, recombination overlay, heatmap) |
+| `SupportsRegionHighlight` | Optional protocol | `src/pylocuszoom/backends/base.py` | Capability detected by Miami rendering without breaking existing registered backends |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns panel policy while retaining the primitive backend seam for compatibility |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
@@ -215,7 +216,10 @@ pyLocusZoom/
 │   ├── _data.py               # Shared p-value intake and transformation policy
 │   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
 │   ├── _regional.py           # Shared single/stacked regional composition
-│   ├── _family_renderers.py    # Semantic renderers for remaining plotter families
+│   ├── _miami_renderer.py      # Miami figure composition
+│   ├── _stats_renderer.py      # PheWAS and forest figure composition
+│   ├── _coloc_renderer.py      # Colocalization figure composition
+│   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition
 │   ├── _rendering.py          # Semantic Manhattan/QQ rendering module
 │   ├── backends/              # Pluggable rendering backends
 │   │   ├── base.py            # PlotBackend protocol definition

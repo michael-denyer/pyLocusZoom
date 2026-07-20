@@ -15,13 +15,15 @@ highlighting logic.
 Route every standalone plotter family through a semantic renderer:
 
 - Manhattan/QQ: `ManhattanQQRenderer`
-- Miami, PheWAS/forest, colocalization, and LD heatmap:
-  `src/pylocuszoom/_family_renderers.py`
+- Miami, PheWAS/forest, colocalization, and LD heatmap use focused private
+  modules: `_miami_renderer.py`, `_stats_renderer.py`,
+  `_coloc_renderer.py`, and `_ld_heatmap_renderer.py`.
 - Regional association panels and regional heatmap layout:
   `RegionalPlotComposer`
 
-Add `PlotBackend.add_region_highlight` as a capability on the internal
-primitive seam so Miami does not branch on backend names.
+Add the optional `SupportsRegionHighlight` capability protocol so Miami does
+not branch on backend names. Existing registered backends that do not implement
+the capability keep their previous behavior.
 
 ## Consequences
 

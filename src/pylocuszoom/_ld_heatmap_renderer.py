@@ -1,0 +1,65 @@
+"""Semantic renderer for standalone LD heatmaps."""
+
+from typing import Any, List, Optional, Tuple
+
+import numpy as np
+
+from .backends.base import PlotBackend
+from .colors import (
+    LD_HEATMAP_COLORS,
+    LEAD_SNP_HIGHLIGHT_COLOR,
+    SECONDARY_HIGHLIGHT_COLOR,
+)
+
+
+class LDHeatmapRenderer:
+    """Render a prepared LD matrix intent."""
+
+    def __init__(self, backend: PlotBackend):
+        self._backend = backend
+
+    def render(
+        self,
+        data: np.ndarray,
+        snp_ids: List[str],
+        *,
+        lead_idx: Optional[int],
+        highlight_indices: List[int],
+        metric: str,
+        figsize: Tuple[float, float],
+        title: Optional[str],
+        show_colorbar: bool,
+    ) -> Any:
+        n_snps = len(snp_ids)
+        fig, axes = self._backend.create_figure(1, [1.0], figsize=figsize, sharex=False)
+        ax = axes[0]
+        mappable = self._backend.add_heatmap(
+            ax,
+            data=data,
+            x_coords=list(range(n_snps)),
+            y_coords=list(range(n_snps)),
+            cmap_colors=LD_HEATMAP_COLORS,
+            vmin=0.0,
+            vmax=1.0,
+            mask_upper=True,
+        )
+        if show_colorbar:
+            self._backend.add_colorbar(
+                ax, mappable, label="R²" if metric == "r2" else "D'"
+            )
+        if lead_idx is not None:
+            self._highlight(ax, fig, lead_idx, n_snps, LEAD_SNP_HIGHLIGHT_COLOR)
+        for idx in highlight_indices:
+            self._highlight(ax, fig, idx, n_snps, SECONDARY_HIGHLIGHT_COLOR)
+        ticks = list(range(n_snps))
+        self._backend.set_xticks(ax, ticks, snp_ids, rotation=90)
+        self._backend.set_yticks(ax, ticks, snp_ids)
+        if title:
+            self._backend.set_title(ax, title)
+        self._backend.finalize_layout(fig)
+        return fig
+
+    def _highlight(self, ax: Any, fig: Any, idx: int, n_snps: int, color: str) -> None:
+        self._backend.highlight_heatmap_snp(
+            ax, fig, idx, n_snps, color=color, linewidth=2
+        )

@@ -10,7 +10,7 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._family_renderers import MiamiRenderer
+from ._miami_renderer import MiamiRenderer
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
 )

@@ -9,8 +9,8 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from ._coloc_renderer import ColocRenderer
 from ._data import P_VALUE_FLOOR
-from ._family_renderers import ColocRenderer
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
 from .colors import (
@@ -178,42 +178,25 @@ class ColocPlotter:
             h4_posterior=h4_posterior,
             figsize=figsize,
         )
-        pos_col = config.pos_col
-        gwas_p_col = config.gwas_p_col
-        eqtl_p_col = config.eqtl_p_col
-        rs_col = config.rs_col
-        ld_col = config.ld_col
-        lead_snp = config.lead_snp
-        gwas_threshold = config.gwas_threshold
-        eqtl_threshold = config.eqtl_threshold
-        show_correlation = config.show_correlation
-        color_by_effect = config.color_by_effect
-        gwas_effect_col = config.gwas_effect_col
-        eqtl_effect_col = config.eqtl_effect_col
-        h4_posterior = config.h4_posterior
-        figsize = config.figsize
-
         # Validate inputs
-        validate_coloc_gwas_df(gwas_df, pos_col, gwas_p_col, rs_col)
-        validate_coloc_eqtl_df(eqtl_df, pos_col, eqtl_p_col, rs_col)
-
-        # Validate effect coloring parameters
-        if color_by_effect:
-            if gwas_effect_col is None or eqtl_effect_col is None:
-                raise ValueError(
-                    "color_by_effect=True requires gwas_effect_col and eqtl_effect_col"
-                )
-
-        # Validate h4_posterior range
-        if h4_posterior is not None:
-            if not (0 <= h4_posterior <= 1):
-                raise ValueError(f"h4_posterior must be in [0, 1], got {h4_posterior}")
+        validate_coloc_gwas_df(
+            gwas_df,
+            config.pos_col,
+            config.gwas_p_col,
+            config.rs_col,
+        )
+        validate_coloc_eqtl_df(
+            eqtl_df,
+            config.pos_col,
+            config.eqtl_p_col,
+            config.rs_col,
+        )
 
         # Merge DataFrames on position
         merged = pd.merge(
             gwas_df,
             eqtl_df,
-            on=pos_col,
+            on=config.pos_col,
             how="inner",
             suffixes=("_gwas", "_eqtl"),
         )
@@ -224,10 +207,10 @@ class ColocPlotter:
             )
 
         # Resolve column names after merge (pandas adds suffixes to duplicates)
-        merged_rs_col = _resolve_merged_column(merged, rs_col, "_gwas")
-        ld_col_merged = _resolve_merged_column(merged, ld_col, "_gwas")
-        gwas_p_merged = _resolve_merged_column(merged, gwas_p_col, "_gwas")
-        eqtl_p_merged = _resolve_merged_column(merged, eqtl_p_col, "_eqtl")
+        merged_rs_col = _resolve_merged_column(merged, config.rs_col, "_gwas")
+        ld_col_merged = _resolve_merged_column(merged, config.ld_col, "_gwas")
+        gwas_p_merged = _resolve_merged_column(merged, config.gwas_p_col, "_gwas")
+        eqtl_p_merged = _resolve_merged_column(merged, config.eqtl_p_col, "_eqtl")
 
         # Coloc transforms two merged p-value columns at once, so it does its
         # own -log10 here rather than the single-column prepare_pvalue_data
@@ -248,24 +231,26 @@ class ColocPlotter:
         # Resolve effect columns if coloring by effect direction
         gwas_effect_merged = None
         eqtl_effect_merged = None
-        if color_by_effect:
+        if config.color_by_effect:
             gwas_effect_merged = _resolve_merged_column(
-                merged, gwas_effect_col, "_gwas"
+                merged, config.gwas_effect_col, "_gwas"
             )
             if gwas_effect_merged is None:
                 raise ValueError(
-                    f"gwas_effect_col '{gwas_effect_col}' not found in merged data"
+                    "gwas_effect_col "
+                    f"'{config.gwas_effect_col}' not found in merged data"
                 )
             eqtl_effect_merged = _resolve_merged_column(
-                merged, eqtl_effect_col, "_eqtl"
+                merged, config.eqtl_effect_col, "_eqtl"
             )
             if eqtl_effect_merged is None:
                 raise ValueError(
-                    f"eqtl_effect_col '{eqtl_effect_col}' not found in merged data"
+                    "eqtl_effect_col "
+                    f"'{config.eqtl_effect_col}' not found in merged data"
                 )
 
         # Apply coloring based on mode
-        if color_by_effect:
+        if config.color_by_effect:
             merged["color"] = merged.apply(
                 lambda row: _get_effect_agreement_color(
                     row[gwas_effect_merged], row[eqtl_effect_merged]
@@ -279,14 +264,16 @@ class ColocPlotter:
 
         # Determine lead SNP index
         lead_idx = None
-        if lead_snp is not None:
+        if config.lead_snp is not None:
             if merged_rs_col is None:
                 raise ValueError(
-                    f"lead_snp '{lead_snp}' specified but rs_col not found"
+                    f"lead_snp '{config.lead_snp}' specified but rs_col not found"
                 )
-            matches = merged[merged[merged_rs_col] == lead_snp]
+            matches = merged[merged[merged_rs_col] == config.lead_snp]
             if len(matches) == 0:
-                raise ValueError(f"lead_snp '{lead_snp}' not found in merged data")
+                raise ValueError(
+                    f"lead_snp '{config.lead_snp}' not found in merged data"
+                )
             lead_idx = matches.index[0]
         elif ld_col_merged is not None:
             # Auto-select: highest combined -log10(p)
@@ -298,11 +285,11 @@ class ColocPlotter:
             lead_idx=lead_idx,
             merged_rs_col=merged_rs_col,
             ld_col_merged=ld_col_merged,
-            gwas_threshold=gwas_threshold,
-            eqtl_threshold=eqtl_threshold,
-            show_correlation=show_correlation,
-            color_by_effect=color_by_effect,
-            h4_posterior=h4_posterior,
+            gwas_threshold=config.gwas_threshold,
+            eqtl_threshold=config.eqtl_threshold,
+            show_correlation=config.show_correlation,
+            color_by_effect=config.color_by_effect,
+            h4_posterior=config.h4_posterior,
             title=title,
-            figsize=figsize,
+            figsize=config.figsize,
         )

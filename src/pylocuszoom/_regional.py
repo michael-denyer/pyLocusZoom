@@ -6,12 +6,12 @@ owns the association panel's axes, labels, optional recombination, and LD
 legend rules.
 """
 
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
-from ._plotter_utils import calculate_gene_track_height
 from .backends.base import PlotBackend
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
@@ -26,7 +26,90 @@ from .colors import (
     get_ld_bin,
     get_ld_color_palette,
 )
+from .finemapping import plot_finemapping
+from .gene_track import plot_gene_track_generic
 from .logging import logger
+
+
+@dataclass(frozen=True)
+class AssociationPanel:
+    """Prepared association panel and its presentation policy."""
+
+    data: pd.DataFrame
+    height: float
+    pos_col: str
+    ld_col: Optional[str]
+    lead_pos: Optional[int]
+    rs_col: Optional[str]
+    p_col: Optional[str]
+    snp_labels: bool
+    label_top_n: int
+    genes_df: Optional[pd.DataFrame]
+    recomb_df: Optional[pd.DataFrame]
+    panel_label: Optional[str] = None
+    add_ld_legend: bool = False
+
+
+@dataclass(frozen=True)
+class FinemappingPanel:
+    """Prepared fine-mapping panel."""
+
+    data: pd.DataFrame
+    height: float
+    cs_col: Optional[str]
+
+
+@dataclass(frozen=True)
+class EqtlPanel:
+    """Prepared eQTL panel."""
+
+    data: pd.DataFrame
+    height: float
+    gene_filtered: bool
+    gene: Optional[str]
+    threshold: float
+
+
+@dataclass(frozen=True)
+class GenePanel:
+    """Prepared gene-track panel."""
+
+    data: pd.DataFrame
+    height: float
+    exons_df: Optional[pd.DataFrame]
+
+
+@dataclass(frozen=True)
+class HeatmapPanel:
+    """Prepared regional LD heatmap panel."""
+
+    matrix: pd.DataFrame
+    height: float
+    x_positions: List[int]
+    snp_ids: List[str]
+    metric: str
+    lead_snp_id: Optional[str]
+
+
+RegionalPanel = Union[
+    AssociationPanel,
+    FinemappingPanel,
+    EqtlPanel,
+    GenePanel,
+    HeatmapPanel,
+]
+
+
+@dataclass(frozen=True)
+class RegionalFigurePlan:
+    """Complete ordered plan for one regional figure."""
+
+    chrom: int | str
+    start: int
+    end: int
+    panels: Sequence[RegionalPanel]
+    figsize: Tuple[float, float]
+    hspace: float = 0.1
 
 
 class RegionalPlotComposer:
@@ -41,6 +124,79 @@ class RegionalPlotComposer:
         self._backend = backend
         self._backend_name = backend_name
         self._genomewide_line = genomewide_line
+
+    def render(self, plan: RegionalFigurePlan) -> Any:
+        """Render every panel in one figure plan and finalize its layout."""
+        if not plan.panels:
+            raise ValueError("Regional figure plan must contain at least one panel")
+
+        fig, axes = self._backend.create_figure(
+            n_panels=len(plan.panels),
+            height_ratios=[panel.height for panel in plan.panels],
+            figsize=plan.figsize,
+            sharex=True,
+        )
+        for ax, panel in zip(axes, plan.panels):
+            if isinstance(panel, AssociationPanel):
+                self.render_association_panel(
+                    ax,
+                    panel.data,
+                    pos_col=panel.pos_col,
+                    ld_col=panel.ld_col,
+                    lead_pos=panel.lead_pos,
+                    rs_col=panel.rs_col,
+                    p_col=panel.p_col,
+                    chrom=plan.chrom,
+                    start=plan.start,
+                    end=plan.end,
+                    snp_labels=panel.snp_labels,
+                    label_top_n=panel.label_top_n,
+                    genes_df=panel.genes_df,
+                    recomb_df=panel.recomb_df,
+                    panel_label=panel.panel_label,
+                    add_ld_legend=panel.add_ld_legend,
+                )
+            elif isinstance(panel, FinemappingPanel):
+                self.render_finemapping_panel(
+                    ax,
+                    panel.data,
+                    cs_col=panel.cs_col,
+                )
+            elif isinstance(panel, EqtlPanel):
+                self.render_eqtl_panel(
+                    ax,
+                    panel.data,
+                    eqtl_gene_filtered=panel.gene_filtered,
+                    eqtl_gene=panel.gene,
+                    eqtl_threshold=panel.threshold,
+                )
+            elif isinstance(panel, GenePanel):
+                self.render_gene_panel(
+                    ax,
+                    panel.data,
+                    chrom=plan.chrom,
+                    start=plan.start,
+                    end=plan.end,
+                    exons_df=panel.exons_df,
+                )
+            elif isinstance(panel, HeatmapPanel):
+                self.render_heatmap_panel(
+                    ax=ax,
+                    fig=fig,
+                    ld_matrix=panel.matrix,
+                    x_positions=panel.x_positions,
+                    snp_ids=panel.snp_ids,
+                    metric=panel.metric,
+                    lead_snp_id=panel.lead_snp_id,
+                    start=plan.start,
+                    end=plan.end,
+                )
+
+        self._backend.set_xlabel(axes[-1], f"Chromosome {plan.chrom} (Mb)")
+        for ax in axes:
+            self._backend.format_xaxis_mb(ax)
+        self._backend.finalize_layout(fig, hspace=plan.hspace)
+        return fig
 
     def render_association_panel(
         self,
@@ -198,60 +354,6 @@ class RegionalPlotComposer:
             return
         self._backend.add_recombination_overlay(ax, recomb_df, start, end)
 
-    def create_figure_with_heatmap(
-        self,
-        *,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        start: int,
-        end: int,
-        figsize: Tuple[float, float],
-        heatmap_data: Optional[Tuple[pd.DataFrame, List[int], List[str]]],
-        heatmap_height: float = 0.25,
-    ) -> Tuple[Any, Any, Optional[Any], Optional[Any]]:
-        """Create the shared regional association/gene/heatmap panel layout."""
-        assoc_height = figsize[1] * 0.6
-        gene_height = (
-            calculate_gene_track_height(genes_df, chrom, start, end)
-            if genes_df is not None
-            else 0.0
-        )
-        heatmap_panel_height = (
-            assoc_height * heatmap_height if heatmap_data is not None else 0.0
-        )
-        height_ratios = [assoc_height]
-        if genes_df is not None:
-            height_ratios.append(gene_height)
-        if heatmap_data is not None:
-            height_ratios.append(heatmap_panel_height)
-        fig, axes = self._backend.create_figure(
-            n_panels=len(height_ratios),
-            height_ratios=height_ratios,
-            figsize=(figsize[0], sum(height_ratios)),
-            sharex=True,
-        )
-        panel_idx = 1
-        gene_ax = axes[panel_idx] if genes_df is not None else None
-        if genes_df is not None:
-            panel_idx += 1
-        heatmap_ax = axes[panel_idx] if heatmap_data is not None else None
-        return fig, axes[0], gene_ax, heatmap_ax
-
-    def create_stacked_figure(
-        self,
-        *,
-        n_panels: int,
-        height_ratios: List[float],
-        figsize: Tuple[float, float],
-    ) -> Tuple[Any, List[Any]]:
-        """Create a stacked regional figure from its panel plan."""
-        return self._backend.create_figure(
-            n_panels=n_panels,
-            height_ratios=height_ratios,
-            figsize=figsize,
-            sharex=True,
-        )
-
     def render_heatmap_panel(
         self,
         *,
@@ -303,15 +405,12 @@ class RegionalPlotComposer:
         start: int,
         end: int,
         exons_df: Optional[pd.DataFrame],
-        draw_gene_track: Callable[..., None],
-        set_xlabel: bool,
     ) -> None:
         """Render a gene panel and apply its shared axis policy."""
-        draw_gene_track(ax, self._backend, genes_df, chrom, start, end, exons_df)
+        plot_gene_track_generic(
+            ax, self._backend, genes_df, chrom, start, end, exons_df
+        )
         self._backend.hide_spines(ax, ["top", "right", "left"])
-        self._backend.format_xaxis_mb(ax)
-        if set_xlabel:
-            self._backend.set_xlabel(ax, f"Chromosome {chrom} (Mb)")
 
     def render_finemapping_panel(
         self,
@@ -319,11 +418,10 @@ class RegionalPlotComposer:
         fm_data: pd.DataFrame,
         *,
         cs_col: Optional[str],
-        draw_finemapping: Callable[..., None],
     ) -> None:
         """Render a fine-mapping panel and shared panel policy."""
         if not fm_data.empty:
-            draw_finemapping(
+            plot_finemapping(
                 self._backend,
                 ax,
                 fm_data,
@@ -415,18 +513,3 @@ class RegionalPlotComposer:
             alpha=0.65,
         )
         self._backend.hide_spines(ax, ["top", "right"])
-
-    def finalize_figure(
-        self,
-        fig: Any,
-        axes: Sequence[Any],
-        *,
-        label_axis: Any,
-        chrom: int | str,
-        hspace: float = 0.1,
-    ) -> None:
-        """Apply shared x-axis formatting and layout."""
-        self._backend.set_xlabel(label_axis, f"Chromosome {chrom} (Mb)")
-        for ax in axes:
-            self._backend.format_xaxis_mb(ax)
-        self._backend.finalize_layout(fig, hspace=hspace)

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+from pylocuszoom._miami_renderer import MiamiRenderer
 from pylocuszoom._rendering import ManhattanQQRenderer
 from pylocuszoom.backends import get_backend
 from pylocuszoom.manhattan import prepare_manhattan_data
@@ -13,6 +14,8 @@ from pylocuszoom.qq import prepare_qq_data
 
 class RecordingBackend:
     """Small primitive adapter used to test the renderer's semantic seam."""
+
+    supports_hover = False
 
     def __init__(self):
         self.calls = []
@@ -162,3 +165,30 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     finally:
         for figure in figures:
             backend.close(figure)
+
+
+def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):
+    """A pre-existing custom backend need not implement the new capability."""
+    manhattan_df, _ = prepared_data
+    backend = RecordingBackend()
+
+    figure = MiamiRenderer(backend).render(
+        manhattan_df,
+        manhattan_df,
+        pos_col="pos",
+        p_col="p",
+        rs_col=None,
+        top_threshold=None,
+        bottom_threshold=None,
+        top_label=None,
+        bottom_label=None,
+        top_snp_annotations=None,
+        bottom_snp_annotations=None,
+        highlight_regions=[("1", 1_000_000, 2_000_000)],
+        highlight_color="yellow",
+        highlight_alpha=0.3,
+        figsize=(12, 8),
+        title=None,
+    )
+
+    assert figure is not None

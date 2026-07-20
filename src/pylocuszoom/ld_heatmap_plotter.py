@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from ._family_renderers import LDHeatmapRenderer
+from ._ld_heatmap_renderer import LDHeatmapRenderer
 from .backends import BackendType, get_backend
 
 

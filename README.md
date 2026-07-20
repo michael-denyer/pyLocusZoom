@@ -191,6 +191,13 @@ fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 
 > **Note:** All backends support scatter plots, gene tracks, recombination overlay, and LD legend. SNP labels (auto-positioned with adjustText) are matplotlib-only; interactive backends use hover tooltips instead.
 
+Plotters prepare data and pass complete figure intent to internal semantic
+renderers. Those renderers keep panel composition consistent while the backend
+protocol handles drawing primitives. Existing registered custom backends remain
+compatible. Miami region highlighting is optional; custom backends may
+implement `add_region_highlight()` to support it and otherwise render without
+the highlighted span.
+
 ## Stacked Plots
 
 Compare multiple GWAS results vertically with shared x-axis:

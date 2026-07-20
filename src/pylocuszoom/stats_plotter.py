@@ -9,8 +9,8 @@ from typing import Any, Optional, Tuple
 
 import pandas as pd
 
-from ._family_renderers import StatsRenderer
 from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD, transform_pvalues
+from ._stats_renderer import StatsRenderer
 from .backends import BackendType, get_backend
 from .forest import validate_forest_df
 from .phewas import validate_phewas_df

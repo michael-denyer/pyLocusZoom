@@ -1389,14 +1389,12 @@ class TestPvalueTransformation:
 class TestPlotterDelegation:
     """Tests for plotter delegation to specialized classes."""
 
-    def test_plotter_delegates_to_plot_finemapping(self):
-        """plot_stacked() forwards the finemapping DataFrame to plot_finemapping.
+    def test_composer_delegates_to_plot_finemapping(self):
+        """The composer forwards prepared fine-mapping data to its renderer.
 
-        Pins the dispatch contract: plot_stacked delegates fine-map
-        rendering to the module-level ``plot_finemapping`` rather than
-        reimplementing it. Per CLAUDE.md this is a legitimate boundary
-        assertion. Asserts on the DataFrame handed to plot_finemapping,
-        not just that it was called.
+        Pins the dispatch contract at the layer that now owns panel rendering.
+        Asserts on the DataFrame handed to plot_finemapping, not just that it
+        was called.
         """
         plotter = LocusZoomPlotter(
             species="canine", backend="matplotlib", log_level=None
@@ -1418,7 +1416,7 @@ class TestPlotterDelegation:
 
         with (
             patch.object(plotter, "_get_recomb_for_region", return_value=None),
-            patch("pylocuszoom.plotter.plot_finemapping") as mock_plot_fm,
+            patch("pylocuszoom._regional.plot_finemapping") as mock_plot_fm,
         ):
             fig = plotter.plot_stacked(
                 [gwas_df],
