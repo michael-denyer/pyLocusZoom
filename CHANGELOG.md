@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-20
+
 ### Removed
 
 - **Deprecated matplotlib-only `plot_gene_track`** (pyLocusZoom-x61): removed `plot_gene_track` and `_draw_strand_arrows_matplotlib` from `gene_track.py`, along with the `plot_gene_track` export from `pylocuszoom.__init__`. Use `plot_gene_track_generic` (backend-agnostic) instead. The function has carried a `DeprecationWarning` since 1.3.0.
