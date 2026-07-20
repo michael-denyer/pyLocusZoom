@@ -1,8 +1,9 @@
 """Shared regional association composition.
 
 This module owns the policy shared by single and stacked regional plots.  The
-plotter keeps the public compatibility methods, while this composer owns the
-association panel's axes, labels, optional recombination, and LD legend rules.
+plotter prepares data and delegates panel composition to this composer, which
+owns the association panel's axes, labels, optional recombination, and LD
+legend rules.
 """
 
 from typing import Any, Callable, List, Optional, Sequence, Tuple
@@ -27,19 +28,6 @@ from .colors import (
 )
 from .logging import logger
 
-AssociationScatter = Callable[
-    [
-        Any,
-        pd.DataFrame,
-        str,
-        Optional[str],
-        Optional[int],
-        Optional[str],
-        Optional[str],
-    ],
-    None,
-]
-
 
 class RegionalPlotComposer:
     """Compose shared association-panel policy for regional plot modes."""
@@ -59,7 +47,6 @@ class RegionalPlotComposer:
         ax: Any,
         df: pd.DataFrame,
         *,
-        draw_scatter: AssociationScatter,
         pos_col: str,
         ld_col: Optional[str],
         lead_pos: Optional[int],
@@ -76,7 +63,9 @@ class RegionalPlotComposer:
         add_ld_legend: bool = False,
     ) -> None:
         """Render one association panel with shared regional policy."""
-        draw_scatter(ax, df, pos_col, ld_col, lead_pos, rs_col, p_col)
+        self.render_association_scatter(
+            ax, df, pos_col, ld_col, lead_pos, rs_col, p_col
+        )
         self._backend.axhline(
             ax,
             y=self._genomewide_line,
@@ -114,12 +103,9 @@ class RegionalPlotComposer:
                 region_span=end - start,
             )
 
-        if recomb_df is not None and not recomb_df.empty:
-            if self._backend.supports_secondary_axis:
-                self.add_recombination_overlay(ax, recomb_df, start, end)
-
         has_recomb = recomb_df is not None and not recomb_df.empty
         if has_recomb and self._backend.supports_secondary_axis:
+            self.add_recombination_overlay(ax, recomb_df, start, end)
             self._backend.hide_spines(ax, ["top"])
         else:
             self._backend.hide_spines(ax, ["top", "right"])
@@ -307,19 +293,6 @@ class RegionalPlotComposer:
         self._backend.set_xlim(ax, start, end)
         self._backend.set_yticks(ax, [], [])
         self._backend.hide_spines(ax, ["top", "right", "left"])
-
-    def highlight_heatmap_snp(
-        self, ax: Any, fig: Any, snp_idx: int, n_snps: int
-    ) -> None:
-        """Compatibility adapter for heatmap SNP highlighting."""
-        self._backend.highlight_heatmap_snp(
-            ax,
-            fig,
-            snp_idx,
-            n_snps,
-            color=LEAD_SNP_HIGHLIGHT_COLOR,
-            linewidth=2,
-        )
 
     def render_gene_panel(
         self,

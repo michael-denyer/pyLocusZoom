@@ -539,14 +539,3 @@ class ColocRenderer:
             self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
         self._backend.finalize_layout(fig)
         return fig
-
-    def add_effect_legend(self, ax: Any) -> None:
-        """Compatibility helper for callers that add the legend separately."""
-        self._backend.add_effect_legend(
-            ax,
-            [
-                (0.0, "Same direction", EFFECT_CONGRUENT_COLOR),
-                (0.0, "Opposite direction", EFFECT_INCONGRUENT_COLOR),
-                (0.0, "Missing effect", LD_NA_COLOR),
-            ],
-        )

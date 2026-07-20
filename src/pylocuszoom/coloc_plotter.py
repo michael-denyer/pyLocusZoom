@@ -9,6 +9,7 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from ._data import P_VALUE_FLOOR
 from ._family_renderers import ColocRenderer
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
@@ -228,9 +229,15 @@ class ColocPlotter:
         gwas_p_merged = _resolve_merged_column(merged, gwas_p_col, "_gwas")
         eqtl_p_merged = _resolve_merged_column(merged, eqtl_p_col, "_eqtl")
 
-        # Transform p-values to -log10(p)
-        merged["neglog10_gwas"] = -np.log10(merged[gwas_p_merged].clip(lower=1e-300))
-        merged["neglog10_eqtl"] = -np.log10(merged[eqtl_p_merged].clip(lower=1e-300))
+        # Coloc transforms two merged p-value columns at once, so it does its
+        # own -log10 here rather than the single-column prepare_pvalue_data
+        # intake; the p-value floor stays shared via P_VALUE_FLOOR.
+        merged["neglog10_gwas"] = -np.log10(
+            merged[gwas_p_merged].clip(lower=P_VALUE_FLOOR)
+        )
+        merged["neglog10_eqtl"] = -np.log10(
+            merged[eqtl_p_merged].clip(lower=P_VALUE_FLOOR)
+        )
 
         # Drop rows with NaN in either transformed p-value
         merged = merged.dropna(subset=["neglog10_gwas", "neglog10_eqtl"])
@@ -299,7 +306,3 @@ class ColocPlotter:
             title=title,
             figsize=figsize,
         )
-
-    def _add_effect_legend(self, ax: Any) -> None:
-        """Add effect direction legend to plot (all backends)."""
-        self._renderer.add_effect_legend(ax)

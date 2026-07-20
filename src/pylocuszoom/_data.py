@@ -22,8 +22,7 @@ def prepare_pvalue_data(
     result = df.copy()
     initial_count = len(result)
     p_values = pd.to_numeric(result[p_col], errors="coerce")
-    lower_bound = 0 if allow_zero else 0
-    lower_mask = p_values >= lower_bound if allow_zero else p_values > lower_bound
+    lower_mask = p_values >= 0 if allow_zero else p_values > 0
     valid = p_values.notna() & lower_mask & (p_values <= 1)
     dropped = int((~valid).sum())
     nan_count = int(result[p_col].isna().sum())

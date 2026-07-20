@@ -340,7 +340,6 @@ class LocusZoomPlotter:
         self._regional_composer.render_association_panel(
             ax,
             df,
-            draw_scatter=self._plot_association,
             pos_col=pos_col,
             ld_col=ld_col,
             lead_pos=lead_pos,
@@ -402,27 +401,6 @@ class LocusZoomPlotter:
 
         return fig
 
-    def _create_figure_with_heatmap(
-        self,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        start: int,
-        end: int,
-        figsize: Tuple[float, float],
-        heatmap_data: Optional[Tuple[pd.DataFrame, List[int], List[str]]],
-        heatmap_height: float = 0.25,
-    ) -> Tuple[Any, Any, Optional[Any], Optional[Any]]:
-        """Create figure with optional gene track and heatmap panel."""
-        return self._regional_composer.create_figure_with_heatmap(
-            genes_df=genes_df,
-            chrom=chrom,
-            start=start,
-            end=end,
-            figsize=figsize,
-            heatmap_data=heatmap_data,
-            heatmap_height=heatmap_height,
-        )
-
     def _transform_heatmap_to_genomic_coords(
         self,
         ld_matrix: pd.DataFrame,
@@ -459,62 +437,6 @@ class LocusZoomPlotter:
 
         filtered_matrix = ld_matrix.iloc[filtered_indices, filtered_indices].copy()
         return filtered_matrix, x_positions, filtered_snp_ids
-
-    def _render_heatmap_panel(
-        self,
-        ax: Any,
-        fig: Any,
-        ld_matrix: pd.DataFrame,
-        x_positions: List[int],
-        snp_ids: List[str],
-        metric: str,
-        lead_snp_id: Optional[str],
-        start: int,
-        end: int,
-    ) -> None:
-        """Render LD heatmap panel with genomic x-coordinates."""
-        self._regional_composer.render_heatmap_panel(
-            ax=ax,
-            fig=fig,
-            ld_matrix=ld_matrix,
-            x_positions=x_positions,
-            snp_ids=snp_ids,
-            metric=metric,
-            lead_snp_id=lead_snp_id,
-            start=start,
-            end=end,
-        )
-
-    def _highlight_heatmap_snp(
-        self, ax: Any, fig: Any, snp_idx: int, n_snps: int
-    ) -> None:
-        """Highlight a SNP's row/column in the heatmap."""
-        self._regional_composer.highlight_heatmap_snp(ax, fig, snp_idx, n_snps)
-
-    def _plot_association(
-        self,
-        ax: Any,
-        df: pd.DataFrame,
-        pos_col: str,
-        ld_col: Optional[str],
-        lead_pos: Optional[int],
-        rs_col: Optional[str] = None,
-        p_col: Optional[str] = None,
-    ) -> None:
-        """Plot association scatter with LD coloring (compatibility adapter)."""
-        self._regional_composer.render_association_scatter(
-            ax, df, pos_col, ld_col, lead_pos, rs_col, p_col
-        )
-
-    def _add_recombination_overlay(
-        self,
-        ax: Any,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay (compatibility adapter)."""
-        self._regional_composer.add_recombination_overlay(ax, recomb_df, start, end)
 
     def plot_stacked(
         self,
@@ -734,7 +656,6 @@ class LocusZoomPlotter:
             self._regional_composer.render_association_panel(
                 ax,
                 df,
-                draw_scatter=self._plot_association,
                 pos_col=pos_col,
                 ld_col=panel_ld_col,
                 lead_pos=lead_pos,
