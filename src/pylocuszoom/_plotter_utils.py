@@ -8,6 +8,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from ._data import prepare_pvalue_data
+
 # Significance thresholds
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
 
@@ -39,43 +41,7 @@ def transform_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
     Returns:
         DataFrame with invalid rows removed and neglog10p column added.
     """
-    from .logging import logger
-
-    df = df.copy()
-    initial_count = len(df)
-
-    # Filter NaN p-values
-    nan_mask = df[p_col].isna()
-    nan_count = nan_mask.sum()
-    if nan_count > 0:
-        logger.warning("Found {} NaN p-values, filtering out", nan_count)
-        df = df[~nan_mask]
-
-    # Filter out-of-range p-values
-    invalid_mask = (df[p_col] < 0) | (df[p_col] > 1)
-    invalid_count = invalid_mask.sum()
-    if invalid_count > 0:
-        logger.warning(
-            "Found {} p-values outside [0, 1] range, filtering out",
-            invalid_count,
-        )
-        df = df[~invalid_mask]
-
-    # Log clipped values at debug level
-    clipped_count = (df[p_col] < 1e-300).sum()
-    if clipped_count > 0:
-        logger.debug("Clipping {} p-values below 1e-300 to 1e-300", clipped_count)
-
-    filtered_count = initial_count - len(df)
-    if filtered_count > 0:
-        logger.debug(
-            "P-value filtering removed {} of {} rows",
-            filtered_count,
-            initial_count,
-        )
-
-    df["neglog10p"] = -np.log10(df[p_col].clip(lower=1e-300))
-    return df
+    return prepare_pvalue_data(df, p_col)
 
 
 def add_significance_line(

@@ -3,12 +3,39 @@
 Defines the interface that matplotlib, plotly, and bokeh backends must implement.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 import pandas as pd
 
 if TYPE_CHECKING:
     from ..colors import EQTLBin, LDBin
+
+
+@runtime_checkable
+class SupportsRegionHighlight(Protocol):
+    """Optional backend capability for highlighting an x-range."""
+
+    def add_region_highlight(
+        self,
+        fig: Any,
+        axes: List[Any],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight one x-range across a set of panels."""
+        ...
 
 
 class PlotBackend(Protocol):

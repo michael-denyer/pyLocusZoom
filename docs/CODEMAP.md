@@ -31,6 +31,7 @@ flowchart TB
         QQP["qq prep<br/><small>3f</small>"]
         FM["finemapping<br/><small>3g</small>"]
         ENS["ensembl REST<br/><small>3h</small>"]
+        REND["Semantic family renderers<br/><small>3i</small>"]
     end
 
     subgraph Layer4["🎨 Backends"]
@@ -72,6 +73,13 @@ flowchart TB
     RC --> BP
     MHP --> BP
     FM --> BP
+    LZ --> REND
+    MH --> REND
+    MI --> REND
+    ST --> REND
+    HM --> REND
+    CP --> REND
+    REND --> BP
 
     BP --> MB
     BP --> PB
@@ -177,6 +185,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
 | 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py](../src/pylocuszoom/ensembl.py) |
+| 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
 
 ### LD Colour Bins [3b]
 
@@ -201,6 +210,7 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 4a | PlotBackend | Protocol defining required methods | [base.py](../src/pylocuszoom/backends/base.py) |
+| 4a | SupportsRegionHighlight | Optional Miami region-highlight capability | [base.py](../src/pylocuszoom/backends/base.py) |
 | 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
 | 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
@@ -208,11 +218,11 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 
 ### Backend Capabilities
 
-| Backend | Static Export | Hover | Recomb Overlay | SNP Labels |
-|---------|---------------|-------|----------------|------------|
-| matplotlib | PNG/PDF/SVG | ❌ | ✅ | ✅ (adjustText) |
-| plotly | HTML | ✅ | ✅ | ❌ |
-| bokeh | HTML | ✅ | ✅ | ❌ |
+| Backend | Static Export | Hover | Recomb Overlay | Region Highlight | SNP Labels |
+|---------|---------------|-------|----------------|------------------|------------|
+| matplotlib | PNG/PDF/SVG | ❌ | ✅ | ✅ | ✅ (adjustText) |
+| plotly | HTML | ✅ | ✅ | ✅ | ❌ |
+| bokeh | HTML | ✅ | ✅ | ✅ | ❌ |
 
 ---
 

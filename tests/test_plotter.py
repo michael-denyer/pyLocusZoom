@@ -1389,14 +1389,12 @@ class TestPvalueTransformation:
 class TestPlotterDelegation:
     """Tests for plotter delegation to specialized classes."""
 
-    def test_plotter_delegates_to_plot_finemapping(self):
-        """plot_stacked() forwards the finemapping DataFrame to plot_finemapping.
+    def test_composer_delegates_to_plot_finemapping(self):
+        """The composer forwards prepared fine-mapping data to its renderer.
 
-        Pins the dispatch contract: plot_stacked delegates fine-map
-        rendering to the module-level ``plot_finemapping`` rather than
-        reimplementing it. Per CLAUDE.md this is a legitimate boundary
-        assertion. Asserts on the DataFrame handed to plot_finemapping,
-        not just that it was called.
+        Pins the dispatch contract at the layer that now owns panel rendering.
+        Asserts on the DataFrame handed to plot_finemapping, not just that it
+        was called.
         """
         plotter = LocusZoomPlotter(
             species="canine", backend="matplotlib", log_level=None
@@ -1418,7 +1416,7 @@ class TestPlotterDelegation:
 
         with (
             patch.object(plotter, "_get_recomb_for_region", return_value=None),
-            patch("pylocuszoom.plotter.plot_finemapping") as mock_plot_fm,
+            patch("pylocuszoom._regional.plot_finemapping") as mock_plot_fm,
         ):
             fig = plotter.plot_stacked(
                 [gwas_df],
@@ -2038,13 +2036,14 @@ class TestStackedPlotLeadDetectionCrossChrom:
 
         # Patch the lead-aware code to capture what got computed.
         captured = {}
-        original = plotter._plot_association
+        composer = plotter._regional_composer
+        original = composer.render_association_scatter
 
         def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
             captured.setdefault("lead_positions", []).append(lead_pos)
             return original(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs)
 
-        plotter._plot_association = spy
+        composer.render_association_scatter = spy
         try:
             plotter.plot_stacked(
                 [gwas_df],
@@ -2056,7 +2055,7 @@ class TestStackedPlotLeadDetectionCrossChrom:
                 show_recombination=False,
             )
         finally:
-            plotter._plot_association = original
+            composer.render_association_scatter = original
 
         assert captured["lead_positions"] == [1_200_000], (
             "Lead must be chr1's strongest hit (1_200_000), not chr2's (1_500_000)"
@@ -2067,12 +2066,12 @@ class TestLeadPosBoundary:
     """Pins the lead_pos=1 boundary.
 
     Smallest valid position (``ge=1`` in config) reaches
-    ``_plot_association`` intact, and the public API rejects ``0``
+    ``render_association_scatter`` intact, and the public API rejects ``0``
     (1-based genomic coords).
     """
 
     def test_lead_pos_one_reaches_plot_association(self):
-        """lead_pos=1 (smallest valid position) propagates to _plot_association."""
+        """lead_pos=1 (smallest valid position) reaches the association scatter."""
         plotter = LocusZoomPlotter(species="canine", log_level=None)
         gwas_df = pd.DataFrame(
             {
@@ -2083,13 +2082,14 @@ class TestLeadPosBoundary:
         )
 
         captured = {}
-        original = plotter._plot_association
+        composer = plotter._regional_composer
+        original = composer.render_association_scatter
 
         def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
             captured["lead_pos"] = lead_pos
             return original(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs)
 
-        plotter._plot_association = spy
+        composer.render_association_scatter = spy
         try:
             plotter.plot(
                 gwas_df,
@@ -2102,7 +2102,7 @@ class TestLeadPosBoundary:
                 show_recombination=False,
             )
         finally:
-            plotter._plot_association = original
+            composer.render_association_scatter = original
 
         assert captured["lead_pos"] == 1, (
             "lead_pos=1 must pass through; falsy-check regression would drop it to None"

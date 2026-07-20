@@ -921,6 +921,19 @@ class MatplotlibBackend:
         # Hide top spine on twin axis
         twin_ax.spines["top"].set_visible(False)
 
+    def add_region_highlight(
+        self,
+        fig: Figure,
+        axes: List[Axes],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight an x-range across multiple matplotlib axes."""
+        for ax in axes:
+            ax.axvspan(x_start, x_end, color=color, alpha=alpha, zorder=0)
+
     def highlight_heatmap_snp(
         self,
         ax: Axes,
