@@ -32,5 +32,3 @@ accept = ["200", "206", "301", "302", "403"]
 
 cache = true
 max_cache_age = "1d"
-
-include_fragments = false
