@@ -249,6 +249,13 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     # We want SNP_B (the other SNPs) and their R2 with lead SNP (SNP_A)
     result = ld_df[["SNP_B", "R2"]].rename(columns={"SNP_B": "SNP"})
 
+    # PLINK's --ld-snp output includes the lead paired with itself (R2=1.0).
+    # Drop that self-pair so the explicit lead row below is the sole lead entry.
+    # Without this the lead key is duplicated, and the validate="many_to_one"
+    # LD merge in LocusZoomPlotter.plot() raises MergeError — silently disabling
+    # LD colouring for every real PLINK run.
+    result = result[result["SNP"] != lead_snp]
+
     # Add the lead SNP itself with R2=1.0
     lead_row = pd.DataFrame({"SNP": [lead_snp], "R2": [1.0]})
     result = pd.concat([result, lead_row], ignore_index=True)

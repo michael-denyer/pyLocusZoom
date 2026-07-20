@@ -164,7 +164,7 @@ Data transformation between validated input and backend-ready primitives.
 
 | ID | Component | Description | File:Line |
 |----|-----------|-------------|-----------|
-| 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py:260](../src/pylocuszoom/ld.py#L260) |
+| 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py:267](../src/pylocuszoom/ld.py#L267) |
 | 3a | find_plink | Locate PLINK executable | [ld.py:101](../src/pylocuszoom/ld.py#L101) |
 | 3b | get_ld_color | Map R² → hex colour | [colors.py:181](../src/pylocuszoom/colors.py#L181) |
 | 3b | get_credible_set_color | CS index → colour | [colors.py:249](../src/pylocuszoom/colors.py#L249) |

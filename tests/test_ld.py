@@ -178,6 +178,30 @@ class TestParseLdOutput:
         assert len(lead_row) == 1
         assert lead_row["R2"].iloc[0] == 1.0
 
+    def test_deduplicates_lead_self_pair(self, tmp_path):
+        """PLINK's --ld-snp output includes the lead paired with itself (R2=1.0).
+
+        Regression: parse_ld_output appended an explicit lead row on top of that
+        self-pair, so the lead SNP appeared twice. The duplicate key later broke
+        the ``validate="many_to_one"`` LD merge in ``LocusZoomPlotter.plot()``
+        with a ``MergeError``, silently disabling LD colouring for every real
+        PLINK run (plink1.9 emits the self-pair; the older fixtures did not).
+        """
+        ld_content = """CHR_A   BP_A    SNP_A   CHR_B   BP_B    SNP_B   R2
+1       1000    rs12345 1       1000    rs12345 1.0
+1       1000    rs12345 1       1500    rs11111 0.95
+1       1000    rs12345 1       2000    rs22222 0.75"""
+
+        ld_file = tmp_path / "selfpair.ld"
+        ld_file.write_text(ld_content)
+
+        result = parse_ld_output(str(ld_file), "rs12345")
+
+        assert result["SNP"].is_unique  # no duplicate merge key for the lead
+        lead_row = result[result["SNP"] == "rs12345"]
+        assert len(lead_row) == 1
+        assert lead_row["R2"].iloc[0] == 1.0
+
     def test_raises_for_missing_file(self, tmp_path):
         """Should raise PlinkError for missing output file."""
         with pytest.raises(PlinkError, match="output file not found"):
