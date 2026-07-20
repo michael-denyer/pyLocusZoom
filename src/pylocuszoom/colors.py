@@ -3,7 +3,6 @@
 Implements LocusZoom-style coloring based on R² linkage disequilibrium values.
 Colors match the locuszoomr R package color scheme.
 
-See docs/CODEMAP.md — anchors [3b].
 """
 
 import math
@@ -124,7 +123,6 @@ def _find_eqtl_bin(effect: float) -> EQTLBin:
         return EQTL_NEGATIVE_BINS[0]
 
 
-# [3b:get_eqtl_color] eQTL effect size → colour — see docs/CODEMAP.md
 def get_eqtl_color(effect: Optional[float]) -> str:
     """Get color based on eQTL effect size.
 
@@ -177,7 +175,6 @@ def _find_ld_bin(r2: float) -> LDBin:
     return LD_BINS[-1]
 
 
-# [3b:get_ld_color] Map R² → hex colour — see docs/CODEMAP.md
 def get_ld_color(r2: Optional[float]) -> str:
     """Get LocusZoom-style color based on LD R² value.
 
@@ -245,7 +242,6 @@ def get_ld_color_palette() -> dict[str, str]:
     return palette
 
 
-# [3b:get_credible_set_color] CS index → colour — see docs/CODEMAP.md
 def get_credible_set_color(cs_id: int) -> str:
     """Get color for a credible set.
 

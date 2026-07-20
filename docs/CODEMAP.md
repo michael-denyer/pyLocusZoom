@@ -1,6 +1,6 @@
 # pyLocusZoom Code Map
 
-Bidirectional navigation between the architecture diagram and source code. Each component has a stable ID (`[1a]`, `[2b]`, …) that appears in the overview diagram and the reference tables below. Every table row is backed by a `# [ID:Symbol]` comment placed directly above its target `def`/`class`; line numbers in the tables are regenerated from those anchors by [`scripts/sync-codemap.py`](../scripts/sync-codemap.py) (also enforced in pre-commit), so the doc can never silently drift from the code.
+Navigation between the architecture diagram and source code. Each component has a stable ID (`[1a]`, `[2b]`, …) that appears in the overview diagram and the reference tables below. Source references link to files instead of volatile line numbers.
 
 ## System Overview
 
@@ -122,24 +122,24 @@ flowchart TB
 
 User-facing plotter classes and data loaders. Each plotter owns a single plot family and delegates to the backend layer.
 
-| ID | Component | Description | File:Line |
+| ID | Component | Description | File |
 |----|-----------|-------------|-----------|
-| 1a | LocusZoomPlotter | Regional association plots (single/stacked) | [plotter.py:60](../src/pylocuszoom/plotter.py#L60) |
-| 1b | ManhattanPlotter | Genome-wide Manhattan / QQ plots | [manhattan_plotter.py:43](../src/pylocuszoom/manhattan_plotter.py#L43) |
-| 1c | MiamiPlotter | Two-trait mirrored Manhattan plots | [miami_plotter.py:26](../src/pylocuszoom/miami_plotter.py#L26) |
-| 1d | StatsPlotter | PheWAS and forest plots | [stats_plotter.py:21](../src/pylocuszoom/stats_plotter.py#L21) |
-| 1e | LDHeatmapPlotter | Pairwise LD heatmaps | [ld_heatmap_plotter.py:21](../src/pylocuszoom/ld_heatmap_plotter.py#L21) |
-| 1f | ColocPlotter | Colocalisation scatter (GWAS × eQTL) | [coloc_plotter.py:70](../src/pylocuszoom/coloc_plotter.py#L70) |
-| 1g | load_gwas | Auto-detecting GWAS format loader | [loaders.py:850](../src/pylocuszoom/loaders.py#L850) |
+| 1a | LocusZoomPlotter | Regional association plots (single/stacked) | [plotter.py](../src/pylocuszoom/plotter.py) |
+| 1b | ManhattanPlotter | Genome-wide Manhattan / QQ plots | [manhattan_plotter.py](../src/pylocuszoom/manhattan_plotter.py) |
+| 1c | MiamiPlotter | Two-trait mirrored Manhattan plots | [miami_plotter.py](../src/pylocuszoom/miami_plotter.py) |
+| 1d | StatsPlotter | PheWAS and forest plots | [stats_plotter.py](../src/pylocuszoom/stats_plotter.py) |
+| 1e | LDHeatmapPlotter | Pairwise LD heatmaps | [ld_heatmap_plotter.py](../src/pylocuszoom/ld_heatmap_plotter.py) |
+| 1f | ColocPlotter | Colocalisation scatter (GWAS × eQTL) | [coloc_plotter.py](../src/pylocuszoom/coloc_plotter.py) |
+| 1g | load_gwas | Auto-detecting GWAS format loader | [loaders.py](../src/pylocuszoom/loaders.py) |
 
 ### File Loaders [1g]
 
 | Domain | Formats | Entry points |
 |--------|---------|--------------|
-| GWAS | PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog | [loaders.py:67–326](../src/pylocuszoom/loaders.py#L67) |
-| eQTL | GTEx, eQTL Catalogue, MatrixEQTL | [loaders.py:333–473](../src/pylocuszoom/loaders.py#L333) |
-| Fine-mapping | SuSiE, FINEMAP, CAVIAR, PolyFun | [loaders.py:480–660](../src/pylocuszoom/loaders.py#L480) |
-| Genes | GTF, BED, Ensembl | [loaders.py:667–842](../src/pylocuszoom/loaders.py#L667) |
+| GWAS | PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog | [loaders.py](../src/pylocuszoom/loaders.py) |
+| eQTL | GTEx, eQTL Catalogue, MatrixEQTL | [loaders.py](../src/pylocuszoom/loaders.py) |
+| Fine-mapping | SuSiE, FINEMAP, CAVIAR, PolyFun | [loaders.py](../src/pylocuszoom/loaders.py) |
+| Genes | GTF, BED, Ensembl | [loaders.py](../src/pylocuszoom/loaders.py) |
 
 ---
 
@@ -147,14 +147,14 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 
 Two validation styles coexist: a fluent builder (`DataFrameValidator`) for ad-hoc checks, and per-DataFrame schema functions in `schemas.py`. Plot options validate via Pydantic.
 
-| ID | Component | Description | File:Line |
+| ID | Component | Description | File |
 |----|-----------|-------------|-----------|
-| 2a | DataFrameValidator | Fluent DataFrame validator | [validation.py:16](../src/pylocuszoom/validation.py#L16) |
-| 2b | validate_gwas_dataframe | GWAS column/type/range checks | [schemas.py:22](../src/pylocuszoom/schemas.py#L22) |
-| 2b | validate_eqtl_dataframe | eQTL schema validation | [schemas.py:100](../src/pylocuszoom/schemas.py#L100) |
-| 2b | validate_finemapping_dataframe | Fine-mapping schema validation | [schemas.py:154](../src/pylocuszoom/schemas.py#L154) |
-| 2c | PlotConfig | Pydantic model for `plot()` kwargs | [config.py:133](../src/pylocuszoom/config.py#L133) |
-| 2c | StackedPlotConfig | Pydantic model for `plot_stacked()` | [config.py:240](../src/pylocuszoom/config.py#L240) |
+| 2a | DataFrameValidator | Fluent DataFrame validator | [validation.py](../src/pylocuszoom/validation.py) |
+| 2b | validate_gwas_dataframe | GWAS column/type/range checks | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | validate_eqtl_dataframe | eQTL schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | validate_finemapping_dataframe | Fine-mapping schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2c | PlotConfig | Pydantic model for `plot()` kwargs | [config.py](../src/pylocuszoom/config.py) |
+| 2c | StackedPlotConfig | Pydantic model for `plot_stacked()` | [config.py](../src/pylocuszoom/config.py) |
 
 ---
 
@@ -162,21 +162,21 @@ Two validation styles coexist: a fluent builder (`DataFrameValidator`) for ad-ho
 
 Data transformation between validated input and backend-ready primitives.
 
-| ID | Component | Description | File:Line |
+| ID | Component | Description | File |
 |----|-----------|-------------|-----------|
-| 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py:267](../src/pylocuszoom/ld.py#L267) |
-| 3a | find_plink | Locate PLINK executable | [ld.py:101](../src/pylocuszoom/ld.py#L101) |
-| 3b | get_ld_color | Map R² → hex colour | [colors.py:181](../src/pylocuszoom/colors.py#L181) |
-| 3b | get_credible_set_color | CS index → colour | [colors.py:249](../src/pylocuszoom/colors.py#L249) |
-| 3b | get_eqtl_color | eQTL effect size → colour | [colors.py:128](../src/pylocuszoom/colors.py#L128) |
-| 3c | assign_gene_positions | Overlap-free gene row layout | [gene_track.py:35](../src/pylocuszoom/gene_track.py#L35) |
-| 3c | plot_gene_track_generic | Backend-agnostic gene rendering | [gene_track.py:201](../src/pylocuszoom/gene_track.py#L201) |
-| 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py:431](../src/pylocuszoom/recombination.py#L431) |
-| 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py:227](../src/pylocuszoom/recombination.py#L227) |
-| 3e | prepare_manhattan_data | Cumulative-position Manhattan prep | [manhattan.py:130](../src/pylocuszoom/manhattan.py#L130) |
-| 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py:69](../src/pylocuszoom/qq.py#L69) |
-| 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py:128](../src/pylocuszoom/finemapping.py#L128) |
-| 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py:414](../src/pylocuszoom/ensembl.py#L414) |
+| 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py](../src/pylocuszoom/ld.py) |
+| 3a | find_plink | Locate PLINK executable | [ld.py](../src/pylocuszoom/ld.py) |
+| 3b | get_ld_color | Map R² → hex colour | [colors.py](../src/pylocuszoom/colors.py) |
+| 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
+| 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
+| 3c | assign_gene_positions | Overlap-free gene row layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
+| 3c | plot_gene_track_generic | Backend-agnostic gene rendering | [gene_track.py](../src/pylocuszoom/gene_track.py) |
+| 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3e | prepare_manhattan_data | Cumulative-position Manhattan prep | [manhattan.py](../src/pylocuszoom/manhattan.py) |
+| 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
+| 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
+| 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 
 ### LD Colour Bins [3b]
 
@@ -198,13 +198,13 @@ LEAD_SNP_COLOR = "#7D26CD"
 
 Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`); the protocol defines the method surface every implementation must satisfy.
 
-| ID | Component | Description | File:Line |
+| ID | Component | Description | File |
 |----|-----------|-------------|-----------|
-| 4a | PlotBackend | Protocol defining required methods | [base.py:15](../src/pylocuszoom/backends/base.py#L15) |
-| 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py:20](../src/pylocuszoom/backends/matplotlib_backend.py#L20) |
-| 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py:32](../src/pylocuszoom/backends/plotly_backend.py#L32) |
-| 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py:34](../src/pylocuszoom/backends/bokeh_backend.py#L34) |
-| 4e | HoverDataBuilder | Uniform hover tooltip construction | [hover.py:34](../src/pylocuszoom/backends/hover.py#L34) |
+| 4a | PlotBackend | Protocol defining required methods | [base.py](../src/pylocuszoom/backends/base.py) |
+| 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
+| 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
+| 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
+| 4e | HoverDataBuilder | Uniform hover tooltip construction | [hover.py](../src/pylocuszoom/backends/hover.py) |
 
 ### Backend Capabilities
 
@@ -218,12 +218,12 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 
 ## [5] Infrastructure
 
-| ID | Component | Description | File:Line |
+| ID | Component | Description | File |
 |----|-----------|-------------|-----------|
-| 5a | PyLocusZoomError | Exception hierarchy root | [exceptions.py:9](../src/pylocuszoom/exceptions.py#L9) |
-| 5b | enable_logging | Loguru/stdlib logging facade | [logging.py:174](../src/pylocuszoom/logging.py#L174) |
-| 5c | to_pandas | PySpark → pandas bridge | [utils.py:38](../src/pylocuszoom/utils.py#L38) |
-| 5c | normalize_chrom | Chromosome string normaliser | [utils.py:91](../src/pylocuszoom/utils.py#L91) |
+| 5a | PyLocusZoomError | Exception hierarchy root | [exceptions.py](../src/pylocuszoom/exceptions.py) |
+| 5b | enable_logging | Loguru/stdlib logging facade | [logging.py](../src/pylocuszoom/logging.py) |
+| 5c | to_pandas | PySpark → pandas bridge | [utils.py](../src/pylocuszoom/utils.py) |
+| 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 
 ### Exception Hierarchy [5a]
 
@@ -237,6 +237,7 @@ PyLocusZoomError
 │   └── ForestValidationError
 ├── BackendError
 ├── PlinkError (also RuntimeError)
+│   └── EmptyLDOutputError
 └── DataDownloadError (also RuntimeError)
 ```
 

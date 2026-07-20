@@ -65,7 +65,6 @@ def calculate_confidence_band(
     return expected, lower_bound, upper_bound
 
 
-# [3f:prepare_qq_data] Observed vs expected QQ data — see docs/CODEMAP.md
 def prepare_qq_data(
     df: pd.DataFrame,
     p_col: str = "p",

@@ -129,7 +129,6 @@ class LDConfig(BaseModel):
         return self
 
 
-# [2c:PlotConfig] Pydantic model for plot() kwargs — see docs/CODEMAP.md
 class PlotConfig(BaseModel):
     """Composite configuration for plot() method.
 
@@ -236,7 +235,6 @@ class PlotConfig(BaseModel):
         )
 
 
-# [2c:StackedPlotConfig] Pydantic model for plot_stacked() — see docs/CODEMAP.md
 class StackedPlotConfig(BaseModel):
     """Composite configuration for plot_stacked() method.
 

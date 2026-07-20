@@ -17,7 +17,6 @@ from .colors import (
 )
 
 
-# [1e:LDHeatmapPlotter] Pairwise LD heatmaps — see docs/CODEMAP.md
 class LDHeatmapPlotter:
     """LD heatmap generator for pairwise LD visualization.
 

@@ -2,7 +2,6 @@
 
 Shared helpers used across multiple modules.
 
-See docs/CODEMAP.md — anchors [5c].
 """
 
 from pathlib import Path
@@ -34,7 +33,6 @@ def is_spark_dataframe(df: Any) -> bool:
     )
 
 
-# [5c:to_pandas] PySpark → pandas bridge — see docs/CODEMAP.md
 def to_pandas(
     df: DataFrameLike,
     sample_size: Optional[int] = None,
@@ -87,7 +85,6 @@ def to_pandas(
     )
 
 
-# [5c:normalize_chrom] Chromosome string normaliser — see docs/CODEMAP.md
 def normalize_chrom(chrom: Union[int, str]) -> str:
     """Normalize chromosome identifier by removing 'chr' prefix.
 

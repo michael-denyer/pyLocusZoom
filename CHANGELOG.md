@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.1] - 2026-07-20
+
+### Changed
+
+- **LD enrichment has one canonical path**: single and stacked regional plots now share the same LD calculation, merge, warning, and recovery logic in `_ld_plotting.py`. `LocusZoomPlotter` no longer duplicates that orchestration.
+- **CODEMAP uses stable file links**: removed source anchor comments, volatile line-number links, the custom synchronization script, and its pre-commit hook. Architecture documentation no longer dictates production source layout.
+- **Recombination maps publish as complete generations**: downloads stage and validate all 38 canine autosomal average maps, then atomically switch the active generation while preserving ancillary files such as the CanFam3-to-CanFam4 chain.
+
+### Fixed
+
+- **Empty LD output has a typed contract**: `parse_ld_output()` now raises `EmptyLDOutputError`, a `PlinkError` subclass. Plotting code catches that type directly instead of changing behavior based on exception message text, and stacked plots now recover consistently with single plots.
+- **Canine recombination cache could never be complete**: the upstream archive contains average, female, and male maps for chromosomes 1-38 and no X map. The old downloader overwrote each chromosome three times based on archive order, then required 39 cached files. It now selects average maps explicitly and validates the exact 38-file manifest.
+- **Partial recombination updates**: a failed download or incomplete archive can no longer leave a mixed old/new map set that later passes the cache check.
 
 ## [1.5.0] - 2026-07-20
 

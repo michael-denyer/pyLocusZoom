@@ -5,9 +5,11 @@ import pytest
 from pylocuszoom.exceptions import (
     BackendError,
     DataDownloadError,
+    EmptyLDOutputError,
     EQTLValidationError,
     FinemappingValidationError,
     LoaderValidationError,
+    PlinkError,
     PyLocusZoomError,
     ValidationError,
 )
@@ -52,6 +54,11 @@ class TestExceptionHierarchy:
         """DataDownloadError inherits from both PyLocusZoomError and RuntimeError."""
         assert issubclass(DataDownloadError, PyLocusZoomError)
         assert issubclass(DataDownloadError, RuntimeError)
+
+    def test_empty_ld_output_error_is_a_plink_error(self):
+        """Empty LD output remains catchable as a general PLINK failure."""
+        assert issubclass(EmptyLDOutputError, PlinkError)
+        assert issubclass(EmptyLDOutputError, RuntimeError)
 
 
 class TestExceptionInstantiation:

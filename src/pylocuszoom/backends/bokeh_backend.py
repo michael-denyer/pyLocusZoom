@@ -30,7 +30,6 @@ _DASH_MAP = {
 
 
 @register_backend("bokeh")
-# [4d:BokehBackend] Dashboard-friendly interactive — see docs/CODEMAP.md
 class BokehBackend:
     """Bokeh backend for interactive plot generation.
 

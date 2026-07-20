@@ -66,7 +66,6 @@ def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
     return EFFECT_CONGRUENT_COLOR if same_direction else EFFECT_INCONGRUENT_COLOR
 
 
-# [1f:ColocPlotter] Colocalisation scatter (GWAS × eQTL) — see docs/CODEMAP.md
 class ColocPlotter:
     """Colocalization scatter plot generator.
 

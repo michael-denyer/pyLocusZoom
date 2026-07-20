@@ -124,7 +124,6 @@ def filter_by_credible_set(
     return df[df[cs_col] == cs_id].copy()
 
 
-# [3g:prepare_finemapping_for_plotting] PIP / credible-set prep — see docs/CODEMAP.md
 def prepare_finemapping_for_plotting(
     df: pd.DataFrame,
     pos_col: str = "pos",

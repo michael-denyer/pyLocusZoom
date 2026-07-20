@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pylocuszoom.exceptions import PlinkError
+from pylocuszoom.exceptions import EmptyLDOutputError, PlinkError
 from pylocuszoom.ld import (
     _add_species_flags,
     build_ld_command,
@@ -219,7 +219,7 @@ class TestParseLdOutput:
         ld_file = tmp_path / "empty.ld"
         ld_file.write_text(ld_content)
 
-        with pytest.raises(PlinkError, match="empty LD output"):
+        with pytest.raises(EmptyLDOutputError, match="empty LD output"):
             parse_ld_output(str(ld_file), "rs12345")
 
     def test_parses_r2_boundary_values(self, tmp_path):

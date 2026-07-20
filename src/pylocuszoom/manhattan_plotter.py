@@ -39,7 +39,6 @@ def _padded_ymax(y_max: float) -> float:
     return max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
 
 
-# [1b:ManhattanPlotter] Genome-wide Manhattan / QQ plots — see docs/CODEMAP.md
 class ManhattanPlotter:
     """Manhattan and QQ plot generator for genome-wide visualizations.
 

@@ -11,6 +11,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +24,7 @@ from .utils import filter_by_region
 
 # Recombination overlay color
 RECOMB_COLOR = "#7FCDFF"  # Light blue
+CANINE_MAP_FILENAMES = frozenset(f"chr{chrom}_recomb.tsv" for chrom in range(1, 39))
 
 # Data sources by species
 CANINE_RECOMB_URL = (
@@ -223,7 +225,70 @@ def get_default_data_dir() -> Path:
     return base / "pylocuszoom" / "recombination_maps"
 
 
-# [3d:download_canine_recombination_maps] Lazy-download bundled maps — see docs/CODEMAP.md
+def _has_complete_canine_maps(path: Path) -> bool:
+    """Return whether path contains exactly the expected canine map set."""
+    if not path.exists():
+        return False
+    present = {map_path.name for map_path in path.glob("chr*_recomb.tsv")}
+    return present == CANINE_MAP_FILENAMES
+
+
+def _publish_map_generation(staging_dir: Path, output_path: Path) -> Path:
+    """Publish a complete map generation behind an atomically replaced link."""
+    parent = output_path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    token = uuid.uuid4().hex
+    generation = parent / f".{output_path.name}.generation-{token}"
+
+    if output_path.exists():
+        shutil.copytree(output_path, generation)
+        for old_map in generation.glob("chr*_recomb.tsv"):
+            old_map.unlink()
+    else:
+        generation.mkdir()
+
+    for staged_file in staging_dir.glob("chr*_recomb.tsv"):
+        shutil.move(str(staged_file), generation / staged_file.name)
+
+    if not _has_complete_canine_maps(generation):
+        shutil.rmtree(generation)
+        raise RuntimeError(
+            "Downloaded recombination archive does not contain the complete canine "
+            "map set (chromosomes 1-38)"
+        )
+
+    pending_link = parent / f".{output_path.name}.pending-{token}"
+    pending_link.symlink_to(generation.name, target_is_directory=True)
+
+    if output_path.is_symlink() or not output_path.exists():
+        previous_generation = (
+            output_path.resolve() if output_path.is_symlink() else None
+        )
+        os.replace(pending_link, output_path)
+    else:
+        previous_generation = None
+        legacy = parent / f".{output_path.name}.legacy-{token}"
+        os.replace(output_path, legacy)
+        try:
+            os.replace(pending_link, output_path)
+        except BaseException:
+            os.replace(legacy, output_path)
+            shutil.rmtree(generation, ignore_errors=True)
+            pending_link.unlink(missing_ok=True)
+            raise
+        shutil.rmtree(legacy)
+
+    if (
+        previous_generation is not None
+        and previous_generation != generation
+        and previous_generation.parent == parent
+        and previous_generation.name.startswith(f".{output_path.name}.generation-")
+    ):
+        shutil.rmtree(previous_generation, ignore_errors=True)
+
+    return output_path
+
+
 def download_canine_recombination_maps(
     output_dir: Optional[str] = None,
     force: bool = False,
@@ -252,13 +317,10 @@ def download_canine_recombination_maps(
         output_path = Path(output_dir)
 
     # Check if already downloaded
-    if output_path.exists() and not force:
-        existing_files = list(output_path.glob("chr*_recomb.tsv"))
-        if len(existing_files) >= 39:  # 38 autosomes + X
-            return output_path
+    if not force and _has_complete_canine_maps(output_path):
+        return output_path
 
-    # Create output directory
-    output_path.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info("Downloading canine recombination maps from GitHub...")
     logger.debug(f"Source: {CANINE_RECOMB_URL}")
@@ -268,7 +330,7 @@ def download_canine_recombination_maps(
     # (e.g. corrupted-archive header rejection) would otherwise leave a
     # partial set of *_recomb.tsv files behind that the cache-hit check
     # at the top of this function might later treat as valid.
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(dir=output_path.parent) as tmpdir:
         # Download tar.gz file with progress bar
         tar_path = Path(tmpdir) / "dog_genetic_maps.tar.gz"
 
@@ -299,7 +361,9 @@ def download_canine_recombination_maps(
         extracted_dir = Path(tmpdir)
 
         # Look for genetic map files (may be in a subdirectory)
-        map_files = list(extracted_dir.rglob("chr*.txt"))
+        map_files = list(extracted_dir.rglob("chr*_average_*.txt"))
+        if not map_files:
+            map_files = list(extracted_dir.rglob("chr*.txt"))
         if not map_files:
             map_files = list(extracted_dir.rglob("*chr*.tsv"))
 
@@ -359,10 +423,7 @@ def download_canine_recombination_maps(
                 with open(output_file, "w") as f:
                     f.write(content)
 
-        # All chromosomes wrote successfully — promote staged files to
-        # the final output directory.
-        for staged_file in staging_dir.glob("chr*_recomb.tsv"):
-            shutil.move(str(staged_file), str(output_path / staged_file.name))
+        _publish_map_generation(staging_dir, output_path)
 
     logger.info(f"Recombination maps saved to: {output_path}")
     return output_path
@@ -427,7 +488,6 @@ def load_recombination_map(
     return df.dropna(subset=["pos", "rate"])
 
 
-# [3d:get_recombination_rate_for_region] Region-filtered recomb rate — see docs/CODEMAP.md
 def get_recombination_rate_for_region(
     chrom: int,
     start: int,
@@ -500,11 +560,9 @@ def ensure_recomb_maps(
         output_path = get_default_data_dir()
 
     # Check if maps already exist
-    if output_path.exists():
-        existing_files = list(output_path.glob("chr*_recomb.tsv"))
-        if len(existing_files) >= 39:  # 38 autosomes + X
-            logger.debug(f"Recombination maps already exist at {output_path}")
-            return output_path
+    if _has_complete_canine_maps(output_path):
+        logger.debug(f"Recombination maps already exist at {output_path}")
+        return output_path
 
     # Download maps with error handling
     logger.info("Downloading canine recombination maps...")

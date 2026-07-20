@@ -429,7 +429,7 @@ class TestLocusZoomPlotterLdCalculation:
             }
         )
 
-        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
+        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
             mock_ld.return_value = pd.DataFrame(
                 {
                     "SNP": ["rs1", "rs2", "rs3"],
@@ -444,6 +444,7 @@ class TestLocusZoomPlotterLdCalculation:
                 end=2000000,
                 lead_pos=1100000,
                 ld_reference_file="/path/to/genotypes",
+                show_recombination=False,
             )
 
             mock_ld.assert_called_once()
@@ -456,7 +457,7 @@ class TestLocusZoomPlotterLdCalculation:
         scenario; plotter.plot() catches only this specific PlinkError and
         continues without LD colouring, leaving a warning in the log.
         """
-        from pylocuszoom.exceptions import PlinkError
+        from pylocuszoom.exceptions import EmptyLDOutputError
 
         df = pd.DataFrame(
             {
@@ -466,8 +467,8 @@ class TestLocusZoomPlotterLdCalculation:
             }
         )
 
-        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
-            mock_ld.side_effect = PlinkError(
+        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
+            mock_ld.side_effect = EmptyLDOutputError(
                 "PLINK produced an empty LD output for lead SNP 'rs1'."
             )
             fig = plotter.plot(
@@ -477,7 +478,35 @@ class TestLocusZoomPlotterLdCalculation:
                 end=2000000,
                 lead_pos=1100000,
                 ld_reference_file="/path/to/genotypes",
+                show_recombination=False,
             )
+        assert fig is not None
+        plt.close(fig)
+
+    def test_stacked_plot_downgrades_empty_ld_output(self, plotter):
+        """Single and stacked plots share the recoverable LD policy."""
+        from pylocuszoom.exceptions import EmptyLDOutputError
+
+        df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "ps": [1100000, 1500000, 1900000],
+                "p_wald": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
+            mock_ld.side_effect = EmptyLDOutputError("no LD neighbours")
+            fig = plotter.plot_stacked(
+                [df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                lead_positions=[1100000],
+                ld_reference_files=["/path/to/genotypes"],
+                show_recombination=False,
+            )
+
         assert fig is not None
         plt.close(fig)
 
@@ -498,7 +527,7 @@ class TestLocusZoomPlotterLdCalculation:
             }
         )
 
-        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
+        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
             mock_ld.side_effect = PlinkError(
                 "PLINK LD calculation failed (exit code 2): bad bfile"
             )
@@ -618,7 +647,7 @@ class TestPlotEdgeCases:
             }
         )
 
-        with patch("pylocuszoom.plotter.calculate_ld") as mock_ld:
+        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
             mock_ld.return_value = pd.DataFrame({"SNP": [], "R2": []})
 
             # This should NOT raise KeyError - should handle gracefully

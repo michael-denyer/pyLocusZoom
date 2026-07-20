@@ -13,7 +13,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .exceptions import PlinkError, ValidationError
+from .exceptions import EmptyLDOutputError, PlinkError, ValidationError
 from .logging import logger
 from .utils import validate_plink_files
 
@@ -97,7 +97,6 @@ def build_pairwise_ld_command(
     return cmd
 
 
-# [3a:find_plink] Locate PLINK executable — see docs/CODEMAP.md
 def find_plink() -> Optional[str]:
     """Find PLINK executable on PATH.
 
@@ -239,7 +238,7 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
         # SNP monomorphic, filtered out by --maf, or no variants in window.
         # Silently returning an empty DataFrame would leave the caller with
         # an uncoloured plot and no clue why.
-        raise PlinkError(
+        raise EmptyLDOutputError(
             f"PLINK produced an empty LD output ({ld_file}) for lead SNP "
             f"{lead_snp!r}. The lead SNP may be monomorphic, filtered by "
             f"PLINK quality thresholds, or absent from the reference panel. "
@@ -263,7 +262,6 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     return result
 
 
-# [3a:calculate_ld] PLINK wrapper, lead-SNP R² — see docs/CODEMAP.md
 def calculate_ld(
     bfile_path: str,
     lead_snp: str,

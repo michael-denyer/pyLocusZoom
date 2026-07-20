@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from ..colors import EQTLBin, LDBin
 
 
-# [4a:PlotBackend] Protocol defining required methods — see docs/CODEMAP.md
 class PlotBackend(Protocol):
     """Protocol defining the backend interface for LocusZoom plots.
 

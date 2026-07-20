@@ -5,7 +5,6 @@ catch all library errors with `except PyLocusZoomError`.
 """
 
 
-# [5a:PyLocusZoomError] Exception hierarchy root — see docs/CODEMAP.md
 class PyLocusZoomError(Exception):
     """Base exception for all pyLocusZoom errors."""
 
@@ -40,6 +39,10 @@ class BackendError(PyLocusZoomError):
 
 class PlinkError(PyLocusZoomError, RuntimeError):
     """Raised when PLINK subprocess fails."""
+
+
+class EmptyLDOutputError(PlinkError):
+    """Raised when PLINK succeeds but produces no LD pairs."""
 
 
 class DataDownloadError(PyLocusZoomError, RuntimeError):

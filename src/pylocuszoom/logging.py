@@ -170,7 +170,6 @@ else:
 logger.enable("INFO")
 
 
-# [5b:enable_logging] Loguru/stdlib logging facade — see docs/CODEMAP.md
 def enable_logging(level: str = "INFO", sink=sys.stderr) -> None:
     """Enable logging output.
 

@@ -846,7 +846,6 @@ def load_ensembl_genes(
 # =============================================================================
 
 
-# [1g:load_gwas] Auto-detecting GWAS format loader — see docs/CODEMAP.md
 def load_gwas(
     filepath: Union[str, Path],
     format: Optional[str] = None,

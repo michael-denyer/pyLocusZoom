@@ -15,6 +15,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from ._ld_plotting import enrich_with_ld
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     calculate_gene_track_height,
@@ -37,14 +38,13 @@ from .colors import (
 from .config import PlotConfig, StackedPlotConfig
 from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
-from .exceptions import PlinkError
 from .finemapping import (
     get_credible_sets,
     plot_finemapping,
     prepare_finemapping_for_plotting,
 )
 from .gene_track import plot_gene_track_generic
-from .ld import calculate_ld, find_plink
+from .ld import find_plink
 from .logging import enable_logging, logger
 from .recombination import (
     ensure_recomb_maps,
@@ -56,7 +56,6 @@ from .utils import filter_by_region, validate_genes_df, validate_gwas_df
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
-# [1a:LocusZoomPlotter] Regional association plots (single / stacked) — see docs/CODEMAP.md
 class LocusZoomPlotter:
     """Regional association plot generator with LD coloring and annotations.
 
@@ -285,52 +284,18 @@ class LocusZoomPlotter:
 
         df = transform_pvalues(gwas_df, p_col)
 
-        if ld_reference_file and lead_pos is not None and ld_col is None:
-            if rs_col not in df.columns:
-                logger.warning(
-                    f"Cannot calculate LD: column '{rs_col}' not found in GWAS data. "
-                    f"Provide rs_col parameter or add SNP IDs to DataFrame."
-                )
-            else:
-                lead_snp_row = df[df[pos_col] == lead_pos]
-                if lead_snp_row.empty:
-                    logger.warning(
-                        f"Lead SNP at position {lead_pos} not found in GWAS data. "
-                        f"LD coloring will be skipped."
-                    )
-                else:
-                    lead_snp_id = lead_snp_row[rs_col].iloc[0]
-                    logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
-                    try:
-                        ld_df = calculate_ld(
-                            bfile_path=ld_reference_file,
-                            lead_snp=lead_snp_id,
-                            window_kb=max((end - start) // 1000, 500),
-                            plink_path=self.plink_path,
-                            species=self.species,
-                        )
-                    except PlinkError as exc:
-                        # Empty LD output (e.g. singleton lead SNP with no
-                        # neighbors in the window) is recoverable — warn and
-                        # plot without LD coloring rather than aborting. Other
-                        # PlinkError causes (timeout, non-zero exit, missing
-                        # output file) are real misconfiguration and must
-                        # propagate so the caller sees them.
-                        if "empty LD output" not in str(exc):
-                            raise
-                        logger.warning(
-                            f"LD calculation skipped: {exc}. "
-                            "Proceeding without LD coloring."
-                        )
-                    else:
-                        df = df.merge(
-                            ld_df,
-                            left_on=rs_col,
-                            right_on="SNP",
-                            how="left",
-                            validate="many_to_one",
-                        )
-                        ld_col = "R2"
+        df, ld_col = enrich_with_ld(
+            df,
+            reference_file=ld_reference_file,
+            lead_pos=lead_pos,
+            ld_col=ld_col,
+            pos_col=pos_col,
+            rs_col=rs_col,
+            start=start,
+            end=end,
+            plink_path=self.plink_path,
+            species=self.species,
+        )
 
         if show_recombination and recomb_df is None:
             recomb_df = self._get_recomb_for_region(chrom, start, end)
@@ -857,38 +822,20 @@ class LocusZoomPlotter:
             ax = axes[i]
             df = transform_pvalues(gwas_df, p_col)
 
-            panel_ld_col = ld_col
-            if (
-                ld_reference_files
-                and ld_reference_files[i]
-                and lead_pos is not None
-                and not ld_col
-            ):
-                if rs_col not in df.columns:
-                    logger.warning(
-                        f"Cannot calculate LD for panel {i + 1}: column '{rs_col}' "
-                        f"not found in GWAS data. "
-                        f"Provide rs_col parameter or add SNP IDs to DataFrame."
-                    )
-                else:
-                    lead_snp_row = df[df[pos_col] == lead_pos]
-                    if not lead_snp_row.empty:
-                        lead_snp_id = lead_snp_row[rs_col].iloc[0]
-                        ld_df = calculate_ld(
-                            bfile_path=ld_reference_files[i],
-                            lead_snp=lead_snp_id,
-                            window_kb=max((end - start) // 1000, 500),
-                            plink_path=self.plink_path,
-                            species=self.species,
-                        )
-                        df = df.merge(
-                            ld_df,
-                            left_on=rs_col,
-                            right_on="SNP",
-                            how="left",
-                            validate="many_to_one",
-                        )
-                        panel_ld_col = "R2"
+            reference_file = ld_reference_files[i] if ld_reference_files else None
+            df, panel_ld_col = enrich_with_ld(
+                df,
+                reference_file=reference_file,
+                lead_pos=lead_pos,
+                ld_col=ld_col,
+                pos_col=pos_col,
+                rs_col=rs_col,
+                start=start,
+                end=end,
+                plink_path=self.plink_path,
+                species=self.species,
+                context=f"panel {i + 1}",
+            )
 
             self._plot_association(
                 ax, df, pos_col, panel_ld_col, lead_pos, rs_col, p_col

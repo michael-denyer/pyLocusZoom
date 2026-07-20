@@ -83,6 +83,7 @@ from .eqtl import (
 from .exceptions import (
     BackendError,
     DataDownloadError,
+    EmptyLDOutputError,
     EQTLValidationError,
     FinemappingValidationError,
     ForestValidationError,
@@ -230,6 +231,7 @@ __all__ = [
     "ValidationError",
     "BackendError",
     "DataDownloadError",
+    "EmptyLDOutputError",
     "PlinkError",
     "PheWASValidationError",
     "ForestValidationError",

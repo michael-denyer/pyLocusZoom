@@ -12,6 +12,7 @@ import requests
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
     _normalize_build,
+    _publish_map_generation,
     download_canine_recombination_maps,
     download_liftover_chain,
     ensure_recomb_maps,
@@ -377,13 +378,71 @@ class TestDownloadCanineRecombinationMaps:
             "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
         )
 
-        # Create 39 mock files (38 autosomes + X)
+        # Create the complete 38-autosome map set.
         for i in range(1, 39):
             (tmp_path / f"chr{i}_recomb.tsv").touch()
-        (tmp_path / "chrX_recomb.tsv").touch()
 
         result = download_canine_recombination_maps(force=False)
         assert result == tmp_path
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_rejects_wrong_39_file_manifest(self, mock_download, tmp_path):
+        """A count of 39 files is not proof that the canine set is complete."""
+        for i in range(1, 40):
+            (tmp_path / f"chr{i}_recomb.tsv").touch()
+
+        mock_download.side_effect = requests.RequestException("download attempted")
+
+        with pytest.raises(requests.RequestException, match="download attempted"):
+            download_canine_recombination_maps(output_dir=str(tmp_path), force=False)
+
+
+class TestPublishMapGeneration:
+    """Atomic publication tests for the recombination map set."""
+
+    @staticmethod
+    def _write_maps(path: Path, content: str, *, complete: bool = True) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        stop = 39 if complete else 38
+        for chrom in range(1, stop):
+            (path / f"chr{chrom}_recomb.tsv").write_text(content)
+
+    def test_switches_complete_generations_and_preserves_ancillary_files(
+        self, tmp_path
+    ):
+        output = tmp_path / "maps"
+        self._write_maps(output, "old")
+        (output / "canFam3ToCanFam4.over.chain.gz").write_text("chain")
+
+        first_staging = tmp_path / "first-staging"
+        self._write_maps(first_staging, "first")
+        _publish_map_generation(first_staging, output)
+
+        first_generation = output.resolve()
+        assert output.is_symlink()
+        assert (output / "chr1_recomb.tsv").read_text() == "first"
+        assert (output / "canFam3ToCanFam4.over.chain.gz").read_text() == "chain"
+
+        second_staging = tmp_path / "second-staging"
+        self._write_maps(second_staging, "second")
+        _publish_map_generation(second_staging, output)
+
+        assert output.resolve() != first_generation
+        assert (output / "chr1_recomb.tsv").read_text() == "second"
+        assert not first_generation.exists()
+
+    def test_incomplete_generation_leaves_active_maps_unchanged(self, tmp_path):
+        output = tmp_path / "maps"
+        self._write_maps(output, "old")
+        staging = tmp_path / "incomplete-staging"
+        self._write_maps(staging, "new", complete=False)
+
+        with pytest.raises(RuntimeError, match="complete canine map set"):
+            _publish_map_generation(staging, output)
+
+        assert not output.is_symlink()
+        assert (output / "chr1_recomb.tsv").read_text() == "old"
+        assert (output / "chr38_recomb.tsv").read_text() == "old"
 
 
 class TestEnsureRecombMaps:
@@ -411,8 +470,8 @@ class TestEnsureRecombMaps:
         """Test that ensure_recomb_maps skips download when maps exist."""
         data_dir = tmp_path / "recomb_data"
         data_dir.mkdir()
-        # Create 39 fake chromosome files
-        for i in range(1, 40):
+        # Create the complete 38-autosome map set.
+        for i in range(1, 39):
             (data_dir / f"chr{i}_recomb.tsv").touch()
 
         mock_get_dir.return_value = data_dir
@@ -585,7 +644,18 @@ class TestDownloadCanineRecombHeaderDetection:
         """Return a _download_with_progress mock that writes our fake tarball."""
 
         def side_effect(url, dest_path, desc=None):
-            self._make_tarball(dest_path, filename, content)
+            with tarfile.open(dest_path, "w:gz") as tar:
+                for chrom in map(str, range(1, 39)):
+                    map_filename = f"chr{chrom}.txt"
+                    map_content = (
+                        content
+                        if map_filename == filename
+                        else (f"chr\tpos\trate\tcM\n{chrom}\t1000\t0.5\t0.1\n")
+                    )
+                    data = map_content.encode("utf-8")
+                    info = tarfile.TarInfo(name=map_filename)
+                    info.size = len(data)
+                    tar.addfile(info, io.BytesIO(data))
 
         return side_effect
 

@@ -94,13 +94,6 @@ repos:
         always_run: true
         pass_filenames: false
 
-      - id: sync-codemap
-        name: Verify docs/CODEMAP.md anchors are in sync
-        entry: uv run python scripts/sync-codemap.py
-        language: system
-        files: '^(src/pylocuszoom/.*\.py|docs/CODEMAP\.md)$'
-        pass_filenames: false
-
       - id: pytest-cov
         name: pytest with coverage
         entry: uv run python -m pytest -n 3

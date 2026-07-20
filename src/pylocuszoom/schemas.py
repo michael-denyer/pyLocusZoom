@@ -3,7 +3,6 @@
 Provides validation for GWAS, eQTL, fine-mapping, and gene annotation
 DataFrames to ensure data quality before plotting.
 
-See docs/CODEMAP.md — anchors [2b].
 """
 
 from pathlib import Path
@@ -18,7 +17,6 @@ from .exceptions import LoaderValidationError
 # =============================================================================
 
 
-# [2b:validate_gwas_dataframe] GWAS column/type/range checks — see docs/CODEMAP.md
 def validate_gwas_dataframe(
     df: pd.DataFrame,
     pos_col: str = "ps",
@@ -96,7 +94,6 @@ def validate_gwas_dataframe(
 # =============================================================================
 
 
-# [2b:validate_eqtl_dataframe] eQTL schema validation — see docs/CODEMAP.md
 def validate_eqtl_dataframe(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -150,7 +147,6 @@ def validate_eqtl_dataframe(
 # =============================================================================
 
 
-# [2b:validate_finemapping_dataframe] Fine-mapping schema validation — see docs/CODEMAP.md
 def validate_finemapping_dataframe(
     df: pd.DataFrame,
     cs_col: str = "cs",
