@@ -192,6 +192,13 @@ def validate_gwas_df(
 ) -> None:
     """Validate GWAS results DataFrame.
 
+    This is the permissive plot-time tier: columns and non-emptiness only. The
+    p-value policy is deferred to ``_data.prepare_pvalue_data``, which keeps an
+    exact zero under the Manhattan convention. The strict ``(0, 1]`` tier lives
+    in ``schemas.validate_gwas_dataframe`` and runs at load time. The split is
+    deliberate: tightening this function would reject Manhattan input that
+    plots correctly today.
+
     Args:
         df: GWAS results DataFrame.
         pos_col: Column name for position.
