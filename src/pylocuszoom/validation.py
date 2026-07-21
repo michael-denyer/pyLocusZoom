@@ -175,6 +175,33 @@ class DataFrameValidator:
 
         return self
 
+    def require_ordering(
+        self,
+        lower_col: str,
+        upper_col: str,
+    ) -> "DataFrameValidator":
+        """Check that one column never exceeds another, row-wise.
+
+        Skips the check when either column is missing or was already flagged
+        non-numeric, on the same grounds as require_range.
+
+        Args:
+            lower_col: Column name expected to hold the smaller value.
+            upper_col: Column name expected to hold the larger value.
+
+        Returns:
+            Self for method chaining.
+        """
+        for col in (lower_col, upper_col):
+            if col not in self._df.columns or col in self._non_numeric_cols:
+                return self
+
+        inverted = (self._df[lower_col] > self._df[upper_col]).sum()
+        if inverted > 0:
+            self._errors.append(f"{inverted} rows have {lower_col} > {upper_col}")
+
+        return self
+
     def require_ci_ordering(
         self,
         ci_lower_col: str,

@@ -120,7 +120,7 @@ def load_plink_assoc(
     logger.debug(f"Loaded PLINK file with {len(df)} variants")
 
     # Validate output
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
 
     return df
 
@@ -161,7 +161,7 @@ def load_regenie(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded REGENIE file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
     return df
 
 
@@ -202,7 +202,7 @@ def load_bolt_lmm(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded BOLT-LMM file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
     return df
 
 
@@ -249,7 +249,7 @@ def load_gemma(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded GEMMA file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
     return df
 
 
@@ -289,7 +289,7 @@ def load_saige(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded SAIGE file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
     return df
 
 
@@ -321,7 +321,7 @@ def load_gwas_catalog(
 
     df = df.rename(columns=col_map)
     logger.debug(f"Loaded GWAS Catalog file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col, rs_col=rs_col)
+    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
     return df
 
 
@@ -533,9 +533,7 @@ def load_susie(
 
     logger.debug(f"Loaded SuSiE file with {len(df)} variants")
 
-    _validate_or_warn(
-        df, ["pos", "pip"], "SuSiE", validate_finemapping_dataframe, cs_col=cs_col
-    )
+    _validate_or_warn(df, ["pos", "pip"], "SuSiE", validate_finemapping_dataframe)
 
     return df
 
@@ -577,9 +575,7 @@ def load_finemap(
 
     logger.debug(f"Loaded FINEMAP file with {len(df)} variants")
 
-    _validate_or_warn(
-        df, ["pos", "pip"], "FINEMAP", validate_finemapping_dataframe, cs_col=cs_col
-    )
+    _validate_or_warn(df, ["pos", "pip"], "FINEMAP", validate_finemapping_dataframe)
 
     return df
 
@@ -652,9 +648,7 @@ def load_polyfun(
 
     logger.debug(f"Loaded PolyFun file with {len(df)} variants")
 
-    _validate_or_warn(
-        df, ["pos", "pip"], "PolyFun", validate_finemapping_dataframe, cs_col=cs_col
-    )
+    _validate_or_warn(df, ["pos", "pip"], "PolyFun", validate_finemapping_dataframe)
 
     return df
 

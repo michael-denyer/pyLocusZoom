@@ -822,7 +822,7 @@ class TestGWASValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="Missing required column"):
+        with pytest.raises(LoaderValidationError, match="Missing columns"):
             validate_gwas_dataframe(df)
 
     def test_missing_pvalue_column_fails(self):
@@ -834,7 +834,7 @@ class TestGWASValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="Missing required column"):
+        with pytest.raises(LoaderValidationError, match="Missing columns"):
             validate_gwas_dataframe(df)
 
     def test_negative_position_fails(self):
@@ -846,7 +846,7 @@ class TestGWASValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="non-positive"):
+        with pytest.raises(LoaderValidationError, match=r"values <= 0"):
             validate_gwas_dataframe(df)
 
     def test_pvalue_out_of_range_fails(self):
@@ -858,7 +858,7 @@ class TestGWASValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="outside range"):
+        with pytest.raises(LoaderValidationError, match=r"values > 1"):
             validate_gwas_dataframe(df)
 
     def test_zero_pvalue_fails(self):
@@ -870,7 +870,7 @@ class TestGWASValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="outside range"):
+        with pytest.raises(LoaderValidationError, match=r"values <= 0"):
             validate_gwas_dataframe(df)
 
     def test_nan_position_fails(self):
@@ -882,7 +882,7 @@ class TestGWASValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="missing values"):
+        with pytest.raises(LoaderValidationError, match=r"null values"):
             validate_gwas_dataframe(df)
 
     def test_non_numeric_pvalue_fails(self):
@@ -936,7 +936,7 @@ class TestEQTLValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="Missing required column"):
+        with pytest.raises(LoaderValidationError, match="Missing columns"):
             validate_eqtl_dataframe(df)
 
 
@@ -965,7 +965,7 @@ class TestFinemappingValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="outside range"):
+        with pytest.raises(LoaderValidationError, match=r"values > 1"):
             validate_finemapping_dataframe(df)
 
     def test_negative_pip_fails(self):
@@ -977,7 +977,7 @@ class TestFinemappingValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="outside range"):
+        with pytest.raises(LoaderValidationError, match=r"values < 0"):
             validate_finemapping_dataframe(df)
 
 
@@ -1009,7 +1009,7 @@ class TestGenesValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="end < start"):
+        with pytest.raises(LoaderValidationError, match=r"rows have start > end"):
             validate_genes_dataframe(df)
 
     def test_negative_start_fails(self):
@@ -1023,7 +1023,7 @@ class TestGenesValidation:
             }
         )
 
-        with pytest.raises(LoaderValidationError, match="negative"):
+        with pytest.raises(LoaderValidationError, match=r"values < 0"):
             validate_genes_dataframe(df)
 
 
