@@ -12,6 +12,7 @@ from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
 from . import convert_latex_to_unicode, register_backend
+from .composition import LegendEntry
 
 # Style mappings (matplotlib -> Bokeh)
 _MARKER_MAP = {
@@ -20,6 +21,21 @@ _MARKER_MAP = {
     "s": "square",
     "^": "triangle",
     "v": "inverted_triangle",
+}
+# Matplotlib legend `loc` vocabulary mapped to Bokeh legend locations.
+# "best" has no Bokeh equivalent, so it takes the upper-right default.
+_LEGEND_LOCATIONS = {
+    "best": "top_right",
+    "upper right": "top_right",
+    "upper left": "top_left",
+    "upper center": "top_center",
+    "lower right": "bottom_right",
+    "lower left": "bottom_left",
+    "lower center": "bottom_center",
+    "center right": "center_right",
+    "center left": "center_left",
+    "right": "center_right",
+    "center": "center",
 }
 _DASH_MAP = {
     "-": "solid",
@@ -38,18 +54,8 @@ class BokehBackend:
     """
 
     @property
-    def supports_snp_labels(self) -> bool:
-        """Bokeh uses hover tooltips instead of labels."""
-        return False
-
-    @property
     def supports_hover(self) -> bool:
         """Bokeh supports hover tooltips."""
-        return True
-
-    @property
-    def supports_secondary_axis(self) -> bool:
-        """Bokeh supports secondary y-axis."""
         return True
 
     def create_figure(
@@ -470,16 +476,6 @@ class BokehBackend:
         if rotation:
             ax.xaxis.major_label_orientation = math.radians(rotation)
 
-    def _get_legend_location(self, loc: str, default: str = "top_left") -> str:
-        """Map matplotlib-style legend location to Bokeh location."""
-        loc_map = {
-            "upper left": "top_left",
-            "upper right": "top_right",
-            "lower left": "bottom_left",
-            "lower right": "bottom_right",
-        }
-        return loc_map.get(loc, default)
-
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Bokeh display."""
         return convert_latex_to_unicode(label)
@@ -508,7 +504,8 @@ class BokehBackend:
     def create_twin_axis(self, ax: figure) -> Any:
         """Create a secondary y-axis.
 
-        Returns a dict with configuration for extra_y_ranges.
+        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
+        primitives.
         """
         from bokeh.models import LinearAxis, Range1d
 
@@ -522,11 +519,11 @@ class BokehBackend:
         )
         ax.add_layout(secondary_axis, "right")
 
-        return "secondary"
+        return (ax, "secondary")
 
     def line_secondary(
         self,
-        ax: figure,
+        secondary: Any,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -534,9 +531,9 @@ class BokehBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: str = "secondary",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
+        ax, yaxis_name = secondary
         line_dash = _DASH_MAP.get(linestyle, "solid")
 
         return ax.line(
@@ -551,15 +548,15 @@ class BokehBackend:
 
     def fill_between_secondary(
         self,
-        ax: figure,
+        secondary: Any,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: str = "secondary",
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
+        ax, yaxis_name = secondary
         x_arr = x.values
         if isinstance(y1, (int, float)):
             y1_arr = [y1] * len(x_arr)
@@ -582,25 +579,25 @@ class BokehBackend:
 
     def set_secondary_ylim(
         self,
-        ax: figure,
+        secondary: Any,
         bottom: float,
         top: float,
-        yaxis_name: str = "secondary",
     ) -> None:
         """Set secondary y-axis limits."""
+        ax, yaxis_name = secondary
         if yaxis_name in ax.extra_y_ranges:
             ax.extra_y_ranges[yaxis_name].start = bottom
             ax.extra_y_ranges[yaxis_name].end = top
 
     def set_secondary_ylabel(
         self,
-        ax: figure,
+        secondary: Any,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: str = "secondary",
     ) -> None:
         """Set secondary y-axis label."""
+        ax, yaxis_name = secondary
         label = self._convert_label(label)
         # Find the secondary axis and update its label
         for renderer in ax.right:
@@ -613,27 +610,6 @@ class BokehBackend:
                 renderer.axis_label_text_color = color
                 renderer.major_label_text_color = color
                 break
-
-    def add_snp_labels(
-        self,
-        ax: figure,
-        df: pd.DataFrame,
-        pos_col: str,
-        neglog10p_col: str,
-        rs_col: str,
-        label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        adjust: bool = True,
-        lead_pos: Optional[int] = None,
-        region_span: Optional[int] = None,
-    ) -> List[Any]:
-        """No-op: Bokeh uses hover tooltips instead of text labels."""
-        return []
-
-    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
-        """No-op: Bokeh uses hover tooltips instead of text labels."""
-        pass
 
     def add_panel_label(
         self,
@@ -681,6 +657,7 @@ class BokehBackend:
         color: str,
         marker: str,
         size: int = 14,
+        edgecolor: str = "black",
     ) -> Any:
         """Create an invisible scatter renderer for a legend entry."""
         from bokeh.models import LegendItem
@@ -692,21 +669,23 @@ class BokehBackend:
             marker=marker,
             size=size,
             fill_color=color,
-            line_color="black",
+            line_color=edgecolor,
             line_width=0.5,
             y_range_name="legend_range",
             visible=False,
         )
         return LegendItem(label=label, renderers=[renderer])
 
-    def _create_legend(self, ax: figure, items: List[Any], title: str) -> None:
+    def _create_legend(
+        self, ax: figure, items: List[Any], title: str, loc: str
+    ) -> None:
         """Create and add a styled legend to the figure."""
         from bokeh.models import Legend
 
         legend = Legend(
             items=items,
-            location="top_right",
-            title=title,
+            location=_LEGEND_LOCATIONS.get(loc, "top_right"),
+            title=convert_latex_to_unicode(title),
             background_fill_alpha=0.9,
             border_line_color="black",
             spacing=0,
@@ -716,53 +695,33 @@ class BokehBackend:
         )
         ax.add_layout(legend)
 
-    def add_ld_legend(
-        self,
-        ax: figure,
-        ld_bins: List[Tuple[float, str, str]],
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend using invisible dummy glyphs.
-
-        Creates legend entries with dummy renderers that are excluded from
-        the data range calculation to avoid affecting axis scaling.
-        """
-        source = self._ensure_legend_range(ax)
-        items = [
-            self._add_legend_item(ax, source, "Lead SNP", lead_snp_color, "diamond", 16)
-        ]
-        for _, label, color in ld_bins:
-            items.append(self._add_legend_item(ax, source, label, color, "square"))
-        self._create_legend(ax, items, "r²")
-
-    def add_effect_legend(
-        self,
-        ax: figure,
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots."""
-        source = self._ensure_legend_range(ax)
-        items = []
-        for _, label, color in effect_bins:
-            items.append(self._add_legend_item(ax, source, label, color, "circle"))
-        self._create_legend(ax, items, "Effect")
-
     def add_legend(
         self,
         ax: figure,
-        handles: List[Any],
-        labels: List[str],
+        entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
-        """Configure legend on the figure."""
-        ax.legend.location = self._get_legend_location(loc, "top_left")
-        if title:
-            ax.legend.title = title
-        ax.legend.background_fill_alpha = 0.9
-        ax.legend.border_line_color = "black"
-
-        return ax.legend
+    ) -> None:
+        """Render legend entries as a Bokeh legend using invisible glyphs."""
+        source = self._ensure_legend_range(ax)
+        items = []
+        for entry in entries:
+            marker = (
+                "square"
+                if entry.marker == "patch"
+                else _MARKER_MAP.get(entry.marker, "circle")
+            )
+            items.append(
+                self._add_legend_item(
+                    ax,
+                    source,
+                    entry.label,
+                    entry.color,
+                    marker,
+                    edgecolor=entry.edgecolor or "black",
+                )
+            )
+        self._create_legend(ax, items, title or "", loc)
 
     def hide_spines(self, ax: figure, spines: List[str]) -> None:
         """Hide specified axis spines (no-op for Bokeh).
@@ -823,57 +782,6 @@ class BokehBackend:
     def close(self, fig: Any) -> None:
         """Close the figure (no-op for bokeh)."""
         pass
-
-    def add_eqtl_legend(
-        self,
-        ax: figure,
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
-    ) -> None:
-        """Add eQTL effect size legend using invisible dummy glyphs."""
-        source = self._ensure_legend_range(ax)
-        items = []
-        for _, _, label, color in eqtl_positive_bins:
-            items.append(self._add_legend_item(ax, source, label, color, "triangle"))
-        for _, _, label, color in eqtl_negative_bins:
-            items.append(
-                self._add_legend_item(ax, source, label, color, "inverted_triangle")
-            )
-        self._create_legend(ax, items, "eQTL effect")
-
-    def add_finemapping_legend(
-        self,
-        ax: figure,
-        credible_sets: List[int],
-        get_color_func: Any,
-    ) -> None:
-        """Add fine-mapping credible set legend using invisible dummy glyphs."""
-        if not credible_sets:
-            return
-
-        source = self._ensure_legend_range(ax)
-        items = [
-            self._add_legend_item(
-                ax, source, f"CS{cs_id}", get_color_func(cs_id), "circle"
-            )
-            for cs_id in credible_sets
-        ]
-        self._create_legend(ax, items, "Credible sets")
-
-    def add_simple_legend(
-        self,
-        ax: figure,
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Configure legend position.
-
-        Bokeh handles legends automatically from legend_label.
-        This just positions the legend.
-        """
-        ax.legend.location = self._get_legend_location(loc, "top_right")
-        ax.legend.background_fill_alpha = 0.9
-        ax.legend.border_line_color = "black"
 
     def axvline(
         self,
@@ -986,67 +894,6 @@ class BokehBackend:
         """
         # Bokeh handles layout differently - column spacing is fixed
         pass
-
-    def add_recombination_overlay(
-        self,
-        ax: figure,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay using bokeh secondary y-axis.
-
-        Args:
-            ax: Bokeh figure.
-            recomb_df: DataFrame with 'pos' and 'rate' columns.
-            start: Region start position for filtering.
-            end: Region end position for filtering.
-        """
-        from ..recombination import RECOMB_COLOR
-
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create twin axis - returns "secondary" string
-        yaxis_name = self.create_twin_axis(ax)
-
-        # Plot fill under curve
-        self.fill_between_secondary(
-            ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-            yaxis_name=yaxis_name,
-        )
-
-        # Plot recombination rate line
-        self.line_secondary(
-            ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-            yaxis_name=yaxis_name,
-        )
-
-        # Set y-axis limits and label
-        max_rate = region_recomb["rate"].max()
-        self.set_secondary_ylim(ax, 0, max(max_rate * 1.3, 10), yaxis_name=yaxis_name)
-        self.set_secondary_ylabel(
-            ax,
-            "Recombination rate (cM/Mb)",
-            color="black",
-            fontsize=9,
-            yaxis_name=yaxis_name,
-        )
 
     def add_region_highlight(
         self,

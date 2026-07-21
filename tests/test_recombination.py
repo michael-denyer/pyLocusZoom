@@ -9,18 +9,43 @@ import pandas as pd
 import pytest
 import requests
 
+from pylocuszoom._liftover import InMemoryLifter, liftover_positions
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
     _normalize_build,
     _publish_map_generation,
     download_canine_recombination_maps,
     download_liftover_chain,
+    ensure_recomb_header,
     ensure_recomb_maps,
     get_default_data_dir,
     get_recombination_rate_for_region,
     liftover_recombination_map,
     load_recombination_map,
 )
+
+
+class TestEnsureRecombHeader:
+    """Pure header-detection tests (no tarballs, no download)."""
+
+    def test_prepends_header_when_first_token_numeric(self):
+        content = "1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
+        result = ensure_recomb_header(content, "chr1_recomb.tsv")
+        assert result == "chr\tpos\trate\tcM\n" + content
+
+    def test_keeps_content_when_known_header_present(self):
+        content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        assert ensure_recomb_header(content, "chr1_recomb.tsv") == content
+
+    def test_accepts_hash_prefixed_and_alternate_header_names(self):
+        for header in ("#chrom", "position", "BP", "chromosome"):
+            content = f"{header}\tx\ty\tz\n1\t2\t3\t4\n"
+            assert ensure_recomb_header(content, "f.tsv") == content
+
+    def test_rejects_unrecognised_first_token(self):
+        content = "<html><body>404 Not Found</body></html>\n"
+        with pytest.raises(RuntimeError, match="refusing to treat as header"):
+            ensure_recomb_header(content, "chr1_recomb.tsv")
 
 
 class TestGetDefaultDataDir:
@@ -235,6 +260,50 @@ class TestDownloadLiftoverChain:
         assert chain_file.read_bytes() == b"new data", (
             "force=True must replace existing chain file contents"
         )
+
+
+class TestLiftoverPositions:
+    """Pure liftover math via an in-memory lifter (no pyliftover, no network)."""
+
+    def test_lifts_mapped_positions_with_chrom_arg(self):
+        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
+        lifter = InMemoryLifter({("chr1", 1000): 1100, ("chr1", 2000): 2200})
+        result = liftover_positions(df, lifter, chrom=1)
+        assert list(result["pos"]) == [1100, 2200]
+        assert list(result["rate"]) == [0.5, 0.6]
+
+    def test_drops_unmapped_positions(self):
+        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
+        lifter = InMemoryLifter({("chr1", 1000): 1100})  # 2000 fails to map
+        result = liftover_positions(df, lifter, chrom=1)
+        assert list(result["pos"]) == [1100]
+        assert list(result["rate"]) == [0.5]
+
+    def test_uses_chr_column_when_present(self):
+        df = pd.DataFrame({"chr": [1, 2], "pos": [1000, 3000], "rate": [0.1, 0.2]})
+        lifter = InMemoryLifter({("chr1", 1000): 1100, ("chr2", 3000): 3300})
+        result = liftover_positions(df, lifter)
+        assert set(result["pos"]) == {1100, 3300}
+
+    def test_result_sorted_by_lifted_position(self):
+        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
+        lifter = InMemoryLifter({("chr1", 1000): 5000, ("chr1", 2000): 1000})
+        result = liftover_positions(df, lifter, chrom=1)
+        assert list(result["pos"]) == [1000, 5000]
+
+    def test_takes_first_of_multiple_mappings(self):
+        class MultiLifter:
+            def convert(self, chrom, pos):
+                return [(chrom, 1111, "+", 0), (chrom, 9999, "+", 0)]
+
+        df = pd.DataFrame({"pos": [1000], "rate": [0.5]})
+        result = liftover_positions(df, MultiLifter(), chrom=1)
+        assert list(result["pos"]) == [1111]
+
+    def test_requires_chr_column_or_chrom(self):
+        df = pd.DataFrame({"pos": [1000], "rate": [0.5]})
+        with pytest.raises(ValueError, match="Either 'chr' column or chrom"):
+            liftover_positions(df, InMemoryLifter({}))
 
 
 class TestLiftoverRecombinationMap:

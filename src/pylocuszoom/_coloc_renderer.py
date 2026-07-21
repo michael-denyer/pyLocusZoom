@@ -7,13 +7,12 @@ import pandas as pd
 from scipy import stats
 
 from .backends.base import PlotBackend
-from .colors import (
-    EFFECT_CONGRUENT_COLOR,
-    EFFECT_INCONGRUENT_COLOR,
-    LD_BINS,
-    LD_NA_COLOR,
-    LEAD_SNP_COLOR,
+from .backends.composition import (
+    LD_LEGEND_TITLE,
+    effect_legend_entries,
+    ld_legend_entries,
 )
+from .colors import LEAD_SNP_COLOR
 
 
 class ColocRenderer:
@@ -123,15 +122,12 @@ class ColocRenderer:
             self._backend.set_title(ax, title)
         self._backend.hide_spines(ax, ["top", "right"])
         if color_by_effect:
-            self._backend.add_effect_legend(
-                ax,
-                [
-                    (0.0, "Same direction", EFFECT_CONGRUENT_COLOR),
-                    (0.0, "Opposite direction", EFFECT_INCONGRUENT_COLOR),
-                    (0.0, "Missing effect", LD_NA_COLOR),
-                ],
+            self._backend.add_legend(
+                ax, effect_legend_entries(), loc="upper right", title="Effect"
             )
         elif ld_col_merged is not None:
-            self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
+            self._backend.add_legend(
+                ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
+            )
         self._backend.finalize_layout(fig)
         return fig

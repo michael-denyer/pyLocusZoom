@@ -9,6 +9,7 @@ from typing import List, Optional, Type
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
+from ._data import P_VALUE_MAX
 from .utils import ValidationError
 
 
@@ -155,6 +156,27 @@ class DataFrameValidator:
 
         return self
 
+    def require_pvalue(self, column: str) -> "DataFrameValidator":
+        """Check that a column holds p-values in the canonical ``(0, 1]`` domain.
+
+        The single owner of the strict p-value range. Plot-time intake in
+        ``_data.prepare_pvalue_data`` shares the same ``P_VALUE_MAX`` upper
+        bound and relaxes only the lower bound, under ``allow_zero``, for the
+        Manhattan convention that an exact zero is a clipped p-value.
+
+        Null policy is left to the caller: load-time and plot-time validation
+        deliberately differ on it.
+
+        Args:
+            column: Column name holding p-values.
+
+        Returns:
+            Self for method chaining.
+        """
+        return self.require_range(
+            column, min_val=0, max_val=P_VALUE_MAX, exclusive_min=True
+        )
+
     def require_not_null(self, columns: List[str]) -> "DataFrameValidator":
         """Check that columns have no null (NaN or None) values.
 
@@ -175,54 +197,30 @@ class DataFrameValidator:
 
         return self
 
-    def require_ci_ordering(
+    def require_ordering(
         self,
-        ci_lower_col: str,
-        effect_col: str,
-        ci_upper_col: str,
+        lower_col: str,
+        upper_col: str,
     ) -> "DataFrameValidator":
-        """Check that confidence intervals are properly ordered.
+        """Check that one column never exceeds another, row-wise.
 
-        Validates that ci_lower <= effect <= ci_upper for all rows.
-        Invalid ordering would produce negative error bar lengths.
+        Skips the check when either column is missing or was already flagged
+        non-numeric, on the same grounds as require_range.
 
         Args:
-            ci_lower_col: Column name for lower CI bound.
-            effect_col: Column name for effect size (point estimate).
-            ci_upper_col: Column name for upper CI bound.
+            lower_col: Column name expected to hold the smaller value.
+            upper_col: Column name expected to hold the larger value.
 
         Returns:
             Self for method chaining.
         """
-        # Skip if any column is missing
-        for col in [ci_lower_col, effect_col, ci_upper_col]:
-            if col not in self._df.columns:
+        for col in (lower_col, upper_col):
+            if col not in self._df.columns or col in self._non_numeric_cols:
                 return self
 
-        lower = self._df[ci_lower_col]
-        effect = self._df[effect_col]
-        upper = self._df[ci_upper_col]
-
-        # Check ci_lower <= effect
-        lower_gt_effect = (lower > effect).sum()
-        if lower_gt_effect > 0:
-            self._errors.append(
-                f"{lower_gt_effect} rows have {ci_lower_col} > {effect_col}"
-            )
-
-        # Check effect <= ci_upper
-        effect_gt_upper = (effect > upper).sum()
-        if effect_gt_upper > 0:
-            self._errors.append(
-                f"{effect_gt_upper} rows have {effect_col} > {ci_upper_col}"
-            )
-
-        # Check ci_lower <= ci_upper (implicit from above, but explicit is clearer)
-        lower_gt_upper = (lower > upper).sum()
-        if lower_gt_upper > 0:
-            self._errors.append(
-                f"{lower_gt_upper} rows have {ci_lower_col} > {ci_upper_col}"
-            )
+        inverted = (self._df[lower_col] > self._df[upper_col]).sum()
+        if inverted > 0:
+            self._errors.append(f"{inverted} rows have {lower_col} > {upper_col}")
 
         return self
 

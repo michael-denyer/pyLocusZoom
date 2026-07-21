@@ -13,6 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
+from .composition import LegendEntry
 
 
 @register_backend("matplotlib")
@@ -33,19 +34,9 @@ class MatplotlibBackend:
     # =========================================================================
 
     @property
-    def supports_snp_labels(self) -> bool:
-        """Matplotlib supports SNP labels via adjustText."""
-        return True
-
-    @property
     def supports_hover(self) -> bool:
         """Matplotlib does not support hover tooltips."""
         return False
-
-    @property
-    def supports_secondary_axis(self) -> bool:
-        """Matplotlib supports twin y-axis."""
-        return True
 
     def create_figure(
         self,
@@ -414,7 +405,7 @@ class MatplotlibBackend:
 
     def line_secondary(
         self,
-        ax: Axes,
+        secondary: Axes,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -422,15 +413,11 @@ class MatplotlibBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: Any = None,
     ) -> Any:
-        """Create line on secondary y-axis.
-
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
+        """Create a line on the secondary (twin) axes.
 
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             x: X-axis values.
             y: Y-axis values.
             color: Line color.
@@ -438,13 +425,12 @@ class MatplotlibBackend:
             alpha: Transparency.
             linestyle: Line style.
             label: Legend label.
-            yaxis_name: Ignored for matplotlib.
 
         Returns:
             The line object.
         """
         return self.line(
-            ax,
+            secondary,
             x,
             y,
             color=color,
@@ -456,88 +442,94 @@ class MatplotlibBackend:
 
     def fill_between_secondary(
         self,
-        ax: Axes,
+        secondary: Axes,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: Any = None,
     ) -> Any:
-        """Fill area on secondary y-axis.
-
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
+        """Fill area on the secondary (twin) axes.
 
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             x: X-axis values.
             y1: Lower y boundary.
             y2: Upper y boundary.
             color: Fill color.
             alpha: Transparency.
-            yaxis_name: Ignored for matplotlib.
 
         Returns:
             The fill object.
         """
-        return self.fill_between(ax, x, y1, y2, color=color, alpha=alpha)
+        return self.fill_between(secondary, x, y1, y2, color=color, alpha=alpha)
 
     def set_secondary_ylim(
         self,
-        ax: Axes,
+        secondary: Axes,
         bottom: float,
         top: float,
-        yaxis_name: Any = None,
     ) -> None:
         """Set secondary y-axis limits.
 
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
-
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             bottom: Minimum y value.
             top: Maximum y value.
-            yaxis_name: Ignored for matplotlib.
         """
-        self.set_ylim(ax, bottom, top)
+        self.set_ylim(secondary, bottom, top)
 
     def set_secondary_ylabel(
         self,
-        ax: Axes,
+        secondary: Axes,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: Any = None,
     ) -> None:
         """Set secondary y-axis label.
 
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
-
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             label: Label text.
             color: Label color.
             fontsize: Font size.
-            yaxis_name: Ignored for matplotlib.
         """
-        ax.set_ylabel(label, fontsize=fontsize, color=color)
-        ax.tick_params(axis="y", labelcolor=color, labelsize=fontsize - 1)
+        secondary.set_ylabel(label, fontsize=fontsize, color=color)
+        secondary.tick_params(axis="y", labelcolor=color, labelsize=fontsize - 1)
 
     def add_legend(
         self,
         ax: Axes,
-        handles: List[Any],
-        labels: List[str],
+        entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
     ) -> Any:
-        """Add a legend to the axes."""
+        """Render backend-neutral legend entries as matplotlib handles."""
+        from matplotlib.lines import Line2D
+        from matplotlib.patches import Patch
+
+        handles: List[Any] = []
+        for entry in entries:
+            edge = entry.edgecolor or "black"
+            if entry.marker == "patch":
+                handles.append(
+                    Patch(facecolor=entry.color, edgecolor=edge, label=entry.label)
+                )
+            else:
+                handles.append(
+                    Line2D(
+                        [0],
+                        [0],
+                        marker=entry.marker,
+                        color="w",
+                        markerfacecolor=entry.color,
+                        markeredgecolor=edge,
+                        markersize=7,
+                        label=entry.label,
+                    )
+                )
         return ax.legend(
             handles=handles,
-            labels=labels,
             loc=loc,
             title=title,
             fontsize=9,
@@ -580,193 +572,6 @@ class MatplotlibBackend:
     def close(self, fig: Figure) -> None:
         """Close the figure and free resources."""
         plt.close(fig)
-
-    def add_eqtl_legend(
-        self,
-        ax: Axes,
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
-    ) -> None:
-        """Add eQTL effect size legend using matplotlib Line2D markers."""
-        from matplotlib.lines import Line2D
-
-        legend_elements = []
-
-        # Positive effects (upward triangles)
-        for _, _, label, color in eqtl_positive_bins:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="^",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=label,
-                )
-            )
-
-        # Negative effects (downward triangles)
-        for _, _, label, color in eqtl_negative_bins:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="v",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=label,
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            frameon=True,
-            framealpha=0.9,
-            title="eQTL effect",
-            title_fontsize=9,
-            handlelength=1.2,
-            handleheight=1.0,
-            labelspacing=0.3,
-        )
-
-    def add_finemapping_legend(
-        self,
-        ax: Axes,
-        credible_sets: List[int],
-        get_color_func: Any,
-    ) -> None:
-        """Add fine-mapping credible set legend using matplotlib Line2D markers."""
-        from matplotlib.lines import Line2D
-
-        if not credible_sets:
-            return
-
-        legend_elements = []
-        for cs_id in credible_sets:
-            color = get_color_func(cs_id)
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=f"CS{cs_id}",
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            frameon=True,
-            framealpha=0.9,
-            title="Credible sets",
-            title_fontsize=9,
-            handlelength=1.2,
-            handleheight=1.0,
-            labelspacing=0.3,
-        )
-
-    def add_simple_legend(
-        self,
-        ax: Axes,
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Add simple legend for labeled scatter data."""
-        ax.legend(loc=loc, fontsize=9)
-
-    def add_ld_legend(
-        self,
-        ax: Axes,
-        ld_bins: List[Tuple[float, str, str]],
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend using matplotlib patches.
-
-        Args:
-            ax: Matplotlib axes.
-            ld_bins: List of (threshold, label, color) tuples defining LD bins.
-            lead_snp_color: Color for lead SNP marker in legend.
-        """
-        from matplotlib.lines import Line2D
-        from matplotlib.patches import Patch
-
-        from ..colors import get_ld_color_palette
-
-        palette = get_ld_color_palette()
-        legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="D",
-                color="w",
-                markerfacecolor=lead_snp_color,
-                markeredgecolor="black",
-                markersize=6,
-                label="Lead SNP",
-            ),
-        ]
-        for _threshold, label, _color in ld_bins:
-            legend_elements.append(
-                Patch(facecolor=palette[label], edgecolor="black", label=label)
-            )
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=9,
-            frameon=True,
-            framealpha=0.9,
-            title=r"$r^2$",
-            title_fontsize=10,
-            handlelength=1.5,
-            handleheight=1.0,
-            labelspacing=0.4,
-        )
-
-    def add_effect_legend(
-        self,
-        ax: Axes,
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots.
-
-        Args:
-            ax: Matplotlib axes.
-            effect_bins: List of (threshold, label, color) tuples.
-        """
-        from matplotlib.lines import Line2D
-
-        legend_elements = []
-        for _threshold, label, color in effect_bins:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=8,
-                    label=label,
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            framealpha=0.9,
-        )
 
     def axvline(
         self,
@@ -859,67 +664,6 @@ class MatplotlibBackend:
         fig.subplots_adjust(
             left=left, right=right, top=top, bottom=bottom, hspace=hspace
         )
-
-    def add_recombination_overlay(
-        self,
-        ax: Axes,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay using matplotlib twin axis.
-
-        Args:
-            ax: Primary matplotlib axes.
-            recomb_df: DataFrame with 'pos' and 'rate' columns.
-            start: Region start position for filtering.
-            end: Region end position for filtering.
-        """
-        from ..recombination import RECOMB_COLOR
-
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create twin axis - returns Axes object directly
-        twin_ax = self.create_twin_axis(ax)
-
-        # Plot fill under curve
-        self.fill_between_secondary(
-            twin_ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-        )
-
-        # Plot recombination rate line
-        self.line_secondary(
-            twin_ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-        )
-
-        # Set y-axis limits and label
-        max_rate = region_recomb["rate"].max()
-        self.set_secondary_ylim(twin_ax, 0, max(max_rate * 1.3, 10))
-        self.set_secondary_ylabel(
-            twin_ax,
-            "Recombination rate (cM/Mb)",
-            color="black",
-            fontsize=9,
-        )
-
-        # Hide top spine on twin axis
-        twin_ax.spines["top"].set_visible(False)
 
     def add_region_highlight(
         self,

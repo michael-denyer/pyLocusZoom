@@ -19,6 +19,7 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+from ._liftover import PyLiftOverLifter, liftover_positions
 from .logging import logger
 from .utils import filter_by_region
 
@@ -33,6 +34,49 @@ CANINE_RECOMB_URL = (
 
 # Liftover chain files
 CANFAM3_TO_CANFAM4_CHAIN_URL = "https://hgdownload.soe.ucsc.edu/gbdb/canFam3/liftOver/canFam3ToCanFam4.over.chain.gz"
+
+_CANONICAL_RECOMB_HEADER = "chr\tpos\trate\tcM\n"
+_KNOWN_HEADER_TOKENS = frozenset(
+    {"chr", "chrom", "chromosome", "pos", "position", "bp"}
+)
+
+
+def ensure_recomb_header(content: str, source_name: str) -> str:
+    r"""Return content with a canonical header row, prepending one if absent.
+
+    A numeric first token means the first row is data, so a
+    ``chr\tpos\trate\tcM`` header is prepended. A non-numeric first token must be
+    one of the known header names; anything else (e.g. ``<html>`` from a
+    corrupted mirror or an HTTP error body) is rejected rather than silently
+    treated as a header.
+
+    Args:
+        content: Raw text of a recombination map file.
+        source_name: Source file name, used in the error message.
+
+    Returns:
+        The content, with a header row prepended if it was missing.
+
+    Raises:
+        RuntimeError: If the first token is non-numeric and not a known header.
+    """
+    lines = content.strip().split("\n")
+    first_token = lines[0].split()[0] if lines[0].split() else ""
+    normalised_token = first_token.lstrip("#").lower()
+    try:
+        float(first_token)
+        has_header = False
+    except ValueError:
+        if normalised_token not in _KNOWN_HEADER_TOKENS:
+            raise RuntimeError(
+                f"Unrecognised first token {first_token!r} in recombination "
+                f"map {source_name}; refusing to treat as header. The "
+                f"downloaded archive may be corrupted."
+            )
+        has_header = True
+    if not has_header:
+        content = _CANONICAL_RECOMB_HEADER + content
+    return content
 
 
 def _normalize_build(build: Optional[str]) -> Optional[str]:
@@ -152,54 +196,16 @@ def liftover_recombination_map(
         DataFrame with lifted coordinates. Positions that fail to map are dropped.
     """
     try:
-        from pyliftover import LiftOver
+        import pyliftover  # noqa: F401
     except ImportError:
         raise ImportError(
             "pyliftover is required for CanFam4 liftover. "
             "Install it with: pip install pyliftover"
         )
 
-    # Download chain file if needed
     chain_path = download_liftover_chain()
-
     logger.debug(f"Lifting over coordinates from {from_build} to {to_build}")
-    lo = LiftOver(str(chain_path))
-
-    # Get chromosome for each position
-    if "chr" in recomb_df.columns:
-        chroms = recomb_df["chr"].astype(str)
-    elif chrom is not None:
-        chroms = pd.Series([str(chrom)] * len(recomb_df))
-    else:
-        raise ValueError("Either 'chr' column or chrom parameter required")
-
-    # Liftover each position
-    new_positions = []
-    keep_mask = []
-
-    for chr_val, pos in zip(chroms, recomb_df["pos"]):
-        chr_str = f"chr{chr_val}" if not str(chr_val).startswith("chr") else chr_val
-        result = lo.convert_coordinate(chr_str, int(pos))
-
-        if result and len(result) > 0:
-            # Take first mapping (usually the only one)
-            _, new_pos, _, _ = result[0]
-            new_positions.append(int(new_pos))
-            keep_mask.append(True)
-        else:
-            new_positions.append(None)
-            keep_mask.append(False)
-
-    # Create output DataFrame
-    result_df = recomb_df.copy()
-    result_df["pos"] = new_positions
-    result_df = result_df[keep_mask].copy()
-
-    unmapped = len(recomb_df) - len(result_df)
-    if unmapped > 0:
-        logger.debug(f"Dropped {unmapped} positions that failed to liftover")
-
-    return result_df.sort_values("pos").reset_index(drop=True)
+    return liftover_positions(recomb_df, PyLiftOverLifter(chain_path), chrom)
 
 
 def get_default_data_dir() -> Path:
@@ -389,36 +395,7 @@ def download_canine_recombination_maps(
                 with open(map_file, "r") as f:
                     content = f.read()
 
-                # Ensure header is present. A numeric first token means the
-                # row is data and a header must be prepended. Any non-numeric
-                # first token must be one of the known header names; anything
-                # else (e.g. "<html>" from a corrupted mirror, an HTTP error
-                # body) is rejected rather than silently treated as a header.
-                lines = content.strip().split("\n")
-                first_token = lines[0].split()[0] if lines[0].split() else ""
-                known_header_tokens = {
-                    "chr",
-                    "chrom",
-                    "chromosome",
-                    "pos",
-                    "position",
-                    "bp",
-                }
-                normalised_token = first_token.lstrip("#").lower()
-                try:
-                    float(first_token)
-                    has_header = False
-                except ValueError:
-                    if normalised_token not in known_header_tokens:
-                        raise RuntimeError(
-                            f"Unrecognised first token {first_token!r} in "
-                            f"recombination map {map_file.name}; refusing to "
-                            f"treat as header. The downloaded archive may be "
-                            f"corrupted."
-                        )
-                    has_header = True
-                if not has_header:
-                    content = "chr\tpos\trate\tcM\n" + content
+                content = ensure_recomb_header(content, map_file.name)
 
                 with open(output_file, "w") as f:
                     f.write(content)

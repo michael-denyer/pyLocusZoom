@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
+from .composition import LegendEntry
 
 # Style mappings (matplotlib -> Plotly)
 _MARKER_SYMBOLS = {
@@ -25,6 +26,22 @@ _DASH_MAP = {
     ":": "dot",
     "-.": "dashdot",
 }
+# Matplotlib legend `loc` vocabulary mapped to Plotly (xanchor, yanchor).
+# "best" has no Plotly equivalent, so it takes the upper-right default.
+_LEGEND_ANCHORS = {
+    "best": ("right", "top"),
+    "upper right": ("right", "top"),
+    "upper left": ("left", "top"),
+    "upper center": ("center", "top"),
+    "lower right": ("right", "bottom"),
+    "lower left": ("left", "bottom"),
+    "lower center": ("center", "bottom"),
+    "center right": ("right", "middle"),
+    "center left": ("left", "middle"),
+    "right": ("right", "middle"),
+    "center": ("center", "middle"),
+}
+_LEGEND_X = {"left": 0.01, "center": 0.5, "right": 0.99}
 
 
 @register_backend("plotly")
@@ -39,18 +56,8 @@ class PlotlyBackend:
     """
 
     @property
-    def supports_snp_labels(self) -> bool:
-        """Plotly uses hover tooltips instead of labels."""
-        return False
-
-    @property
     def supports_hover(self) -> bool:
         """Plotly supports hover tooltips."""
-        return True
-
-    @property
-    def supports_secondary_axis(self) -> bool:
-        """Plotly supports secondary y-axis."""
         return True
 
     def create_figure(
@@ -562,16 +569,6 @@ class PlotlyBackend:
         subplot_idx = (row - 1) * n_cols + col
         return f"{axis}{subplot_idx}" if subplot_idx > 1 else axis
 
-    def _get_legend_position(self, loc: str) -> dict:
-        """Map matplotlib-style legend location to Plotly position dict."""
-        loc_map = {
-            "upper left": dict(x=0.01, y=0.99, xanchor="left", yanchor="top"),
-            "upper right": dict(x=0.99, y=0.99, xanchor="right", yanchor="top"),
-            "lower left": dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
-            "lower right": dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom"),
-        }
-        return loc_map.get(loc, loc_map["upper left"])
-
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Plotly display."""
         return convert_latex_to_unicode(label)
@@ -620,10 +617,11 @@ class PlotlyBackend:
             )
         )
 
-    def create_twin_axis(self, ax: Tuple[go.Figure, int]) -> Tuple[go.Figure, int, str]:
+    def create_twin_axis(self, ax: Tuple[go.Figure, int]) -> Any:
         """Create a secondary y-axis.
 
-        Returns tuple of (figure, row, secondary_yaxis_name).
+        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
+        primitives.
 
         For Plotly subplots, we need unique axis names that don't conflict
         with the subplot axes. We use a high number suffix to avoid conflicts.
@@ -659,11 +657,11 @@ class PlotlyBackend:
             }
         )
 
-        return (fig, row, secondary_y)
+        return (ax, secondary_y)
 
     def line_secondary(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -671,9 +669,9 @@ class PlotlyBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: str = "y2",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
+        ax, yaxis_name = secondary
         fig, row, col, n_cols = self._extract_row_col(ax)
         dash = _DASH_MAP.get(linestyle, "solid")
 
@@ -701,15 +699,15 @@ class PlotlyBackend:
 
     def fill_between_secondary(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: str = "y2",
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
+        ax, yaxis_name = secondary
         fig, row, col, n_cols = self._extract_row_col(ax)
 
         if isinstance(y1, (int, float)):
@@ -739,12 +737,12 @@ class PlotlyBackend:
 
     def set_secondary_ylim(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         bottom: float,
         top: float,
-        yaxis_name: str = "y2",
     ) -> None:
         """Set secondary y-axis limits."""
+        ax, yaxis_name = secondary
         fig, row, col, _ = self._extract_row_col(ax)
         yaxis_key = (
             "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
@@ -753,13 +751,13 @@ class PlotlyBackend:
 
     def set_secondary_ylabel(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: str = "y2",
     ) -> None:
         """Set secondary y-axis label."""
+        ax, yaxis_name = secondary
         fig, row, col, _ = self._extract_row_col(ax)
         label = self._convert_label(label)
         yaxis_key = (
@@ -774,16 +772,19 @@ class PlotlyBackend:
             }
         )
 
-    def _get_panel_y_top(self, fig: go.Figure, row: int) -> float:
-        """Get the top y-coordinate (in paper coords) for a subplot row.
+    def _get_panel_y(self, fig: go.Figure, row: int, vertical: str) -> float:
+        """Get a y-coordinate (in paper coords) within a subplot row's domain.
 
         Plotly subplots have y-axis domains that define their vertical position.
-        This returns the top of the domain for positioning legends.
+        ``vertical`` selects the top, bottom, or midpoint of that domain.
         """
         yaxis = getattr(fig.layout, self._axis_name("yaxis", row), None)
-        if yaxis and yaxis.domain:
-            return yaxis.domain[1]
-        return 0.99
+        domain = yaxis.domain if yaxis and yaxis.domain else (0.01, 0.99)
+        if vertical == "bottom":
+            return domain[0]
+        if vertical == "middle":
+            return (domain[0] + domain[1]) / 2
+        return domain[1]
 
     def _add_legend_item(
         self,
@@ -794,6 +795,7 @@ class PlotlyBackend:
         symbol: str,
         size: int,
         legend_group: str,
+        edgecolor: str = "black",
     ) -> None:
         """Add an invisible scatter trace for a legend entry."""
         fig.add_trace(
@@ -805,7 +807,7 @@ class PlotlyBackend:
                     symbol=symbol,
                     size=size,
                     color=color,
-                    line=dict(color="black", width=0.5),
+                    line=dict(color=edgecolor, width=0.5),
                 ),
                 name=name,
                 showlegend=True,
@@ -816,45 +818,24 @@ class PlotlyBackend:
         )
 
     def _configure_legend(
-        self, fig: go.Figure, row: int, legend_key: str, title: str
+        self, fig: go.Figure, row: int, legend_key: str, title: str, loc: str
     ) -> None:
         """Configure legend position and styling."""
-        y_pos = self._get_panel_y_top(fig, row)
+        horizontal, vertical = _LEGEND_ANCHORS.get(loc, _LEGEND_ANCHORS["upper right"])
         fig.update_layout(
             **{
                 legend_key: dict(
-                    title=dict(text=title),
-                    x=0.99,
-                    y=y_pos,
-                    xanchor="right",
-                    yanchor="top",
+                    title=dict(text=convert_latex_to_unicode(title)),
+                    x=_LEGEND_X[horizontal],
+                    y=self._get_panel_y(fig, row, vertical),
+                    xanchor=horizontal,
+                    yanchor=vertical,
                     bgcolor="rgba(255,255,255,0.9)",
                     bordercolor="black",
                     borderwidth=1,
                 )
             }
         )
-
-    def add_snp_labels(
-        self,
-        ax: Tuple[go.Figure, int],
-        df: pd.DataFrame,
-        pos_col: str,
-        neglog10p_col: str,
-        rs_col: str,
-        label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        adjust: bool = True,
-        lead_pos: Optional[int] = None,
-        region_span: Optional[int] = None,
-    ) -> List[Any]:
-        """No-op: Plotly uses hover tooltips instead of text labels."""
-        return []
-
-    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
-        """No-op: Plotly uses hover tooltips instead of text labels."""
-        pass
 
     def add_panel_label(
         self,
@@ -877,64 +858,39 @@ class PlotlyBackend:
             col=col,
         )
 
-    def add_ld_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        ld_bins: List[Tuple[float, str, str]],
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend using invisible scatter traces.
-
-        Uses Plotly's separate legend feature (legend="legend") so LD legend
-        can be positioned independently from eQTL and fine-mapping legends.
-        """
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        self._add_legend_item(
-            fig, row, "Lead SNP", lead_snp_color, "diamond", 12, "legend"
-        )
-        for _, label, color in ld_bins:
-            self._add_legend_item(fig, row, label, color, "square", 10, "legend")
-
-        self._configure_legend(fig, row, "legend", "r²")
-
-    def add_effect_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots."""
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        for _, label, color in effect_bins:
-            self._add_legend_item(fig, row, label, color, "circle", 10, "legend")
-
-        self._configure_legend(fig, row, "legend", "Effect")
-
     def add_legend(
         self,
         ax: Tuple[go.Figure, int],
-        handles: List[Any],
-        labels: List[str],
+        entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
-        """Add a legend to the figure.
+    ) -> None:
+        """Render legend entries as an independently-positioned Plotly legend.
 
-        Note: Plotly handles legends automatically from trace names.
-        This method updates legend positioning.
+        Each call allocates a fresh legend key (legend, legend2, ...) so several
+        legends coexist on one figure, positioned per panel row.
         """
-        fig, _ = ax
-        legend_pos = self._get_legend_position(loc)
-        fig.update_layout(
-            legend=dict(
-                **legend_pos,
-                title=dict(text=title) if title else None,
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
+        fig, row, col, _ = self._extract_row_col(ax)
+        count = getattr(fig, "_legend_count", 0) + 1
+        fig._legend_count = count
+        legend_key = "legend" if count == 1 else f"legend{count}"
+        for entry in entries:
+            symbol = (
+                "square"
+                if entry.marker == "patch"
+                else _MARKER_SYMBOLS.get(entry.marker, "circle")
             )
-        )
+            self._add_legend_item(
+                fig,
+                row,
+                entry.label,
+                entry.color,
+                symbol,
+                10,
+                legend_key,
+                entry.edgecolor or "black",
+            )
+        self._configure_legend(fig, row, legend_key, title or "", loc)
 
     def hide_spines(self, ax: Tuple[go.Figure, int], spines: List[str]) -> None:
         """Hide specified axis spines (lines).
@@ -996,73 +952,6 @@ class PlotlyBackend:
     def close(self, fig: go.Figure) -> None:
         """Close the figure (no-op for plotly)."""
         pass
-
-    def add_eqtl_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
-    ) -> None:
-        """Add eQTL effect size legend using invisible scatter traces.
-
-        Uses Plotly's separate legend feature (legend="legend2") so eQTL legend
-        is positioned independently below the LD legend.
-        """
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        for _, _, label, color in eqtl_positive_bins:
-            self._add_legend_item(fig, row, label, color, "triangle-up", 10, "legend2")
-        for _, _, label, color in eqtl_negative_bins:
-            self._add_legend_item(
-                fig, row, label, color, "triangle-down", 10, "legend2"
-            )
-
-        self._configure_legend(fig, row, "legend2", "eQTL effect")
-
-    def add_finemapping_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        credible_sets: List[int],
-        get_color_func: Any,
-    ) -> None:
-        """Add fine-mapping credible set legend using invisible scatter traces.
-
-        Uses Plotly's separate legend feature (legend="legend2") so fine-mapping
-        legend is positioned independently below the LD legend.
-        """
-        if not credible_sets:
-            return
-
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        for cs_id in credible_sets:
-            self._add_legend_item(
-                fig, row, f"CS{cs_id}", get_color_func(cs_id), "circle", 10, "legend2"
-            )
-
-        self._configure_legend(fig, row, "legend2", "Credible sets")
-
-    def add_simple_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Add simple legend positioning.
-
-        Plotly handles legends automatically from trace names.
-        This just positions the legend.
-        """
-        fig, _ = ax
-        legend_pos = self._get_legend_position(loc)
-        fig.update_layout(
-            legend=dict(
-                **legend_pos,
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
-            )
-        )
 
     def axvline(
         self,
@@ -1243,67 +1132,6 @@ class PlotlyBackend:
                             )
                         }
                     )
-
-    def add_recombination_overlay(
-        self,
-        ax: Tuple[go.Figure, int],
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay using plotly secondary y-axis.
-
-        Args:
-            ax: Tuple of (figure, row_number).
-            recomb_df: DataFrame with 'pos' and 'rate' columns.
-            start: Region start position for filtering.
-            end: Region end position for filtering.
-        """
-        from ..recombination import RECOMB_COLOR
-
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create twin axis - returns (fig, row, secondary_y_name)
-        _, _, secondary_y = self.create_twin_axis(ax)
-
-        # Plot fill under curve
-        self.fill_between_secondary(
-            ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-            yaxis_name=secondary_y,
-        )
-
-        # Plot recombination rate line
-        self.line_secondary(
-            ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-            yaxis_name=secondary_y,
-        )
-
-        # Set y-axis limits and label
-        max_rate = region_recomb["rate"].max()
-        self.set_secondary_ylim(ax, 0, max(max_rate * 1.3, 10), yaxis_name=secondary_y)
-        self.set_secondary_ylabel(
-            ax,
-            "Recombination rate (cM/Mb)",
-            color="black",
-            fontsize=9,
-            yaxis_name=secondary_y,
-        )
 
     def add_region_highlight(
         self,

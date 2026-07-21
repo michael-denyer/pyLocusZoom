@@ -6,6 +6,9 @@ import pandas as pd
 from .logging import logger
 
 P_VALUE_FLOOR = 1e-300
+# Upper bound of the p-value domain, shared with DataFrameValidator.require_pvalue
+# so strict validation and plot-time intake cannot drift apart.
+P_VALUE_MAX = 1.0
 
 
 def prepare_pvalue_data(
@@ -23,7 +26,7 @@ def prepare_pvalue_data(
     initial_count = len(result)
     p_values = pd.to_numeric(result[p_col], errors="coerce")
     lower_mask = p_values >= 0 if allow_zero else p_values > 0
-    valid = p_values.notna() & lower_mask & (p_values <= 1)
+    valid = p_values.notna() & lower_mask & (p_values <= P_VALUE_MAX)
     dropped = int((~valid).sum())
     nan_count = int(result[p_col].isna().sum())
     if nan_count:

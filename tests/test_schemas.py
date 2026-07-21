@@ -39,9 +39,7 @@ class TestGWASValidationEdgeCases:
     def test_custom_column_names_missing_raises(self):
         """Missing custom column names raise LoaderValidationError."""
         df = pd.DataFrame({"ps": [100], "p_wald": [0.5]})
-        with pytest.raises(
-            LoaderValidationError, match="Missing required column.*'pos'"
-        ):
+        with pytest.raises(LoaderValidationError, match=r"Missing columns.*'pos'"):
             validate_gwas_dataframe(df, pos_col="pos", p_col="p_wald")
 
     def test_both_columns_missing_reports_both(self):
@@ -54,7 +52,7 @@ class TestGWASValidationEdgeCases:
     def test_zero_position_fails(self):
         """Position of exactly zero is rejected (non-positive)."""
         df = pd.DataFrame({"ps": [0], "p_wald": [0.5]})
-        with pytest.raises(LoaderValidationError, match="non-positive"):
+        with pytest.raises(LoaderValidationError, match=r"'ps': 1 values <= 0"):
             validate_gwas_dataframe(df)
 
     def test_pvalue_exactly_one_passes(self):
@@ -66,7 +64,7 @@ class TestGWASValidationEdgeCases:
     def test_nan_pvalue_fails(self):
         """NaN p-values are caught."""
         df = pd.DataFrame({"ps": [100, 200], "p_wald": [0.05, float("nan")]})
-        with pytest.raises(LoaderValidationError, match="missing values"):
+        with pytest.raises(LoaderValidationError, match=r"'p_wald' has 1 null values"):
             validate_gwas_dataframe(df)
 
     def test_multiple_numeric_errors_reported(self):
@@ -124,7 +122,7 @@ class TestEQTLValidationEdgeCases:
     def test_zero_pvalue_fails(self):
         """P-value of 0 is rejected (outside (0, 1])."""
         df = pd.DataFrame({"pos": [100], "p_value": [0.0], "gene": ["BRCA1"]})
-        with pytest.raises(LoaderValidationError, match="outside range"):
+        with pytest.raises(LoaderValidationError, match=r"'p_value': 1 values <= 0"):
             validate_eqtl_dataframe(df)
 
     def test_missing_multiple_columns(self):
@@ -142,7 +140,7 @@ class TestEQTLValidationEdgeCases:
         df = pd.DataFrame(
             {"pos": [-5, 100], "p_value": [0.05, 0.1], "gene": ["A", "B"]}
         )
-        with pytest.raises(LoaderValidationError, match="non-positive"):
+        with pytest.raises(LoaderValidationError, match=r"'pos': 1 values <= 0"):
             validate_eqtl_dataframe(df)
 
 

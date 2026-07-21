@@ -136,51 +136,45 @@ class TestBackendCapabilities:
     """Tests that registered backends have expected capability properties."""
 
     def test_matplotlib_has_capabilities(self):
-        """MatplotlibBackend has all capability properties."""
-        from pylocuszoom.backends import get_backend
+        """MatplotlibBackend supports SNP labels and secondary axis, not hover."""
+        from pylocuszoom.backends import (
+            SupportsSecondaryAxis,
+            SupportsSNPLabels,
+            get_backend,
+        )
 
         backend = get_backend("matplotlib")
-
-        assert hasattr(backend, "supports_snp_labels")
-        assert hasattr(backend, "supports_hover")
-        assert hasattr(backend, "supports_secondary_axis")
-
-        # Matplotlib specific values
-        assert backend.supports_snp_labels is True
+        assert isinstance(backend, SupportsSNPLabels)
+        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is False
-        assert backend.supports_secondary_axis is True
 
     def test_plotly_has_capabilities(self):
-        """PlotlyBackend has all capability properties."""
+        """PlotlyBackend supports secondary axis and hover, not SNP labels."""
         pytest.importorskip("plotly")
-        from pylocuszoom.backends import get_backend
+        from pylocuszoom.backends import (
+            SupportsSecondaryAxis,
+            SupportsSNPLabels,
+            get_backend,
+        )
 
         backend = get_backend("plotly")
-
-        assert hasattr(backend, "supports_snp_labels")
-        assert hasattr(backend, "supports_hover")
-        assert hasattr(backend, "supports_secondary_axis")
-
-        # Plotly specific values
-        assert backend.supports_snp_labels is False
+        assert not isinstance(backend, SupportsSNPLabels)
+        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is True
-        assert backend.supports_secondary_axis is True
 
     def test_bokeh_has_capabilities(self):
-        """BokehBackend has all capability properties."""
+        """BokehBackend supports secondary axis and hover, not SNP labels."""
         pytest.importorskip("bokeh")
-        from pylocuszoom.backends import get_backend
+        from pylocuszoom.backends import (
+            SupportsSecondaryAxis,
+            SupportsSNPLabels,
+            get_backend,
+        )
 
         backend = get_backend("bokeh")
-
-        assert hasattr(backend, "supports_snp_labels")
-        assert hasattr(backend, "supports_hover")
-        assert hasattr(backend, "supports_secondary_axis")
-
-        # Bokeh specific values
-        assert backend.supports_snp_labels is False
+        assert not isinstance(backend, SupportsSNPLabels)
+        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is True
-        assert backend.supports_secondary_axis is True
 
 
 class TestBackendRegistration:
@@ -320,14 +314,14 @@ class TestConvertLatexToUnicode:
         from pylocuszoom.backends import convert_latex_to_unicode
 
         result = convert_latex_to_unicode(r"$r^2$")
-        assert result == "r"
+        assert result == "r²"
 
     def test_convert_r2_uppercase(self):
         """Should convert R² LaTeX notation."""
         from pylocuszoom.backends import convert_latex_to_unicode
 
         result = convert_latex_to_unicode(r"$R^2$")
-        assert result == "R"
+        assert result == "R²"
 
     def test_strips_dollar_signs(self):
         """Should strip remaining dollar signs."""
@@ -349,7 +343,7 @@ class TestConvertLatexToUnicode:
         from pylocuszoom.backends import convert_latex_to_unicode
 
         result = convert_latex_to_unicode(r"Value: $r^2$ = 0.5")
-        assert result == "Value: r = 0.5"
+        assert result == "Value: r² = 0.5"
 
 
 class TestLazyAttributeAccess:
@@ -613,47 +607,169 @@ class TestHeatmapMethods:
 class TestCustomBackendCompatibility:
     """Tests for custom backend forward compatibility."""
 
-    def test_recomb_overlay_skipped_for_backend_without_method(self):
-        """Plotter should warn and skip recomb overlay for backends missing the method.
+    def test_backend_missing_secondary_methods_lacks_capability(self):
+        """A backend without the secondary-axis methods fails the capability gate.
 
-        Regression test: after add_recombination_overlay was added to the protocol,
-        custom backends that don't implement it would get AttributeError at runtime.
+        The recombination overlay is gated on isinstance(backend,
+        SupportsSecondaryAxis), so a backend lacking those methods skips the
+        overlay instead of erroring.
         """
-        import pandas as pd
+        from pylocuszoom.backends import SupportsSecondaryAxis
 
-        from pylocuszoom.plotter import LocusZoomPlotter
+        class MinimalBackend:
+            pass
 
-        plotter = LocusZoomPlotter(species=None)
+        assert not isinstance(MinimalBackend(), SupportsSecondaryAxis)
 
-        # Monkey-patch backend to remove add_recombination_overlay
-        original = plotter._backend.add_recombination_overlay
-        delattr(plotter._backend.__class__, "add_recombination_overlay")
 
-        try:
-            gwas_df = pd.DataFrame(
-                {
-                    "rs": ["rs1", "rs2", "rs3"],
-                    "chr": [1, 1, 1],
-                    "ps": [1100000, 1500000, 1900000],
-                    "p_wald": [1e-8, 1e-5, 0.01],
-                }
-            )
+class TestLegendPlacement:
+    """Every backend honours the neutral add_legend contract."""
 
-            recomb_df = pd.DataFrame(
-                {"pos": [1000000, 1500000, 2000000], "rate": [50.0, 100.0, 75.0]}
-            )
+    @staticmethod
+    def _entries():
+        from pylocuszoom.backends.composition import LegendEntry
 
-            # Should not raise — should warn and skip
-            fig = plotter.plot(
-                gwas_df,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                recomb_df=recomb_df,
-            )
-            import matplotlib.pyplot as plt
+        return [
+            LegendEntry("Lead SNP", "#FF0000", marker="D", edgecolor="#00FF00"),
+            LegendEntry("0.8 - 1.0", "#0000FF"),
+        ]
 
-            plt.close(fig)
-        finally:
-            # Restore the method
-            plotter._backend.__class__.add_recombination_overlay = original
+    def test_matplotlib_honours_loc(self):
+        """Matplotlib places the legend at the requested location."""
+        from matplotlib.legend import Legend
+
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        legend = backend.add_legend(axes[0], self._entries(), loc="lower left")
+        assert legend._get_loc() == Legend.codes["lower left"]
+        backend.close(fig)
+
+    def test_matplotlib_honours_edgecolor(self):
+        """Matplotlib draws the swatch edge in the requested colour."""
+        from matplotlib.colors import to_hex
+
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        legend = backend.add_legend(axes[0], self._entries(), loc="upper right")
+        marker_handle = legend.legend_handles[0]
+        assert to_hex(marker_handle.get_markeredgecolor()) == "#00ff00"
+        backend.close(fig)
+
+    def test_plotly_honours_loc(self):
+        """Plotly anchors the legend per the matplotlib loc vocabulary."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.add_legend(axes[0], self._entries(), loc="lower left")
+        legend = fig.layout.legend
+        assert legend.xanchor == "left"
+        assert legend.yanchor == "bottom"
+
+    def test_plotly_honours_edgecolor(self):
+        """Plotly draws the swatch edge in the requested colour."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.add_legend(axes[0], self._entries(), loc="upper right")
+        legend_traces = [t for t in fig.data if t.name == "Lead SNP"]
+        assert legend_traces[0].marker.line.color == "#00FF00"
+
+    def test_bokeh_honours_loc(self):
+        """Bokeh maps the matplotlib loc vocabulary to its own locations."""
+        pytest.importorskip("bokeh")
+        from bokeh.models import Legend
+
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.add_legend(axes[0], self._entries(), loc="lower left")
+        legends = axes[0].select(Legend)
+        assert list(legends)[0].location == "bottom_left"
+
+    def test_bokeh_honours_edgecolor(self):
+        """Bokeh draws the swatch edge in the requested colour."""
+        pytest.importorskip("bokeh")
+        from bokeh.models import Legend
+
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+
+        backend = BokehBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        backend.add_legend(axes[0], self._entries(), loc="upper right")
+        legend = list(axes[0].select(Legend))[0]
+        lead_item = legend.items[0]
+        assert lead_item.renderers[0].glyph.line_color == "#00FF00"
+
+    def test_unknown_loc_falls_back_without_raising(self):
+        """An unmapped loc degrades to the default corner, it does not raise."""
+        pytest.importorskip("plotly")
+        pytest.importorskip("bokeh")
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        plotly_backend = PlotlyBackend()
+        plotly_fig, plotly_axes = plotly_backend.create_figure(1, [1.0], (6, 4))
+        plotly_backend.add_legend(plotly_axes[0], self._entries(), loc="nonsense")
+        assert plotly_fig.layout.legend.xanchor == "right"
+
+        bokeh_backend = BokehBackend()
+        _, bokeh_axes = bokeh_backend.create_figure(1, [1.0], (6, 4))
+        bokeh_backend.add_legend(bokeh_axes[0], self._entries(), loc="nonsense")
+
+
+class TestLegendTitleMathtext:
+    """The LD legend title is mathtext, rendered natively per backend."""
+
+    def test_matplotlib_keeps_mathtext(self):
+        """Matplotlib receives the raw mathtext so it renders an italic r²."""
+        from pylocuszoom.backends.composition import (
+            LD_LEGEND_TITLE,
+            ld_legend_entries,
+        )
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        assert LD_LEGEND_TITLE == r"$r^2$"
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        legend = backend.add_legend(
+            axes[0], ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
+        )
+        assert legend.get_title().get_text() == r"$r^2$"
+        backend.close(fig)
+
+    def test_interactive_backends_show_unicode(self):
+        """Plotly and Bokeh convert the mathtext to a plain unicode r²."""
+        pytest.importorskip("plotly")
+        pytest.importorskip("bokeh")
+        from bokeh.models import Legend
+
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+        from pylocuszoom.backends.composition import (
+            LD_LEGEND_TITLE,
+            ld_legend_entries,
+        )
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        plotly_backend = PlotlyBackend()
+        plotly_fig, plotly_axes = plotly_backend.create_figure(1, [1.0], (6, 4))
+        plotly_backend.add_legend(
+            plotly_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
+        )
+        assert plotly_fig.layout.legend.title.text == "r²"
+
+        bokeh_backend = BokehBackend()
+        _, bokeh_axes = bokeh_backend.create_figure(1, [1.0], (6, 4))
+        bokeh_backend.add_legend(
+            bokeh_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
+        )
+        assert list(bokeh_axes[0].select(Legend))[0].title == "r²"

@@ -6,7 +6,6 @@ Defines the interface that matplotlib, plotly, and bokeh backends must implement
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     List,
     Optional,
     Protocol,
@@ -18,7 +17,7 @@ from typing import (
 import pandas as pd
 
 if TYPE_CHECKING:
-    from ..colors import EQTLBin, LDBin
+    from .composition import LegendEntry
 
 
 @runtime_checkable
@@ -38,6 +37,81 @@ class SupportsRegionHighlight(Protocol):
         ...
 
 
+@runtime_checkable
+class SupportsSNPLabels(Protocol):
+    """Optional capability: text SNP labels (matplotlib via adjustText)."""
+
+    def add_snp_labels(
+        self,
+        ax: Any,
+        df: pd.DataFrame,
+        pos_col: str,
+        neglog10p_col: str,
+        rs_col: str,
+        label_top_n: int,
+        genes_df: Optional[pd.DataFrame],
+        chrom: int,
+        adjust: bool = True,
+        lead_pos: Optional[int] = None,
+        region_span: Optional[int] = None,
+    ) -> List[Any]:
+        """Add SNP labels to a panel and return the text objects."""
+        ...
+
+    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
+        """Reposition SNP labels after axis limits are final."""
+        ...
+
+
+@runtime_checkable
+class SupportsSecondaryAxis(Protocol):
+    """Optional capability: a twin/secondary y-axis (recombination overlay)."""
+
+    def create_twin_axis(self, ax: Any) -> Any:
+        """Create a secondary y-axis and return an opaque handle."""
+        ...
+
+    def line_secondary(
+        self,
+        secondary: Any,
+        x: pd.Series,
+        y: pd.Series,
+        color: str = "blue",
+        linewidth: float = 1.5,
+        alpha: float = 1.0,
+        linestyle: str = "-",
+        label: Optional[str] = None,
+    ) -> Any:
+        """Draw a line on the secondary axis."""
+        ...
+
+    def fill_between_secondary(
+        self,
+        secondary: Any,
+        x: pd.Series,
+        y1: Union[float, pd.Series],
+        y2: Union[float, pd.Series],
+        color: str = "blue",
+        alpha: float = 0.3,
+    ) -> Any:
+        """Fill an area on the secondary axis."""
+        ...
+
+    def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
+        """Set the secondary y-axis limits."""
+        ...
+
+    def set_secondary_ylabel(
+        self,
+        secondary: Any,
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+    ) -> None:
+        """Set the secondary y-axis label."""
+        ...
+
+
 class PlotBackend(Protocol):
     """Protocol defining the backend interface for LocusZoom plots.
 
@@ -45,9 +119,11 @@ class PlotBackend(Protocol):
     to enable consistent plotting across different rendering engines.
 
     Capability Properties:
-        supports_snp_labels: Whether backend supports text labels via adjustText.
         supports_hover: Whether backend supports hover tooltips.
-        supports_secondary_axis: Whether backend supports twin y-axis for overlays.
+
+    Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
+    SupportsRegionHighlight) are separate runtime_checkable protocols, checked
+    with isinstance rather than a boolean flag.
     """
 
     # =========================================================================
@@ -55,29 +131,11 @@ class PlotBackend(Protocol):
     # =========================================================================
 
     @property
-    def supports_snp_labels(self) -> bool:
-        """Whether backend supports text labels via adjustText.
-
-        Matplotlib supports SNP labels using adjustText for automatic repositioning.
-        Interactive backends (Plotly, Bokeh) use hover tooltips instead.
-        """
-        ...
-
-    @property
     def supports_hover(self) -> bool:
         """Whether backend supports hover tooltips.
 
         Interactive backends (Plotly, Bokeh) support hover tooltips.
         Matplotlib does not support hover - use SNP labels instead.
-        """
-        ...
-
-    @property
-    def supports_secondary_axis(self) -> bool:
-        """Whether backend supports twin y-axis for recombination overlay.
-
-        All current backends support secondary axes, but this allows for
-        future backends that may not.
         """
         ...
 
@@ -350,57 +408,6 @@ class PlotBackend(Protocol):
         """
         ...
 
-    def add_snp_labels(
-        self,
-        ax: Any,
-        df: pd.DataFrame,
-        pos_col: str,
-        neglog10p_col: str,
-        rs_col: str,
-        label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        adjust: bool = True,
-        lead_pos: Optional[int] = None,
-        region_span: Optional[int] = None,
-    ) -> List[Any]:
-        """Add SNP labels to plot.
-
-        No-op if supports_snp_labels=False. Matplotlib uses adjustText
-        for automatic label repositioning to avoid overlaps.
-
-        Args:
-            ax: Axes or panel.
-            df: DataFrame with SNP data.
-            pos_col: Column name for position.
-            neglog10p_col: Column name for -log10(p-value).
-            rs_col: Column name for SNP ID.
-            label_top_n: Number of top SNPs to label.
-            genes_df: Gene annotations (unused, for signature compatibility).
-            chrom: Chromosome number (unused, for signature compatibility).
-            adjust: If True, run adjustText immediately. If False, caller
-                must call adjust_snp_labels() after setting axis limits.
-            lead_pos: Position of the lead SNP. Non-lead SNPs nearby are
-                excluded to avoid overlapping connector lines.
-            region_span: Width of the visible region in base pairs.
-
-        Returns:
-            List of text annotation objects (empty for non-matplotlib backends).
-        """
-        ...
-
-    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
-        """Adjust SNP label positions after axis limits are set.
-
-        This should be called AFTER all axis limits have been finalized,
-        as adjustText needs to know the final plot bounds.
-
-        Args:
-            ax: Axes or panel.
-            texts: List of text annotation objects from add_snp_labels().
-        """
-        ...
-
     # =========================================================================
     # Shapes and Patches
     # =========================================================================
@@ -590,212 +597,26 @@ class PlotBackend(Protocol):
         ...
 
     # =========================================================================
-    # Secondary Y-Axis (for recombination overlay)
-    # =========================================================================
-
-    def create_twin_axis(self, ax: Any) -> Any:
-        """Create a secondary y-axis sharing the same x-axis.
-
-        Args:
-            ax: Primary axes.
-
-        Returns:
-            Secondary axes for overlay (e.g., recombination rate).
-        """
-        ...
-
-    def line_secondary(
-        self,
-        ax: Any,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-        yaxis_name: Any = None,
-    ) -> Any:
-        """Create line on secondary y-axis.
-
-        Args:
-            ax: Axes or panel (may be tuple for Plotly).
-            x: X-axis values.
-            y: Y-axis values.
-            color: Line color.
-            linewidth: Line width.
-            alpha: Transparency.
-            linestyle: Line style.
-            label: Legend label.
-            yaxis_name: Backend-specific secondary axis identifier.
-
-        Returns:
-            The line object.
-        """
-        ...
-
-    def fill_between_secondary(
-        self,
-        ax: Any,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-        yaxis_name: Any = None,
-    ) -> Any:
-        """Fill area on secondary y-axis.
-
-        Args:
-            ax: Axes or panel.
-            x: X-axis values.
-            y1: Lower y boundary.
-            y2: Upper y boundary.
-            color: Fill color.
-            alpha: Transparency.
-            yaxis_name: Backend-specific secondary axis identifier.
-
-        Returns:
-            The fill object.
-        """
-        ...
-
-    def set_secondary_ylim(
-        self,
-        ax: Any,
-        bottom: float,
-        top: float,
-        yaxis_name: Any = None,
-    ) -> None:
-        """Set secondary y-axis limits.
-
-        Args:
-            ax: Axes or panel.
-            bottom: Minimum y value.
-            top: Maximum y value.
-            yaxis_name: Backend-specific secondary axis identifier.
-        """
-        ...
-
-    def set_secondary_ylabel(
-        self,
-        ax: Any,
-        label: str,
-        color: str = "black",
-        fontsize: int = 10,
-        yaxis_name: Any = None,
-    ) -> None:
-        """Set secondary y-axis label.
-
-        Args:
-            ax: Axes or panel.
-            label: Label text.
-            color: Label color.
-            fontsize: Font size.
-            yaxis_name: Backend-specific secondary axis identifier.
-        """
-        ...
-
-    # =========================================================================
     # Legends
     # =========================================================================
 
     def add_legend(
         self,
         ax: Any,
-        handles: List[Any],
-        labels: List[str],
+        entries: "List[LegendEntry]",
         loc: str = "upper left",
         title: Optional[str] = None,
     ) -> Any:
-        """Add a legend to the axes.
+        """Add a legend rendering the given backend-neutral entries.
 
         Args:
             ax: Axes or panel.
-            handles: Legend handle objects.
-            labels: Legend labels.
+            entries: Backend-neutral ``LegendEntry`` specs to render.
             loc: Legend location.
             title: Legend title.
 
         Returns:
-            The legend object.
-        """
-        ...
-
-    def add_ld_legend(
-        self,
-        ax: Any,
-        ld_bins: "List[LDBin]",
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend.
-
-        Shows the linkage disequilibrium (r^2) color scale and lead SNP marker.
-
-        Args:
-            ax: Axes or panel.
-            ld_bins: List of LDBin(threshold, label, color) defining LD bins.
-            lead_snp_color: Color for lead SNP marker in legend.
-        """
-        ...
-
-    def add_effect_legend(
-        self,
-        ax: Any,
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots.
-
-        Shows effect direction categories (same direction, opposite, missing).
-
-        Args:
-            ax: Axes or panel.
-            effect_bins: List of (threshold, label, color) tuples.
-        """
-        ...
-
-    def add_eqtl_legend(
-        self,
-        ax: Any,
-        eqtl_positive_bins: "List[EQTLBin]",
-        eqtl_negative_bins: "List[EQTLBin]",
-    ) -> None:
-        """Add eQTL effect size legend to the axes.
-
-        Args:
-            ax: Axes or panel.
-            eqtl_positive_bins: List of EQTLBin(min_val, max_val, label, color).
-            eqtl_negative_bins: List of EQTLBin(min_val, max_val, label, color).
-        """
-        ...
-
-    def add_finemapping_legend(
-        self,
-        ax: Any,
-        credible_sets: List[int],
-        get_color_func: Callable[[int], str],
-    ) -> None:
-        """Add fine-mapping credible set legend to the axes.
-
-        Args:
-            ax: Axes or panel.
-            credible_sets: List of credible set IDs to show.
-            get_color_func: Function that takes CS ID and returns color.
-        """
-        ...
-
-    def add_simple_legend(
-        self,
-        ax: Any,
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Add a simple legend entry for labeled data already in the plot.
-
-        Args:
-            ax: Axes or panel.
-            label: Legend label for labeled scatter data.
-            loc: Legend location.
+            The legend object, if the backend produces one.
         """
         ...
 
@@ -984,29 +805,5 @@ class PlotBackend(Protocol):
 
         Raises:
             ValueError: If snp_idx is out of bounds or n_snps < 1.
-        """
-        ...
-
-    # =========================================================================
-    # Recombination Overlay
-    # =========================================================================
-
-    def add_recombination_overlay(
-        self,
-        ax: Any,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination rate overlay to axes with secondary y-axis.
-
-        Creates a secondary y-axis showing recombination rate line and shaded area.
-        Each backend handles its own twin axis creation and rendering logic.
-
-        Args:
-            ax: Primary axes or panel.
-            recomb_df: DataFrame with columns 'pos' (position) and 'rate' (cM/Mb).
-            start: Region start position for filtering.
-            end: Region end position for filtering.
         """
         ...

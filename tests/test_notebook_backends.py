@@ -1008,7 +1008,7 @@ class TestPlotlySecondaryAxisNaming:
         fig, axes = backend.create_figure(12, [1.0] * 12, (12, 24))
 
         # Create twin axis for the first subplot
-        _, _, secondary_y = backend.create_twin_axis(axes[0])
+        _, secondary_y = backend.create_twin_axis(axes[0])
 
         # The secondary axis name should use high offset (100+), not 10+
         # y100 should not collide with any primary axis (y1 through y12)
@@ -1028,7 +1028,7 @@ class TestPlotlySecondaryAxisNaming:
 
         secondary_names = []
         for ax in axes:
-            _, _, secondary_y = backend.create_twin_axis(ax)
+            _, secondary_y = backend.create_twin_axis(ax)
             secondary_names.append(secondary_y)
 
         assert len(set(secondary_names)) == 5, (
