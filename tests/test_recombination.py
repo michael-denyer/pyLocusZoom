@@ -15,12 +15,36 @@ from pylocuszoom.recombination import (
     _publish_map_generation,
     download_canine_recombination_maps,
     download_liftover_chain,
+    ensure_recomb_header,
     ensure_recomb_maps,
     get_default_data_dir,
     get_recombination_rate_for_region,
     liftover_recombination_map,
     load_recombination_map,
 )
+
+
+class TestEnsureRecombHeader:
+    """Pure header-detection tests (no tarballs, no download)."""
+
+    def test_prepends_header_when_first_token_numeric(self):
+        content = "1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
+        result = ensure_recomb_header(content, "chr1_recomb.tsv")
+        assert result == "chr\tpos\trate\tcM\n" + content
+
+    def test_keeps_content_when_known_header_present(self):
+        content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        assert ensure_recomb_header(content, "chr1_recomb.tsv") == content
+
+    def test_accepts_hash_prefixed_and_alternate_header_names(self):
+        for header in ("#chrom", "position", "BP", "chromosome"):
+            content = f"{header}\tx\ty\tz\n1\t2\t3\t4\n"
+            assert ensure_recomb_header(content, "f.tsv") == content
+
+    def test_rejects_unrecognised_first_token(self):
+        content = "<html><body>404 Not Found</body></html>\n"
+        with pytest.raises(RuntimeError, match="refusing to treat as header"):
+            ensure_recomb_header(content, "chr1_recomb.tsv")
 
 
 class TestGetDefaultDataDir:

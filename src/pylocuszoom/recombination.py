@@ -34,6 +34,49 @@ CANINE_RECOMB_URL = (
 # Liftover chain files
 CANFAM3_TO_CANFAM4_CHAIN_URL = "https://hgdownload.soe.ucsc.edu/gbdb/canFam3/liftOver/canFam3ToCanFam4.over.chain.gz"
 
+_CANONICAL_RECOMB_HEADER = "chr\tpos\trate\tcM\n"
+_KNOWN_HEADER_TOKENS = frozenset(
+    {"chr", "chrom", "chromosome", "pos", "position", "bp"}
+)
+
+
+def ensure_recomb_header(content: str, source_name: str) -> str:
+    r"""Return content with a canonical header row, prepending one if absent.
+
+    A numeric first token means the first row is data, so a
+    ``chr\tpos\trate\tcM`` header is prepended. A non-numeric first token must be
+    one of the known header names; anything else (e.g. ``<html>`` from a
+    corrupted mirror or an HTTP error body) is rejected rather than silently
+    treated as a header.
+
+    Args:
+        content: Raw text of a recombination map file.
+        source_name: Source file name, used in the error message.
+
+    Returns:
+        The content, with a header row prepended if it was missing.
+
+    Raises:
+        RuntimeError: If the first token is non-numeric and not a known header.
+    """
+    lines = content.strip().split("\n")
+    first_token = lines[0].split()[0] if lines[0].split() else ""
+    normalised_token = first_token.lstrip("#").lower()
+    try:
+        float(first_token)
+        has_header = False
+    except ValueError:
+        if normalised_token not in _KNOWN_HEADER_TOKENS:
+            raise RuntimeError(
+                f"Unrecognised first token {first_token!r} in recombination "
+                f"map {source_name}; refusing to treat as header. The "
+                f"downloaded archive may be corrupted."
+            )
+        has_header = True
+    if not has_header:
+        content = _CANONICAL_RECOMB_HEADER + content
+    return content
+
 
 def _normalize_build(build: Optional[str]) -> Optional[str]:
     """Normalize genome build name to canonical form.
@@ -389,36 +432,7 @@ def download_canine_recombination_maps(
                 with open(map_file, "r") as f:
                     content = f.read()
 
-                # Ensure header is present. A numeric first token means the
-                # row is data and a header must be prepended. Any non-numeric
-                # first token must be one of the known header names; anything
-                # else (e.g. "<html>" from a corrupted mirror, an HTTP error
-                # body) is rejected rather than silently treated as a header.
-                lines = content.strip().split("\n")
-                first_token = lines[0].split()[0] if lines[0].split() else ""
-                known_header_tokens = {
-                    "chr",
-                    "chrom",
-                    "chromosome",
-                    "pos",
-                    "position",
-                    "bp",
-                }
-                normalised_token = first_token.lstrip("#").lower()
-                try:
-                    float(first_token)
-                    has_header = False
-                except ValueError:
-                    if normalised_token not in known_header_tokens:
-                        raise RuntimeError(
-                            f"Unrecognised first token {first_token!r} in "
-                            f"recombination map {map_file.name}; refusing to "
-                            f"treat as header. The downloaded archive may be "
-                            f"corrupted."
-                        )
-                    has_header = True
-                if not has_header:
-                    content = "chr\tpos\trate\tcM\n" + content
+                content = ensure_recomb_header(content, map_file.name)
 
                 with open(output_file, "w") as f:
                     f.write(content)
