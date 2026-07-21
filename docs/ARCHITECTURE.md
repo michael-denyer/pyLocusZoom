@@ -181,8 +181,9 @@ stages:
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
 | `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
 | `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
-| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy (figure creation, scatter/line/fill primitives, legends, recombination overlay, heatmap) |
-| `SupportsRegionHighlight` | Optional protocol | `src/pylocuszoom/backends/base.py` | Capability detected by Miami rendering without breaking existing registered backends |
+| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, neutral `add_legend`, heatmap) |
+| `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry` and `render_recombination_overlay` |
+| `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns panel policy while retaining the primitive backend seam for compatibility |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
@@ -260,3 +261,42 @@ class needs to change. The `reference_data/` directory is populated lazily at
 runtime by `recombination.ensure_recomb_maps()` and
 `download_canine_recombination_maps()` rather than shipping ~50 MB of maps in
 the wheel.
+
+### Custom backends in 2.0
+
+2.0 completes the rendering seam, which breaks the 1.x extension contract. A
+custom backend needs three changes.
+
+**1. One neutral `add_legend`.** The five semantic legend methods
+(`add_ld_legend`, `add_effect_legend`, `add_eqtl_legend`,
+`add_finemapping_legend`, `add_simple_legend`) are gone, and the old generic
+`add_legend(handles, labels)` is replaced. Legend content is now built above the
+seam by pure functions in `backends/composition.py` and handed down as
+`LegendEntry` values:
+
+```python
+def add_legend(self, ax, entries: list[LegendEntry], loc="upper left", title=None):
+    """entries carry label, color, marker ("patch" or a marker code), edgecolor."""
+```
+
+Backends must honour `loc` (matplotlib's vocabulary) and each entry's
+`edgecolor`, falling back to black when it is `None`.
+
+**2. `add_recombination_overlay` is gone.** The overlay is composed from
+primitives by `composition.render_recombination_overlay()`. A backend that wants
+the overlay implements `SupportsSecondaryAxis`: `create_twin_axis(ax)` returns
+an opaque per-backend handle, and `line_secondary`, `fill_between_secondary`,
+`set_secondary_ylim`, and `set_secondary_ylabel` each take that handle as their
+first argument.
+
+**3. Capabilities are protocols, not booleans.** The `supports_snp_labels` and
+`supports_secondary_axis` properties are removed. Optional capabilities are
+detected with `isinstance` against `@runtime_checkable` protocols, so a backend
+declares support by implementing the methods and declines by omitting them:
+`SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`.
+`supports_hover` stays a boolean, because it is a rendering-quality flag with no
+method to key on.
+
+No compatibility shim is provided. See
+[ADR-0004](adr/0004-complete-rendering-seam-and-capability-protocols.md) for the
+reasoning.

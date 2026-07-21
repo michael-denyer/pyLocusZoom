@@ -40,6 +40,7 @@ flowchart TB
         PB["PlotlyBackend<br/><small>4c</small>"]
         BB["BokehBackend<br/><small>4d</small>"]
         HV["HoverDataBuilder<br/><small>4e</small>"]
+        CMP["composition<br/><small>4f</small>"]
     end
 
     subgraph Layer5["🔧 Infrastructure"]
@@ -79,6 +80,8 @@ flowchart TB
     ST --> REND
     HM --> REND
     CP --> REND
+    REND --> CMP
+    CMP --> BP
     REND --> BP
 
     BP --> MB
@@ -117,6 +120,7 @@ flowchart TB
     style PB fill:#ad1457,stroke:#f06292,color:#ffffff
     style BB fill:#ad1457,stroke:#f06292,color:#ffffff
     style HV fill:#ad1457,stroke:#f06292,color:#ffffff
+    style CMP fill:#ad1457,stroke:#f06292,color:#ffffff
 
     %% Infrastructure — purple
     style EX fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
@@ -153,7 +157,7 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 
 ## [2] Validation
 
-Two validation styles coexist: a fluent builder (`DataFrameValidator`) for ad-hoc checks, and per-DataFrame schema functions in `schemas.py`. Plot options validate via Pydantic.
+One validation engine, `DataFrameValidator`, with per-family specs expressed on it. The strict load-time schemas live in `schemas.py`; plot-time validation in `utils` is deliberately more permissive. Plot options validate via Pydantic.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
@@ -205,16 +209,17 @@ LEAD_SNP_COLOR = "#7D26CD"
 
 ## [4] Backends
 
-Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`); the protocol defines the method surface every implementation must satisfy.
+Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`). As of 2.0 the protocol carries drawing primitives only; legend and recombination-overlay composition sits above it in `composition.py`, and optional capabilities are negotiated with `@runtime_checkable` protocols.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 4a | PlotBackend | Protocol defining required methods | [base.py](../src/pylocuszoom/backends/base.py) |
-| 4a | SupportsRegionHighlight | Optional Miami region-highlight capability | [base.py](../src/pylocuszoom/backends/base.py) |
+| 4a | SupportsRegionHighlight, SupportsSNPLabels, SupportsSecondaryAxis | Optional `@runtime_checkable` capabilities, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
 | 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
 | 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
 | 4e | HoverDataBuilder | Uniform hover tooltip construction | [hover.py](../src/pylocuszoom/backends/hover.py) |
+| 4f | composition | Legend and recombination-overlay composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
 
 ### Backend Capabilities
 
@@ -270,6 +275,7 @@ sequenceDiagram
         participant G as gene_track (3c)
     end
     box rgb(173, 20, 87) Backend
+        participant O as composition (4f)
         participant B as Backend (4a-d)
     end
 
@@ -291,7 +297,8 @@ sequenceDiagram
     G-->>P: row assignments
     P->>B: plot_gene_track()
     opt Recombination
-        P->>B: add_recombination_overlay()
+        P->>O: render_recombination_overlay()
+        O->>B: create_twin_axis(), fill_between_secondary()
     end
     B-->>U: figure
     deactivate B
@@ -309,9 +316,20 @@ classDiagram
         +scatter()
         +axhline()
         +plot_gene_track()
-        +add_recombination_overlay()
-        +add_ld_legend()
+        +add_legend(entries)
         +finalize_layout()
+    }
+    class SupportsSecondaryAxis {
+        <<Protocol>>
+        +create_twin_axis()
+        +line_secondary()
+        +fill_between_secondary()
+    }
+    class composition {
+        <<module>>
+        +LegendEntry
+        +ld_legend_entries()
+        +render_recombination_overlay()
     }
     class MatplotlibBackend
     class PlotlyBackend
@@ -321,6 +339,10 @@ classDiagram
     PlotBackend <|.. MatplotlibBackend
     PlotBackend <|.. PlotlyBackend
     PlotBackend <|.. BokehBackend
+    SupportsSecondaryAxis <|.. MatplotlibBackend
+    SupportsSecondaryAxis <|.. PlotlyBackend
+    SupportsSecondaryAxis <|.. BokehBackend
+    composition ..> PlotBackend : drives primitives
     PlotlyBackend ..> HoverDataBuilder : uses
     BokehBackend ..> HoverDataBuilder : uses
 

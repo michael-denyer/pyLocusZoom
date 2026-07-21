@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING: the `PlotBackend` extension contract is primitives-only** (ADR-0004). Custom backends written against 1.x need migration; see [Custom backends in 2.0](docs/ARCHITECTURE.md#custom-backends-in-20). No compatibility shim is provided.
+  - The five semantic legend methods (`add_ld_legend`, `add_effect_legend`, `add_eqtl_legend`, `add_finemapping_legend`, `add_simple_legend`) and the old `add_legend(handles, labels)` are replaced by one neutral `add_legend(ax, entries, loc, title)` taking backend-neutral `LegendEntry` values. Legend content is built once by pure functions in the new `backends/composition.py`.
+  - `add_recombination_overlay` is removed. `composition.render_recombination_overlay()` composes it from primitives. `create_twin_axis(ax)` now returns an opaque `SecondaryAxis` handle that every `*_secondary` primitive takes as its first argument, replacing the divergent `ax + yaxis_name` convention.
+  - The `supports_snp_labels` and `supports_secondary_axis` boolean properties are removed. Optional capabilities are negotiated with `@runtime_checkable` protocols (`SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`) checked by `isinstance`. `supports_hover` stays a boolean.
+- **Legend styling is uniform across plot families.** The five per-family legend styles are replaced by one. Visible differences from 1.x: the LD lead-SNP marker is 7pt rather than 6pt; eQTL, fine-mapping, and effect legend text is 9pt rather than 8pt, making those boxes slightly taller; and the effect legend now carries an "Effect" title. Legend content, colours, and ordering are unchanged.
+- **`schemas.py` validators are expressed on `DataFrameValidator`** instead of a parallel hand-rolled implementation. Which frames are accepted or rejected is unchanged; error wording differs where the engine phrases a check differently (`Missing columns: [...]` for `Missing required column`, `values <= 0` for `non-positive`, `null values` for `missing values`). A frame with a missing column now also reports its dtype and range faults instead of stopping at the first phase.
+- **BREAKING: two never-read parameters are removed**: `validate_gwas_dataframe(rs_col=...)` and `validate_finemapping_dataframe(cs_col=...)`. Both were accepted and documented but never used.
+- **Internal**: coordinate liftover moved behind a `CoordinateLifter` port with a pure `liftover_positions` (`_liftover.py`), and recombination header detection was extracted as the pure `ensure_recomb_header`. `liftover_recombination_map` keeps its signature.
+
+### Fixed
+
+- **Plotly and Bokeh legends honour `loc` and `edgecolor`.** Both accepted a matplotlib-style `loc` and a per-entry `edgecolor` and discarded them, hard-coding an upper-right legend with black swatch borders. `add_legend(..., loc="lower left")` now places the legend where asked, so it no longer covers plotted data. An unmapped `loc` (including matplotlib's `"best"`, which neither library has) falls back to upper right.
+- **The LD legend title renders as mathtext again.** Hoisting the legends replaced `r"$r^2$"` with the literal string `"r²"`, losing matplotlib's italic superscript. Interactive backends convert the mathtext through `convert_latex_to_unicode`, whose table also silently dropped the exponent (`$r^2$` → `"r"`); it now yields `"r²"` and `"R²"`.
+- **Non-numeric confidence-interval columns report a validation error.** `require_ci_ordering` compared the columns without checking whether `require_numeric` had already flagged one, so a forest DataFrame with a text `effect` or CI column surfaced pandas' `TypeError` instead of `ForestValidationError`.
+
 ## [1.6.0] - 2026-07-20
 
 ### Changed

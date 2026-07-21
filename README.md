@@ -193,10 +193,20 @@ fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 
 Plotters prepare data and pass complete figure intent to internal semantic
 renderers. Those renderers keep panel composition consistent while the backend
-protocol handles drawing primitives. Existing registered custom backends remain
-compatible. Miami region highlighting is optional; custom backends may
-implement `add_region_highlight()` to support it and otherwise render without
-the highlighted span.
+protocol handles drawing primitives.
+
+> **Breaking in 2.0:** custom backends written against 1.x need migration. The
+> `PlotBackend` protocol now carries only drawing primitives; legend and
+> recombination-overlay composition moved above the seam into
+> `backends/composition.py`. See
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#custom-backends-in-20) for the
+> three changes required.
+
+Optional capabilities are negotiated with `@runtime_checkable` protocols, so a
+custom backend opts in by implementing the methods and opts out by omitting
+them: `SupportsRegionHighlight` (Miami region spans), `SupportsSNPLabels`
+(matplotlib-style repositioned labels), and `SupportsSecondaryAxis`
+(recombination overlay).
 
 ## Stacked Plots
 
