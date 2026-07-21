@@ -685,7 +685,7 @@ class BokehBackend:
         legend = Legend(
             items=items,
             location=_LEGEND_LOCATIONS.get(loc, "top_right"),
-            title=title,
+            title=convert_latex_to_unicode(title),
             background_fill_alpha=0.9,
             border_line_color="black",
             spacing=0,

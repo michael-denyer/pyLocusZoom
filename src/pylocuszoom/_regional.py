@@ -18,6 +18,7 @@ from .backends.base import (
     SupportsSNPLabels,
 )
 from .backends.composition import (
+    LD_LEGEND_TITLE,
     LegendEntry,
     eqtl_legend_entries,
     finemapping_legend_entries,
@@ -277,7 +278,7 @@ class RegionalPlotComposer:
             self._backend.add_panel_label(ax, panel_label)
         if add_ld_legend and ld_col is not None and ld_col in df.columns:
             self._backend.add_legend(
-                ax, ld_legend_entries(), loc="upper right", title="r²"
+                ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
             )
 
     def render_association_scatter(

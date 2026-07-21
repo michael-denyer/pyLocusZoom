@@ -825,7 +825,7 @@ class PlotlyBackend:
         fig.update_layout(
             **{
                 legend_key: dict(
-                    title=dict(text=title),
+                    title=dict(text=convert_latex_to_unicode(title)),
                     x=_LEGEND_X[horizontal],
                     y=self._get_panel_y(fig, row, vertical),
                     xanchor=horizontal,

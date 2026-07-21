@@ -43,6 +43,12 @@ class LegendEntry:
     edgecolor: Optional[str] = None
 
 
+# Mathtext, so matplotlib renders an italic r with a true superscript. The
+# interactive backends run legend titles through convert_latex_to_unicode and
+# show "r²".
+LD_LEGEND_TITLE = r"$r^2$"
+
+
 def ld_legend_entries(
     ld_bins: Sequence[LDBin] = LD_BINS,
     lead_snp_color: str = LEAD_SNP_COLOR,

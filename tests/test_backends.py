@@ -314,14 +314,14 @@ class TestConvertLatexToUnicode:
         from pylocuszoom.backends import convert_latex_to_unicode
 
         result = convert_latex_to_unicode(r"$r^2$")
-        assert result == "r"
+        assert result == "r²"
 
     def test_convert_r2_uppercase(self):
         """Should convert R² LaTeX notation."""
         from pylocuszoom.backends import convert_latex_to_unicode
 
         result = convert_latex_to_unicode(r"$R^2$")
-        assert result == "R"
+        assert result == "R²"
 
     def test_strips_dollar_signs(self):
         """Should strip remaining dollar signs."""
@@ -343,7 +343,7 @@ class TestConvertLatexToUnicode:
         from pylocuszoom.backends import convert_latex_to_unicode
 
         result = convert_latex_to_unicode(r"Value: $r^2$ = 0.5")
-        assert result == "Value: r = 0.5"
+        assert result == "Value: r² = 0.5"
 
 
 class TestLazyAttributeAccess:
@@ -724,3 +724,52 @@ class TestLegendPlacement:
         bokeh_backend = BokehBackend()
         _, bokeh_axes = bokeh_backend.create_figure(1, [1.0], (6, 4))
         bokeh_backend.add_legend(bokeh_axes[0], self._entries(), loc="nonsense")
+
+
+class TestLegendTitleMathtext:
+    """The LD legend title is mathtext, rendered natively per backend."""
+
+    def test_matplotlib_keeps_mathtext(self):
+        """Matplotlib receives the raw mathtext so it renders an italic r²."""
+        from pylocuszoom.backends.composition import (
+            LD_LEGEND_TITLE,
+            ld_legend_entries,
+        )
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        assert LD_LEGEND_TITLE == r"$r^2$"
+
+        backend = MatplotlibBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        legend = backend.add_legend(
+            axes[0], ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
+        )
+        assert legend.get_title().get_text() == r"$r^2$"
+        backend.close(fig)
+
+    def test_interactive_backends_show_unicode(self):
+        """Plotly and Bokeh convert the mathtext to a plain unicode r²."""
+        pytest.importorskip("plotly")
+        pytest.importorskip("bokeh")
+        from bokeh.models import Legend
+
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
+        from pylocuszoom.backends.composition import (
+            LD_LEGEND_TITLE,
+            ld_legend_entries,
+        )
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        plotly_backend = PlotlyBackend()
+        plotly_fig, plotly_axes = plotly_backend.create_figure(1, [1.0], (6, 4))
+        plotly_backend.add_legend(
+            plotly_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
+        )
+        assert plotly_fig.layout.legend.title.text == "r²"
+
+        bokeh_backend = BokehBackend()
+        _, bokeh_axes = bokeh_backend.create_figure(1, [1.0], (6, 4))
+        bokeh_backend.add_legend(
+            bokeh_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
+        )
+        assert list(bokeh_axes[0].select(Legend))[0].title == "r²"
