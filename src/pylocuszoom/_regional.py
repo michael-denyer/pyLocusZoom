@@ -13,15 +13,17 @@ import numpy as np
 import pandas as pd
 
 from .backends.base import PlotBackend
+from .backends.composition import (
+    LegendEntry,
+    eqtl_legend_entries,
+    finemapping_legend_entries,
+    ld_legend_entries,
+)
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
-    EQTL_NEGATIVE_BINS,
-    EQTL_POSITIVE_BINS,
-    LD_BINS,
     LD_HEATMAP_COLORS,
     LEAD_SNP_COLOR,
     LEAD_SNP_HIGHLIGHT_COLOR,
-    get_credible_set_color,
     get_eqtl_color,
     get_ld_bin,
     get_ld_color_palette,
@@ -269,7 +271,9 @@ class RegionalPlotComposer:
         if panel_label:
             self._backend.add_panel_label(ax, panel_label)
         if add_ld_legend and ld_col is not None and ld_col in df.columns:
-            self._backend.add_ld_legend(ax, LD_BINS, LEAD_SNP_COLOR)
+            self._backend.add_legend(
+                ax, ld_legend_entries(), loc="upper right", title="r²"
+            )
 
     def render_association_scatter(
         self,
@@ -437,8 +441,11 @@ class RegionalPlotComposer:
                     value for value in fm_data[cs_col].dropna().unique() if value != 0
                 )
             if credible_sets:
-                self._backend.add_finemapping_legend(
-                    ax, credible_sets, get_credible_set_color
+                self._backend.add_legend(
+                    ax,
+                    finemapping_legend_entries(credible_sets),
+                    loc="upper right",
+                    title="Credible sets",
                 )
         self._backend.set_ylabel(ax, "PIP")
         self._backend.set_ylim(ax, -0.05, 1.05)
@@ -484,8 +491,11 @@ class RegionalPlotComposer:
                             zorder=2,
                             hover_data=hover_builder.build_dataframe(subset),
                         )
-                self._backend.add_eqtl_legend(
-                    ax, EQTL_POSITIVE_BINS, EQTL_NEGATIVE_BINS
+                self._backend.add_legend(
+                    ax,
+                    eqtl_legend_entries(),
+                    loc="upper right",
+                    title="eQTL effect",
                 )
             else:
                 label = f"eQTL ({eqtl_gene})" if eqtl_gene_filtered else "eQTL"
@@ -499,10 +509,13 @@ class RegionalPlotComposer:
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=2,
-                    label=label,
                     hover_data=hover_builder.build_dataframe(eqtl_data),
                 )
-                self._backend.add_simple_legend(ax, label, loc="upper right")
+                self._backend.add_legend(
+                    ax,
+                    [LegendEntry(label, "#FF6B6B", marker="D")],
+                    loc="upper right",
+                )
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
         self._backend.axhline(
             ax,

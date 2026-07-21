@@ -12,6 +12,7 @@ from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
 from . import convert_latex_to_unicode, register_backend
+from .composition import LegendEntry
 
 # Style mappings (matplotlib -> Bokeh)
 _MARKER_MAP = {
@@ -470,16 +471,6 @@ class BokehBackend:
         if rotation:
             ax.xaxis.major_label_orientation = math.radians(rotation)
 
-    def _get_legend_location(self, loc: str, default: str = "top_left") -> str:
-        """Map matplotlib-style legend location to Bokeh location."""
-        loc_map = {
-            "upper left": "top_left",
-            "upper right": "top_right",
-            "lower left": "bottom_left",
-            "lower right": "bottom_right",
-        }
-        return loc_map.get(loc, default)
-
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Bokeh display."""
         return convert_latex_to_unicode(label)
@@ -716,53 +707,26 @@ class BokehBackend:
         )
         ax.add_layout(legend)
 
-    def add_ld_legend(
-        self,
-        ax: figure,
-        ld_bins: List[Tuple[float, str, str]],
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend using invisible dummy glyphs.
-
-        Creates legend entries with dummy renderers that are excluded from
-        the data range calculation to avoid affecting axis scaling.
-        """
-        source = self._ensure_legend_range(ax)
-        items = [
-            self._add_legend_item(ax, source, "Lead SNP", lead_snp_color, "diamond", 16)
-        ]
-        for _, label, color in ld_bins:
-            items.append(self._add_legend_item(ax, source, label, color, "square"))
-        self._create_legend(ax, items, "r²")
-
-    def add_effect_legend(
-        self,
-        ax: figure,
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots."""
-        source = self._ensure_legend_range(ax)
-        items = []
-        for _, label, color in effect_bins:
-            items.append(self._add_legend_item(ax, source, label, color, "circle"))
-        self._create_legend(ax, items, "Effect")
-
     def add_legend(
         self,
         ax: figure,
-        handles: List[Any],
-        labels: List[str],
+        entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
-        """Configure legend on the figure."""
-        ax.legend.location = self._get_legend_location(loc, "top_left")
-        if title:
-            ax.legend.title = title
-        ax.legend.background_fill_alpha = 0.9
-        ax.legend.border_line_color = "black"
-
-        return ax.legend
+    ) -> None:
+        """Render legend entries as a Bokeh legend using invisible glyphs."""
+        source = self._ensure_legend_range(ax)
+        items = []
+        for entry in entries:
+            marker = (
+                "square"
+                if entry.marker == "patch"
+                else _MARKER_MAP.get(entry.marker, "circle")
+            )
+            items.append(
+                self._add_legend_item(ax, source, entry.label, entry.color, marker)
+            )
+        self._create_legend(ax, items, title or "")
 
     def hide_spines(self, ax: figure, spines: List[str]) -> None:
         """Hide specified axis spines (no-op for Bokeh).
@@ -823,57 +787,6 @@ class BokehBackend:
     def close(self, fig: Any) -> None:
         """Close the figure (no-op for bokeh)."""
         pass
-
-    def add_eqtl_legend(
-        self,
-        ax: figure,
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
-    ) -> None:
-        """Add eQTL effect size legend using invisible dummy glyphs."""
-        source = self._ensure_legend_range(ax)
-        items = []
-        for _, _, label, color in eqtl_positive_bins:
-            items.append(self._add_legend_item(ax, source, label, color, "triangle"))
-        for _, _, label, color in eqtl_negative_bins:
-            items.append(
-                self._add_legend_item(ax, source, label, color, "inverted_triangle")
-            )
-        self._create_legend(ax, items, "eQTL effect")
-
-    def add_finemapping_legend(
-        self,
-        ax: figure,
-        credible_sets: List[int],
-        get_color_func: Any,
-    ) -> None:
-        """Add fine-mapping credible set legend using invisible dummy glyphs."""
-        if not credible_sets:
-            return
-
-        source = self._ensure_legend_range(ax)
-        items = [
-            self._add_legend_item(
-                ax, source, f"CS{cs_id}", get_color_func(cs_id), "circle"
-            )
-            for cs_id in credible_sets
-        ]
-        self._create_legend(ax, items, "Credible sets")
-
-    def add_simple_legend(
-        self,
-        ax: figure,
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Configure legend position.
-
-        Bokeh handles legends automatically from legend_label.
-        This just positions the legend.
-        """
-        ax.legend.location = self._get_legend_location(loc, "top_right")
-        ax.legend.background_fill_alpha = 0.9
-        ax.legend.border_line_color = "black"
 
     def axvline(
         self,

@@ -1,0 +1,78 @@
+"""Backend-neutral figure composition above the rendering seam.
+
+Legend construction lives here as pure functions that produce backend-neutral
+``LegendEntry`` specs. Backends implement a single ``add_legend`` primitive that
+renders a list of entries natively, so the bin-iteration and swatch policy is
+owned once instead of duplicated in every adapter.
+"""
+
+from dataclasses import dataclass
+from typing import Callable, List, Optional, Sequence
+
+from ..colors import (
+    EFFECT_CONGRUENT_COLOR,
+    EFFECT_INCONGRUENT_COLOR,
+    EQTL_NEGATIVE_BINS,
+    EQTL_POSITIVE_BINS,
+    LD_BINS,
+    LD_NA_COLOR,
+    LEAD_SNP_COLOR,
+    EQTLBin,
+    LDBin,
+    get_credible_set_color,
+)
+
+
+@dataclass(frozen=True)
+class LegendEntry:
+    """One backend-neutral legend entry.
+
+    ``marker`` uses the same vocabulary as ``scatter(marker=...)``: ``"patch"``
+    for a filled swatch, or a marker code (``"D"``, ``"^"``, ``"v"``, ``"o"``)
+    for a point marker. Backends map these to their native symbols.
+    """
+
+    label: str
+    color: str
+    marker: str = "patch"
+    edgecolor: Optional[str] = None
+
+
+def ld_legend_entries(
+    ld_bins: Sequence[LDBin] = LD_BINS,
+    lead_snp_color: str = LEAD_SNP_COLOR,
+) -> List[LegendEntry]:
+    """Lead-SNP marker followed by one swatch per LD r^2 bin."""
+    entries = [LegendEntry("Lead SNP", lead_snp_color, marker="D")]
+    entries.extend(LegendEntry(b.label, b.color, marker="patch") for b in ld_bins)
+    return entries
+
+
+def effect_legend_entries() -> List[LegendEntry]:
+    """Colocalization effect-direction categories."""
+    return [
+        LegendEntry("Same direction", EFFECT_CONGRUENT_COLOR, marker="o"),
+        LegendEntry("Opposite direction", EFFECT_INCONGRUENT_COLOR, marker="o"),
+        LegendEntry("Missing effect", LD_NA_COLOR, marker="o"),
+    ]
+
+
+def eqtl_legend_entries(
+    positive_bins: Sequence[EQTLBin] = EQTL_POSITIVE_BINS,
+    negative_bins: Sequence[EQTLBin] = EQTL_NEGATIVE_BINS,
+) -> List[LegendEntry]:
+    """eQTL effect-size bins: up-triangles positive, down-triangles negative."""
+    entries = [LegendEntry(b.label, b.color, marker="^") for b in positive_bins]
+    entries.extend(LegendEntry(b.label, b.color, marker="v") for b in negative_bins)
+    return entries
+
+
+def finemapping_legend_entries(
+    credible_sets: Sequence[int],
+    get_color: Callable[[int], str] = get_credible_set_color,
+) -> List[LegendEntry]:
+    """One marker per credible set."""
+    return [
+        LegendEntry(f"CS{cs_id}", get_color(cs_id), marker="o")
+        for cs_id in credible_sets
+    ]

@@ -13,6 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
+from .composition import LegendEntry
 
 
 @register_backend("matplotlib")
@@ -529,15 +530,36 @@ class MatplotlibBackend:
     def add_legend(
         self,
         ax: Axes,
-        handles: List[Any],
-        labels: List[str],
+        entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
     ) -> Any:
-        """Add a legend to the axes."""
+        """Render backend-neutral legend entries as matplotlib handles."""
+        from matplotlib.lines import Line2D
+        from matplotlib.patches import Patch
+
+        handles: List[Any] = []
+        for entry in entries:
+            edge = entry.edgecolor or "black"
+            if entry.marker == "patch":
+                handles.append(
+                    Patch(facecolor=entry.color, edgecolor=edge, label=entry.label)
+                )
+            else:
+                handles.append(
+                    Line2D(
+                        [0],
+                        [0],
+                        marker=entry.marker,
+                        color="w",
+                        markerfacecolor=entry.color,
+                        markeredgecolor=edge,
+                        markersize=7,
+                        label=entry.label,
+                    )
+                )
         return ax.legend(
             handles=handles,
-            labels=labels,
             loc=loc,
             title=title,
             fontsize=9,
@@ -580,193 +602,6 @@ class MatplotlibBackend:
     def close(self, fig: Figure) -> None:
         """Close the figure and free resources."""
         plt.close(fig)
-
-    def add_eqtl_legend(
-        self,
-        ax: Axes,
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
-    ) -> None:
-        """Add eQTL effect size legend using matplotlib Line2D markers."""
-        from matplotlib.lines import Line2D
-
-        legend_elements = []
-
-        # Positive effects (upward triangles)
-        for _, _, label, color in eqtl_positive_bins:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="^",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=label,
-                )
-            )
-
-        # Negative effects (downward triangles)
-        for _, _, label, color in eqtl_negative_bins:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="v",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=label,
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            frameon=True,
-            framealpha=0.9,
-            title="eQTL effect",
-            title_fontsize=9,
-            handlelength=1.2,
-            handleheight=1.0,
-            labelspacing=0.3,
-        )
-
-    def add_finemapping_legend(
-        self,
-        ax: Axes,
-        credible_sets: List[int],
-        get_color_func: Any,
-    ) -> None:
-        """Add fine-mapping credible set legend using matplotlib Line2D markers."""
-        from matplotlib.lines import Line2D
-
-        if not credible_sets:
-            return
-
-        legend_elements = []
-        for cs_id in credible_sets:
-            color = get_color_func(cs_id)
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=7,
-                    label=f"CS{cs_id}",
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            frameon=True,
-            framealpha=0.9,
-            title="Credible sets",
-            title_fontsize=9,
-            handlelength=1.2,
-            handleheight=1.0,
-            labelspacing=0.3,
-        )
-
-    def add_simple_legend(
-        self,
-        ax: Axes,
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Add simple legend for labeled scatter data."""
-        ax.legend(loc=loc, fontsize=9)
-
-    def add_ld_legend(
-        self,
-        ax: Axes,
-        ld_bins: List[Tuple[float, str, str]],
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend using matplotlib patches.
-
-        Args:
-            ax: Matplotlib axes.
-            ld_bins: List of (threshold, label, color) tuples defining LD bins.
-            lead_snp_color: Color for lead SNP marker in legend.
-        """
-        from matplotlib.lines import Line2D
-        from matplotlib.patches import Patch
-
-        from ..colors import get_ld_color_palette
-
-        palette = get_ld_color_palette()
-        legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="D",
-                color="w",
-                markerfacecolor=lead_snp_color,
-                markeredgecolor="black",
-                markersize=6,
-                label="Lead SNP",
-            ),
-        ]
-        for _threshold, label, _color in ld_bins:
-            legend_elements.append(
-                Patch(facecolor=palette[label], edgecolor="black", label=label)
-            )
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=9,
-            frameon=True,
-            framealpha=0.9,
-            title=r"$r^2$",
-            title_fontsize=10,
-            handlelength=1.5,
-            handleheight=1.0,
-            labelspacing=0.4,
-        )
-
-    def add_effect_legend(
-        self,
-        ax: Axes,
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots.
-
-        Args:
-            ax: Matplotlib axes.
-            effect_bins: List of (threshold, label, color) tuples.
-        """
-        from matplotlib.lines import Line2D
-
-        legend_elements = []
-        for _threshold, label, color in effect_bins:
-            legend_elements.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    markerfacecolor=color,
-                    markeredgecolor="black",
-                    markersize=8,
-                    label=label,
-                )
-            )
-
-        ax.legend(
-            handles=legend_elements,
-            loc="upper right",
-            fontsize=8,
-            framealpha=0.9,
-        )
 
     def axvline(
         self,

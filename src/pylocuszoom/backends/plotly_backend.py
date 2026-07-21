@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
+from .composition import LegendEntry
 
 # Style mappings (matplotlib -> Plotly)
 _MARKER_SYMBOLS = {
@@ -562,16 +563,6 @@ class PlotlyBackend:
         subplot_idx = (row - 1) * n_cols + col
         return f"{axis}{subplot_idx}" if subplot_idx > 1 else axis
 
-    def _get_legend_position(self, loc: str) -> dict:
-        """Map matplotlib-style legend location to Plotly position dict."""
-        loc_map = {
-            "upper left": dict(x=0.01, y=0.99, xanchor="left", yanchor="top"),
-            "upper right": dict(x=0.99, y=0.99, xanchor="right", yanchor="top"),
-            "lower left": dict(x=0.01, y=0.01, xanchor="left", yanchor="bottom"),
-            "lower right": dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom"),
-        }
-        return loc_map.get(loc, loc_map["upper left"])
-
     def _convert_label(self, label: str) -> str:
         """Convert LaTeX-style labels to Unicode for Plotly display."""
         return convert_latex_to_unicode(label)
@@ -877,64 +868,32 @@ class PlotlyBackend:
             col=col,
         )
 
-    def add_ld_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        ld_bins: List[Tuple[float, str, str]],
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend using invisible scatter traces.
-
-        Uses Plotly's separate legend feature (legend="legend") so LD legend
-        can be positioned independently from eQTL and fine-mapping legends.
-        """
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        self._add_legend_item(
-            fig, row, "Lead SNP", lead_snp_color, "diamond", 12, "legend"
-        )
-        for _, label, color in ld_bins:
-            self._add_legend_item(fig, row, label, color, "square", 10, "legend")
-
-        self._configure_legend(fig, row, "legend", "r²")
-
-    def add_effect_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots."""
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        for _, label, color in effect_bins:
-            self._add_legend_item(fig, row, label, color, "circle", 10, "legend")
-
-        self._configure_legend(fig, row, "legend", "Effect")
-
     def add_legend(
         self,
         ax: Tuple[go.Figure, int],
-        handles: List[Any],
-        labels: List[str],
+        entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
-        """Add a legend to the figure.
+    ) -> None:
+        """Render legend entries as an independently-positioned Plotly legend.
 
-        Note: Plotly handles legends automatically from trace names.
-        This method updates legend positioning.
+        Each call allocates a fresh legend key (legend, legend2, ...) so several
+        legends coexist on one figure, positioned per panel row.
         """
-        fig, _ = ax
-        legend_pos = self._get_legend_position(loc)
-        fig.update_layout(
-            legend=dict(
-                **legend_pos,
-                title=dict(text=title) if title else None,
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
+        fig, row, col, _ = self._extract_row_col(ax)
+        count = getattr(fig, "_legend_count", 0) + 1
+        fig._legend_count = count
+        legend_key = "legend" if count == 1 else f"legend{count}"
+        for entry in entries:
+            symbol = (
+                "square"
+                if entry.marker == "patch"
+                else _MARKER_SYMBOLS.get(entry.marker, "circle")
             )
-        )
+            self._add_legend_item(
+                fig, row, entry.label, entry.color, symbol, 10, legend_key
+            )
+        self._configure_legend(fig, row, legend_key, title or "")
 
     def hide_spines(self, ax: Tuple[go.Figure, int], spines: List[str]) -> None:
         """Hide specified axis spines (lines).
@@ -996,73 +955,6 @@ class PlotlyBackend:
     def close(self, fig: go.Figure) -> None:
         """Close the figure (no-op for plotly)."""
         pass
-
-    def add_eqtl_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        eqtl_positive_bins: List[Tuple[float, float, str, str]],
-        eqtl_negative_bins: List[Tuple[float, float, str, str]],
-    ) -> None:
-        """Add eQTL effect size legend using invisible scatter traces.
-
-        Uses Plotly's separate legend feature (legend="legend2") so eQTL legend
-        is positioned independently below the LD legend.
-        """
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        for _, _, label, color in eqtl_positive_bins:
-            self._add_legend_item(fig, row, label, color, "triangle-up", 10, "legend2")
-        for _, _, label, color in eqtl_negative_bins:
-            self._add_legend_item(
-                fig, row, label, color, "triangle-down", 10, "legend2"
-            )
-
-        self._configure_legend(fig, row, "legend2", "eQTL effect")
-
-    def add_finemapping_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        credible_sets: List[int],
-        get_color_func: Any,
-    ) -> None:
-        """Add fine-mapping credible set legend using invisible scatter traces.
-
-        Uses Plotly's separate legend feature (legend="legend2") so fine-mapping
-        legend is positioned independently below the LD legend.
-        """
-        if not credible_sets:
-            return
-
-        fig, row, col, _ = self._extract_row_col(ax)
-
-        for cs_id in credible_sets:
-            self._add_legend_item(
-                fig, row, f"CS{cs_id}", get_color_func(cs_id), "circle", 10, "legend2"
-            )
-
-        self._configure_legend(fig, row, "legend2", "Credible sets")
-
-    def add_simple_legend(
-        self,
-        ax: Tuple[go.Figure, int],
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Add simple legend positioning.
-
-        Plotly handles legends automatically from trace names.
-        This just positions the legend.
-        """
-        fig, _ = ax
-        legend_pos = self._get_legend_position(loc)
-        fig.update_layout(
-            legend=dict(
-                **legend_pos,
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
-            )
-        )
 
     def axvline(
         self,

@@ -6,7 +6,6 @@ Defines the interface that matplotlib, plotly, and bokeh backends must implement
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     List,
     Optional,
     Protocol,
@@ -18,7 +17,7 @@ from typing import (
 import pandas as pd
 
 if TYPE_CHECKING:
-    from ..colors import EQTLBin, LDBin
+    from .composition import LegendEntry
 
 
 @runtime_checkable
@@ -703,99 +702,20 @@ class PlotBackend(Protocol):
     def add_legend(
         self,
         ax: Any,
-        handles: List[Any],
-        labels: List[str],
+        entries: "List[LegendEntry]",
         loc: str = "upper left",
         title: Optional[str] = None,
     ) -> Any:
-        """Add a legend to the axes.
+        """Add a legend rendering the given backend-neutral entries.
 
         Args:
             ax: Axes or panel.
-            handles: Legend handle objects.
-            labels: Legend labels.
+            entries: Backend-neutral ``LegendEntry`` specs to render.
             loc: Legend location.
             title: Legend title.
 
         Returns:
-            The legend object.
-        """
-        ...
-
-    def add_ld_legend(
-        self,
-        ax: Any,
-        ld_bins: "List[LDBin]",
-        lead_snp_color: str,
-    ) -> None:
-        """Add LD color legend.
-
-        Shows the linkage disequilibrium (r^2) color scale and lead SNP marker.
-
-        Args:
-            ax: Axes or panel.
-            ld_bins: List of LDBin(threshold, label, color) defining LD bins.
-            lead_snp_color: Color for lead SNP marker in legend.
-        """
-        ...
-
-    def add_effect_legend(
-        self,
-        ax: Any,
-        effect_bins: List[Tuple[float, str, str]],
-    ) -> None:
-        """Add effect direction legend for colocalization plots.
-
-        Shows effect direction categories (same direction, opposite, missing).
-
-        Args:
-            ax: Axes or panel.
-            effect_bins: List of (threshold, label, color) tuples.
-        """
-        ...
-
-    def add_eqtl_legend(
-        self,
-        ax: Any,
-        eqtl_positive_bins: "List[EQTLBin]",
-        eqtl_negative_bins: "List[EQTLBin]",
-    ) -> None:
-        """Add eQTL effect size legend to the axes.
-
-        Args:
-            ax: Axes or panel.
-            eqtl_positive_bins: List of EQTLBin(min_val, max_val, label, color).
-            eqtl_negative_bins: List of EQTLBin(min_val, max_val, label, color).
-        """
-        ...
-
-    def add_finemapping_legend(
-        self,
-        ax: Any,
-        credible_sets: List[int],
-        get_color_func: Callable[[int], str],
-    ) -> None:
-        """Add fine-mapping credible set legend to the axes.
-
-        Args:
-            ax: Axes or panel.
-            credible_sets: List of credible set IDs to show.
-            get_color_func: Function that takes CS ID and returns color.
-        """
-        ...
-
-    def add_simple_legend(
-        self,
-        ax: Any,
-        label: str,
-        loc: str = "upper right",
-    ) -> None:
-        """Add a simple legend entry for labeled data already in the plot.
-
-        Args:
-            ax: Axes or panel.
-            label: Legend label for labeled scatter data.
-            loc: Legend location.
+            The legend object, if the backend produces one.
         """
         ...
 
