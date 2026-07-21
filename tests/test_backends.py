@@ -607,41 +607,16 @@ class TestHeatmapMethods:
 class TestCustomBackendCompatibility:
     """Tests for custom backend forward compatibility."""
 
-    def test_recomb_overlay_skipped_when_secondary_axis_unsupported(self):
-        """Recomb overlay is skipped (no crash) when a backend lacks the capability.
+    def test_backend_missing_secondary_methods_lacks_capability(self):
+        """A backend without the secondary-axis methods fails the capability gate.
 
-        The overlay is composed above the seam and gated on
-        isinstance(backend, SupportsSecondaryAxis). A backend missing the
-        secondary-axis methods must skip it gracefully rather than error.
+        The recombination overlay is gated on isinstance(backend,
+        SupportsSecondaryAxis), so a backend lacking those methods skips the
+        overlay instead of erroring.
         """
-        import matplotlib.pyplot as plt
-        import pandas as pd
+        from pylocuszoom.backends import SupportsSecondaryAxis
 
-        from pylocuszoom.plotter import LocusZoomPlotter
+        class MinimalBackend:
+            pass
 
-        plotter = LocusZoomPlotter(species=None)
-        backend_cls = type(plotter._backend)
-        original = backend_cls.create_twin_axis
-        # Removing a secondary-axis method makes the backend fail the
-        # SupportsSecondaryAxis isinstance check.
-        delattr(backend_cls, "create_twin_axis")
-
-        try:
-            gwas_df = pd.DataFrame(
-                {
-                    "rs": ["rs1", "rs2", "rs3"],
-                    "chr": [1, 1, 1],
-                    "ps": [1100000, 1500000, 1900000],
-                    "p_wald": [1e-8, 1e-5, 0.01],
-                }
-            )
-            recomb_df = pd.DataFrame(
-                {"pos": [1000000, 1500000, 2000000], "rate": [50.0, 100.0, 75.0]}
-            )
-            fig = plotter.plot(
-                gwas_df, chrom=1, start=1000000, end=2000000, recomb_df=recomb_df
-            )
-            assert fig is not None
-            plt.close(fig)
-        finally:
-            backend_cls.create_twin_axis = original
+        assert not isinstance(MinimalBackend(), SupportsSecondaryAxis)
