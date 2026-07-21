@@ -194,9 +194,11 @@ class DataFrameValidator:
         Returns:
             Self for method chaining.
         """
-        # Skip if any column is missing
+        # Skip if any column is missing, or if require_numeric already flagged
+        # one as non-numeric — ordering comparisons against a text column raise
+        # TypeError and would mask the structured ValidationError.
         for col in [ci_lower_col, effect_col, ci_upper_col]:
-            if col not in self._df.columns:
+            if col not in self._df.columns or col in self._non_numeric_cols:
                 return self
 
         lower = self._df[ci_lower_col]

@@ -109,3 +109,23 @@ def test_validate_forest_df_ci_lower_gt_ci_upper():
     )
     with pytest.raises(ValidationError, match="ci_lower > ci_upper"):
         validate_forest_df(df)
+
+
+def test_validate_forest_df_non_numeric_effect():
+    """Non-numeric effect reports a validation error, not a comparison TypeError.
+
+    Ordering comparisons run after the dtype check, so a text column would
+    otherwise surface as a bare TypeError from pandas.
+    """
+    from pylocuszoom.forest import validate_forest_df
+
+    df = pd.DataFrame(
+        {
+            "study": ["Study A"],
+            "effect": ["large"],
+            "ci_lower": [0.1],
+            "ci_upper": [0.9],
+        }
+    )
+    with pytest.raises(ValidationError, match="must be numeric"):
+        validate_forest_df(df)
