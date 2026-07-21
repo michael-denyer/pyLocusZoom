@@ -270,3 +270,50 @@ def test_all_problems_are_reported_in_one_pass():
     message = str(exc_info.value)
     assert "ps" in message
     assert "p_wald" in message
+
+
+class TestPValueDomainHasOneOwner:
+    """Strict validation and plot-time intake share the p-value domain."""
+
+    @staticmethod
+    def _accepted_by_strict(value):
+        from pylocuszoom.exceptions import LoaderValidationError
+
+        df = pd.DataFrame({"ps": [100], "p_wald": [value]})
+        try:
+            validate_gwas_dataframe(df)
+        except LoaderValidationError:
+            return False
+        return True
+
+    @staticmethod
+    def _kept_by_intake(value, *, allow_zero):
+        from pylocuszoom._data import prepare_pvalue_data
+
+        df = pd.DataFrame({"p": [value]})
+        return len(prepare_pvalue_data(df, "p", allow_zero=allow_zero)) == 1
+
+    @pytest.mark.parametrize(
+        "value", [1e-300, 1e-8, 0.05, 0.5, 0.999, 1.0, 1.0000001, 1.5, 2.0, -0.1]
+    )
+    def test_strict_agrees_with_intake_when_zero_is_disallowed(self, value):
+        """Away from zero, both ends of the library accept exactly the same values."""
+        assert self._accepted_by_strict(value) == self._kept_by_intake(
+            value, allow_zero=False
+        )
+
+    def test_zero_is_the_only_deliberate_divergence(self):
+        """p == 0 is rejected at load and kept by the Manhattan convention."""
+        assert self._accepted_by_strict(0.0) is False
+        assert self._kept_by_intake(0.0, allow_zero=False) is False
+        assert self._kept_by_intake(0.0, allow_zero=True) is True
+
+    def test_upper_bound_has_a_single_source(self):
+        """require_pvalue and prepare_pvalue_data read the same constant."""
+        from pylocuszoom._data import P_VALUE_MAX
+        from pylocuszoom.exceptions import LoaderValidationError
+
+        just_over = pd.DataFrame({"ps": [100], "p_wald": [P_VALUE_MAX * 1.000001]})
+        with pytest.raises(LoaderValidationError):
+            validate_gwas_dataframe(just_over)
+        assert self._accepted_by_strict(P_VALUE_MAX) is True

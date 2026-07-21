@@ -51,7 +51,7 @@ def validate_gwas_dataframe(
         .require_numeric([pos_col, p_col])
         .require_not_null([pos_col, p_col])
         .require_range(pos_col, min_val=0, exclusive_min=True)
-        .require_range(p_col, min_val=0, max_val=1, exclusive_min=True)
+        .require_pvalue(p_col)
         .validate()
     )
     return df
@@ -81,7 +81,7 @@ def validate_eqtl_dataframe(
         .require_columns(["pos", "p_value", "gene"])
         .require_numeric(["pos", "p_value"])
         .require_range("pos", min_val=0, exclusive_min=True)
-        .require_range("p_value", min_val=0, max_val=1, exclusive_min=True)
+        .require_pvalue("p_value")
         .validate()
     )
     return df

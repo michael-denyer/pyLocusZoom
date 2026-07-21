@@ -9,6 +9,7 @@ from typing import List, Optional, Type
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
+from ._data import P_VALUE_MAX
 from .utils import ValidationError
 
 
@@ -154,6 +155,27 @@ class DataFrameValidator:
                     )
 
         return self
+
+    def require_pvalue(self, column: str) -> "DataFrameValidator":
+        """Check that a column holds p-values in the canonical ``(0, 1]`` domain.
+
+        The single owner of the strict p-value range. Plot-time intake in
+        ``_data.prepare_pvalue_data`` shares the same ``P_VALUE_MAX`` upper
+        bound and relaxes only the lower bound, under ``allow_zero``, for the
+        Manhattan convention that an exact zero is a clipped p-value.
+
+        Null policy is left to the caller: load-time and plot-time validation
+        deliberately differ on it.
+
+        Args:
+            column: Column name holding p-values.
+
+        Returns:
+            Self for method chaining.
+        """
+        return self.require_range(
+            column, min_val=0, max_val=P_VALUE_MAX, exclusive_min=True
+        )
 
     def require_not_null(self, columns: List[str]) -> "DataFrameValidator":
         """Check that columns have no null (NaN or None) values.
