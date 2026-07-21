@@ -22,6 +22,21 @@ _MARKER_MAP = {
     "^": "triangle",
     "v": "inverted_triangle",
 }
+# Matplotlib legend `loc` vocabulary mapped to Bokeh legend locations.
+# "best" has no Bokeh equivalent, so it takes the upper-right default.
+_LEGEND_LOCATIONS = {
+    "best": "top_right",
+    "upper right": "top_right",
+    "upper left": "top_left",
+    "upper center": "top_center",
+    "lower right": "bottom_right",
+    "lower left": "bottom_left",
+    "lower center": "bottom_center",
+    "center right": "center_right",
+    "center left": "center_left",
+    "right": "center_right",
+    "center": "center",
+}
 _DASH_MAP = {
     "-": "solid",
     "--": "dashed",
@@ -642,6 +657,7 @@ class BokehBackend:
         color: str,
         marker: str,
         size: int = 14,
+        edgecolor: str = "black",
     ) -> Any:
         """Create an invisible scatter renderer for a legend entry."""
         from bokeh.models import LegendItem
@@ -653,20 +669,22 @@ class BokehBackend:
             marker=marker,
             size=size,
             fill_color=color,
-            line_color="black",
+            line_color=edgecolor,
             line_width=0.5,
             y_range_name="legend_range",
             visible=False,
         )
         return LegendItem(label=label, renderers=[renderer])
 
-    def _create_legend(self, ax: figure, items: List[Any], title: str) -> None:
+    def _create_legend(
+        self, ax: figure, items: List[Any], title: str, loc: str
+    ) -> None:
         """Create and add a styled legend to the figure."""
         from bokeh.models import Legend
 
         legend = Legend(
             items=items,
-            location="top_right",
+            location=_LEGEND_LOCATIONS.get(loc, "top_right"),
             title=title,
             background_fill_alpha=0.9,
             border_line_color="black",
@@ -694,9 +712,16 @@ class BokehBackend:
                 else _MARKER_MAP.get(entry.marker, "circle")
             )
             items.append(
-                self._add_legend_item(ax, source, entry.label, entry.color, marker)
+                self._add_legend_item(
+                    ax,
+                    source,
+                    entry.label,
+                    entry.color,
+                    marker,
+                    edgecolor=entry.edgecolor or "black",
+                )
             )
-        self._create_legend(ax, items, title or "")
+        self._create_legend(ax, items, title or "", loc)
 
     def hide_spines(self, ax: figure, spines: List[str]) -> None:
         """Hide specified axis spines (no-op for Bokeh).

@@ -26,6 +26,22 @@ _DASH_MAP = {
     ":": "dot",
     "-.": "dashdot",
 }
+# Matplotlib legend `loc` vocabulary mapped to Plotly (xanchor, yanchor).
+# "best" has no Plotly equivalent, so it takes the upper-right default.
+_LEGEND_ANCHORS = {
+    "best": ("right", "top"),
+    "upper right": ("right", "top"),
+    "upper left": ("left", "top"),
+    "upper center": ("center", "top"),
+    "lower right": ("right", "bottom"),
+    "lower left": ("left", "bottom"),
+    "lower center": ("center", "bottom"),
+    "center right": ("right", "middle"),
+    "center left": ("left", "middle"),
+    "right": ("right", "middle"),
+    "center": ("center", "middle"),
+}
+_LEGEND_X = {"left": 0.01, "center": 0.5, "right": 0.99}
 
 
 @register_backend("plotly")
@@ -756,16 +772,19 @@ class PlotlyBackend:
             }
         )
 
-    def _get_panel_y_top(self, fig: go.Figure, row: int) -> float:
-        """Get the top y-coordinate (in paper coords) for a subplot row.
+    def _get_panel_y(self, fig: go.Figure, row: int, vertical: str) -> float:
+        """Get a y-coordinate (in paper coords) within a subplot row's domain.
 
         Plotly subplots have y-axis domains that define their vertical position.
-        This returns the top of the domain for positioning legends.
+        ``vertical`` selects the top, bottom, or midpoint of that domain.
         """
         yaxis = getattr(fig.layout, self._axis_name("yaxis", row), None)
-        if yaxis and yaxis.domain:
-            return yaxis.domain[1]
-        return 0.99
+        domain = yaxis.domain if yaxis and yaxis.domain else (0.01, 0.99)
+        if vertical == "bottom":
+            return domain[0]
+        if vertical == "middle":
+            return (domain[0] + domain[1]) / 2
+        return domain[1]
 
     def _add_legend_item(
         self,
@@ -776,6 +795,7 @@ class PlotlyBackend:
         symbol: str,
         size: int,
         legend_group: str,
+        edgecolor: str = "black",
     ) -> None:
         """Add an invisible scatter trace for a legend entry."""
         fig.add_trace(
@@ -787,7 +807,7 @@ class PlotlyBackend:
                     symbol=symbol,
                     size=size,
                     color=color,
-                    line=dict(color="black", width=0.5),
+                    line=dict(color=edgecolor, width=0.5),
                 ),
                 name=name,
                 showlegend=True,
@@ -798,18 +818,18 @@ class PlotlyBackend:
         )
 
     def _configure_legend(
-        self, fig: go.Figure, row: int, legend_key: str, title: str
+        self, fig: go.Figure, row: int, legend_key: str, title: str, loc: str
     ) -> None:
         """Configure legend position and styling."""
-        y_pos = self._get_panel_y_top(fig, row)
+        horizontal, vertical = _LEGEND_ANCHORS.get(loc, _LEGEND_ANCHORS["upper right"])
         fig.update_layout(
             **{
                 legend_key: dict(
                     title=dict(text=title),
-                    x=0.99,
-                    y=y_pos,
-                    xanchor="right",
-                    yanchor="top",
+                    x=_LEGEND_X[horizontal],
+                    y=self._get_panel_y(fig, row, vertical),
+                    xanchor=horizontal,
+                    yanchor=vertical,
                     bgcolor="rgba(255,255,255,0.9)",
                     bordercolor="black",
                     borderwidth=1,
@@ -861,9 +881,16 @@ class PlotlyBackend:
                 else _MARKER_SYMBOLS.get(entry.marker, "circle")
             )
             self._add_legend_item(
-                fig, row, entry.label, entry.color, symbol, 10, legend_key
+                fig,
+                row,
+                entry.label,
+                entry.color,
+                symbol,
+                10,
+                legend_key,
+                entry.edgecolor or "black",
             )
-        self._configure_legend(fig, row, legend_key, title or "")
+        self._configure_legend(fig, row, legend_key, title or "", loc)
 
     def hide_spines(self, ax: Tuple[go.Figure, int], spines: List[str]) -> None:
         """Hide specified axis spines (lines).
