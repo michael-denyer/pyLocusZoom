@@ -39,18 +39,8 @@ class BokehBackend:
     """
 
     @property
-    def supports_snp_labels(self) -> bool:
-        """Bokeh uses hover tooltips instead of labels."""
-        return False
-
-    @property
     def supports_hover(self) -> bool:
         """Bokeh supports hover tooltips."""
-        return True
-
-    @property
-    def supports_secondary_axis(self) -> bool:
-        """Bokeh supports secondary y-axis."""
         return True
 
     def create_figure(
@@ -605,27 +595,6 @@ class BokehBackend:
                 renderer.axis_label_text_color = color
                 renderer.major_label_text_color = color
                 break
-
-    def add_snp_labels(
-        self,
-        ax: figure,
-        df: pd.DataFrame,
-        pos_col: str,
-        neglog10p_col: str,
-        rs_col: str,
-        label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
-        adjust: bool = True,
-        lead_pos: Optional[int] = None,
-        region_span: Optional[int] = None,
-    ) -> List[Any]:
-        """No-op: Bokeh uses hover tooltips instead of text labels."""
-        return []
-
-    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
-        """No-op: Bokeh uses hover tooltips instead of text labels."""
-        pass
 
     def add_panel_label(
         self,

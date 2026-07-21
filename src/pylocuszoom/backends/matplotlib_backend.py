@@ -34,19 +34,9 @@ class MatplotlibBackend:
     # =========================================================================
 
     @property
-    def supports_snp_labels(self) -> bool:
-        """Matplotlib supports SNP labels via adjustText."""
-        return True
-
-    @property
     def supports_hover(self) -> bool:
         """Matplotlib does not support hover tooltips."""
         return False
-
-    @property
-    def supports_secondary_axis(self) -> bool:
-        """Matplotlib supports twin y-axis."""
-        return True
 
     def create_figure(
         self,

@@ -12,7 +12,11 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from .backends.base import PlotBackend
+from .backends.base import (
+    PlotBackend,
+    SupportsSecondaryAxis,
+    SupportsSNPLabels,
+)
 from .backends.composition import (
     LegendEntry,
     eqtl_legend_entries,
@@ -246,7 +250,7 @@ class RegionalPlotComposer:
             and rs_col in df.columns
             and label_top_n > 0
             and not df.empty
-            and self._backend.supports_snp_labels
+            and isinstance(self._backend, SupportsSNPLabels)
         ):
             self._backend.add_snp_labels(
                 ax,
@@ -263,7 +267,7 @@ class RegionalPlotComposer:
             )
 
         has_recomb = recomb_df is not None and not recomb_df.empty
-        if has_recomb and self._backend.supports_secondary_axis:
+        if has_recomb and isinstance(self._backend, SupportsSecondaryAxis):
             render_recombination_overlay(self._backend, ax, recomb_df, start, end)
             self._backend.hide_spines(ax, ["top"])
         else:

@@ -136,51 +136,45 @@ class TestBackendCapabilities:
     """Tests that registered backends have expected capability properties."""
 
     def test_matplotlib_has_capabilities(self):
-        """MatplotlibBackend has all capability properties."""
-        from pylocuszoom.backends import get_backend
+        """MatplotlibBackend supports SNP labels and secondary axis, not hover."""
+        from pylocuszoom.backends import (
+            SupportsSecondaryAxis,
+            SupportsSNPLabels,
+            get_backend,
+        )
 
         backend = get_backend("matplotlib")
-
-        assert hasattr(backend, "supports_snp_labels")
-        assert hasattr(backend, "supports_hover")
-        assert hasattr(backend, "supports_secondary_axis")
-
-        # Matplotlib specific values
-        assert backend.supports_snp_labels is True
+        assert isinstance(backend, SupportsSNPLabels)
+        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is False
-        assert backend.supports_secondary_axis is True
 
     def test_plotly_has_capabilities(self):
-        """PlotlyBackend has all capability properties."""
+        """PlotlyBackend supports secondary axis and hover, not SNP labels."""
         pytest.importorskip("plotly")
-        from pylocuszoom.backends import get_backend
+        from pylocuszoom.backends import (
+            SupportsSecondaryAxis,
+            SupportsSNPLabels,
+            get_backend,
+        )
 
         backend = get_backend("plotly")
-
-        assert hasattr(backend, "supports_snp_labels")
-        assert hasattr(backend, "supports_hover")
-        assert hasattr(backend, "supports_secondary_axis")
-
-        # Plotly specific values
-        assert backend.supports_snp_labels is False
+        assert not isinstance(backend, SupportsSNPLabels)
+        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is True
-        assert backend.supports_secondary_axis is True
 
     def test_bokeh_has_capabilities(self):
-        """BokehBackend has all capability properties."""
+        """BokehBackend supports secondary axis and hover, not SNP labels."""
         pytest.importorskip("bokeh")
-        from pylocuszoom.backends import get_backend
+        from pylocuszoom.backends import (
+            SupportsSecondaryAxis,
+            SupportsSNPLabels,
+            get_backend,
+        )
 
         backend = get_backend("bokeh")
-
-        assert hasattr(backend, "supports_snp_labels")
-        assert hasattr(backend, "supports_hover")
-        assert hasattr(backend, "supports_secondary_axis")
-
-        # Bokeh specific values
-        assert backend.supports_snp_labels is False
+        assert not isinstance(backend, SupportsSNPLabels)
+        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is True
-        assert backend.supports_secondary_axis is True
 
 
 class TestBackendRegistration:
@@ -614,40 +608,40 @@ class TestCustomBackendCompatibility:
     """Tests for custom backend forward compatibility."""
 
     def test_recomb_overlay_skipped_when_secondary_axis_unsupported(self):
-        """Recomb overlay is skipped (no crash) when a backend reports no secondary axis.
+        """Recomb overlay is skipped (no crash) when a backend lacks the capability.
 
         The overlay is composed above the seam and gated on
-        supports_secondary_axis, so a backend returning False must skip it
-        gracefully rather than error.
+        isinstance(backend, SupportsSecondaryAxis). A backend missing the
+        secondary-axis methods must skip it gracefully rather than error.
         """
-        from unittest.mock import PropertyMock, patch
-
         import matplotlib.pyplot as plt
         import pandas as pd
 
         from pylocuszoom.plotter import LocusZoomPlotter
 
         plotter = LocusZoomPlotter(species=None)
-        gwas_df = pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "chr": [1, 1, 1],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 0.01],
-            }
-        )
-        recomb_df = pd.DataFrame(
-            {"pos": [1000000, 1500000, 2000000], "rate": [50.0, 100.0, 75.0]}
-        )
+        backend_cls = type(plotter._backend)
+        original = backend_cls.create_twin_axis
+        # Removing a secondary-axis method makes the backend fail the
+        # SupportsSecondaryAxis isinstance check.
+        delattr(backend_cls, "create_twin_axis")
 
-        with patch.object(
-            type(plotter._backend),
-            "supports_secondary_axis",
-            new_callable=PropertyMock,
-            return_value=False,
-        ):
+        try:
+            gwas_df = pd.DataFrame(
+                {
+                    "rs": ["rs1", "rs2", "rs3"],
+                    "chr": [1, 1, 1],
+                    "ps": [1100000, 1500000, 1900000],
+                    "p_wald": [1e-8, 1e-5, 0.01],
+                }
+            )
+            recomb_df = pd.DataFrame(
+                {"pos": [1000000, 1500000, 2000000], "rate": [50.0, 100.0, 75.0]}
+            )
             fig = plotter.plot(
                 gwas_df, chrom=1, start=1000000, end=2000000, recomb_df=recomb_df
             )
-        assert fig is not None
-        plt.close(fig)
+            assert fig is not None
+            plt.close(fig)
+        finally:
+            backend_cls.create_twin_axis = original
