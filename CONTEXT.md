@@ -58,10 +58,11 @@ visualization concepts the library renders. Settled decisions live in
   gene) but optional at plot (frames may already be gene-filtered). Same
   intentional two-tier shape as GWAS.
 
-## Planned deepenings (design-approved, not yet implemented)
+## Deepenings from the design grill
 
-Approved in a design grill; see the plan in
-[.planning/superpowers/plans/](.planning/superpowers/plans/) and ADR-0004.
+Approved in a design grill and recorded in ADR-0004. The composition module, the
+`CoordinateLifter` port, and the capability protocols have shipped; the
+validation engine/spec split is still outstanding.
 
 - **Composition module** (`backends/composition.py`, ADR-0004) — pure functions
   that drive backend primitives above the seam:
@@ -77,7 +78,7 @@ Approved in a design grill; see the plan in
 - **`CoordinateLifter` port** (`_liftover.py`) — liftover seam with a production
   `pyliftover` adapter and an in-memory test adapter; pure `liftover_positions`.
   Plus pure `ensure_recomb_header` for header detection.
-- **Validation engine/spec split** — `schemas.py` becomes per-family specs
+- **Validation engine/spec split** (outstanding) — `schemas.py` becomes per-family specs
   expressed on `DataFrameValidator` (deleting the parallel hand-rolled
   implementation), with a single `require_pvalue` domain helper so the strict
   `(0, 1]` policy has one owner shared with `prepare_pvalue_data`.
