@@ -57,6 +57,12 @@ visualization concepts the library renders. Settled decisions live in
 - **eQTL `gene` requirement** — required at load (multi-gene GTEx files keyed by
   gene) but optional at plot (frames may already be gene-filtered). Same
   intentional two-tier shape as GWAS.
+- **Nulls are a load-time failure, not a plot-time one** — every `schemas.py`
+  validator rejects nulls in the numeric columns it range-checks, so a malformed
+  file fails at load with the offending column named. Plot-time intake stays
+  lenient and filters nulls with a warning (`prepare_pvalue_data`,
+  `prepare_eqtl_for_plotting`), because a frame reaching the plotter may have
+  been assembled by the caller rather than loaded from a file.
 
 ## Deepenings from the design grill
 

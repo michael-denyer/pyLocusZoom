@@ -1,10 +1,13 @@
 """Prose-independent contract for the loader schema validators.
 
-Pins what callers can rely on across a change of validation implementation:
-which inputs are accepted, which raise, the exception class, and which column
-names the error names. Deliberately asserts nothing about error phrasing, so
-the same file passes before and after ``schemas.py`` moves onto
+Pins what callers can rely on: which inputs are accepted, which raise, the
+exception class, and which column names the error names. Deliberately asserts
+nothing about error phrasing, so a change of validation implementation is a
+checkable claim rather than a promise. It held unchanged across the move onto
 ``DataFrameValidator``.
+
+This is the strict load-time tier. Plot-time intake is deliberately more
+permissive; see the two-tier note in ``CONTEXT.md``.
 """
 
 import pandas as pd
@@ -56,19 +59,9 @@ ACCEPTED = [
         pd.DataFrame({"pos": [100], "p_value": [1.0], "gene": ["BRCA1"]}),
     ),
     (
-        "eqtl-null-p-tolerated",
-        validate_eqtl_dataframe,
-        pd.DataFrame({"pos": [100, 200], "p_value": [0.05, None], "gene": ["A", "B"]}),
-    ),
-    (
         "finemapping-pip-bounds-inclusive",
         validate_finemapping_dataframe,
         pd.DataFrame({"pos": [100, 200], "pip": [0.0, 1.0]}),
-    ),
-    (
-        "finemapping-null-pip-tolerated",
-        validate_finemapping_dataframe,
-        pd.DataFrame({"pos": [100, 200], "pip": [0.5, None]}),
     ),
     ("genes-minimal", validate_genes_dataframe, _genes()),
     ("genes-start-at-zero", validate_genes_dataframe, _genes(start=[0])),
@@ -211,6 +204,38 @@ REJECTED = [
         validate_finemapping_dataframe,
         pd.DataFrame({"pos": [0], "pip": [0.5]}),
         ["pos"],
+    ),
+    (
+        "eqtl-null-pvalue",
+        validate_eqtl_dataframe,
+        pd.DataFrame({"pos": [100, 200], "p_value": [0.05, None], "gene": ["A", "B"]}),
+        ["p_value"],
+    ),
+    (
+        "eqtl-null-pos",
+        validate_eqtl_dataframe,
+        pd.DataFrame({"pos": [100, None], "p_value": [0.05, 0.1], "gene": ["A", "B"]}),
+        ["pos"],
+    ),
+    (
+        "finemapping-null-pip",
+        validate_finemapping_dataframe,
+        pd.DataFrame({"pos": [100, 200], "pip": [0.5, None]}),
+        ["pip"],
+    ),
+    (
+        "finemapping-null-pos",
+        validate_finemapping_dataframe,
+        pd.DataFrame({"pos": [100, None], "pip": [0.5, 0.6]}),
+        ["pos"],
+    ),
+    (
+        "genes-null-start",
+        validate_genes_dataframe,
+        _genes(
+            chr=["1", "1"], start=[1000, None], end=[2000, 3000], gene_name=["A", "B"]
+        ),
+        ["start"],
     ),
     (
         "genes-missing-all",
