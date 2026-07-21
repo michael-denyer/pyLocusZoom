@@ -1,6 +1,6 @@
 # ADR 0004: Complete the Rendering Seam and Unify Capability Negotiation
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-07-21
 - Target: 2.0 (breaking change to the `PlotBackend` extension contract)
 
