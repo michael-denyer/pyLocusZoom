@@ -18,6 +18,7 @@ from .backends.composition import (
     eqtl_legend_entries,
     finemapping_legend_entries,
     ld_legend_entries,
+    render_recombination_overlay,
 )
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
@@ -263,7 +264,7 @@ class RegionalPlotComposer:
 
         has_recomb = recomb_df is not None and not recomb_df.empty
         if has_recomb and self._backend.supports_secondary_axis:
-            self.add_recombination_overlay(ax, recomb_df, start, end)
+            render_recombination_overlay(self._backend, ax, recomb_df, start, end)
             self._backend.hide_spines(ax, ["top"])
         else:
             self._backend.hide_spines(ax, ["top", "right"])
@@ -340,23 +341,6 @@ class RegionalPlotComposer:
                     zorder=10,
                     hover_data=hover_builder.build_dataframe(lead_snp),
                 )
-
-    def add_recombination_overlay(
-        self,
-        ax: Any,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination through the backend capability seam."""
-        if not hasattr(self._backend, "add_recombination_overlay"):
-            logger.warning(
-                "Backend '{}' does not implement add_recombination_overlay, "
-                "skipping recombination overlay",
-                self._backend_name,
-            )
-            return
-        self._backend.add_recombination_overlay(ax, recomb_df, start, end)
 
     def render_heatmap_panel(
         self,

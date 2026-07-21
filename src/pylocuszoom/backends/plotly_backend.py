@@ -611,10 +611,11 @@ class PlotlyBackend:
             )
         )
 
-    def create_twin_axis(self, ax: Tuple[go.Figure, int]) -> Tuple[go.Figure, int, str]:
+    def create_twin_axis(self, ax: Tuple[go.Figure, int]) -> Any:
         """Create a secondary y-axis.
 
-        Returns tuple of (figure, row, secondary_yaxis_name).
+        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
+        primitives.
 
         For Plotly subplots, we need unique axis names that don't conflict
         with the subplot axes. We use a high number suffix to avoid conflicts.
@@ -650,11 +651,11 @@ class PlotlyBackend:
             }
         )
 
-        return (fig, row, secondary_y)
+        return (ax, secondary_y)
 
     def line_secondary(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -662,9 +663,9 @@ class PlotlyBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: str = "y2",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
+        ax, yaxis_name = secondary
         fig, row, col, n_cols = self._extract_row_col(ax)
         dash = _DASH_MAP.get(linestyle, "solid")
 
@@ -692,15 +693,15 @@ class PlotlyBackend:
 
     def fill_between_secondary(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: str = "y2",
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
+        ax, yaxis_name = secondary
         fig, row, col, n_cols = self._extract_row_col(ax)
 
         if isinstance(y1, (int, float)):
@@ -730,12 +731,12 @@ class PlotlyBackend:
 
     def set_secondary_ylim(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         bottom: float,
         top: float,
-        yaxis_name: str = "y2",
     ) -> None:
         """Set secondary y-axis limits."""
+        ax, yaxis_name = secondary
         fig, row, col, _ = self._extract_row_col(ax)
         yaxis_key = (
             "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
@@ -744,13 +745,13 @@ class PlotlyBackend:
 
     def set_secondary_ylabel(
         self,
-        ax: Tuple[go.Figure, int],
+        secondary: Any,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: str = "y2",
     ) -> None:
         """Set secondary y-axis label."""
+        ax, yaxis_name = secondary
         fig, row, col, _ = self._extract_row_col(ax)
         label = self._convert_label(label)
         yaxis_key = (
@@ -1135,67 +1136,6 @@ class PlotlyBackend:
                             )
                         }
                     )
-
-    def add_recombination_overlay(
-        self,
-        ax: Tuple[go.Figure, int],
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay using plotly secondary y-axis.
-
-        Args:
-            ax: Tuple of (figure, row_number).
-            recomb_df: DataFrame with 'pos' and 'rate' columns.
-            start: Region start position for filtering.
-            end: Region end position for filtering.
-        """
-        from ..recombination import RECOMB_COLOR
-
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create twin axis - returns (fig, row, secondary_y_name)
-        _, _, secondary_y = self.create_twin_axis(ax)
-
-        # Plot fill under curve
-        self.fill_between_secondary(
-            ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-            yaxis_name=secondary_y,
-        )
-
-        # Plot recombination rate line
-        self.line_secondary(
-            ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-            yaxis_name=secondary_y,
-        )
-
-        # Set y-axis limits and label
-        max_rate = region_recomb["rate"].max()
-        self.set_secondary_ylim(ax, 0, max(max_rate * 1.3, 10), yaxis_name=secondary_y)
-        self.set_secondary_ylabel(
-            ax,
-            "Recombination rate (cM/Mb)",
-            color="black",
-            fontsize=9,
-            yaxis_name=secondary_y,
-        )
 
     def add_region_highlight(
         self,

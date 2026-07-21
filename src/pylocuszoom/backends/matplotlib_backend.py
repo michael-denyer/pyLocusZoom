@@ -415,7 +415,7 @@ class MatplotlibBackend:
 
     def line_secondary(
         self,
-        ax: Axes,
+        secondary: Axes,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -423,15 +423,11 @@ class MatplotlibBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: Any = None,
     ) -> Any:
-        """Create line on secondary y-axis.
-
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
+        """Create a line on the secondary (twin) axes.
 
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             x: X-axis values.
             y: Y-axis values.
             color: Line color.
@@ -439,13 +435,12 @@ class MatplotlibBackend:
             alpha: Transparency.
             linestyle: Line style.
             label: Legend label.
-            yaxis_name: Ignored for matplotlib.
 
         Returns:
             The line object.
         """
         return self.line(
-            ax,
+            secondary,
             x,
             y,
             color=color,
@@ -457,75 +452,60 @@ class MatplotlibBackend:
 
     def fill_between_secondary(
         self,
-        ax: Axes,
+        secondary: Axes,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: Any = None,
     ) -> Any:
-        """Fill area on secondary y-axis.
-
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
+        """Fill area on the secondary (twin) axes.
 
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             x: X-axis values.
             y1: Lower y boundary.
             y2: Upper y boundary.
             color: Fill color.
             alpha: Transparency.
-            yaxis_name: Ignored for matplotlib.
 
         Returns:
             The fill object.
         """
-        return self.fill_between(ax, x, y1, y2, color=color, alpha=alpha)
+        return self.fill_between(secondary, x, y1, y2, color=color, alpha=alpha)
 
     def set_secondary_ylim(
         self,
-        ax: Axes,
+        secondary: Axes,
         bottom: float,
         top: float,
-        yaxis_name: Any = None,
     ) -> None:
         """Set secondary y-axis limits.
 
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
-
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             bottom: Minimum y value.
             top: Maximum y value.
-            yaxis_name: Ignored for matplotlib.
         """
-        self.set_ylim(ax, bottom, top)
+        self.set_ylim(secondary, bottom, top)
 
     def set_secondary_ylabel(
         self,
-        ax: Axes,
+        secondary: Axes,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: Any = None,
     ) -> None:
         """Set secondary y-axis label.
 
-        For matplotlib, the ax should already be a twin axis from create_twin_axis().
-        The yaxis_name parameter is ignored (provided for interface compatibility).
-
         Args:
-            ax: Secondary axes from create_twin_axis().
+            secondary: Twin axes handle from create_twin_axis().
             label: Label text.
             color: Label color.
             fontsize: Font size.
-            yaxis_name: Ignored for matplotlib.
         """
-        ax.set_ylabel(label, fontsize=fontsize, color=color)
-        ax.tick_params(axis="y", labelcolor=color, labelsize=fontsize - 1)
+        secondary.set_ylabel(label, fontsize=fontsize, color=color)
+        secondary.tick_params(axis="y", labelcolor=color, labelsize=fontsize - 1)
 
     def add_legend(
         self,
@@ -694,67 +674,6 @@ class MatplotlibBackend:
         fig.subplots_adjust(
             left=left, right=right, top=top, bottom=bottom, hspace=hspace
         )
-
-    def add_recombination_overlay(
-        self,
-        ax: Axes,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay using matplotlib twin axis.
-
-        Args:
-            ax: Primary matplotlib axes.
-            recomb_df: DataFrame with 'pos' and 'rate' columns.
-            start: Region start position for filtering.
-            end: Region end position for filtering.
-        """
-        from ..recombination import RECOMB_COLOR
-
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create twin axis - returns Axes object directly
-        twin_ax = self.create_twin_axis(ax)
-
-        # Plot fill under curve
-        self.fill_between_secondary(
-            twin_ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-        )
-
-        # Plot recombination rate line
-        self.line_secondary(
-            twin_ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-        )
-
-        # Set y-axis limits and label
-        max_rate = region_recomb["rate"].max()
-        self.set_secondary_ylim(twin_ax, 0, max(max_rate * 1.3, 10))
-        self.set_secondary_ylabel(
-            twin_ax,
-            "Recombination rate (cM/Mb)",
-            color="black",
-            fontsize=9,
-        )
-
-        # Hide top spine on twin axis
-        twin_ax.spines["top"].set_visible(False)
 
     def add_region_highlight(
         self,

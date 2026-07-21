@@ -599,13 +599,14 @@ class PlotBackend(Protocol):
             ax: Primary axes.
 
         Returns:
-            Secondary axes for overlay (e.g., recombination rate).
+            An opaque secondary-axis handle to pass to the ``*_secondary``
+            primitives. Its concrete type is backend-specific.
         """
         ...
 
     def line_secondary(
         self,
-        ax: Any,
+        secondary: Any,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -613,12 +614,11 @@ class PlotBackend(Protocol):
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: Any = None,
     ) -> Any:
-        """Create line on secondary y-axis.
+        """Create a line on the secondary y-axis.
 
         Args:
-            ax: Axes or panel (may be tuple for Plotly).
+            secondary: Opaque handle from ``create_twin_axis``.
             x: X-axis values.
             y: Y-axis values.
             color: Line color.
@@ -626,7 +626,6 @@ class PlotBackend(Protocol):
             alpha: Transparency.
             linestyle: Line style.
             label: Legend label.
-            yaxis_name: Backend-specific secondary axis identifier.
 
         Returns:
             The line object.
@@ -635,24 +634,22 @@ class PlotBackend(Protocol):
 
     def fill_between_secondary(
         self,
-        ax: Any,
+        secondary: Any,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: Any = None,
     ) -> Any:
-        """Fill area on secondary y-axis.
+        """Fill area on the secondary y-axis.
 
         Args:
-            ax: Axes or panel.
+            secondary: Opaque handle from ``create_twin_axis``.
             x: X-axis values.
             y1: Lower y boundary.
             y2: Upper y boundary.
             color: Fill color.
             alpha: Transparency.
-            yaxis_name: Backend-specific secondary axis identifier.
 
         Returns:
             The fill object.
@@ -661,37 +658,33 @@ class PlotBackend(Protocol):
 
     def set_secondary_ylim(
         self,
-        ax: Any,
+        secondary: Any,
         bottom: float,
         top: float,
-        yaxis_name: Any = None,
     ) -> None:
         """Set secondary y-axis limits.
 
         Args:
-            ax: Axes or panel.
+            secondary: Opaque handle from ``create_twin_axis``.
             bottom: Minimum y value.
             top: Maximum y value.
-            yaxis_name: Backend-specific secondary axis identifier.
         """
         ...
 
     def set_secondary_ylabel(
         self,
-        ax: Any,
+        secondary: Any,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: Any = None,
     ) -> None:
         """Set secondary y-axis label.
 
         Args:
-            ax: Axes or panel.
+            secondary: Opaque handle from ``create_twin_axis``.
             label: Label text.
             color: Label color.
             fontsize: Font size.
-            yaxis_name: Backend-specific secondary axis identifier.
         """
         ...
 
@@ -904,29 +897,5 @@ class PlotBackend(Protocol):
 
         Raises:
             ValueError: If snp_idx is out of bounds or n_snps < 1.
-        """
-        ...
-
-    # =========================================================================
-    # Recombination Overlay
-    # =========================================================================
-
-    def add_recombination_overlay(
-        self,
-        ax: Any,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination rate overlay to axes with secondary y-axis.
-
-        Creates a secondary y-axis showing recombination rate line and shaded area.
-        Each backend handles its own twin axis creation and rendering logic.
-
-        Args:
-            ax: Primary axes or panel.
-            recomb_df: DataFrame with columns 'pos' (position) and 'rate' (cM/Mb).
-            start: Region start position for filtering.
-            end: Region end position for filtering.
         """
         ...

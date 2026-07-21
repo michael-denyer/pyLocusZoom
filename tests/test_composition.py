@@ -89,3 +89,58 @@ class TestMatplotlibAddLegend:
             assert legend.get_title().get_text() == "r²"
         finally:
             plt.close(fig)
+
+
+class _RecordingSecondaryBackend:
+    """Records secondary-axis primitive calls to test overlay dispatch."""
+
+    def __init__(self):
+        self.calls = []
+
+    def create_twin_axis(self, ax):
+        self.calls.append("create_twin_axis")
+        return ("secondary-handle", "y2")
+
+    def fill_between_secondary(self, secondary, *args, **kwargs):
+        self.calls.append("fill_between_secondary")
+
+    def line_secondary(self, secondary, *args, **kwargs):
+        self.calls.append("line_secondary")
+
+    def set_secondary_ylim(self, secondary, *args, **kwargs):
+        self.calls.append("set_secondary_ylim")
+
+    def set_secondary_ylabel(self, secondary, *args, **kwargs):
+        self.calls.append("set_secondary_ylabel")
+
+    def hide_spines(self, secondary, spines):
+        self.calls.append("hide_spines")
+
+
+class TestRecombinationOverlay:
+    def test_drives_secondary_primitives_in_order(self):
+        import pandas as pd
+
+        from pylocuszoom.backends.composition import render_recombination_overlay
+
+        backend = _RecordingSecondaryBackend()
+        recomb = pd.DataFrame({"pos": [100, 200, 300], "rate": [10.0, 50.0, 20.0]})
+        render_recombination_overlay(backend, "AX", recomb, start=150, end=300)
+        assert backend.calls == [
+            "create_twin_axis",
+            "fill_between_secondary",
+            "line_secondary",
+            "set_secondary_ylim",
+            "set_secondary_ylabel",
+            "hide_spines",
+        ]
+
+    def test_empty_region_skips_all_primitives(self):
+        import pandas as pd
+
+        from pylocuszoom.backends.composition import render_recombination_overlay
+
+        backend = _RecordingSecondaryBackend()
+        recomb = pd.DataFrame({"pos": [100, 200], "rate": [10.0, 50.0]})
+        render_recombination_overlay(backend, "AX", recomb, start=500, end=600)
+        assert backend.calls == []

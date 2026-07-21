@@ -499,7 +499,8 @@ class BokehBackend:
     def create_twin_axis(self, ax: figure) -> Any:
         """Create a secondary y-axis.
 
-        Returns a dict with configuration for extra_y_ranges.
+        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
+        primitives.
         """
         from bokeh.models import LinearAxis, Range1d
 
@@ -513,11 +514,11 @@ class BokehBackend:
         )
         ax.add_layout(secondary_axis, "right")
 
-        return "secondary"
+        return (ax, "secondary")
 
     def line_secondary(
         self,
-        ax: figure,
+        secondary: Any,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -525,9 +526,9 @@ class BokehBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         label: Optional[str] = None,
-        yaxis_name: str = "secondary",
     ) -> Any:
         """Create a line plot on secondary y-axis."""
+        ax, yaxis_name = secondary
         line_dash = _DASH_MAP.get(linestyle, "solid")
 
         return ax.line(
@@ -542,15 +543,15 @@ class BokehBackend:
 
     def fill_between_secondary(
         self,
-        ax: figure,
+        secondary: Any,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
         color: str = "blue",
         alpha: float = 0.3,
-        yaxis_name: str = "secondary",
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
+        ax, yaxis_name = secondary
         x_arr = x.values
         if isinstance(y1, (int, float)):
             y1_arr = [y1] * len(x_arr)
@@ -573,25 +574,25 @@ class BokehBackend:
 
     def set_secondary_ylim(
         self,
-        ax: figure,
+        secondary: Any,
         bottom: float,
         top: float,
-        yaxis_name: str = "secondary",
     ) -> None:
         """Set secondary y-axis limits."""
+        ax, yaxis_name = secondary
         if yaxis_name in ax.extra_y_ranges:
             ax.extra_y_ranges[yaxis_name].start = bottom
             ax.extra_y_ranges[yaxis_name].end = top
 
     def set_secondary_ylabel(
         self,
-        ax: figure,
+        secondary: Any,
         label: str,
         color: str = "black",
         fontsize: int = 10,
-        yaxis_name: str = "secondary",
     ) -> None:
         """Set secondary y-axis label."""
+        ax, yaxis_name = secondary
         label = self._convert_label(label)
         # Find the secondary axis and update its label
         for renderer in ax.right:
@@ -899,67 +900,6 @@ class BokehBackend:
         """
         # Bokeh handles layout differently - column spacing is fixed
         pass
-
-    def add_recombination_overlay(
-        self,
-        ax: figure,
-        recomb_df: pd.DataFrame,
-        start: int,
-        end: int,
-    ) -> None:
-        """Add recombination overlay using bokeh secondary y-axis.
-
-        Args:
-            ax: Bokeh figure.
-            recomb_df: DataFrame with 'pos' and 'rate' columns.
-            start: Region start position for filtering.
-            end: Region end position for filtering.
-        """
-        from ..recombination import RECOMB_COLOR
-
-        # Filter to region
-        region_recomb = recomb_df[
-            (recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)
-        ].copy()
-
-        if region_recomb.empty:
-            return
-
-        # Create twin axis - returns "secondary" string
-        yaxis_name = self.create_twin_axis(ax)
-
-        # Plot fill under curve
-        self.fill_between_secondary(
-            ax,
-            region_recomb["pos"],
-            0,
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            alpha=0.15,
-            yaxis_name=yaxis_name,
-        )
-
-        # Plot recombination rate line
-        self.line_secondary(
-            ax,
-            region_recomb["pos"],
-            region_recomb["rate"],
-            color=RECOMB_COLOR,
-            linewidth=2.5,
-            alpha=0.8,
-            yaxis_name=yaxis_name,
-        )
-
-        # Set y-axis limits and label
-        max_rate = region_recomb["rate"].max()
-        self.set_secondary_ylim(ax, 0, max(max_rate * 1.3, 10), yaxis_name=yaxis_name)
-        self.set_secondary_ylabel(
-            ax,
-            "Recombination rate (cM/Mb)",
-            color="black",
-            fontsize=9,
-            yaxis_name=yaxis_name,
-        )
 
     def add_region_highlight(
         self,

@@ -7,7 +7,7 @@ owned once instead of duplicated in every adapter.
 """
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, List, Optional, Sequence
 
 from ..colors import (
     EFFECT_CONGRUENT_COLOR,
@@ -21,6 +21,11 @@ from ..colors import (
     LDBin,
     get_credible_set_color,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from .base import PlotBackend
 
 
 @dataclass(frozen=True)
@@ -76,3 +81,42 @@ def finemapping_legend_entries(
         LegendEntry(f"CS{cs_id}", get_color(cs_id), marker="o")
         for cs_id in credible_sets
     ]
+
+
+def render_recombination_overlay(
+    backend: "PlotBackend",
+    ax: object,
+    recomb_df: "pd.DataFrame",
+    start: int,
+    end: int,
+) -> None:
+    """Draw a recombination-rate track on a backend's secondary axis.
+
+    Filters ``recomb_df`` to ``[start, end]`` and drives the backend's
+    secondary-axis primitives. ``create_twin_axis`` returns an opaque handle
+    that is passed straight back to each ``*_secondary`` primitive, so the
+    composition is identical across backends.
+    """
+    from ..recombination import RECOMB_COLOR
+
+    region = recomb_df[(recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)]
+    if region.empty:
+        return
+    secondary = backend.create_twin_axis(ax)
+    backend.fill_between_secondary(
+        secondary, region["pos"], 0, region["rate"], color=RECOMB_COLOR, alpha=0.15
+    )
+    backend.line_secondary(
+        secondary,
+        region["pos"],
+        region["rate"],
+        color=RECOMB_COLOR,
+        linewidth=2.5,
+        alpha=0.8,
+    )
+    max_rate = region["rate"].max()
+    backend.set_secondary_ylim(secondary, 0, max(max_rate * 1.3, 10))
+    backend.set_secondary_ylabel(
+        secondary, "Recombination rate (cM/Mb)", color="black", fontsize=9
+    )
+    backend.hide_spines(secondary, ["top"])
