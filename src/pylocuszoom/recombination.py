@@ -19,6 +19,7 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+from ._liftover import PyLiftOverLifter, liftover_positions
 from .logging import logger
 from .utils import filter_by_region
 
@@ -195,54 +196,16 @@ def liftover_recombination_map(
         DataFrame with lifted coordinates. Positions that fail to map are dropped.
     """
     try:
-        from pyliftover import LiftOver
+        import pyliftover  # noqa: F401
     except ImportError:
         raise ImportError(
             "pyliftover is required for CanFam4 liftover. "
             "Install it with: pip install pyliftover"
         )
 
-    # Download chain file if needed
     chain_path = download_liftover_chain()
-
     logger.debug(f"Lifting over coordinates from {from_build} to {to_build}")
-    lo = LiftOver(str(chain_path))
-
-    # Get chromosome for each position
-    if "chr" in recomb_df.columns:
-        chroms = recomb_df["chr"].astype(str)
-    elif chrom is not None:
-        chroms = pd.Series([str(chrom)] * len(recomb_df))
-    else:
-        raise ValueError("Either 'chr' column or chrom parameter required")
-
-    # Liftover each position
-    new_positions = []
-    keep_mask = []
-
-    for chr_val, pos in zip(chroms, recomb_df["pos"]):
-        chr_str = f"chr{chr_val}" if not str(chr_val).startswith("chr") else chr_val
-        result = lo.convert_coordinate(chr_str, int(pos))
-
-        if result and len(result) > 0:
-            # Take first mapping (usually the only one)
-            _, new_pos, _, _ = result[0]
-            new_positions.append(int(new_pos))
-            keep_mask.append(True)
-        else:
-            new_positions.append(None)
-            keep_mask.append(False)
-
-    # Create output DataFrame
-    result_df = recomb_df.copy()
-    result_df["pos"] = new_positions
-    result_df = result_df[keep_mask].copy()
-
-    unmapped = len(recomb_df) - len(result_df)
-    if unmapped > 0:
-        logger.debug(f"Dropped {unmapped} positions that failed to liftover")
-
-    return result_df.sort_values("pos").reset_index(drop=True)
+    return liftover_positions(recomb_df, PyLiftOverLifter(chain_path), chrom)
 
 
 def get_default_data_dir() -> Path:
