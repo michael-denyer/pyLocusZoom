@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Internal: the file-format loaders are table-driven.** The loader functions in `loaders.py` shared one copy-pasted shape (read a delimited file, rename source columns to standard names, log a count, validate), with the p-value-preference branch hand-rolled four times and the first-present column loop repeated eleven times. That shape is now a frozen `LoaderSpec` plus one `_load_tabular` engine: each static format is a spec constant and a thin public wrapper, p-value preference is `p_candidates`, and first-present column selection is `col_candidates`. `load_gtf`, `load_bed`, `load_caviar`, and the GTEx `variant_id` split remain bespoke where the table did not fit. Every public loader keeps its name, signature, return value, and log message; there is no behavior change, verified byte-identical against a pre-refactor output snapshot.
+
 ## [2.0.0] - 2026-07-21
 
 ### Changed
