@@ -26,6 +26,8 @@ Gene annotation formats:
 - BED (4-column: chr, start, end, name)
 """
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Union
 
@@ -57,6 +59,127 @@ def _validate_or_warn(
             f"{loader_name} loader could not map columns: {missing}. "
             f"Validation skipped. Available columns: {list(df.columns)}"
         )
+
+
+# =============================================================================
+# Table-driven loader engine
+# =============================================================================
+#
+# Most loaders share one shape: read a delimited file, rename source columns to
+# standard names, log a count, then validate. `LoaderSpec` captures the parts
+# that differ between formats, and `_load_tabular` is the single engine that
+# runs the shared steps. A new static format is one `LoaderSpec` constant plus a
+# thin wrapper, not another copy-pasted function body.
+#
+# Output-column tokens: a spec target equal to one of the `**out_cols` keys
+# passed by the wrapper (`pos_col`, `p_col`, `rs_col`, `cs_col`) is substituted
+# with the caller's chosen name; any other target is used literally. This is how
+# the caller-configurable column names flow into an otherwise constant spec.
+
+
+@dataclass(frozen=True)
+class LoaderSpec:
+    """Declarative description of how to load one tabular file format.
+
+    Attributes:
+        sep: Field separator passed to ``pandas.read_csv``.
+        log_fmt: Debug log template; ``{n}`` is filled with the row count.
+        validate: Callable ``(df, out_cols)`` that runs the format's validation.
+        comment: Comment-line prefix for ``read_csv`` (e.g. ``"#"``).
+        col_map: Static ``source -> target`` renames. Targets may be tokens.
+        p_candidates: P-value source columns; the first present maps to ``p_col``.
+        col_candidates: ``target -> candidates``; first present candidate maps to
+            the (possibly token) target. Replaces hand-rolled first-match loops.
+        transform: Optional ``(df, out_cols) -> df`` applied after renaming, for
+            format-specific reshaping (e.g. credible-set assignment).
+        gene_filter: ``"contains"`` or ``"exact"`` to enable eQTL gene filtering.
+    """
+
+    sep: str
+    log_fmt: str
+    validate: Callable[[pd.DataFrame, dict[str, str]], None]
+    comment: Optional[str] = None
+    col_map: dict[str, str] = field(default_factory=dict)
+    p_candidates: tuple[str, ...] = ()
+    col_candidates: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    transform: Optional[Callable[[pd.DataFrame, dict[str, str]], pd.DataFrame]] = None
+    gene_filter: Optional[str] = None
+
+
+def _resolve(target: str, out_cols: dict[str, str]) -> str:
+    """Substitute an output-column token, or return the literal target."""
+    return out_cols.get(target, target)
+
+
+def _first_present(df: pd.DataFrame, candidates: tuple[str, ...]) -> Optional[str]:
+    """Return the first candidate column present in ``df``, else None."""
+    for col in candidates:
+        if col in df.columns:
+            return col
+    return None
+
+
+def _filter_gene(df: pd.DataFrame, gene: str, mode: str) -> pd.DataFrame:
+    """Filter eQTL rows to a gene by substring ("contains") or exact match."""
+    if mode == "contains":
+        return df[df["gene"].str.contains(gene, case=False, na=False)]
+    return df[df["gene"] == gene]
+
+
+def _load_tabular(
+    filepath: Union[str, Path],
+    spec: LoaderSpec,
+    *,
+    gene: Optional[str] = None,
+    **out_cols: str,
+) -> pd.DataFrame:
+    """Load a tabular file per ``spec``: read, map, rename, transform, validate."""
+    df = pd.read_csv(filepath, sep=spec.sep, comment=spec.comment)
+
+    col_map = {src: _resolve(dst, out_cols) for src, dst in spec.col_map.items()}
+
+    match = _first_present(df, spec.p_candidates)
+    if match is not None:
+        col_map[match] = out_cols["p_col"]
+
+    for target, candidates in spec.col_candidates.items():
+        match = _first_present(df, candidates)
+        if match is not None:
+            col_map[match] = _resolve(target, out_cols)
+
+    df = df.rename(columns=col_map)
+
+    if spec.transform is not None:
+        df = spec.transform(df, out_cols)
+
+    if spec.gene_filter is not None and gene is not None and "gene" in df.columns:
+        df = _filter_gene(df, gene, spec.gene_filter)
+
+    logger.debug(spec.log_fmt.format(n=len(df)))
+    spec.validate(df, out_cols)
+    return df
+
+
+def _validate_gwas(df: pd.DataFrame, out_cols: dict[str, str]) -> None:
+    """Strict GWAS validation using the caller's position/p-value columns."""
+    validate_gwas_dataframe(df, pos_col=out_cols["pos_col"], p_col=out_cols["p_col"])
+
+
+def _no_validate(df: pd.DataFrame, out_cols: dict[str, str]) -> None:
+    """No-op validator for formats that cannot be fully validated on load."""
+
+
+def _warn_validator(
+    required: list[str],
+    loader_name: str,
+    validate_fn,
+) -> Callable[[pd.DataFrame, dict[str, str]], None]:
+    """Build a validator that validates when required columns are present, else warns."""
+
+    def _validate(df: pd.DataFrame, out_cols: dict[str, str]) -> None:
+        _validate_or_warn(df, required, loader_name, validate_fn)
+
+    return _validate
 
 
 # =============================================================================
