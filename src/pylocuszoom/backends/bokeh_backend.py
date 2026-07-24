@@ -200,11 +200,7 @@ class BokehBackend:
         # Prepare data source
         data = {"x": x.values, "y": y.values}
 
-        # Handle colors
-        if isinstance(colors, str):
-            data["color"] = [colors] * len(x)
-        else:
-            data["color"] = list(colors) if hasattr(colors, "tolist") else colors
+        data["color"] = [colors] * len(x) if isinstance(colors, str) else list(colors)
 
         # Handle sizes (convert from area to diameter)
         if isinstance(sizes, (int, float)):
@@ -287,22 +283,11 @@ class BokehBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
-        # Convert to arrays
         x_arr = x.values
-        if isinstance(y1, (int, float)):
-            y1_arr = [y1] * len(x_arr)
-        else:
-            y1_arr = y1.values if hasattr(y1, "values") else list(y1)
-
-        if isinstance(y2, (int, float)):
-            y2_arr = [y2] * len(x_arr)
-        else:
-            y2_arr = y2.values if hasattr(y2, "values") else list(y2)
-
         return ax.varea(
             x=x_arr,
-            y1=y1_arr,
-            y2=y2_arr,
+            y1=_as_list(y1, len(x_arr)),
+            y2=_as_list(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
         )
@@ -429,13 +414,13 @@ class BokehBackend:
 
     def set_xlabel(self, ax: figure, label: str, fontsize: int = 12) -> None:
         """Set x-axis label."""
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         ax.xaxis.axis_label = label
         ax.xaxis.axis_label_text_font_size = f"{fontsize}pt"
 
     def set_ylabel(self, ax: figure, label: str, fontsize: int = 12) -> None:
         """Set y-axis label."""
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         ax.yaxis.axis_label = label
         ax.yaxis.axis_label_text_font_size = f"{fontsize}pt"
 
@@ -470,10 +455,6 @@ class BokehBackend:
         ax.xaxis.major_label_text_font_size = f"{fontsize}pt"
         if rotation:
             ax.xaxis.major_label_orientation = math.radians(rotation)
-
-    def _convert_label(self, label: str) -> str:
-        """Convert LaTeX-style labels to Unicode for Bokeh display."""
-        return convert_latex_to_unicode(label)
 
     def set_title(self, ax: figure, title: str, fontsize: int = 14) -> None:
         """Set figure title."""
@@ -553,20 +534,10 @@ class BokehBackend:
         """Fill area between two y-values on secondary y-axis."""
         ax, yaxis_name = secondary
         x_arr = x.values
-        if isinstance(y1, (int, float)):
-            y1_arr = [y1] * len(x_arr)
-        else:
-            y1_arr = y1.values if hasattr(y1, "values") else list(y1)
-
-        if isinstance(y2, (int, float)):
-            y2_arr = [y2] * len(x_arr)
-        else:
-            y2_arr = y2.values if hasattr(y2, "values") else list(y2)
-
         return ax.varea(
             x=x_arr,
-            y1=y1_arr,
-            y2=y2_arr,
+            y1=_as_list(y1, len(x_arr)),
+            y2=_as_list(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
             y_range_name=yaxis_name,
@@ -593,7 +564,7 @@ class BokehBackend:
     ) -> None:
         """Set secondary y-axis label."""
         ax, yaxis_name = secondary
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         # Find the secondary axis and update its label
         for renderer in ax.right:
             if (
@@ -815,13 +786,7 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Create horizontal bar chart."""
-        # Convert left to array if scalar
-        if isinstance(left, (int, float)):
-            left_arr = [left] * len(y)
-        else:
-            left_arr = list(left) if hasattr(left, "tolist") else left
-
-        # Calculate right edge
+        left_arr = _as_list(left, len(y))
         right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
 
         return ax.hbar(
@@ -1081,6 +1046,17 @@ class BokehBackend:
         )
         ax.add_layout(color_bar, "right")
         return color_bar
+
+
+def _as_list(value: Union[float, pd.Series, List[Any]], n: int) -> List[Any]:
+    """Broadcast a scalar to length ``n``, or materialize a sequence as a list.
+
+    Bokeh glyph properties take a per-item sequence, so a scalar y-bound or bar
+    origin has to be repeated across every item before it is handed over.
+    """
+    if isinstance(value, (int, float)):
+        return [value] * n
+    return list(value)
 
 
 def _parse_color_to_rgb(color: str) -> Tuple[int, int, int]:

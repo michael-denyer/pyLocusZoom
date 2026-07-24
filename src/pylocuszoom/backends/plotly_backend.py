@@ -472,7 +472,7 @@ class PlotlyBackend:
     ) -> None:
         """Set x-axis label."""
         fig, row, col, n_cols = self._extract_row_col(ax)
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         fig.update_layout(
             **{
                 self._axis_name("xaxis", row, col, n_cols): dict(
@@ -486,7 +486,7 @@ class PlotlyBackend:
     ) -> None:
         """Set y-axis label."""
         fig, row, col, n_cols = self._extract_row_col(ax)
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         fig.update_layout(
             **{
                 self._axis_name("yaxis", row, col, n_cols): dict(
@@ -557,10 +557,6 @@ class PlotlyBackend:
         """
         subplot_idx = (row - 1) * n_cols + col
         return f"{axis}{subplot_idx}" if subplot_idx > 1 else axis
-
-    def _convert_label(self, label: str) -> str:
-        """Convert LaTeX-style labels to Unicode for Plotly display."""
-        return convert_latex_to_unicode(label)
 
     def set_title(
         self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14
@@ -748,7 +744,7 @@ class PlotlyBackend:
         """Set secondary y-axis label."""
         ax, yaxis_name = secondary
         fig, row, col, _ = self._extract_row_col(ax)
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         yaxis_key = (
             "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
         )
