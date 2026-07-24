@@ -1215,18 +1215,22 @@ class PlotlyBackend:
 
         colorscale = [[0, cmap_colors[0]], [1, cmap_colors[1]]]
 
-        trace = go.Heatmap(
-            z=z.tolist(),
-            x=list(x_coords),
-            y=list(y_coords),
-            colorscale=colorscale,
-            zmin=vmin,
-            zmax=vmax,
-            showscale=True,
-            colorbar=dict(title="R²"),
+        fig.add_trace(
+            go.Heatmap(
+                z=z.tolist(),
+                x=list(x_coords),
+                y=list(y_coords),
+                colorscale=colorscale,
+                zmin=vmin,
+                zmax=vmax,
+                showscale=False,
+            ),
+            row=row,
+            col=col,
         )
-        fig.add_trace(trace, row=row, col=col)
-        return trace
+        # add_trace stores a copy, so hand back the figure's own trace: that is
+        # the object add_colorbar has to mutate for the scale to appear.
+        return fig.data[-1]
 
     def add_colorbar(
         self,
@@ -1237,17 +1241,25 @@ class PlotlyBackend:
     ) -> Any:
         """Add colorbar legend for heatmap.
 
-        For Plotly, colorbar is added via showscale=True in add_heatmap.
-        This method is a no-op but kept for API consistency.
+        Plotly draws the scale as part of the heatmap trace rather than as a
+        separate artist, so this turns the trace's own scale on and titles it.
+        ``add_heatmap`` leaves it off, which is what lets a caller skip this
+        call to get a heatmap with no scale.
 
         Args:
-            ax: Tuple of (figure, row_number).
-            mappable: Heatmap trace (unused).
-            label: Colorbar label (unused, set in add_heatmap).
-            orientation: Orientation (unused).
+            ax: Tuple of (figure, row_number) (unused, the trace carries it).
+            mappable: Heatmap trace returned by add_heatmap.
+            label: Colorbar label.
+            orientation: "vertical" or "horizontal".
 
         Returns:
-            None.
+            The heatmap trace whose scale was enabled.
         """
-        # Colorbar is configured in add_heatmap via showscale=True
-        pass
+        mappable.update(
+            showscale=True,
+            colorbar=dict(
+                title=label,
+                orientation="h" if orientation == "horizontal" else "v",
+            ),
+        )
+        return mappable

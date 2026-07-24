@@ -490,8 +490,8 @@ class TestHeatmapMethods:
         assert trace is not None
         assert isinstance(trace, go.Heatmap)
 
-    def test_plotly_add_colorbar_no_error(self, sample_ld_matrix):
-        """Plotly add_colorbar should not raise (no-op)."""
+    def test_plotly_add_colorbar_enables_the_trace_scale(self, sample_ld_matrix):
+        """Plotly's colorbar is the trace's own scale, off until asked for."""
         pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
@@ -503,9 +503,30 @@ class TestHeatmapMethods:
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
-        # Should not raise
-        result = backend.add_colorbar(axes[0], trace, label="R²")
-        assert result is None  # No-op returns None
+        assert trace.showscale is False
+
+        result = backend.add_colorbar(axes[0], trace, label="D'")
+
+        assert result is trace
+        assert trace.showscale is True
+        assert trace.colorbar.title.text == "D'"
+
+    def test_plotly_add_colorbar_honours_orientation(self, sample_ld_matrix):
+        """Horizontal orientation maps to Plotly's 'h'."""
+        pytest.importorskip("plotly")
+        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        trace = backend.add_heatmap(
+            axes[0],
+            sample_ld_matrix,
+            x_coords=list(range(5)),
+            y_coords=list(range(5)),
+        )
+        backend.add_colorbar(axes[0], trace, label="R²", orientation="horizontal")
+
+        assert trace.colorbar.orientation == "h"
 
     def test_bokeh_add_heatmap_returns_mapper(self, sample_ld_matrix):
         """Bokeh add_heatmap should return LinearColorMapper."""

@@ -216,6 +216,33 @@ class TestPlotLDHeatmap:
         axes = fig.get_axes()
         assert len(axes) == 1
 
+    def test_plotly_show_colorbar_false_hides_scale(self, small_ld_matrix):
+        """Plotly honours show_colorbar=False rather than always showing it."""
+        pytest.importorskip("plotly")
+        plotter = LDHeatmapPlotter(backend="plotly")
+        fig = plotter.plot_ld_heatmap(small_ld_matrix, show_colorbar=False)
+
+        assert [trace.showscale for trace in fig.data] == [False]
+
+    def test_plotly_show_colorbar_true_shows_scale(self, small_ld_matrix):
+        """Plotly still renders the scale when the caller asks for it."""
+        pytest.importorskip("plotly")
+        plotter = LDHeatmapPlotter(backend="plotly")
+        fig = plotter.plot_ld_heatmap(small_ld_matrix, show_colorbar=True)
+
+        assert [trace.showscale for trace in fig.data] == [True]
+
+    def test_plotly_colorbar_title_follows_metric(self, small_ld_matrix):
+        """The label passed to add_colorbar reaches the Plotly colorbar title."""
+        pytest.importorskip("plotly")
+        plotter = LDHeatmapPlotter(backend="plotly")
+
+        r2_fig = plotter.plot_ld_heatmap(small_ld_matrix, metric="r2")
+        dprime_fig = plotter.plot_ld_heatmap(small_ld_matrix, metric="dprime")
+
+        assert r2_fig.data[0].colorbar.title.text == "R²"
+        assert dprime_fig.data[0].colorbar.title.text == "D'"
+
 
 class TestLDHeatmapBackends:
     """Tests for LDHeatmapPlotter with different backends."""
