@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Ensembl gene and exon fetching share one overlap helper.** `fetch_genes_from_ensembl` and `fetch_exons_from_ensembl` were about 70% duplicate. They are now thin wrappers over a single `_fetch_overlap_features`, and `_make_ensembl_request` carries one raise-on-failure contract instead of a dual raise-or-return-`None` contract. Public signatures and return shapes are unchanged.
+
+### Fixed
+
+- **Recombination and Ensembl caches resolve through one shared root.** `recombination.get_default_data_dir` and `ensembl.get_ensembl_cache_dir` each hand-rolled platform detection for the same `~/.cache/pylocuszoom` root and disagreed. The Ensembl resolver ignored `$XDG_CACHE_HOME` on macOS and had no Databricks branch, so the two caches pointed to different roots on Databricks and diverged on macOS when `XDG_CACHE_HOME` was set. Both now derive from a single `utils._platform_cache_base()` and append their own leaf (`recombination_maps` / `ensembl`), so the Ensembl cache honours `$XDG_CACHE_HOME` everywhere and routes to `/dbfs/FileStore/reference_data/ensembl` on Databricks. This changes the Ensembl cache location on macOS with `XDG_CACHE_HOME` set and on Databricks.
+
 ## [2.0.0] - 2026-07-21
 
 ### Changed
