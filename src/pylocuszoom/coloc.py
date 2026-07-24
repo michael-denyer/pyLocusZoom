@@ -7,7 +7,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .validation import DataFrameValidator
+from .validation import ColumnSpec, check
 
 
 def _validate_coloc_df(
@@ -33,13 +33,15 @@ def _validate_coloc_df(
     if rs_col is not None:
         required_cols.append(rs_col)
 
-    (
-        DataFrameValidator(df, df_name)
-        .require_columns(required_cols)
-        .require_numeric([pos_col, p_col])
-        .require_not_null([p_col])
-        .require_pvalue(p_col)
-        .validate()
+    check(
+        df,
+        ColumnSpec(
+            name=df_name,
+            required=tuple(required_cols),
+            numeric=(pos_col, p_col),
+            not_null=(p_col,),
+            pvalue=p_col,
+        ),
     )
 
 
