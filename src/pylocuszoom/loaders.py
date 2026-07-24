@@ -248,6 +248,26 @@ def load_plink_assoc(
     return df
 
 
+def _regenie_pvalue(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Derive REGENIE p-values: prefer computed LOG10P, else rename P."""
+    p_col = out_cols["p_col"]
+    if "LOG10P" in df.columns:
+        df[p_col] = 10 ** (-df["LOG10P"])
+    elif "P" in df.columns:
+        df = df.rename(columns={"P": p_col})
+    return df
+
+
+_REGENIE_SPEC = LoaderSpec(
+    sep=r"\s+",
+    comment="#",
+    log_fmt="Loaded REGENIE file with {n} variants",
+    col_map={"GENPOS": "pos_col", "ID": "rs_col", "CHROM": "chr"},
+    transform=_regenie_pvalue,
+    validate=_validate_gwas,
+)
+
+
 def load_regenie(
     filepath: Union[str, Path],
     pos_col: str = "ps",
@@ -268,24 +288,18 @@ def load_regenie(
     Example:
         >>> gwas_df = load_regenie("results.regenie")
     """
-    df = pd.read_csv(filepath, sep=r"\s+", comment="#")
+    return _load_tabular(
+        filepath, _REGENIE_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
+    )
 
-    col_map = {
-        "GENPOS": pos_col,
-        "ID": rs_col,
-        "CHROM": "chr",
-    }
 
-    # REGENIE uses LOG10P, need to convert
-    if "LOG10P" in df.columns:
-        df[p_col] = 10 ** (-df["LOG10P"])
-    elif "P" in df.columns:
-        col_map["P"] = p_col
-
-    df = df.rename(columns=col_map)
-    logger.debug(f"Loaded REGENIE file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
-    return df
+_BOLT_LMM_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded BOLT-LMM file with {n} variants",
+    col_map={"BP": "pos_col", "SNP": "rs_col", "CHR": "chr"},
+    p_candidates=("P_BOLT_LMM", "P_BOLT_LMM_INF"),
+    validate=_validate_gwas,
+)
 
 
 def load_bolt_lmm(
@@ -308,25 +322,18 @@ def load_bolt_lmm(
     Example:
         >>> gwas_df = load_bolt_lmm("results.stats")
     """
-    df = pd.read_csv(filepath, sep="\t")
+    return _load_tabular(
+        filepath, _BOLT_LMM_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
+    )
 
-    col_map = {
-        "BP": pos_col,
-        "SNP": rs_col,
-        "CHR": "chr",
-        "P_BOLT_LMM_INF": p_col,  # Infinitesimal model (default)
-    }
 
-    # Prefer P_BOLT_LMM if available (full model)
-    if "P_BOLT_LMM" in df.columns:
-        col_map["P_BOLT_LMM"] = p_col
-        if "P_BOLT_LMM_INF" in col_map:
-            del col_map["P_BOLT_LMM_INF"]
-
-    df = df.rename(columns=col_map)
-    logger.debug(f"Loaded BOLT-LMM file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
-    return df
+_GEMMA_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded GEMMA file with {n} variants",
+    col_map={"ps": "pos_col", "rs": "rs_col", "chr": "chr"},
+    p_candidates=("p_wald", "p_lrt", "p_score"),
+    validate=_validate_gwas,
+)
 
 
 def load_gemma(
@@ -349,31 +356,18 @@ def load_gemma(
     Example:
         >>> gwas_df = load_gemma("output.assoc.txt")
     """
-    df = pd.read_csv(filepath, sep="\t")
+    return _load_tabular(
+        filepath, _GEMMA_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
+    )
 
-    col_map = {
-        "ps": pos_col,
-        "rs": rs_col,
-        "chr": "chr",
-        "p_wald": p_col,
-        "p_lrt": p_col,  # Alternative if p_wald not present
-        "p_score": p_col,  # Alternative
-    }
 
-    # Only map first matching p-value column
-    p_cols = ["p_wald", "p_lrt", "p_score"]
-    found_p = False
-    for p in p_cols:
-        if p in df.columns and not found_p:
-            col_map[p] = p_col
-            found_p = True
-        elif p in col_map:
-            del col_map[p]
-
-    df = df.rename(columns=col_map)
-    logger.debug(f"Loaded GEMMA file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
-    return df
+_SAIGE_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded SAIGE file with {n} variants",
+    col_map={"POS": "pos_col", "MarkerID": "rs_col", "CHR": "chr"},
+    p_candidates=("p.value.NA", "p.value"),
+    validate=_validate_gwas,
+)
 
 
 def load_saige(
@@ -396,24 +390,22 @@ def load_saige(
     Example:
         >>> gwas_df = load_saige("results.txt")
     """
-    df = pd.read_csv(filepath, sep="\t")
+    return _load_tabular(
+        filepath, _SAIGE_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
+    )
 
-    col_map = {
-        "POS": pos_col,
-        "MarkerID": rs_col,
-        "CHR": "chr",
-    }
 
-    # Prefer SPA-adjusted p-value (p.value.NA) over raw p.value when both present
-    if "p.value.NA" in df.columns:
-        col_map["p.value.NA"] = p_col
-    elif "p.value" in df.columns:
-        col_map["p.value"] = p_col
-
-    df = df.rename(columns=col_map)
-    logger.debug(f"Loaded SAIGE file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
-    return df
+_GWAS_CATALOG_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded GWAS Catalog file with {n} variants",
+    col_map={
+        "base_pair_location": "pos_col",
+        "variant_id": "rs_col",
+        "chromosome": "chr",
+        "p_value": "p_col",
+    },
+    validate=_validate_gwas,
+)
 
 
 def load_gwas_catalog(
@@ -433,19 +425,9 @@ def load_gwas_catalog(
     Returns:
         DataFrame with standardized column names.
     """
-    df = pd.read_csv(filepath, sep="\t")
-
-    col_map = {
-        "base_pair_location": pos_col,
-        "variant_id": rs_col,
-        "chromosome": "chr",
-        "p_value": p_col,
-    }
-
-    df = df.rename(columns=col_map)
-    logger.debug(f"Loaded GWAS Catalog file with {len(df)} variants")
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
-    return df
+    return _load_tabular(
+        filepath, _GWAS_CATALOG_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
+    )
 
 
 # =============================================================================
@@ -520,6 +502,23 @@ def load_gtex_eqtl(
     return df
 
 
+_EQTL_CATALOGUE_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded eQTL Catalogue file with {n} associations",
+    col_map={
+        "position": "pos",
+        "pvalue": "p_value",
+        "gene_id": "gene",
+        "beta": "effect_size",
+        "chromosome": "chr",
+    },
+    gene_filter="contains",
+    validate=_warn_validator(
+        ["pos", "p_value", "gene"], "eQTL Catalogue", validate_eqtl_dataframe
+    ),
+)
+
+
 def load_eqtl_catalogue(
     filepath: Union[str, Path],
     gene: Optional[str] = None,
@@ -533,29 +532,23 @@ def load_eqtl_catalogue(
     Returns:
         DataFrame with columns: pos, p_value, gene, effect_size.
     """
-    df = pd.read_csv(filepath, sep="\t")
+    return _load_tabular(filepath, _EQTL_CATALOGUE_SPEC, gene=gene)
 
-    col_map = {
-        "position": "pos",
+
+_MATRIXEQTL_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded MatrixEQTL file with {n} associations",
+    col_map={
+        "SNP": "rs",
+        "gene": "gene",
+        "p-value": "p_value",
         "pvalue": "p_value",
-        "gene_id": "gene",
-        "beta": "effect_size",  # Standardize to effect_size for plotter
-        "chromosome": "chr",
-    }
-
-    df = df.rename(columns=col_map)
-
-    if gene is not None and "gene" in df.columns:
-        mask = df["gene"].str.contains(gene, case=False, na=False)
-        df = df[mask]
-
-    logger.debug(f"Loaded eQTL Catalogue file with {len(df)} associations")
-
-    _validate_or_warn(
-        df, ["pos", "p_value", "gene"], "eQTL Catalogue", validate_eqtl_dataframe
-    )
-
-    return df
+        "beta": "effect_size",
+        "t-stat": "t_stat",
+    },
+    gene_filter="exact",
+    validate=_no_validate,
+)
 
 
 def load_matrixeqtl(
@@ -575,24 +568,7 @@ def load_matrixeqtl(
         MatrixEQTL output doesn't include position by default.
         You may need to merge with a SNP annotation file.
     """
-    df = pd.read_csv(filepath, sep="\t")
-
-    col_map = {
-        "SNP": "rs",
-        "gene": "gene",
-        "p-value": "p_value",
-        "pvalue": "p_value",
-        "beta": "effect_size",  # Standardize to effect_size for plotter
-        "t-stat": "t_stat",
-    }
-
-    df = df.rename(columns=col_map)
-
-    if gene is not None and "gene" in df.columns:
-        df = df[df["gene"] == gene]
-
-    logger.debug(f"Loaded MatrixEQTL file with {len(df)} associations")
-    return df
+    return _load_tabular(filepath, _MATRIXEQTL_SPEC, gene=gene)
 
 
 # =============================================================================
@@ -661,6 +637,26 @@ def load_susie(
     return df
 
 
+def _finemap_cs(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Assign a 95% credible set from cumulative PIP (FINEMAP has none)."""
+    cs_col = out_cols["cs_col"]
+    if cs_col not in df.columns and "pip" in df.columns:
+        df = df.sort_values("pip", ascending=False)
+        df["cumsum_pip"] = df["pip"].cumsum()
+        df[cs_col] = (df["cumsum_pip"] <= 0.95).astype(int)
+        df = df.drop(columns=["cumsum_pip"])
+    return df
+
+
+_FINEMAP_SPEC = LoaderSpec(
+    sep=r"\s+",
+    log_fmt="Loaded FINEMAP file with {n} variants",
+    col_map={"position": "pos", "prob": "pip", "rsid": "rs", "chromosome": "chr"},
+    transform=_finemap_cs,
+    validate=_warn_validator(["pos", "pip"], "FINEMAP", validate_finemapping_dataframe),
+)
+
+
 def load_finemap(
     filepath: Union[str, Path],
     cs_col: str = "cs",
@@ -677,30 +673,7 @@ def load_finemap(
     Example:
         >>> fm_df = load_finemap("results.snp")
     """
-    df = pd.read_csv(filepath, sep=r"\s+")
-
-    col_map = {
-        "position": "pos",
-        "prob": "pip",
-        "rsid": "rs",
-        "chromosome": "chr",
-    }
-
-    df = df.rename(columns=col_map)
-
-    # FINEMAP doesn't directly output credible sets
-    # Assign based on cumulative PIP threshold (95% default)
-    if cs_col not in df.columns and "pip" in df.columns:
-        df = df.sort_values("pip", ascending=False)
-        df["cumsum_pip"] = df["pip"].cumsum()
-        df[cs_col] = (df["cumsum_pip"] <= 0.95).astype(int)
-        df = df.drop(columns=["cumsum_pip"])
-
-    logger.debug(f"Loaded FINEMAP file with {len(df)} variants")
-
-    _validate_or_warn(df, ["pos", "pip"], "FINEMAP", validate_finemapping_dataframe)
-
-    return df
+    return _load_tabular(filepath, _FINEMAP_SPEC, cs_col=cs_col)
 
 
 def load_caviar(
@@ -741,6 +714,29 @@ def load_caviar(
     return df
 
 
+def _polyfun_cs(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Normalize the credible-set column to non-null integers."""
+    cs_col = out_cols["cs_col"]
+    if cs_col in df.columns:
+        df[cs_col] = df[cs_col].fillna(0).astype(int)
+    return df
+
+
+_POLYFUN_SPEC = LoaderSpec(
+    sep=r"\s+",
+    log_fmt="Loaded PolyFun file with {n} variants",
+    col_map={
+        "BP": "pos",
+        "PIP": "pip",
+        "SNP": "rs",
+        "CHR": "chr",
+        "CREDIBLE_SET": "cs_col",
+    },
+    transform=_polyfun_cs,
+    validate=_warn_validator(["pos", "pip"], "PolyFun", validate_finemapping_dataframe),
+)
+
+
 def load_polyfun(
     filepath: Union[str, Path],
     cs_col: str = "cs",
@@ -754,26 +750,7 @@ def load_polyfun(
     Returns:
         DataFrame with columns: pos, pip, cs.
     """
-    df = pd.read_csv(filepath, sep=r"\s+")
-
-    col_map = {
-        "BP": "pos",
-        "PIP": "pip",
-        "SNP": "rs",
-        "CHR": "chr",
-        "CREDIBLE_SET": cs_col,
-    }
-
-    df = df.rename(columns=col_map)
-
-    if cs_col in df.columns:
-        df[cs_col] = df[cs_col].fillna(0).astype(int)
-
-    logger.debug(f"Loaded PolyFun file with {len(df)} variants")
-
-    _validate_or_warn(df, ["pos", "pip"], "PolyFun", validate_finemapping_dataframe)
-
-    return df
+    return _load_tabular(filepath, _POLYFUN_SPEC, cs_col=cs_col)
 
 
 # =============================================================================
@@ -914,6 +891,35 @@ def load_bed(
     return df
 
 
+def _ensembl_strand(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Convert Ensembl 1/-1 strand encoding to +/- symbols."""
+    if "strand" in df.columns:
+        df["strand"] = df["strand"].map({1: "+", -1: "-", "+": "+", "-": "-"})
+    return df
+
+
+_ENSEMBL_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded {n} genes from Ensembl export",
+    col_map={
+        "Chromosome/scaffold name": "chr",
+        "Gene start (bp)": "start",
+        "Gene end (bp)": "end",
+        "Gene name": "gene_name",
+        "Strand": "strand",
+        # Alternative column names
+        "chromosome_name": "chr",
+        "start_position": "start",
+        "end_position": "end",
+        "external_gene_name": "gene_name",
+    },
+    transform=_ensembl_strand,
+    validate=_warn_validator(
+        ["chr", "start", "end", "gene_name"], "Ensembl genes", validate_genes_dataframe
+    ),
+)
+
+
 def load_ensembl_genes(
     filepath: Union[str, Path],
 ) -> pd.DataFrame:
@@ -925,37 +931,7 @@ def load_ensembl_genes(
     Returns:
         DataFrame with columns: chr, start, end, gene_name, strand.
     """
-    df = pd.read_csv(filepath, sep="\t")
-
-    col_map = {
-        "Chromosome/scaffold name": "chr",
-        "Gene start (bp)": "start",
-        "Gene end (bp)": "end",
-        "Gene name": "gene_name",
-        "Strand": "strand",
-        # Alternative column names
-        "chromosome_name": "chr",
-        "start_position": "start",
-        "end_position": "end",
-        "external_gene_name": "gene_name",
-    }
-
-    df = df.rename(columns=col_map)
-
-    # Convert strand (Ensembl uses 1/-1)
-    if "strand" in df.columns:
-        df["strand"] = df["strand"].map({1: "+", -1: "-", "+": "+", "-": "-"})
-
-    logger.debug(f"Loaded {len(df)} genes from Ensembl export")
-
-    _validate_or_warn(
-        df,
-        ["chr", "start", "end", "gene_name"],
-        "Ensembl genes",
-        validate_genes_dataframe,
-    )
-
-    return df
+    return _load_tabular(filepath, _ENSEMBL_SPEC)
 
 
 # =============================================================================
