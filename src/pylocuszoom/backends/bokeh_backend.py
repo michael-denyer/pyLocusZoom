@@ -13,6 +13,7 @@ from bokeh.plotting import figure
 
 from . import convert_latex_to_unicode, register_backend
 from .composition import LegendEntry, heatmap_highlight_cells
+from .hover import bokeh_tooltips
 
 # Style mappings (matplotlib -> Bokeh)
 _MARKER_MAP = {
@@ -43,6 +44,9 @@ _DASH_MAP = {
     ":": "dotted",
     "-.": "dashdot",
 }
+# Namespaces hover columns in a ColumnDataSource so a hover column named "x"
+# or "size" cannot shadow the keys scatter() sets for geometry and styling.
+_HOVER_KEY_PREFIX = "hover_"
 
 
 @register_backend("bokeh")
@@ -214,17 +218,8 @@ class BokehBackend:
         tooltips = []
         if hover_data is not None:
             for col in hover_data.columns:
-                safe_key = f"hover_{col}"
-                data[safe_key] = hover_data[col].values
-                col_lower = col.lower()
-                if col_lower in ("p-value", "pval", "p_value"):
-                    tooltips.append((col, "@{" + safe_key + "}{0.2e}"))
-                elif any(kw in col_lower for kw in ("r2", "r²", "ld")):
-                    tooltips.append((col, "@{" + safe_key + "}{0.3f}"))
-                elif "pos" in col_lower:
-                    tooltips.append((col, "@{" + safe_key + "}{0,0}"))
-                else:
-                    tooltips.append((col, f"@{{{safe_key}}}"))
+                data[f"{_HOVER_KEY_PREFIX}{col}"] = hover_data[col].values
+            tooltips = bokeh_tooltips(hover_data, key_prefix=_HOVER_KEY_PREFIX)
 
         source = ColumnDataSource(data)
 

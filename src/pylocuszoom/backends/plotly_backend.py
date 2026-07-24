@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
 from .composition import LegendEntry, heatmap_highlight_cells
+from .hover import plotly_hovertemplate
 
 # Style mappings (matplotlib -> Plotly)
 _MARKER_SYMBOLS = {
@@ -250,19 +251,7 @@ class PlotlyBackend:
         # Build hover template
         if hover_data is not None:
             customdata = hover_data.values
-            hover_cols = hover_data.columns.tolist()
-            hovertemplate = "<b>%{customdata[0]}</b><br>"
-            for i, col_name in enumerate(hover_cols[1:], 1):
-                col_lower = col_name.lower()
-                if col_lower in ("p-value", "pval", "p_value"):
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]:.2e}}<br>"
-                elif any(x in col_lower for x in ("r2", "r²", "ld")):
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]:.3f}}<br>"
-                elif "pos" in col_lower:
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]:,.0f}}<br>"
-                else:
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]}}<br>"
-            hovertemplate += "<extra></extra>"
+            hovertemplate = plotly_hovertemplate(hover_data)
         else:
             customdata = None
             hovertemplate = "x: %{x}<br>y: %{y:.2f}<extra></extra>"
