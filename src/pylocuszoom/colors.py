@@ -14,6 +14,19 @@ def _is_missing(value: Optional[float]) -> bool:
     return value is None or (isinstance(value, float) and math.isnan(value))
 
 
+def _cyclic_color(colors: List[str], idx: int) -> str:
+    """Index into a color palette, cycling back to the start past its end.
+
+    Args:
+        colors: Ordered palette to index into.
+        idx: Zero-based position; values past the palette length wrap around.
+
+    Returns:
+        Hex color code string.
+    """
+    return colors[idx % len(colors)]
+
+
 # =============================================================================
 # LD Bins (NamedTuple for self-documenting access)
 # =============================================================================
@@ -257,9 +270,7 @@ def get_credible_set_color(cs_id: int) -> str:
     """
     if cs_id < 1:
         return LD_NA_COLOR
-    # Use modulo to cycle through colors if more than 10 credible sets
-    idx = (cs_id - 1) % len(CREDIBLE_SET_COLORS)
-    return CREDIBLE_SET_COLORS[idx]
+    return _cyclic_color(CREDIBLE_SET_COLORS, cs_id - 1)
 
 
 def get_credible_set_color_palette(n_sets: int = 10) -> dict[int, str]:
@@ -276,9 +287,7 @@ def get_credible_set_color_palette(n_sets: int = 10) -> dict[int, str]:
         >>> palette[1]
         '#FF7F00'
     """
-    return {
-        i + 1: CREDIBLE_SET_COLORS[i % len(CREDIBLE_SET_COLORS)] for i in range(n_sets)
-    }
+    return {i + 1: get_credible_set_color(i + 1) for i in range(n_sets)}
 
 
 # PheWAS category colors - distinct colors for phenotype categories
@@ -307,7 +316,7 @@ def get_phewas_category_color(category_idx: int) -> str:
     Returns:
         Hex color code string.
     """
-    return PHEWAS_CATEGORY_COLORS[category_idx % len(PHEWAS_CATEGORY_COLORS)]
+    return _cyclic_color(PHEWAS_CATEGORY_COLORS, category_idx)
 
 
 def get_phewas_category_palette(categories: List[str]) -> dict[str, str]:

@@ -1,17 +1,17 @@
 """Semantic renderer for Miami plots."""
 
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._plotter_utils import (
-    MANHATTAN_EDGE_WIDTH,
-    MANHATTAN_POINT_SIZE,
-    POINT_EDGE_COLOR,
-    add_significance_line,
+from ._manhattan_panel import (
+    padded_ymax,
+    render_manhattan_points,
+    shared_manhattan_limits,
 )
+from ._plotter_utils import add_significance_line
 from .backends.base import PlotBackend, SupportsRegionHighlight
-from .backends.hover import HoverConfig, HoverDataBuilder
+from .backends.hover import HoverConfig
 
 
 class MiamiRenderer:
@@ -49,20 +49,25 @@ class MiamiRenderer:
         top_ax, bottom_ax = axes
         chrom_order = top_df.attrs["chrom_order"]
         chrom_centers = top_df.attrs["chrom_centers"]
+        hover = (
+            HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
+            if rs_col is not None
+            else None
+        )
         for ax, prepared_df, threshold in (
             (top_ax, top_df, top_threshold),
             (bottom_ax, bottom_df, bottom_threshold),
         ):
-            self._render_points(ax, prepared_df, chrom_order, pos_col, p_col, rs_col)
+            render_manhattan_points(
+                self._backend, ax, prepared_df, chrom_order, hover=hover
+            )
             add_significance_line(self._backend, ax, threshold)
 
-        x_min = min(top_df["_cumulative_pos"].min(), bottom_df["_cumulative_pos"].min())
-        x_max = max(top_df["_cumulative_pos"].max(), bottom_df["_cumulative_pos"].max())
-        x_padding = (x_max - x_min) * 0.01
-        self._backend.set_xlim(top_ax, x_min - x_padding, x_max + x_padding)
-        self._backend.set_xlim(bottom_ax, x_min - x_padding, x_max + x_padding)
-        top_y_max = self._safe_ymax(top_df["_neg_log_p"].max())
-        bottom_y_max = self._safe_ymax(bottom_df["_neg_log_p"].max())
+        x_limits = shared_manhattan_limits([top_df, bottom_df])
+        self._backend.set_xlim(top_ax, *x_limits)
+        self._backend.set_xlim(bottom_ax, *x_limits)
+        top_y_max = padded_ymax(top_df["_neg_log_p"].max())
+        bottom_y_max = padded_ymax(bottom_df["_neg_log_p"].max())
         self._backend.set_ylim(top_ax, 0, top_y_max)
         self._backend.set_ylim(bottom_ax, bottom_y_max, 0)
 
@@ -106,41 +111,6 @@ class MiamiRenderer:
         else:
             self._backend.finalize_layout(fig, hspace=0.05)
         return fig
-
-    @staticmethod
-    def _safe_ymax(value: float) -> float:
-        return max(value * 1.1, 1.0) if pd.notna(value) else 1.0
-
-    def _render_points(
-        self,
-        ax: Any,
-        prepared_df: pd.DataFrame,
-        chrom_order: Sequence[str],
-        pos_col: str,
-        p_col: str,
-        rs_col: Optional[str],
-    ) -> None:
-        for chrom in chrom_order:
-            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
-            if chrom_data.empty:
-                continue
-            hover_data = None
-            if self._backend.supports_hover and rs_col is not None:
-                hover_data = HoverDataBuilder(
-                    HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
-                ).build_dataframe(chrom_data)
-            self._backend.scatter(
-                ax,
-                chrom_data["_cumulative_pos"],
-                chrom_data["_neg_log_p"],
-                colors=chrom_data["_color"].iloc[0],
-                sizes=MANHATTAN_POINT_SIZE,
-                marker="o",
-                edgecolor=POINT_EDGE_COLOR,
-                linewidth=MANHATTAN_EDGE_WIDTH,
-                zorder=2,
-                hover_data=hover_data,
-            )
 
     def _add_snp_annotations(
         self, ax: Any, prepared_df: pd.DataFrame, rs_col: str, snp_ids: List[str]

@@ -32,7 +32,7 @@ from ._regional import (
     RegionalPlotComposer,
 )
 from .backends import BackendType, get_backend
-from .config import PlotConfig, StackedPlotConfig
+from .config import PlotConfig, RegionConfig, StackedPlotConfig
 from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import prepare_finemapping_for_plotting
@@ -345,34 +345,18 @@ class LocusZoomPlotter:
         ]
 
         if genes_df is not None:
-            panels.append(
-                GenePanel(
-                    data=genes_df,
-                    height=calculate_gene_track_height(
-                        genes_df,
-                        region.chrom,
-                        region.start,
-                        region.end,
-                    ),
-                    exons_df=exons_df,
-                )
-            )
+            panels.append(self._build_gene_panel(genes_df, region, exons_df))
 
         if heatmap_data is not None:
-            filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
-            lead_snp_id = None
-            if ld_config.lead_pos is not None and columns.rs_col in df.columns:
-                lead_row = df[df[columns.pos_col] == ld_config.lead_pos]
-                if not lead_row.empty:
-                    lead_snp_id = lead_row[columns.rs_col].iloc[0]
             panels.append(
-                HeatmapPanel(
-                    matrix=filtered_matrix,
+                self._build_heatmap_panel(
+                    heatmap_data,
+                    source_df=df,
+                    lead_pos=ld_config.lead_pos,
+                    pos_col=columns.pos_col,
+                    rs_col=columns.rs_col,
                     height=association_height * ld_heatmap_height,
-                    x_positions=x_positions,
-                    snp_ids=filtered_snp_ids,
                     metric=ld_heatmap_metric,
-                    lead_snp_id=lead_snp_id,
                 )
             )
 
@@ -422,6 +406,53 @@ class LocusZoomPlotter:
 
         filtered_matrix = ld_matrix.iloc[filtered_indices, filtered_indices].copy()
         return filtered_matrix, x_positions, filtered_snp_ids
+
+    def _build_gene_panel(
+        self,
+        genes_df: pd.DataFrame,
+        region: RegionConfig,
+        exons_df: Optional[pd.DataFrame],
+    ) -> GenePanel:
+        """Build the gene-track panel, sizing its height to the region's genes."""
+        return GenePanel(
+            data=genes_df,
+            height=calculate_gene_track_height(
+                genes_df, region.chrom, region.start, region.end
+            ),
+            exons_df=exons_df,
+        )
+
+    def _build_heatmap_panel(
+        self,
+        heatmap_data: Tuple[pd.DataFrame, List[int], List[str]],
+        *,
+        source_df: pd.DataFrame,
+        lead_pos: Optional[int],
+        pos_col: str,
+        rs_col: str,
+        height: float,
+        metric: str,
+    ) -> HeatmapPanel:
+        """Build the LD-heatmap side panel, resolving the lead SNP's ID.
+
+        The lead SNP ID is looked up from its genomic position in ``source_df``.
+        It stays None when there is no lead position, the ID column is absent,
+        or the position is not present in ``source_df``.
+        """
+        filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
+        lead_snp_id = None
+        if lead_pos is not None and rs_col in source_df.columns:
+            lead_row = source_df[source_df[pos_col] == lead_pos]
+            if not lead_row.empty:
+                lead_snp_id = lead_row[rs_col].iloc[0]
+        return HeatmapPanel(
+            matrix=filtered_matrix,
+            height=height,
+            x_positions=x_positions,
+            snp_ids=filtered_snp_ids,
+            metric=metric,
+            lead_snp_id=lead_snp_id,
+        )
 
     def plot_stacked(
         self,
@@ -675,38 +706,20 @@ class LocusZoomPlotter:
             )
 
         if genes_df is not None:
-            panels.append(
-                GenePanel(
-                    data=genes_df,
-                    height=calculate_gene_track_height(
-                        genes_df,
-                        region.chrom,
-                        region.start,
-                        region.end,
-                    ),
-                    exons_df=exons_df,
-                )
-            )
+            panels.append(self._build_gene_panel(genes_df, region, exons_df))
 
         if heatmap_data is not None:
-            filtered_matrix, x_positions, filtered_snp_ids = heatmap_data
-            lead_snp_id = None
-            if resolved_lead_positions and resolved_lead_positions[0] is not None:
-                first_gwas = gwas_dfs[0]
-                if columns.rs_col in first_gwas.columns:
-                    lead_row = first_gwas[
-                        first_gwas[columns.pos_col] == resolved_lead_positions[0]
-                    ]
-                    if not lead_row.empty:
-                        lead_snp_id = lead_row[columns.rs_col].iloc[0]
             panels.append(
-                HeatmapPanel(
-                    matrix=filtered_matrix,
+                self._build_heatmap_panel(
+                    heatmap_data,
+                    source_df=gwas_dfs[0],
+                    lead_pos=(
+                        resolved_lead_positions[0] if resolved_lead_positions else None
+                    ),
+                    pos_col=columns.pos_col,
+                    rs_col=columns.rs_col,
                     height=panel_height * ld_heatmap_height,
-                    x_positions=x_positions,
-                    snp_ids=filtered_snp_ids,
                     metric=ld_heatmap_metric,
-                    lead_snp_id=lead_snp_id,
                 )
             )
 
