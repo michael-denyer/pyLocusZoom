@@ -12,7 +12,7 @@ from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
 from .utils import filter_by_region
-from .validation import DataFrameValidator
+from .validation import ColumnSpec, check
 
 
 def validate_eqtl_df(
@@ -30,11 +30,14 @@ def validate_eqtl_df(
     Raises:
         EQTLValidationError: If required columns are missing.
     """
-    (
-        DataFrameValidator(df, "eQTL DataFrame", error_class=EQTLValidationError)
-        .require_columns([pos_col, p_col])
-        .require_numeric([p_col])
-        .validate()
+    check(
+        df,
+        ColumnSpec(
+            name="eQTL DataFrame",
+            required=(pos_col, p_col),
+            numeric=(p_col,),
+            error_class=EQTLValidationError,
+        ),
     )
 
 
