@@ -4,7 +4,8 @@ Provides a fluent API for validating pandas DataFrames with composable
 validation rules. Accumulates all validation errors before raising.
 """
 
-from typing import List, Optional, Type
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Type
 
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -237,3 +238,78 @@ class DataFrameValidator:
             error_msg = f"{self._name} validation failed:\n"
             error_msg += "\n".join(f"  - {error}" for error in self._errors)
             raise self._error_class(error_msg)
+
+
+@dataclass(frozen=True)
+class RangeRule:
+    """A single numeric-range constraint on one column.
+
+    Mirrors the arguments of :meth:`DataFrameValidator.require_range`.
+    """
+
+    column: str
+    min_val: Optional[float] = None
+    max_val: Optional[float] = None
+    exclusive_min: bool = False
+    exclusive_max: bool = False
+
+
+@dataclass(frozen=True)
+class ColumnSpec:
+    """Declarative validation contract for one DataFrame family.
+
+    Each field names the columns a rule applies to. :func:`check` runs the
+    rules against a :class:`DataFrameValidator` in a fixed order (columns,
+    numeric, not-null, ranges, p-value, ordering) and raises ``error_class``
+    if any rule fails. Building a spec instead of hand-writing a chain keeps
+    the ordering and error semantics in one place.
+
+    Args:
+        name: Dataset name used in error messages (e.g. "GWAS").
+        required: Columns that must exist.
+        numeric: Columns that must have a numeric dtype.
+        not_null: Columns that must contain no nulls.
+        ranges: Numeric-range constraints applied in order.
+        pvalue: Column checked against the canonical ``(0, 1]`` p-value domain.
+        ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
+        error_class: Exception raised on failure.
+    """
+
+    name: str
+    required: Tuple[str, ...] = ()
+    numeric: Tuple[str, ...] = ()
+    not_null: Tuple[str, ...] = ()
+    ranges: Tuple[RangeRule, ...] = ()
+    pvalue: Optional[str] = None
+    ordering: Tuple[Tuple[str, str], ...] = ()
+    error_class: Type[ValidationError] = ValidationError
+
+
+def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
+    """Validate ``df`` against ``spec``, accumulating all faults before raising.
+
+    Args:
+        df: DataFrame to validate.
+        spec: The validation contract to apply.
+
+    Raises:
+        ValidationError: If any rule fails. The concrete type is
+            ``spec.error_class``.
+    """
+    validator = DataFrameValidator(df, spec.name, error_class=spec.error_class)
+    validator.require_columns(list(spec.required))
+    validator.require_numeric(list(spec.numeric))
+    validator.require_not_null(list(spec.not_null))
+    for rule in spec.ranges:
+        validator.require_range(
+            rule.column,
+            min_val=rule.min_val,
+            max_val=rule.max_val,
+            exclusive_min=rule.exclusive_min,
+            exclusive_max=rule.exclusive_max,
+        )
+    if spec.pvalue is not None:
+        validator.require_pvalue(spec.pvalue)
+    for lower_col, upper_col in spec.ordering:
+        validator.require_ordering(lower_col, upper_col)
+    validator.validate()
