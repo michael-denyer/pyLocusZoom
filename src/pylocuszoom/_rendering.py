@@ -10,10 +10,14 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 import pandas as pd
 
+from ._manhattan_panel import (
+    padded_ymax,
+    render_manhattan_points,
+    shared_manhattan_limits,
+)
 from ._plotter_utils import (
     MANHATTAN_CATEGORICAL_POINT_SIZE,
     MANHATTAN_EDGE_WIDTH,
-    MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
     QQ_CI_ALPHA,
     QQ_CI_COLOR,
@@ -24,11 +28,6 @@ from ._plotter_utils import (
     add_significance_line,
 )
 from .backends.base import PlotBackend
-
-
-def _padded_ymax(y_max: float) -> float:
-    """Return a useful upper y-limit for Manhattan panels."""
-    return max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
 
 
 class ManhattanQQRenderer:
@@ -109,7 +108,7 @@ class ManhattanQQRenderer:
             ax, positions, cat_order, fontsize=10, rotation=45, ha="right"
         )
         self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
-        self._backend.set_ylim(ax, 0, _padded_ymax(prepared_df["_neg_log_p"].max()))
+        self._backend.set_ylim(ax, 0, padded_ymax(prepared_df["_neg_log_p"].max()))
         self._backend.set_xlabel(ax, "Category", fontsize=12)
         self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
         self._backend.set_title(ax, title or "Categorical Manhattan Plot", fontsize=14)
@@ -158,7 +157,7 @@ class ManhattanQQRenderer:
         """Render prepared Manhattan panels with shared x coordinates."""
         chrom_order = prepared_dfs[0].attrs["chrom_order"]
         chrom_centers = prepared_dfs[0].attrs["chrom_centers"]
-        x_limits = self._shared_manhattan_limits(prepared_dfs)
+        x_limits = shared_manhattan_limits(prepared_dfs)
         n_panels = len(prepared_dfs)
         fig, axes = self._backend.create_figure(
             n_panels=n_panels,
@@ -254,7 +253,7 @@ class ManhattanQQRenderer:
         """Render stacked side-by-side Manhattan and QQ panels."""
         chrom_order = manhattan_dfs[0].attrs["chrom_order"]
         chrom_centers = manhattan_dfs[0].attrs["chrom_centers"]
-        x_limits = self._shared_manhattan_limits(manhattan_dfs)
+        x_limits = shared_manhattan_limits(manhattan_dfs)
         n_panels = len(manhattan_dfs)
         fig, axes = self._backend.create_figure_grid(
             n_rows=n_panels,
@@ -322,16 +321,13 @@ class ManhattanQQRenderer:
         title_fontsize: Optional[int] = None,
     ) -> None:
         """Apply shared Manhattan panel policy to one backend axis."""
-        self._render_manhattan_points(ax, prepared_df, chrom_order)
+        render_manhattan_points(self._backend, ax, prepared_df, chrom_order)
         add_significance_line(self._backend, ax, significance_threshold)
 
         if x_limits is None:
-            x_min = prepared_df["_cumulative_pos"].min()
-            x_max = prepared_df["_cumulative_pos"].max()
-            x_padding = (x_max - x_min) * 0.01
-            x_limits = (x_min - x_padding, x_max + x_padding)
+            x_limits = shared_manhattan_limits([prepared_df])
         self._backend.set_xlim(ax, *x_limits)
-        self._backend.set_ylim(ax, 0, _padded_ymax(prepared_df["_neg_log_p"].max()))
+        self._backend.set_ylim(ax, 0, padded_ymax(prepared_df["_neg_log_p"].max()))
 
         if tick_positions is None or tick_labels is None:
             tick_positions, tick_labels = self._chromosome_ticks(
@@ -350,27 +346,6 @@ class ManhattanQQRenderer:
         if panel_label:
             self._backend.add_panel_label(ax, panel_label)
         self._backend.hide_spines(ax, ["top", "right"])
-
-    def _render_manhattan_points(
-        self,
-        ax: Any,
-        prepared_df: pd.DataFrame,
-        chrom_order: List[str],
-    ) -> None:
-        for chrom in chrom_order:
-            chrom_data = prepared_df[prepared_df["_chrom_str"] == chrom]
-            if not chrom_data.empty:
-                self._backend.scatter(
-                    ax,
-                    chrom_data["_cumulative_pos"],
-                    chrom_data["_neg_log_p"],
-                    colors=chrom_data["_color"].iloc[0],
-                    sizes=MANHATTAN_POINT_SIZE,
-                    marker="o",
-                    edgecolor=POINT_EDGE_COLOR,
-                    linewidth=MANHATTAN_EDGE_WIDTH,
-                    zorder=2,
-                )
 
     def _render_qq_panel(
         self,
@@ -446,12 +421,3 @@ class ManhattanQQRenderer:
     ) -> Tuple[List[float], List[str]]:
         labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
         return [chrom_centers[chrom] for chrom in labels], labels
-
-    @staticmethod
-    def _shared_manhattan_limits(
-        prepared_dfs: Sequence[pd.DataFrame],
-    ) -> Tuple[float, float]:
-        x_min = min(df["_cumulative_pos"].min() for df in prepared_dfs)
-        x_max = max(df["_cumulative_pos"].max() for df in prepared_dfs)
-        x_padding = (x_max - x_min) * 0.01
-        return x_min - x_padding, x_max + x_padding
