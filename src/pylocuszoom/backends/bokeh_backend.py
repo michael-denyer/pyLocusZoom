@@ -12,7 +12,7 @@ from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
 from . import convert_latex_to_unicode, register_backend
-from .composition import LegendEntry
+from .composition import LegendEntry, heatmap_highlight_cells
 
 # Style mappings (matplotlib -> Bokeh)
 _MARKER_MAP = {
@@ -939,35 +939,20 @@ class BokehBackend:
             color: Highlight color.
             linewidth: Line width for highlight rectangles.
         """
-        if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
-            raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
-
-        # Collect all highlight cell coordinates, then draw in batched calls
-        xs = []
-        ys = []
-
-        # Row highlights (lower triangle: columns 0..snp_idx)
-        for j in range(snp_idx + 1):
-            xs.append(j)
-            ys.append(snp_idx)
-
-        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
-        for i in range(snp_idx + 1, n_snps):
-            xs.append(snp_idx)
-            ys.append(i)
-
-        if xs:
-            source = ColumnDataSource(data={"x": xs, "y": ys})
-            ax.rect(
-                x="x",
-                y="y",
-                width=1,
-                height=1,
-                fill_alpha=0,
-                line_color=color,
-                line_width=linewidth,
-                source=source,
-            )
+        cells = heatmap_highlight_cells(snp_idx, n_snps)
+        source = ColumnDataSource(
+            data={"x": [x for x, _ in cells], "y": [y for _, y in cells]}
+        )
+        ax.rect(
+            x="x",
+            y="y",
+            width=1,
+            height=1,
+            fill_alpha=0,
+            line_color=color,
+            line_width=linewidth,
+            source=source,
+        )
 
     def add_heatmap(
         self,

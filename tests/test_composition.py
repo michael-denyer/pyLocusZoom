@@ -7,6 +7,7 @@ here, while plotly/bokeh native rendering is covered by the backend suite.
 """
 
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -144,3 +145,45 @@ class TestRecombinationOverlay:
         recomb = pd.DataFrame({"pos": [100, 200], "rate": [10.0, 50.0]})
         render_recombination_overlay(backend, "AX", recomb, start=500, end=600)
         assert backend.calls == []
+
+
+class TestHeatmapHighlightCells:
+    """The cell geometry every backend's highlight_heatmap_snp draws."""
+
+    def test_lead_snp_covers_row_left_of_diagonal_then_column_below(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_cells
+
+        assert heatmap_highlight_cells(2, 5) == [
+            (0, 2),
+            (1, 2),
+            (2, 2),
+            (2, 3),
+            (2, 4),
+        ]
+
+    def test_first_snp_is_diagonal_cell_plus_full_column(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_cells
+
+        assert heatmap_highlight_cells(0, 3) == [(0, 0), (0, 1), (0, 2)]
+
+    def test_last_snp_is_full_row_and_no_column(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_cells
+
+        assert heatmap_highlight_cells(2, 3) == [(0, 2), (1, 2), (2, 2)]
+
+    def test_every_cell_lies_in_the_lower_triangle(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_cells
+
+        for idx in range(6):
+            for x, y in heatmap_highlight_cells(idx, 6):
+                assert x <= y
+
+    @pytest.mark.parametrize(
+        "snp_idx,n_snps",
+        [(0, 0), (-1, 5), (5, 5), (6, 5), (0, -1)],
+    )
+    def test_out_of_bounds_raises(self, snp_idx, n_snps):
+        from pylocuszoom.backends.composition import heatmap_highlight_cells
+
+        with pytest.raises(ValueError, match="Invalid snp_idx"):
+            heatmap_highlight_cells(snp_idx, n_snps)

@@ -4,10 +4,15 @@ Legend construction lives here as pure functions that produce backend-neutral
 ``LegendEntry`` specs. Backends implement a single ``add_legend`` primitive that
 renders a list of entries natively, so the bin-iteration and swatch policy is
 owned once instead of duplicated in every adapter.
+
+The same rule applies to any geometry a backend would otherwise recompute:
+``render_recombination_overlay`` drives the secondary-axis primitives, and
+``heatmap_highlight_cells`` decides which matrix cells a SNP highlight covers,
+leaving each adapter to draw them.
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, List, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, List, Optional, Sequence, Tuple
 
 from ..colors import (
     EFFECT_CONGRUENT_COLOR,
@@ -126,3 +131,26 @@ def render_recombination_overlay(
         secondary, "Recombination rate (cM/Mb)", color="black", fontsize=9
     )
     backend.hide_spines(secondary, ["top"])
+
+
+def heatmap_highlight_cells(snp_idx: int, n_snps: int) -> List[Tuple[int, int]]:
+    """Cells to outline when marking one SNP in a lower-triangular LD heatmap.
+
+    Walks the SNP's row left of the diagonal, then its column below the
+    diagonal, so every returned cell lies in the rendered half of the matrix.
+
+    Args:
+        snp_idx: Index of the SNP to highlight (0-indexed, must be < n_snps).
+        n_snps: Total number of SNPs in the matrix (must be > 0).
+
+    Returns:
+        List of ``(x, y)`` matrix index pairs, row cells before column cells.
+
+    Raises:
+        ValueError: If snp_idx is out of bounds or n_snps < 1.
+    """
+    if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
+        raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
+    cells = [(j, snp_idx) for j in range(snp_idx + 1)]
+    cells.extend((snp_idx, i) for i in range(snp_idx + 1, n_snps))
+    return cells
