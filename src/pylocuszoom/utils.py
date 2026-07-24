@@ -4,6 +4,8 @@ Shared helpers used across multiple modules.
 
 """
 
+import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 
@@ -16,6 +18,29 @@ if TYPE_CHECKING:
 
 # Type alias for DataFrames (pandas or PySpark)
 DataFrameLike = Union[pd.DataFrame, "SparkDataFrame"]
+
+
+def _platform_cache_base() -> Path:
+    """Return the platform-appropriate pyLocusZoom cache root.
+
+    Single source of truth for cache placement. Recombination maps and Ensembl
+    annotations both live under this root; each appends its own leaf
+    (``recombination_maps`` / ``ensembl``).
+
+    Resolution order:
+    - Windows: %LOCALAPPDATA%/pylocuszoom (or ~/pylocuszoom if unset)
+    - Databricks (``/dbfs`` present): /dbfs/FileStore/reference_data
+    - macOS/Linux: $XDG_CACHE_HOME/pylocuszoom (or ~/.cache/pylocuszoom)
+    """
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+    elif os.path.exists("/dbfs"):
+        return Path("/dbfs/FileStore/reference_data")
+    else:
+        xdg_cache = os.environ.get("XDG_CACHE_HOME")
+        base = Path(xdg_cache) if xdg_cache else Path.home() / ".cache"
+
+    return base / "pylocuszoom"
 
 
 def is_spark_dataframe(df: Any) -> bool:

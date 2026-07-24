@@ -9,8 +9,6 @@ Use species-specific recombination maps instead (see recombination.py).
 """
 
 import hashlib
-import os
-import sys
 import time
 from pathlib import Path
 
@@ -19,7 +17,7 @@ import requests
 
 from .exceptions import ValidationError
 from .logging import logger
-from .utils import normalize_chrom
+from .utils import _platform_cache_base, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
@@ -108,19 +106,15 @@ def get_ensembl_species_name(species: str) -> str:
 def get_ensembl_cache_dir() -> Path:
     """Get the cache directory for Ensembl data.
 
-    Uses same base location as recombination maps: ~/.cache/pylocuszoom/ensembl
+    Shares the platform cache root with recombination maps
+    (see ``utils._platform_cache_base``) and appends the ``ensembl`` leaf, so
+    ``$XDG_CACHE_HOME`` is honored on macOS and Linux and Databricks routes to
+    ``/dbfs/FileStore/reference_data/ensembl``.
 
     Returns:
         Path to cache directory (created if doesn't exist).
     """
-    if sys.platform == "darwin":
-        base = Path.home() / ".cache"
-    elif sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-
-    cache_dir = base / "pylocuszoom" / "ensembl"
+    cache_dir = _platform_cache_base() / "ensembl"
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 

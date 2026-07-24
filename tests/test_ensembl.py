@@ -199,6 +199,43 @@ def test_get_ensembl_cache_dir():
     assert "ensembl" in str(cache_dir)
 
 
+def test_ensembl_cache_dir_honors_xdg_on_macos(tmp_path, monkeypatch):
+    """macOS honors XDG_CACHE_HOME (previously hardcoded ~/.cache)."""
+    from pylocuszoom.ensembl import get_ensembl_cache_dir
+
+    monkeypatch.setattr("sys.platform", "darwin")
+    monkeypatch.setattr("os.path.exists", lambda _: False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+
+    assert get_ensembl_cache_dir() == tmp_path / "pylocuszoom" / "ensembl"
+
+
+def test_ensembl_cache_dir_routes_to_dbfs_on_databricks(monkeypatch):
+    """Databricks routes the Ensembl cache under /dbfs (previously ~/.cache)."""
+    from pylocuszoom.ensembl import get_ensembl_cache_dir
+
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setattr("os.path.exists", lambda p: p == "/dbfs")
+    monkeypatch.setattr(Path, "mkdir", lambda self, *a, **k: None)
+
+    assert get_ensembl_cache_dir() == Path("/dbfs/FileStore/reference_data/ensembl")
+
+
+def test_cache_resolvers_share_base(tmp_path, monkeypatch):
+    """Recombination and Ensembl caches resolve under one shared root."""
+    from pylocuszoom.ensembl import get_ensembl_cache_dir
+    from pylocuszoom.recombination import get_default_data_dir
+
+    monkeypatch.setattr("sys.platform", "darwin")
+    monkeypatch.setattr("os.path.exists", lambda _: False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.setattr(Path, "mkdir", lambda self, *a, **k: None)
+
+    assert get_default_data_dir() == tmp_path / "pylocuszoom" / "recombination_maps"
+    assert get_ensembl_cache_dir() == tmp_path / "pylocuszoom" / "ensembl"
+    assert get_ensembl_cache_dir().parent == get_default_data_dir().parent
+
+
 def test_get_cached_genes_miss():
     """Test cache miss returns None."""
     from pylocuszoom.ensembl import get_cached_genes
