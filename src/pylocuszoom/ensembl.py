@@ -200,21 +200,22 @@ def _make_ensembl_request(
     url: str,
     params: dict,
     max_retries: int = ENSEMBL_MAX_RETRIES,
-    raise_on_error: bool = False,
-) -> list | None:
+) -> list:
     """Make request to Ensembl API with retry logic.
+
+    Always raises on failure; callers that want an empty result instead
+    translate ValidationError at their boundary.
 
     Args:
         url: API endpoint URL.
         params: Query parameters.
         max_retries: Maximum retry attempts for retryable errors.
-        raise_on_error: If True, raise exception on error instead of returning None.
 
     Returns:
-        JSON response as list, or None on non-retryable error.
+        JSON response as list.
 
     Raises:
-        ValidationError: If raise_on_error=True and request fails.
+        ValidationError: If the request ultimately fails.
     """
     delay = ENSEMBL_RETRY_DELAY
 
@@ -232,11 +233,9 @@ def _make_ensembl_request(
                 time.sleep(delay)
                 delay *= 2
                 continue
-            if raise_on_error:
-                raise ValidationError(
-                    f"Ensembl API request failed after {max_retries} attempts: {e}"
-                )
-            return None
+            raise ValidationError(
+                f"Ensembl API request failed after {max_retries} attempts: {e}"
+            )
 
         # Success
         if response.ok:
@@ -244,9 +243,7 @@ def _make_ensembl_request(
                 return response.json()
             except (ValueError, requests.exceptions.JSONDecodeError) as e:
                 logger.warning(f"Ensembl API returned invalid JSON: {e}")
-                if raise_on_error:
-                    raise ValidationError(f"Ensembl API returned invalid JSON: {e}")
-                return None
+                raise ValidationError(f"Ensembl API returned invalid JSON: {e}")
 
         # Retryable errors (429 rate limit, 503 service unavailable)
         if response.status_code in (429, 503) and attempt < max_retries - 1:
@@ -261,16 +258,12 @@ def _make_ensembl_request(
         # Non-retryable error
         error_msg = f"Ensembl API error {response.status_code}: {response.text[:200]}"
         logger.warning(error_msg)
-        if raise_on_error:
-            raise ValidationError(error_msg)
-        return None
+        raise ValidationError(error_msg)
 
     # All retries exhausted (e.g., repeated 429/503 responses)
-    if raise_on_error:
-        raise ValidationError(
-            f"Ensembl API request failed after {max_retries} attempts (rate limited)"
-        )
-    return None
+    raise ValidationError(
+        f"Ensembl API request failed after {max_retries} attempts (rate limited)"
+    )
 
 
 def _gene_record(feature: dict, chrom_str: str) -> dict:
@@ -340,9 +333,13 @@ def _fetch_overlap_features(
 
     logger.debug(f"Fetching {feature_type}s from Ensembl: {url}")
 
-    data = _make_ensembl_request(url, params, raise_on_error=raise_on_error)
-    if data is None:
+    try:
+        data = _make_ensembl_request(url, params)
+    except ValidationError:
+        if raise_on_error:
+            raise
         return pd.DataFrame()
+
     if not data:
         logger.debug(f"No {feature_type}s found in region {region}")
         return pd.DataFrame()
