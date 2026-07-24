@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Internal: DataFrame validators are declarative `ColumnSpec`s.** The nine hand-written `DataFrameValidator` chains across `schemas.py` (GWAS, eQTL, fine-mapping, genes) and the feature modules (`coloc`, `eqtl`, `phewas`, `forest`, `finemapping`) are replaced by a frozen `ColumnSpec` (with `RangeRule`) run through a single `check(df, spec)` engine in `validation.py`. Each validator keeps its own dataset name, error class, rule set, and rule order, so accepted/rejected frames, exception types, and error messages are byte-for-byte unchanged (verified by an equivalence harness against the old chains). The intentional two-tier split (strict load-time `schemas.py` versus tolerant plot-time validators) is preserved, and the public validator function names are unchanged.
+
 ## [2.0.0] - 2026-07-21
 
 ### Changed
