@@ -187,6 +187,20 @@ def _warn_validator(
 # =============================================================================
 
 
+_PLINK_SPEC = LoaderSpec(
+    sep=r"\s+",
+    comment="#",
+    log_fmt="Loaded PLINK file with {n} variants",
+    col_candidates={
+        "pos_col": ("BP", "POS", "bp", "pos"),
+        "p_col": ("P", "P_BOLT_LMM", "p", "PVAL", "pval", "P_LINREG"),
+        "rs_col": ("SNP", "ID", "rsid", "RSID", "MarkerName", "variant_id"),
+        "chr": ("CHR", "chr", "CHROM", "chrom", "#CHROM"),
+    },
+    validate=_validate_gwas,
+)
+
+
 def load_plink_assoc(
     filepath: Union[str, Path],
     pos_col: str = "ps",
@@ -210,42 +224,9 @@ def load_plink_assoc(
         >>> gwas_df = load_plink_assoc("results.assoc.linear")
         >>> fig = plotter.plot(gwas_df, chrom=1, start=1e6, end=2e6)
     """
-    df = pd.read_csv(filepath, sep=r"\s+", comment="#")
-
-    # Standardize column names (PLINK uses various conventions)
-    col_map = {}
-
-    # Position columns
-    for col in ["BP", "POS", "bp", "pos"]:
-        if col in df.columns:
-            col_map[col] = pos_col
-            break
-
-    # P-value columns
-    for col in ["P", "P_BOLT_LMM", "p", "PVAL", "pval", "P_LINREG"]:
-        if col in df.columns:
-            col_map[col] = p_col
-            break
-
-    # SNP ID columns
-    for col in ["SNP", "ID", "rsid", "RSID", "MarkerName", "variant_id"]:
-        if col in df.columns:
-            col_map[col] = rs_col
-            break
-
-    # Chromosome column (keep as "chr" for reference)
-    for col in ["CHR", "chr", "CHROM", "chrom", "#CHROM"]:
-        if col in df.columns:
-            col_map[col] = "chr"
-            break
-
-    df = df.rename(columns=col_map)
-    logger.debug(f"Loaded PLINK file with {len(df)} variants")
-
-    # Validate output
-    validate_gwas_dataframe(df, pos_col=pos_col, p_col=p_col)
-
-    return df
+    return _load_tabular(
+        filepath, _PLINK_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
+    )
 
 
 def _regenie_pvalue(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
@@ -435,6 +416,34 @@ def load_gwas_catalog(
 # =============================================================================
 
 
+def _gtex_pos(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Derive GTEx position from the variant_id, else fall back to tss/POS."""
+    if "variant_id" in df.columns:
+        df["pos"] = df["variant_id"].str.split("_").str[1].astype(int)
+    elif "pos" not in df.columns:
+        for col in ("tss_distance", "POS"):
+            if col in df.columns:
+                df = df.rename(columns={col: "pos"})
+                break
+    return df
+
+
+_GTEX_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded GTEx eQTL file with {n} associations",
+    col_candidates={
+        "p_value": ("pval_nominal", "p_value", "pvalue", "P"),
+        "gene": ("gene_id", "gene_name", "phenotype_id"),
+        "effect_size": ("slope", "beta", "effect_size"),
+    },
+    transform=_gtex_pos,
+    gene_filter="contains",
+    validate=_warn_validator(
+        ["pos", "p_value", "gene"], "GTEx eQTL", validate_eqtl_dataframe
+    ),
+)
+
+
 def load_gtex_eqtl(
     filepath: Union[str, Path],
     gene: Optional[str] = None,
@@ -451,55 +460,7 @@ def load_gtex_eqtl(
     Example:
         >>> eqtl_df = load_gtex_eqtl("GTEx_Analysis.signif_pairs.txt.gz", gene="BRCA1")
     """
-    # GTEx files are often gzipped
-    df = pd.read_csv(filepath, sep="\t")
-
-    # Map GTEx columns to standard format
-    col_map = {}
-
-    # Variant position (GTEx uses variant_id like chr1_12345_A_G_b38)
-    if "variant_id" in df.columns:
-        # Extract position from variant_id
-        df["pos"] = df["variant_id"].str.split("_").str[1].astype(int)
-    elif "pos" not in df.columns:
-        for col in ["tss_distance", "POS"]:
-            if col in df.columns:
-                col_map[col] = "pos"
-                break
-
-    # P-value
-    for col in ["pval_nominal", "p_value", "pvalue", "P"]:
-        if col in df.columns:
-            col_map[col] = "p_value"
-            break
-
-    # Gene
-    for col in ["gene_id", "gene_name", "phenotype_id"]:
-        if col in df.columns:
-            col_map[col] = "gene"
-            break
-
-    # Effect size (slope) - standardize to effect_size for plotting compatibility
-    for col in ["slope", "beta", "effect_size"]:
-        if col in df.columns:
-            col_map[col] = "effect_size"
-            break
-
-    df = df.rename(columns=col_map)
-
-    # Filter to gene if specified
-    if gene is not None and "gene" in df.columns:
-        # Match either ENSG ID or gene symbol
-        mask = df["gene"].str.contains(gene, case=False, na=False)
-        df = df[mask]
-
-    logger.debug(f"Loaded GTEx eQTL file with {len(df)} associations")
-
-    _validate_or_warn(
-        df, ["pos", "p_value", "gene"], "GTEx eQTL", validate_eqtl_dataframe
-    )
-
-    return df
+    return _load_tabular(filepath, _GTEX_SPEC, gene=gene)
 
 
 _EQTL_CATALOGUE_SPEC = LoaderSpec(
@@ -576,6 +537,29 @@ def load_matrixeqtl(
 # =============================================================================
 
 
+def _susie_cs(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Standardize SuSiE credible set: -1 or NA (not in a set) become 0."""
+    cs_col = out_cols["cs_col"]
+    if cs_col in df.columns:
+        df[cs_col] = df[cs_col].fillna(0).astype(int)
+        df.loc[df[cs_col] < 0, cs_col] = 0
+    return df
+
+
+_SUSIE_SPEC = LoaderSpec(
+    sep="\t",
+    log_fmt="Loaded SuSiE file with {n} variants",
+    col_candidates={
+        "pos": ("pos", "position", "BP", "bp", "POS"),
+        "pip": ("pip", "PIP", "posterior_prob", "prob"),
+        "cs_col": ("cs", "CS", "credible_set", "cs_index", "L"),
+        "rs": ("snp", "SNP", "variant_id", "rsid"),
+    },
+    transform=_susie_cs,
+    validate=_warn_validator(["pos", "pip"], "SuSiE", validate_finemapping_dataframe),
+)
+
+
 def load_susie(
     filepath: Union[str, Path],
     cs_col: str = "cs",
@@ -595,46 +579,7 @@ def load_susie(
         >>> fm_df = load_susie("susie_results.tsv")
         >>> fig = plotter.plot_stacked([gwas_df], ..., finemapping_df=fm_df)
     """
-    df = pd.read_csv(filepath, sep="\t")
-
-    col_map = {}
-
-    # Position
-    for col in ["pos", "position", "BP", "bp", "POS"]:
-        if col in df.columns:
-            col_map[col] = "pos"
-            break
-
-    # PIP (posterior inclusion probability)
-    for col in ["pip", "PIP", "posterior_prob", "prob"]:
-        if col in df.columns:
-            col_map[col] = "pip"
-            break
-
-    # Credible set
-    for col in ["cs", "CS", "credible_set", "cs_index", "L"]:
-        if col in df.columns:
-            col_map[col] = cs_col
-            break
-
-    # SNP ID
-    for col in ["snp", "SNP", "variant_id", "rsid"]:
-        if col in df.columns:
-            col_map[col] = "rs"
-            break
-
-    df = df.rename(columns=col_map)
-
-    # SuSiE uses -1 or NA for variants not in a credible set; standardize to 0
-    if cs_col in df.columns:
-        df[cs_col] = df[cs_col].fillna(0).astype(int)
-        df.loc[df[cs_col] < 0, cs_col] = 0
-
-    logger.debug(f"Loaded SuSiE file with {len(df)} variants")
-
-    _validate_or_warn(df, ["pos", "pip"], "SuSiE", validate_finemapping_dataframe)
-
-    return df
+    return _load_tabular(filepath, _SUSIE_SPEC, cs_col=cs_col)
 
 
 def _finemap_cs(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
