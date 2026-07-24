@@ -14,7 +14,7 @@ from .colors import PIP_LINE_COLOR, get_credible_set_color
 from .exceptions import FinemappingValidationError
 from .logging import logger
 from .utils import filter_by_region
-from .validation import DataFrameValidator
+from .validation import ColumnSpec, RangeRule, check
 
 # Required columns for fine-mapping data (default column names)
 REQUIRED_FINEMAPPING_COLS = ["pos", "pip"]
@@ -35,14 +35,15 @@ def validate_finemapping_df(
     Raises:
         FinemappingValidationError: If required columns are missing.
     """
-    (
-        DataFrameValidator(
-            df, "Fine-mapping DataFrame", error_class=FinemappingValidationError
-        )
-        .require_columns([pos_col, pip_col])
-        .require_numeric([pip_col])
-        .require_range(pip_col, min_val=0, max_val=1)
-        .validate()
+    check(
+        df,
+        ColumnSpec(
+            name="Fine-mapping DataFrame",
+            required=(pos_col, pip_col),
+            numeric=(pip_col,),
+            ranges=(RangeRule(pip_col, min_val=0, max_val=1),),
+            error_class=FinemappingValidationError,
+        ),
     )
 
 

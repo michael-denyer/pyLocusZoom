@@ -14,13 +14,7 @@ from typing import Union
 import pandas as pd
 
 from .exceptions import LoaderValidationError
-from .validation import DataFrameValidator
-
-
-def _loader_validator(df: pd.DataFrame, name: str) -> DataFrameValidator:
-    """Start a validation chain that reports as a loader failure."""
-    return DataFrameValidator(df, name, error_class=LoaderValidationError)
-
+from .validation import ColumnSpec, RangeRule, check
 
 # =============================================================================
 # GWAS Validation
@@ -45,14 +39,17 @@ def validate_gwas_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    (
-        _loader_validator(df, "GWAS")
-        .require_columns([pos_col, p_col])
-        .require_numeric([pos_col, p_col])
-        .require_not_null([pos_col, p_col])
-        .require_range(pos_col, min_val=0, exclusive_min=True)
-        .require_pvalue(p_col)
-        .validate()
+    check(
+        df,
+        ColumnSpec(
+            name="GWAS",
+            required=(pos_col, p_col),
+            numeric=(pos_col, p_col),
+            not_null=(pos_col, p_col),
+            ranges=(RangeRule(pos_col, min_val=0, exclusive_min=True),),
+            pvalue=p_col,
+            error_class=LoaderValidationError,
+        ),
     )
     return df
 
@@ -60,6 +57,16 @@ def validate_gwas_dataframe(
 # =============================================================================
 # eQTL Validation
 # =============================================================================
+
+_EQTL_SPEC = ColumnSpec(
+    name="eQTL",
+    required=("pos", "p_value", "gene"),
+    numeric=("pos", "p_value"),
+    not_null=("pos", "p_value"),
+    ranges=(RangeRule("pos", min_val=0, exclusive_min=True),),
+    pvalue="p_value",
+    error_class=LoaderValidationError,
+)
 
 
 def validate_eqtl_dataframe(
@@ -76,21 +83,25 @@ def validate_eqtl_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    (
-        _loader_validator(df, "eQTL")
-        .require_columns(["pos", "p_value", "gene"])
-        .require_numeric(["pos", "p_value"])
-        .require_not_null(["pos", "p_value"])
-        .require_range("pos", min_val=0, exclusive_min=True)
-        .require_pvalue("p_value")
-        .validate()
-    )
+    check(df, _EQTL_SPEC)
     return df
 
 
 # =============================================================================
 # Fine-mapping Validation
 # =============================================================================
+
+_FINEMAPPING_SPEC = ColumnSpec(
+    name="Fine-mapping",
+    required=("pos", "pip"),
+    numeric=("pos", "pip"),
+    not_null=("pos", "pip"),
+    ranges=(
+        RangeRule("pos", min_val=0, exclusive_min=True),
+        RangeRule("pip", min_val=0, max_val=1),
+    ),
+    error_class=LoaderValidationError,
+)
 
 
 def validate_finemapping_dataframe(
@@ -107,21 +118,23 @@ def validate_finemapping_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    (
-        _loader_validator(df, "Fine-mapping")
-        .require_columns(["pos", "pip"])
-        .require_numeric(["pos", "pip"])
-        .require_not_null(["pos", "pip"])
-        .require_range("pos", min_val=0, exclusive_min=True)
-        .require_range("pip", min_val=0, max_val=1)
-        .validate()
-    )
+    check(df, _FINEMAPPING_SPEC)
     return df
 
 
 # =============================================================================
 # Gene Annotation Validation
 # =============================================================================
+
+_GENES_SPEC = ColumnSpec(
+    name="Gene annotation",
+    required=("chr", "start", "end", "gene_name"),
+    numeric=("start", "end"),
+    not_null=("start", "end"),
+    ranges=(RangeRule("start", min_val=0),),
+    ordering=(("start", "end"),),
+    error_class=LoaderValidationError,
+)
 
 
 def validate_genes_dataframe(
@@ -138,15 +151,7 @@ def validate_genes_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    (
-        _loader_validator(df, "Gene annotation")
-        .require_columns(["chr", "start", "end", "gene_name"])
-        .require_numeric(["start", "end"])
-        .require_not_null(["start", "end"])
-        .require_range("start", min_val=0)
-        .require_ordering("start", "end")
-        .validate()
-    )
+    check(df, _GENES_SPEC)
     return df
 
 
