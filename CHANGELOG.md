@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Internal: deduplicated shared drawing logic across three modules; no behavior change.** A Miami plot is a mirrored Manhattan, so the single/stacked Manhattan renderer (`_rendering.py`) and the Miami renderer (`_miami_renderer.py`) now share their per-chromosome scatter loop, y-limit padding, and cumulative-position x-limit padding through a new `_manhattan_panel.py`. In `colors.py` the credible-set and PheWAS colour functions route their cyclic palette indexing through one `_cyclic_color` helper (credible sets keep their 1-based `cs_id - 1` offset and `< 1` guard; PheWAS keeps its 0-based index). In `plotter.py`, `plot` and `plot_stacked` build the LD-heatmap and gene-track panels through shared `_build_heatmap_panel` and `_build_gene_panel` helpers. Public API and rendered output are unchanged.
+
 ## [2.0.0] - 2026-07-21
 
 ### Changed
