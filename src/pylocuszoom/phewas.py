@@ -6,7 +6,7 @@ Validates and prepares phenome-wide association study data for plotting.
 import pandas as pd
 
 from .exceptions import PheWASValidationError
-from .validation import DataFrameValidator
+from .validation import ColumnSpec, check
 
 
 def validate_phewas_df(
@@ -26,11 +26,14 @@ def validate_phewas_df(
     Raises:
         PheWASValidationError: If required columns are missing or have invalid types.
     """
-    (
-        DataFrameValidator(df, "PheWAS DataFrame", error_class=PheWASValidationError)
-        .require_columns([phenotype_col, p_col])
-        .require_numeric([p_col])
-        .require_not_null([p_col])
-        .require_pvalue(p_col)
-        .validate()
+    check(
+        df,
+        ColumnSpec(
+            name="PheWAS DataFrame",
+            required=(phenotype_col, p_col),
+            numeric=(p_col,),
+            not_null=(p_col,),
+            pvalue=p_col,
+            error_class=PheWASValidationError,
+        ),
     )

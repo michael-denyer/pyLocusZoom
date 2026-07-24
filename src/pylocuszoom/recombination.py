@@ -8,7 +8,6 @@ Provides:
 
 import os
 import shutil
-import sys
 import tarfile
 import tempfile
 import uuid
@@ -21,7 +20,7 @@ from tqdm import tqdm
 
 from ._liftover import PyLiftOverLifter, liftover_positions
 from .logging import logger
-from .utils import filter_by_region
+from .utils import _platform_cache_base, filter_by_region
 
 # Recombination overlay color
 RECOMB_COLOR = "#7FCDFF"  # Light blue
@@ -211,24 +210,13 @@ def liftover_recombination_map(
 def get_default_data_dir() -> Path:
     """Get default directory for recombination map data.
 
-    Returns platform-appropriate cache directory:
-    - macOS/Linux: ~/.cache/pylocuszoom (or $XDG_CACHE_HOME if set)
-    - Windows: %LOCALAPPDATA%/pylocuszoom
+    Returns the shared platform cache root (see ``_platform_cache_base``) with
+    the ``recombination_maps`` leaf appended:
+    - macOS/Linux: ~/.cache/pylocuszoom/recombination_maps (or $XDG_CACHE_HOME)
+    - Windows: %LOCALAPPDATA%/pylocuszoom/recombination_maps
     - Databricks: /dbfs/FileStore/reference_data/recombination_maps
     """
-    if sys.platform == "win32":  # Windows
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
-    elif os.path.exists("/dbfs"):  # Databricks
-        return Path("/dbfs/FileStore/reference_data/recombination_maps")
-    else:
-        # macOS and Linux
-        xdg_cache = os.environ.get("XDG_CACHE_HOME")
-        if xdg_cache:
-            base = Path(xdg_cache)
-        else:
-            base = Path.home() / ".cache"
-
-    return base / "pylocuszoom" / "recombination_maps"
+    return _platform_cache_base() / "recombination_maps"
 
 
 def _has_complete_canine_maps(path: Path) -> bool:

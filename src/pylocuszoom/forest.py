@@ -6,7 +6,7 @@ Validates and prepares meta-analysis/forest plot data for visualization.
 import pandas as pd
 
 from .exceptions import ForestValidationError
-from .validation import DataFrameValidator
+from .validation import ColumnSpec, check
 
 
 def validate_forest_df(
@@ -28,14 +28,17 @@ def validate_forest_df(
     Raises:
         ForestValidationError: If required columns are missing or have invalid types.
     """
-    (
-        DataFrameValidator(
-            df, "Forest plot DataFrame", error_class=ForestValidationError
-        )
-        .require_columns([study_col, effect_col, ci_lower_col, ci_upper_col])
-        .require_numeric([effect_col, ci_lower_col, ci_upper_col])
-        .require_ordering(ci_lower_col, effect_col)
-        .require_ordering(effect_col, ci_upper_col)
-        .require_ordering(ci_lower_col, ci_upper_col)
-        .validate()
+    check(
+        df,
+        ColumnSpec(
+            name="Forest plot DataFrame",
+            required=(study_col, effect_col, ci_lower_col, ci_upper_col),
+            numeric=(effect_col, ci_lower_col, ci_upper_col),
+            ordering=(
+                (ci_lower_col, effect_col),
+                (effect_col, ci_upper_col),
+                (ci_lower_col, ci_upper_col),
+            ),
+            error_class=ForestValidationError,
+        ),
     )

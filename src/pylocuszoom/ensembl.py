@@ -9,9 +9,8 @@ Use species-specific recombination maps instead (see recombination.py).
 """
 
 import hashlib
-import os
-import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
@@ -19,7 +18,7 @@ import requests
 
 from .exceptions import ValidationError
 from .logging import logger
-from .utils import normalize_chrom
+from .utils import _platform_cache_base, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
@@ -108,19 +107,15 @@ def get_ensembl_species_name(species: str) -> str:
 def get_ensembl_cache_dir() -> Path:
     """Get the cache directory for Ensembl data.
 
-    Uses same base location as recombination maps: ~/.cache/pylocuszoom/ensembl
+    Shares the platform cache root with recombination maps
+    (see ``utils._platform_cache_base``) and appends the ``ensembl`` leaf, so
+    ``$XDG_CACHE_HOME`` is honored on macOS and Linux and Databricks routes to
+    ``/dbfs/FileStore/reference_data/ensembl``.
 
     Returns:
         Path to cache directory (created if doesn't exist).
     """
-    if sys.platform == "darwin":
-        base = Path.home() / ".cache"
-    elif sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-
-    cache_dir = base / "pylocuszoom" / "ensembl"
+    cache_dir = _platform_cache_base() / "ensembl"
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -205,21 +200,22 @@ def _make_ensembl_request(
     url: str,
     params: dict,
     max_retries: int = ENSEMBL_MAX_RETRIES,
-    raise_on_error: bool = False,
-) -> list | None:
+) -> list:
     """Make request to Ensembl API with retry logic.
+
+    Always raises on failure; callers that want an empty result instead
+    translate ValidationError at their boundary.
 
     Args:
         url: API endpoint URL.
         params: Query parameters.
         max_retries: Maximum retry attempts for retryable errors.
-        raise_on_error: If True, raise exception on error instead of returning None.
 
     Returns:
-        JSON response as list, or None on non-retryable error.
+        JSON response as list.
 
     Raises:
-        ValidationError: If raise_on_error=True and request fails.
+        ValidationError: If the request ultimately fails.
     """
     delay = ENSEMBL_RETRY_DELAY
 
@@ -237,11 +233,9 @@ def _make_ensembl_request(
                 time.sleep(delay)
                 delay *= 2
                 continue
-            if raise_on_error:
-                raise ValidationError(
-                    f"Ensembl API request failed after {max_retries} attempts: {e}"
-                )
-            return None
+            raise ValidationError(
+                f"Ensembl API request failed after {max_retries} attempts: {e}"
+            )
 
         # Success
         if response.ok:
@@ -249,9 +243,7 @@ def _make_ensembl_request(
                 return response.json()
             except (ValueError, requests.exceptions.JSONDecodeError) as e:
                 logger.warning(f"Ensembl API returned invalid JSON: {e}")
-                if raise_on_error:
-                    raise ValidationError(f"Ensembl API returned invalid JSON: {e}")
-                return None
+                raise ValidationError(f"Ensembl API returned invalid JSON: {e}")
 
         # Retryable errors (429 rate limit, 503 service unavailable)
         if response.status_code in (429, 503) and attempt < max_retries - 1:
@@ -266,16 +258,100 @@ def _make_ensembl_request(
         # Non-retryable error
         error_msg = f"Ensembl API error {response.status_code}: {response.text[:200]}"
         logger.warning(error_msg)
-        if raise_on_error:
-            raise ValidationError(error_msg)
-        return None
+        raise ValidationError(error_msg)
 
     # All retries exhausted (e.g., repeated 429/503 responses)
-    if raise_on_error:
-        raise ValidationError(
-            f"Ensembl API request failed after {max_retries} attempts (rate limited)"
-        )
-    return None
+    raise ValidationError(
+        f"Ensembl API request failed after {max_retries} attempts (rate limited)"
+    )
+
+
+def _gene_record(feature: dict, chrom_str: str) -> dict:
+    """Build a gene DataFrame row from an Ensembl overlap feature."""
+    return {
+        "chr": str(feature.get("seq_region_name", chrom_str)),
+        "start": feature.get("start"),
+        "end": feature.get("end"),
+        "gene_name": feature.get("external_name", feature.get("id", "")),
+        "strand": "+" if feature.get("strand", 1) == 1 else "-",
+        "gene_id": feature.get("id", ""),
+        "biotype": feature.get("biotype", ""),
+    }
+
+
+def _exon_record(feature: dict, chrom_str: str) -> dict:
+    """Build an exon DataFrame row from an Ensembl overlap feature."""
+    return {
+        "chr": str(feature.get("seq_region_name", chrom_str)),
+        "start": feature.get("start"),
+        "end": feature.get("end"),
+        "gene_name": "",  # Exon endpoint doesn't include gene name
+        "exon_id": feature.get("id", ""),
+        "transcript_id": feature.get("Parent", ""),
+    }
+
+
+def _fetch_overlap_features(
+    species: str,
+    chrom: str | int,
+    start: int,
+    end: int,
+    *,
+    params: dict,
+    feature_type: str,
+    record_builder: Callable[[dict, str], dict],
+    raise_on_error: bool = False,
+) -> pd.DataFrame:
+    """Fetch features from the Ensembl overlap/region endpoint.
+
+    Shared by fetch_genes_from_ensembl and fetch_exons_from_ensembl, which differ
+    only in the request params, the feature_type they keep, and how each feature
+    maps to a DataFrame row (record_builder).
+
+    Args:
+        species: Species name or alias.
+        chrom: Chromosome name or number.
+        start: Region start position (1-based).
+        end: Region end position (1-based).
+        params: Query parameters for the overlap request.
+        feature_type: Ensembl feature_type to keep (e.g. "gene", "exon").
+        record_builder: Maps a kept feature and chrom to a DataFrame row.
+        raise_on_error: If True, raise ValidationError on API errors.
+
+    Returns:
+        DataFrame of built records; empty on API error or an empty region.
+
+    Raises:
+        ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
+    """
+    _validate_region_size(start, end, f"{feature_type}s_df")
+
+    ensembl_species = get_ensembl_species_name(species)
+    chrom_str = normalize_chrom(chrom)
+    region = f"{chrom_str}:{start}-{end}"
+    url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
+
+    logger.debug(f"Fetching {feature_type}s from Ensembl: {url}")
+
+    try:
+        data = _make_ensembl_request(url, params)
+    except ValidationError:
+        if raise_on_error:
+            raise
+        return pd.DataFrame()
+
+    if not data:
+        logger.debug(f"No {feature_type}s found in region {region}")
+        return pd.DataFrame()
+
+    records = [
+        record_builder(feature, chrom_str)
+        for feature in data
+        if feature.get("feature_type") == feature_type
+    ]
+    df = pd.DataFrame(records)
+    logger.debug(f"Fetched {len(df)} {feature_type}s from Ensembl")
+    return df
 
 
 def fetch_genes_from_ensembl(
@@ -303,49 +379,16 @@ def fetch_genes_from_ensembl(
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
     """
-    _validate_region_size(start, end, "genes_df")
-
-    ensembl_species = get_ensembl_species_name(species)
-    chrom_str = normalize_chrom(chrom)
-
-    # Build region string
-    region = f"{chrom_str}:{start}-{end}"
-
-    # Build API URL
-    url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
-    params = {"feature": "gene", "biotype": biotype}
-
-    logger.debug(f"Fetching genes from Ensembl: {url}")
-
-    data = _make_ensembl_request(url, params, raise_on_error=raise_on_error)
-
-    if data is None:
-        return pd.DataFrame()
-
-    if not data:
-        logger.debug(f"No genes found in region {region}")
-        return pd.DataFrame()
-
-    # Convert to DataFrame
-    records = []
-    for gene in data:
-        if gene.get("feature_type") != "gene":
-            continue
-        records.append(
-            {
-                "chr": str(gene.get("seq_region_name", chrom_str)),
-                "start": gene.get("start"),
-                "end": gene.get("end"),
-                "gene_name": gene.get("external_name", gene.get("id", "")),
-                "strand": "+" if gene.get("strand", 1) == 1 else "-",
-                "gene_id": gene.get("id", ""),
-                "biotype": gene.get("biotype", ""),
-            }
-        )
-
-    df = pd.DataFrame(records)
-    logger.debug(f"Fetched {len(df)} genes from Ensembl")
-    return df
+    return _fetch_overlap_features(
+        species,
+        chrom,
+        start,
+        end,
+        params={"feature": "gene", "biotype": biotype},
+        feature_type="gene",
+        record_builder=_gene_record,
+        raise_on_error=raise_on_error,
+    )
 
 
 def fetch_exons_from_ensembl(
@@ -371,43 +414,16 @@ def fetch_exons_from_ensembl(
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
     """
-    _validate_region_size(start, end, "exons_df")
-
-    ensembl_species = get_ensembl_species_name(species)
-    chrom_str = normalize_chrom(chrom)
-    region = f"{chrom_str}:{start}-{end}"
-
-    url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
-    params = {"feature": "exon"}
-
-    logger.debug(f"Fetching exons from Ensembl: {url}")
-
-    data = _make_ensembl_request(url, params, raise_on_error=raise_on_error)
-
-    if data is None:
-        return pd.DataFrame()
-
-    if not data:
-        return pd.DataFrame()
-
-    records = []
-    for exon in data:
-        if exon.get("feature_type") != "exon":
-            continue
-        records.append(
-            {
-                "chr": str(exon.get("seq_region_name", chrom_str)),
-                "start": exon.get("start"),
-                "end": exon.get("end"),
-                "gene_name": "",  # Exon endpoint doesn't include gene name
-                "exon_id": exon.get("id", ""),
-                "transcript_id": exon.get("Parent", ""),
-            }
-        )
-
-    df = pd.DataFrame(records)
-    logger.debug(f"Fetched {len(df)} exons from Ensembl")
-    return df
+    return _fetch_overlap_features(
+        species,
+        chrom,
+        start,
+        end,
+        params={"feature": "exon"},
+        feature_type="exon",
+        record_builder=_exon_record,
+        raise_on_error=raise_on_error,
+    )
 
 
 def get_genes_for_region(
