@@ -1,12 +1,81 @@
-"""Hover data builder for consistent hover tooltip generation.
+"""Hover data and tooltip construction for the interactive backends.
 
-Provides a unified interface for building hover data across Plotly and Bokeh backends.
+``HoverDataBuilder`` turns a caller's column mapping into a display-named hover
+DataFrame. ``plotly_hovertemplate`` and ``bokeh_tooltips`` turn that DataFrame
+into each backend's native tooltip spec, so the column-name-to-number-format
+heuristic is owned here rather than re-derived inside every ``scatter``.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import pandas as pd
+
+# Display-name substrings mapped to the number format each backend wants.
+# Checked in order: an exact p-value name, then any r^2/LD hint, then position.
+_PLOTLY_FORMATS = {"p_value": ".2e", "r2": ".3f", "position": ",.0f"}
+_BOKEH_FORMATS = {"p_value": "0.2e", "r2": "0.3f", "position": "0,0"}
+
+_P_VALUE_NAMES = ("p-value", "pval", "p_value")
+_R2_HINTS = ("r2", "r²", "ld")
+
+
+def _format_key(col_name: str) -> Optional[str]:
+    """Classify a hover column by display name, or None for default format."""
+    col_lower = col_name.lower()
+    if col_lower in _P_VALUE_NAMES:
+        return "p_value"
+    if any(hint in col_lower for hint in _R2_HINTS):
+        return "r2"
+    if "pos" in col_lower:
+        return "position"
+    return None
+
+
+def plotly_hovertemplate(hover_df: pd.DataFrame) -> str:
+    """Build a Plotly hovertemplate over ``hover_df`` as customdata.
+
+    The first column is rendered bold and unformatted; it is the SNP identifier
+    by ``HoverDataBuilder`` convention. Later columns get the format their
+    display name implies.
+
+    Args:
+        hover_df: DataFrame returned by ``HoverDataBuilder.build_dataframe``.
+
+    Returns:
+        Plotly hovertemplate string referencing ``customdata`` by position.
+    """
+    parts = []
+    for i, col in enumerate(hover_df.columns):
+        if i == 0:
+            parts.append(f"<b>%{{customdata[{i}]}}</b>")
+            continue
+        key = _format_key(col)
+        spec = f":{_PLOTLY_FORMATS[key]}" if key else ""
+        parts.append(f"{col}: %{{customdata[{i}]{spec}}}")
+    parts.append("<extra></extra>")
+    return "<br>".join(parts)
+
+
+def bokeh_tooltips(
+    hover_df: pd.DataFrame, key_prefix: str = ""
+) -> List[Tuple[str, str]]:
+    """Build Bokeh ``HoverTool`` tooltips over ``hover_df``.
+
+    Args:
+        hover_df: DataFrame returned by ``HoverDataBuilder.build_dataframe``.
+        key_prefix: Prefix applied to each ``ColumnDataSource`` key, letting a
+            caller namespace hover columns away from its own keys.
+
+    Returns:
+        List of ``(display_name, field_reference)`` tuples.
+    """
+    tooltips = []
+    for col in hover_df.columns:
+        key = _format_key(col)
+        spec = f"{{{_BOKEH_FORMATS[key]}}}" if key else ""
+        tooltips.append((col, f"@{{{key_prefix}{col}}}{spec}"))
+    return tooltips
 
 
 @dataclass
@@ -31,20 +100,11 @@ class HoverConfig:
 
 
 class HoverDataBuilder:
-    """Builder for constructing hover data and templates across backends.
+    """Builder for the display-named hover DataFrame a backend renders.
 
-    Provides consistent hover tooltip generation for Plotly and Bokeh backends
-    with automatic format detection for common column types.
-
-    Attributes:
-        FORMAT_SPECS: Format specifiers for different data types.
+    Holds one ``HoverConfig`` so a caller can build hover data for several
+    frames (all points, then the lead SNP) under the same column mapping.
     """
-
-    FORMAT_SPECS = {
-        "p_value": ".2e",
-        "r2": ".3f",
-        "position": ",.0f",
-    }
 
     # Standard column mappings (source config attr -> display name)
     _COLUMN_MAPPING = {
@@ -92,107 +152,3 @@ class HoverDataBuilder:
             return None
 
         return pd.DataFrame(result_data)
-
-    def build_plotly_template(self, hover_df: pd.DataFrame) -> str:
-        """Generate Plotly hovertemplate string.
-
-        Creates a template string with appropriate format specifiers for each
-        column type. SNP appears first in bold, followed by other columns with
-        their values.
-
-        Args:
-            hover_df: DataFrame returned by build_dataframe().
-
-        Returns:
-            Plotly hovertemplate string with customdata references.
-        """
-        columns = hover_df.columns.tolist()
-        parts = []
-
-        for i, col in enumerate(columns):
-            if i == 0:
-                # First column (SNP) in bold
-                parts.append(f"<b>%{{customdata[{i}]}}</b>")
-            else:
-                fmt = self._detect_plotly_format(col)
-                if fmt:
-                    parts.append(f"{col}: %{{customdata[{i}]:{fmt}}}")
-                else:
-                    parts.append(f"{col}: %{{customdata[{i}]}}")
-
-        parts.append("<extra></extra>")
-        return "<br>".join(parts)
-
-    def build_bokeh_tooltips(self, hover_df: pd.DataFrame) -> list[tuple[str, str]]:
-        """Generate Bokeh tooltips list.
-
-        Creates a list of (name, format) tuples for Bokeh HoverTool configuration.
-        Each tuple contains the display name and the Bokeh format string with
-        appropriate specifiers.
-
-        Args:
-            hover_df: DataFrame returned by build_dataframe().
-
-        Returns:
-            List of (name, format_string) tuples for Bokeh tooltips.
-        """
-        tooltips = []
-
-        for col in hover_df.columns:
-            fmt = self._detect_bokeh_format(col)
-            if fmt:
-                tooltips.append((col, f"@{{{col}}}{{{fmt}}}"))
-            else:
-                tooltips.append((col, f"@{col}"))
-
-        return tooltips
-
-    def _detect_plotly_format(self, col_name: str) -> Optional[str]:
-        """Detect appropriate Plotly format specifier for column.
-
-        Uses heuristics based on column name to determine formatting:
-        - P-value columns: scientific notation (.2e)
-        - R²/LD columns: 3 decimal places (.3f)
-        - Position columns: comma-separated (.0f)
-
-        Args:
-            col_name: Display name of the column.
-
-        Returns:
-            Plotly format specifier string, or None for default format.
-        """
-        col_lower = col_name.lower()
-
-        if col_lower in ("p-value", "pval", "p_value"):
-            return self.FORMAT_SPECS["p_value"]
-        elif any(x in col_lower for x in ("r2", "r²", "ld")):
-            return self.FORMAT_SPECS["r2"]
-        elif "pos" in col_lower:
-            return self.FORMAT_SPECS["position"]
-
-        return None
-
-    def _detect_bokeh_format(self, col_name: str) -> Optional[str]:
-        """Detect appropriate Bokeh format code for column.
-
-        Uses heuristics based on column name to determine formatting:
-        - P-value columns: scientific notation (0.2e)
-        - R²/LD columns: 3 decimal places (0.3f)
-        - Position columns: comma-separated (0,0)
-
-        Args:
-            col_name: Display name of the column.
-
-        Returns:
-            Bokeh format code string, or None for default format.
-        """
-        col_lower = col_name.lower()
-
-        if col_lower in ("p-value", "pval", "p_value"):
-            return "0.2e"
-        elif any(x in col_lower for x in ("r2", "r²", "ld")):
-            return "0.3f"
-        elif "pos" in col_lower:
-            return "0,0"
-
-        return None

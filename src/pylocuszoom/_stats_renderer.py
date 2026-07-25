@@ -5,7 +5,7 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .backends.base import PlotBackend
+from .backends.base import PlotBackend, SupportsBarCharts
 from .colors import get_phewas_category_palette
 
 
@@ -114,6 +114,11 @@ class StatsRenderer:
         effect_label: str,
         figsize: Tuple[float, float],
     ) -> Any:
+        if not isinstance(self._backend, SupportsBarCharts):
+            raise TypeError(
+                f"{type(self._backend).__name__} does not support error bars. "
+                "A forest plot needs a backend implementing SupportsBarCharts."
+            )
         df = df.copy()
         df["y_pos"] = range(len(df) - 1, -1, -1)
         if weight_col and weight_col in df.columns:

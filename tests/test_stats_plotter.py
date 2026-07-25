@@ -265,3 +265,40 @@ class TestStatsPlotterInit:
         pytest.importorskip("bokeh")
         plotter = StatsPlotter(backend="bokeh")
         assert plotter._backend is not None
+
+
+class TestBarChartCapabilityGate:
+    """Forest plots need error bars; PheWAS plots do not."""
+
+    @staticmethod
+    def _forest_df():
+        return pd.DataFrame(
+            {
+                "study": ["A", "B"],
+                "beta": [0.1, 0.2],
+                "ci_lower": [0.0, 0.1],
+                "ci_upper": [0.2, 0.3],
+            }
+        )
+
+    def test_forest_rejects_backend_without_error_bars(self):
+        from pylocuszoom._stats_renderer import StatsRenderer
+
+        class BarelyABackend:
+            pass
+
+        renderer = StatsRenderer(BarelyABackend())
+
+        with pytest.raises(TypeError, match="does not support error bars"):
+            renderer.render_forest(
+                self._forest_df(),
+                variant_id="rs1",
+                study_col="study",
+                effect_col="beta",
+                ci_lower_col="ci_lower",
+                ci_upper_col="ci_upper",
+                weight_col=None,
+                null_value=0.0,
+                effect_label="Beta",
+                figsize=(6.0, 4.0),
+            )

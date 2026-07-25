@@ -14,6 +14,7 @@ import pandas as pd
 
 from .backends.base import (
     PlotBackend,
+    SupportsHeatmap,
     SupportsSecondaryAxis,
     SupportsSNPLabels,
 )
@@ -361,6 +362,12 @@ class RegionalPlotComposer:
         end: int,
     ) -> None:
         """Render an LD heatmap panel in genomic coordinates."""
+        if not isinstance(self._backend, SupportsHeatmap):
+            logger.debug(
+                "Skipping heatmap: {} does not support heatmaps",
+                type(self._backend).__name__,
+            )
+            return
         n_snps = len(snp_ids)
         if n_snps < 2:
             logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")

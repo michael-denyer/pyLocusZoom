@@ -12,7 +12,8 @@ from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
 from bokeh.plotting import figure
 
 from . import convert_latex_to_unicode, register_backend
-from .composition import LegendEntry
+from .composition import LegendEntry, heatmap_highlight_cells
+from .hover import bokeh_tooltips
 
 # Style mappings (matplotlib -> Bokeh)
 _MARKER_MAP = {
@@ -43,6 +44,9 @@ _DASH_MAP = {
     ":": "dotted",
     "-.": "dashdot",
 }
+# Namespaces hover columns in a ColumnDataSource so a hover column named "x"
+# or "size" cannot shadow the keys scatter() sets for geometry and styling.
+_HOVER_KEY_PREFIX = "hover_"
 
 
 @register_backend("bokeh")
@@ -214,17 +218,8 @@ class BokehBackend:
         tooltips = []
         if hover_data is not None:
             for col in hover_data.columns:
-                safe_key = f"hover_{col}"
-                data[safe_key] = hover_data[col].values
-                col_lower = col.lower()
-                if col_lower in ("p-value", "pval", "p_value"):
-                    tooltips.append((col, "@{" + safe_key + "}{0.2e}"))
-                elif any(kw in col_lower for kw in ("r2", "r²", "ld")):
-                    tooltips.append((col, "@{" + safe_key + "}{0.3f}"))
-                elif "pos" in col_lower:
-                    tooltips.append((col, "@{" + safe_key + "}{0,0}"))
-                else:
-                    tooltips.append((col, f"@{{{safe_key}}}"))
+                data[f"{_HOVER_KEY_PREFIX}{col}"] = hover_data[col].values
+            tooltips = bokeh_tooltips(hover_data, key_prefix=_HOVER_KEY_PREFIX)
 
         source = ColumnDataSource(data)
 
@@ -292,22 +287,11 @@ class BokehBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
-        # Convert to arrays
         x_arr = x.values
-        if isinstance(y1, (int, float)):
-            y1_arr = [y1] * len(x_arr)
-        else:
-            y1_arr = y1.values if hasattr(y1, "values") else list(y1)
-
-        if isinstance(y2, (int, float)):
-            y2_arr = [y2] * len(x_arr)
-        else:
-            y2_arr = y2.values if hasattr(y2, "values") else list(y2)
-
         return ax.varea(
             x=x_arr,
-            y1=y1_arr,
-            y2=y2_arr,
+            y1=_broadcast(y1, len(x_arr)),
+            y2=_broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
         )
@@ -434,13 +418,13 @@ class BokehBackend:
 
     def set_xlabel(self, ax: figure, label: str, fontsize: int = 12) -> None:
         """Set x-axis label."""
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         ax.xaxis.axis_label = label
         ax.xaxis.axis_label_text_font_size = f"{fontsize}pt"
 
     def set_ylabel(self, ax: figure, label: str, fontsize: int = 12) -> None:
         """Set y-axis label."""
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         ax.yaxis.axis_label = label
         ax.yaxis.axis_label_text_font_size = f"{fontsize}pt"
 
@@ -475,10 +459,6 @@ class BokehBackend:
         ax.xaxis.major_label_text_font_size = f"{fontsize}pt"
         if rotation:
             ax.xaxis.major_label_orientation = math.radians(rotation)
-
-    def _convert_label(self, label: str) -> str:
-        """Convert LaTeX-style labels to Unicode for Bokeh display."""
-        return convert_latex_to_unicode(label)
 
     def set_title(self, ax: figure, title: str, fontsize: int = 14) -> None:
         """Set figure title."""
@@ -558,20 +538,10 @@ class BokehBackend:
         """Fill area between two y-values on secondary y-axis."""
         ax, yaxis_name = secondary
         x_arr = x.values
-        if isinstance(y1, (int, float)):
-            y1_arr = [y1] * len(x_arr)
-        else:
-            y1_arr = y1.values if hasattr(y1, "values") else list(y1)
-
-        if isinstance(y2, (int, float)):
-            y2_arr = [y2] * len(x_arr)
-        else:
-            y2_arr = y2.values if hasattr(y2, "values") else list(y2)
-
         return ax.varea(
             x=x_arr,
-            y1=y1_arr,
-            y2=y2_arr,
+            y1=_broadcast(y1, len(x_arr)),
+            y2=_broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
             y_range_name=yaxis_name,
@@ -598,7 +568,7 @@ class BokehBackend:
     ) -> None:
         """Set secondary y-axis label."""
         ax, yaxis_name = secondary
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         # Find the secondary axis and update its label
         for renderer in ax.right:
             if (
@@ -939,35 +909,20 @@ class BokehBackend:
             color: Highlight color.
             linewidth: Line width for highlight rectangles.
         """
-        if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
-            raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
-
-        # Collect all highlight cell coordinates, then draw in batched calls
-        xs = []
-        ys = []
-
-        # Row highlights (lower triangle: columns 0..snp_idx)
-        for j in range(snp_idx + 1):
-            xs.append(j)
-            ys.append(snp_idx)
-
-        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
-        for i in range(snp_idx + 1, n_snps):
-            xs.append(snp_idx)
-            ys.append(i)
-
-        if xs:
-            source = ColumnDataSource(data={"x": xs, "y": ys})
-            ax.rect(
-                x="x",
-                y="y",
-                width=1,
-                height=1,
-                fill_alpha=0,
-                line_color=color,
-                line_width=linewidth,
-                source=source,
-            )
+        cells = heatmap_highlight_cells(snp_idx, n_snps)
+        source = ColumnDataSource(
+            data={"x": [x for x, _ in cells], "y": [y for _, y in cells]}
+        )
+        ax.rect(
+            x="x",
+            y="y",
+            width=1,
+            height=1,
+            fill_alpha=0,
+            line_color=color,
+            line_width=linewidth,
+            source=source,
+        )
 
     def add_heatmap(
         self,
@@ -1101,6 +1056,18 @@ class BokehBackend:
         )
         ax.add_layout(color_bar, "right")
         return color_bar
+
+
+def _broadcast(value: Union[float, pd.Series, List[Any]], n: int) -> Any:
+    """Repeat a scalar varea bound across ``n`` items, or pass a sequence through.
+
+    A pandas Series is handed over as its ndarray rather than a list. Bokeh
+    packs an ndarray into the document as base64 and a list as plain JSON, so
+    materializing it would inflate every exported HTML carrying a filled band.
+    """
+    if isinstance(value, (int, float)):
+        return [value] * n
+    return value.values if hasattr(value, "values") else list(value)
 
 
 def _parse_color_to_rgb(color: str) -> Tuple[int, int, int]:

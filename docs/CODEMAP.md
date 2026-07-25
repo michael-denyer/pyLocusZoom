@@ -39,7 +39,7 @@ flowchart TB
         MB["MatplotlibBackend<br/><small>4b</small>"]
         PB["PlotlyBackend<br/><small>4c</small>"]
         BB["BokehBackend<br/><small>4d</small>"]
-        HV["HoverDataBuilder<br/><small>4e</small>"]
+        HV["hover builders<br/><small>4e</small>"]
         CMP["composition<br/><small>4f</small>"]
     end
 
@@ -214,20 +214,24 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 4a | PlotBackend | Protocol defining required methods | [base.py](../src/pylocuszoom/backends/base.py) |
-| 4a | SupportsRegionHighlight, SupportsSNPLabels, SupportsSecondaryAxis | Optional `@runtime_checkable` capabilities, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
+| 4a | SupportsRegionHighlight, SupportsSNPLabels, SupportsSecondaryAxis, SupportsHeatmap, SupportsBarCharts | Optional `@runtime_checkable` capabilities, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
 | 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
 | 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
-| 4e | HoverDataBuilder | Uniform hover tooltip construction | [hover.py](../src/pylocuszoom/backends/hover.py) |
-| 4f | composition | Legend and recombination-overlay composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
+| 4e | hover | `HoverDataBuilder` plus the shared `plotly_hovertemplate` / `bokeh_tooltips` builders | [hover.py](../src/pylocuszoom/backends/hover.py) |
+| 4f | composition | Legend, recombination-overlay, and heatmap-highlight composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
 
 ### Backend Capabilities
 
-| Backend | Static Export | Hover | Recomb Overlay | Region Highlight | SNP Labels |
-|---------|---------------|-------|----------------|------------------|------------|
-| matplotlib | PNG/PDF/SVG | ❌ | ✅ | ✅ | ✅ (adjustText) |
-| plotly | HTML | ✅ | ✅ | ✅ | ❌ |
-| bokeh | HTML | ✅ | ✅ | ✅ | ❌ |
+| Backend | Static Export | Hover | Recomb Overlay | Region Highlight | SNP Labels | Heatmap | Bar Charts |
+|---------|---------------|-------|----------------|------------------|------------|---------|------------|
+| matplotlib | PNG/PDF/SVG | ❌ | ✅ | ✅ | ✅ (adjustText) | ✅ | ✅ |
+| plotly | HTML | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| bokeh | HTML | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+
+Every column except Static Export and Hover is an optional `@runtime_checkable`
+capability. A custom backend opts in by implementing the methods and out by
+omitting them; see [ARCHITECTURE.md](ARCHITECTURE.md#optional-capabilities-in-21).
 
 ---
 
@@ -325,16 +329,33 @@ classDiagram
         +line_secondary()
         +fill_between_secondary()
     }
+    class SupportsHeatmap {
+        <<Protocol>>
+        +add_heatmap()
+        +add_colorbar()
+        +highlight_heatmap_snp()
+    }
+    class SupportsBarCharts {
+        <<Protocol>>
+        +hbar()
+        +errorbar_h()
+    }
     class composition {
         <<module>>
         +LegendEntry
         +ld_legend_entries()
         +render_recombination_overlay()
+        +heatmap_highlight_cells()
+    }
+    class hover {
+        <<module>>
+        +HoverDataBuilder
+        +plotly_hovertemplate()
+        +bokeh_tooltips()
     }
     class MatplotlibBackend
     class PlotlyBackend
     class BokehBackend
-    class HoverDataBuilder
 
     PlotBackend <|.. MatplotlibBackend
     PlotBackend <|.. PlotlyBackend
@@ -342,15 +363,25 @@ classDiagram
     SupportsSecondaryAxis <|.. MatplotlibBackend
     SupportsSecondaryAxis <|.. PlotlyBackend
     SupportsSecondaryAxis <|.. BokehBackend
+    SupportsHeatmap <|.. MatplotlibBackend
+    SupportsHeatmap <|.. PlotlyBackend
+    SupportsHeatmap <|.. BokehBackend
+    SupportsBarCharts <|.. MatplotlibBackend
+    SupportsBarCharts <|.. PlotlyBackend
+    SupportsBarCharts <|.. BokehBackend
     composition ..> PlotBackend : drives primitives
-    PlotlyBackend ..> HoverDataBuilder : uses
-    BokehBackend ..> HoverDataBuilder : uses
+    PlotlyBackend ..> hover : uses
+    BokehBackend ..> hover : uses
 
     style PlotBackend fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style SupportsSecondaryAxis fill:#0277bd,stroke:#4fc3f7,color:#ffffff
+    style SupportsHeatmap fill:#0277bd,stroke:#4fc3f7,color:#ffffff
+    style SupportsBarCharts fill:#0277bd,stroke:#4fc3f7,color:#ffffff
     style MatplotlibBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style PlotlyBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style BokehBackend fill:#ad1457,stroke:#f06292,color:#ffffff
-    style HoverDataBuilder fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+    style composition fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+    style hover fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
 ```
 
 ---

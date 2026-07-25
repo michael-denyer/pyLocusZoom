@@ -300,3 +300,31 @@ method to key on.
 No compatibility shim is provided. See
 [ADR-0004](adr/0004-complete-rendering-seam-and-capability-protocols.md) for the
 reasoning.
+
+### Optional capabilities in 2.1
+
+Two more clusters left `PlotBackend` in 2.1, following the same rule
+([ADR-0005](adr/0005-heatmap-and-bar-chart-capability-protocols.md)):
+
+| Protocol | Methods | Used by |
+|----------|---------|---------|
+| `SupportsHeatmap` | `add_heatmap`, `add_colorbar`, `highlight_heatmap_snp` | LD heatmaps (standalone and the regional heatmap panel) |
+| `SupportsBarCharts` | `hbar`, `errorbar_h` | Forest plots |
+
+Signatures are unchanged, so a 2.0 backend that implements all five needs no
+edits: it satisfies both new protocols structurally. A backend that implements
+none of the five optional capabilities still renders every regional, Manhattan,
+Miami, colocalisation, and PheWAS plot.
+
+How a caller reacts to a missing capability depends on what is left without it.
+`RegionalPlotComposer.render_heatmap_panel` skips the panel with a debug log,
+because the rest of the regional figure still renders. `LDHeatmapRenderer` and
+`StatsRenderer.render_forest` raise `TypeError` naming the backend class and the
+missing protocol, because there the capability is the whole figure.
+
+Two pieces of shared drawing knowledge sit above the seam rather than in each
+adapter. `composition.heatmap_highlight_cells(snp_idx, n_snps)` returns the
+matrix cells a SNP highlight covers, so a backend implementing
+`highlight_heatmap_snp` supplies only the drawing call. `hover.plotly_hovertemplate`
+and `hover.bokeh_tooltips` build the tooltip spec from a hover DataFrame, so the
+column-name-to-number-format heuristic has one owner.

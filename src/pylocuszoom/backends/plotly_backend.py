@@ -10,7 +10,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
-from .composition import LegendEntry
+from .composition import LegendEntry, heatmap_highlight_cells
+from .hover import plotly_hovertemplate
 
 # Style mappings (matplotlib -> Plotly)
 _MARKER_SYMBOLS = {
@@ -250,19 +251,7 @@ class PlotlyBackend:
         # Build hover template
         if hover_data is not None:
             customdata = hover_data.values
-            hover_cols = hover_data.columns.tolist()
-            hovertemplate = "<b>%{customdata[0]}</b><br>"
-            for i, col_name in enumerate(hover_cols[1:], 1):
-                col_lower = col_name.lower()
-                if col_lower in ("p-value", "pval", "p_value"):
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]:.2e}}<br>"
-                elif any(x in col_lower for x in ("r2", "r²", "ld")):
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]:.3f}}<br>"
-                elif "pos" in col_lower:
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]:,.0f}}<br>"
-                else:
-                    hovertemplate += f"{col_name}: %{{customdata[{i}]}}<br>"
-            hovertemplate += "<extra></extra>"
+            hovertemplate = plotly_hovertemplate(hover_data)
         else:
             customdata = None
             hovertemplate = "x: %{x}<br>y: %{y:.2f}<extra></extra>"
@@ -483,7 +472,7 @@ class PlotlyBackend:
     ) -> None:
         """Set x-axis label."""
         fig, row, col, n_cols = self._extract_row_col(ax)
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         fig.update_layout(
             **{
                 self._axis_name("xaxis", row, col, n_cols): dict(
@@ -497,7 +486,7 @@ class PlotlyBackend:
     ) -> None:
         """Set y-axis label."""
         fig, row, col, n_cols = self._extract_row_col(ax)
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         fig.update_layout(
             **{
                 self._axis_name("yaxis", row, col, n_cols): dict(
@@ -568,10 +557,6 @@ class PlotlyBackend:
         """
         subplot_idx = (row - 1) * n_cols + col
         return f"{axis}{subplot_idx}" if subplot_idx > 1 else axis
-
-    def _convert_label(self, label: str) -> str:
-        """Convert LaTeX-style labels to Unicode for Plotly display."""
-        return convert_latex_to_unicode(label)
 
     def set_title(
         self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14
@@ -759,7 +744,7 @@ class PlotlyBackend:
         """Set secondary y-axis label."""
         ax, yaxis_name = secondary
         fig, row, col, _ = self._extract_row_col(ax)
-        label = self._convert_label(label)
+        label = convert_latex_to_unicode(label)
         yaxis_key = (
             "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
         )
@@ -1174,27 +1159,13 @@ class PlotlyBackend:
             color: Highlight color.
             linewidth: Line width for highlight rectangles.
         """
-        if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
-            raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
-        # Row highlights (lower triangle: columns 0..snp_idx)
-        for j in range(snp_idx + 1):
+        for x, y in heatmap_highlight_cells(snp_idx, n_snps):
             fig.add_shape(
                 type="rect",
-                x0=j - 0.5,
-                x1=j + 0.5,
-                y0=snp_idx - 0.5,
-                y1=snp_idx + 0.5,
-                line=dict(color=color, width=linewidth),
-                fillcolor="rgba(0,0,0,0)",
-            )
-        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
-        for i in range(snp_idx + 1, n_snps):
-            fig.add_shape(
-                type="rect",
-                x0=snp_idx - 0.5,
-                x1=snp_idx + 0.5,
-                y0=i - 0.5,
-                y1=i + 0.5,
+                x0=x - 0.5,
+                x1=x + 0.5,
+                y0=y - 0.5,
+                y1=y + 0.5,
                 line=dict(color=color, width=linewidth),
                 fillcolor="rgba(0,0,0,0)",
             )
@@ -1244,18 +1215,22 @@ class PlotlyBackend:
 
         colorscale = [[0, cmap_colors[0]], [1, cmap_colors[1]]]
 
-        trace = go.Heatmap(
-            z=z.tolist(),
-            x=list(x_coords),
-            y=list(y_coords),
-            colorscale=colorscale,
-            zmin=vmin,
-            zmax=vmax,
-            showscale=True,
-            colorbar=dict(title="R²"),
+        fig.add_trace(
+            go.Heatmap(
+                z=z.tolist(),
+                x=list(x_coords),
+                y=list(y_coords),
+                colorscale=colorscale,
+                zmin=vmin,
+                zmax=vmax,
+                showscale=False,
+            ),
+            row=row,
+            col=col,
         )
-        fig.add_trace(trace, row=row, col=col)
-        return trace
+        # add_trace stores a copy, so hand back the figure's own trace: that is
+        # the object add_colorbar has to mutate for the scale to appear.
+        return fig.data[-1]
 
     def add_colorbar(
         self,
@@ -1266,17 +1241,25 @@ class PlotlyBackend:
     ) -> Any:
         """Add colorbar legend for heatmap.
 
-        For Plotly, colorbar is added via showscale=True in add_heatmap.
-        This method is a no-op but kept for API consistency.
+        Plotly draws the scale as part of the heatmap trace rather than as a
+        separate artist, so this turns the trace's own scale on and titles it.
+        ``add_heatmap`` leaves it off, which is what lets a caller skip this
+        call to get a heatmap with no scale.
 
         Args:
-            ax: Tuple of (figure, row_number).
-            mappable: Heatmap trace (unused).
-            label: Colorbar label (unused, set in add_heatmap).
-            orientation: Orientation (unused).
+            ax: Tuple of (figure, row_number) (unused, the trace carries it).
+            mappable: Heatmap trace returned by add_heatmap.
+            label: Colorbar label.
+            orientation: "vertical" or "horizontal".
 
         Returns:
-            None.
+            The heatmap trace whose scale was enabled.
         """
-        # Colorbar is configured in add_heatmap via showscale=True
-        pass
+        mappable.update(
+            showscale=True,
+            colorbar=dict(
+                title=label,
+                orientation="h" if orientation == "horizontal" else "v",
+            ),
+        )
+        return mappable

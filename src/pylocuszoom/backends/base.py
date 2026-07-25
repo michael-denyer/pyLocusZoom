@@ -112,6 +112,156 @@ class SupportsSecondaryAxis(Protocol):
         ...
 
 
+@runtime_checkable
+class SupportsHeatmap(Protocol):
+    """Optional capability: matrix heatmaps with a colour scale (LD heatmaps)."""
+
+    def add_heatmap(
+        self,
+        ax: Any,
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: Optional[List[str]] = None,
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+        mask_upper: bool = True,
+    ) -> Any:
+        """Render a heatmap with optional triangular masking.
+
+        Used for LD heatmap visualization where data is a symmetric matrix
+        and typically only the lower triangle is displayed. The colour scale
+        is left off; ``add_colorbar`` turns it on.
+
+        Args:
+            ax: Axes or panel to plot on.
+            data: 2D numpy array of values (use NaN for missing data).
+            x_coords: X coordinates for cell positions.
+            y_coords: Y coordinates for cell positions.
+            cmap_colors: Color gradient endpoints [start_color, end_color].
+                Defaults to white-to-red ["#FFFFFF", "#FF0000"].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
+            mask_upper: If True, mask upper triangle for lower-triangular display.
+
+        Returns:
+            Heatmap object (mappable for colorbar attachment).
+        """
+        ...
+
+    def add_colorbar(
+        self,
+        ax: Any,
+        mappable: Any,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> Any:
+        """Show the colour scale for a heatmap.
+
+        Args:
+            ax: Axes or panel (or figure for some backends).
+            mappable: Heatmap object returned by add_heatmap.
+            label: Colorbar label (e.g., "R²" or "D'").
+            orientation: "vertical" or "horizontal".
+
+        Returns:
+            Colorbar object.
+        """
+        ...
+
+    def highlight_heatmap_snp(
+        self,
+        ax: Any,
+        fig: Any,
+        snp_idx: int,
+        n_snps: int,
+        color: str = "#FF0000",
+        linewidth: float = 2,
+    ) -> None:
+        """Highlight a SNP's row and column in a heatmap.
+
+        Draws unfilled rectangles around the cells that
+        ``composition.heatmap_highlight_cells`` selects, to mark the lead SNP.
+
+        Args:
+            ax: Axes/figure object.
+            fig: Figure object (used by plotly for shapes).
+            snp_idx: Index of SNP to highlight (0-indexed, must be < n_snps).
+            n_snps: Total number of SNPs in matrix (must be > 0).
+            color: Highlight color.
+            linewidth: Line width for highlight rectangles.
+
+        Raises:
+            ValueError: If snp_idx is out of bounds or n_snps < 1.
+        """
+        ...
+
+
+@runtime_checkable
+class SupportsBarCharts(Protocol):
+    """Optional capability: horizontal bars and error bars (forest plots)."""
+
+    def hbar(
+        self,
+        ax: Any,
+        y: pd.Series,
+        width: pd.Series,
+        height: float = 0.8,
+        left: Union[float, pd.Series] = 0,
+        color: Union[str, List[str]] = "blue",
+        edgecolor: str = "black",
+        linewidth: float = 0.5,
+        zorder: int = 2,
+    ) -> Any:
+        """Create horizontal bar chart.
+
+        Args:
+            ax: Axes or panel.
+            y: Y positions for bars.
+            width: Bar widths (x-extent).
+            height: Bar height.
+            left: Left edge positions.
+            color: Bar colors.
+            edgecolor: Edge color.
+            linewidth: Edge width.
+            zorder: Drawing order.
+
+        Returns:
+            The bar collection object.
+        """
+        ...
+
+    def errorbar_h(
+        self,
+        ax: Any,
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> Any:
+        """Add horizontal error bars (for forest plots).
+
+        Args:
+            ax: Axes or panel.
+            x: X positions (effect sizes).
+            y: Y positions.
+            xerr_lower: Lower error (distance from x).
+            xerr_upper: Upper error (distance from x).
+            color: Line color.
+            linewidth: Line width.
+            capsize: Cap size in points.
+            zorder: Drawing order.
+
+        Returns:
+            The errorbar object.
+        """
+        ...
+
+
 class PlotBackend(Protocol):
     """Protocol defining the backend interface for LocusZoom plots.
 
@@ -122,8 +272,10 @@ class PlotBackend(Protocol):
         supports_hover: Whether backend supports hover tooltips.
 
     Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
-    SupportsRegionHighlight) are separate runtime_checkable protocols, checked
-    with isinstance rather than a boolean flag.
+    SupportsRegionHighlight, SupportsHeatmap, SupportsBarCharts) are separate
+    runtime_checkable protocols, checked with isinstance rather than a boolean
+    flag. A backend that implements none of them still renders every regional,
+    Manhattan, Miami, colocalisation, and PheWAS plot.
     """
 
     # =========================================================================
@@ -621,70 +773,6 @@ class PlotBackend(Protocol):
         ...
 
     # =========================================================================
-    # Specialized Charts
-    # =========================================================================
-
-    def hbar(
-        self,
-        ax: Any,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart.
-
-        Args:
-            ax: Axes or panel.
-            y: Y positions for bars.
-            width: Bar widths (x-extent).
-            height: Bar height.
-            left: Left edge positions.
-            color: Bar colors.
-            edgecolor: Edge color.
-            linewidth: Edge width.
-            zorder: Drawing order.
-
-        Returns:
-            The bar collection object.
-        """
-        ...
-
-    def errorbar_h(
-        self,
-        ax: Any,
-        x: pd.Series,
-        y: pd.Series,
-        xerr_lower: pd.Series,
-        xerr_upper: pd.Series,
-        color: str = "black",
-        linewidth: float = 1.5,
-        capsize: float = 3,
-        zorder: int = 3,
-    ) -> Any:
-        """Add horizontal error bars (for forest plots).
-
-        Args:
-            ax: Axes or panel.
-            x: X positions (effect sizes).
-            y: Y positions.
-            xerr_lower: Lower error (distance from x).
-            xerr_upper: Upper error (distance from x).
-            color: Line color.
-            linewidth: Line width.
-            capsize: Cap size in points.
-            zorder: Drawing order.
-
-        Returns:
-            The errorbar object.
-        """
-        ...
-
-    # =========================================================================
     # File Operations
     # =========================================================================
 
@@ -718,92 +806,5 @@ class PlotBackend(Protocol):
 
         Args:
             fig: Figure object.
-        """
-        ...
-
-    # =========================================================================
-    # Heatmap Rendering (for LD heatmaps)
-    # =========================================================================
-
-    def add_heatmap(
-        self,
-        ax: Any,
-        data: Any,
-        x_coords: List[float],
-        y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
-        vmin: float = 0.0,
-        vmax: float = 1.0,
-        mask_upper: bool = True,
-    ) -> Any:
-        """Render heatmap with optional triangular masking.
-
-        Used for LD heatmap visualization where data is a symmetric matrix
-        and typically only the lower triangle is displayed.
-
-        Args:
-            ax: Axes or panel to plot on.
-            data: 2D numpy array of values (use NaN for missing data).
-            x_coords: X coordinates for cell positions.
-            y_coords: Y coordinates for cell positions.
-            cmap_colors: Color gradient endpoints [start_color, end_color].
-                Defaults to white-to-red ["#FFFFFF", "#FF0000"].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-            mask_upper: If True, mask upper triangle for lower-triangular display.
-
-        Returns:
-            Heatmap object (mappable for colorbar attachment).
-        """
-        ...
-
-    def add_colorbar(
-        self,
-        ax: Any,
-        mappable: Any,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> Any:
-        """Add colorbar legend for heatmap.
-
-        Args:
-            ax: Axes or panel (or figure for some backends).
-            mappable: Heatmap object returned by add_heatmap.
-            label: Colorbar label (e.g., "R²" or "D'").
-            orientation: "vertical" or "horizontal".
-
-        Returns:
-            Colorbar object.
-        """
-        ...
-
-    # =========================================================================
-    # Heatmap SNP Highlighting
-    # =========================================================================
-
-    def highlight_heatmap_snp(
-        self,
-        ax: Any,
-        fig: Any,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in a heatmap.
-
-        Draws unfilled rectangles around the cells in the SNP's row (lower
-        triangle) and column (below diagonal) to visually mark the lead SNP.
-
-        Args:
-            ax: Axes/figure object.
-            fig: Figure object (used by plotly for shapes).
-            snp_idx: Index of SNP to highlight (0-indexed, must be < n_snps).
-            n_snps: Total number of SNPs in matrix (must be > 0).
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
-
-        Raises:
-            ValueError: If snp_idx is out of bounds or n_snps < 1.
         """
         ...

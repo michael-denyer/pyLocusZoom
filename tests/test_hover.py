@@ -3,7 +3,12 @@
 import pandas as pd
 import pytest
 
-from pylocuszoom.backends.hover import HoverConfig, HoverDataBuilder
+from pylocuszoom.backends.hover import (
+    HoverConfig,
+    HoverDataBuilder,
+    bokeh_tooltips,
+    plotly_hovertemplate,
+)
 
 
 class TestHoverConfig:
@@ -163,77 +168,43 @@ class TestPlotlyTemplateGeneration:
         )
 
     def test_plotly_template_basic_structure(self, hover_df):
-        """build_plotly_template generates valid template string."""
-        config = HoverConfig(
-            snp_col="rs", pos_col="position", p_col="pvalue", ld_col="r2"
-        )
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
+        """plotly_hovertemplate generates valid template string."""
+        template = plotly_hovertemplate(hover_df)
 
         assert isinstance(template, str)
-        assert "<extra></extra>" in template
+        assert template.endswith("<extra></extra>")
 
     def test_plotly_template_snp_first_bold(self, hover_df):
-        """build_plotly_template puts SNP first in bold."""
-        config = HoverConfig(snp_col="rs", pos_col="position")
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
+        """plotly_hovertemplate puts the first column in bold, unformatted."""
+        template = plotly_hovertemplate(hover_df)
 
         assert template.startswith("<b>%{customdata[0]}</b>")
 
-    def test_plotly_template_pvalue_scientific_notation(self, hover_df):
-        """build_plotly_template uses .2e format for P-value."""
-        config = HoverConfig(snp_col="rs", p_col="pvalue")
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
-
-        # P-value should use .2e format
-        assert ":.2e}" in template
-
-    def test_plotly_template_position_comma_format(self, hover_df):
-        """build_plotly_template uses comma format for Position."""
-        config = HoverConfig(snp_col="rs", pos_col="position")
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
-
-        # Position should use comma format
-        assert ":,.0f}" in template
-
-    def test_plotly_template_r2_decimal_format(self, hover_df):
-        """build_plotly_template uses .3f format for R-squared."""
-        config = HoverConfig(snp_col="rs", ld_col="r2")
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
-
-        # R² should use .3f format
-        assert ":.3f}" in template
-
-    def test_plotly_template_customdata_indices(self, hover_df):
-        """build_plotly_template uses correct customdata indices."""
-        config = HoverConfig(
-            snp_col="rs", pos_col="position", p_col="pvalue", ld_col="r2"
+    def test_plotly_template_full_layout(self, hover_df):
+        """Every column gets its name, index, and name-implied format."""
+        assert plotly_hovertemplate(hover_df) == (
+            "<b>%{customdata[0]}</b><br>"
+            "Position: %{customdata[1]:,.0f}<br>"
+            "P-value: %{customdata[2]:.2e}<br>"
+            "R²: %{customdata[3]:.3f}<br>"
+            "<extra></extra>"
         )
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
-
-        # Each column should get sequential index
-        assert "customdata[0]" in template  # SNP
-        assert "customdata[1]" in template  # Position
-        assert "customdata[2]" in template  # P-value
-        assert "customdata[3]" in template  # R²
 
     def test_plotly_template_extra_cols_default_format(self):
-        """build_plotly_template uses default format for extra columns."""
+        """A column with no recognised name renders without a format spec."""
         hover_df = pd.DataFrame({"SNP": ["rs123"], "Effect": [0.5]})
-        config = HoverConfig(snp_col="rs", extra_cols={"beta": "Effect"})
-        builder = HoverDataBuilder(config)
-        template = builder.build_plotly_template(hover_df)
 
-        # Extra column should NOT have format specifier (just value)
-        # Should be customdata[1] without format
-        assert "%{customdata[1]}" in template
-        # Should NOT have .2e or .3f
-        assert template.count(":.") == 0 or "customdata[1]}" in template
+        assert plotly_hovertemplate(hover_df) == (
+            "<b>%{customdata[0]}</b><br>Effect: %{customdata[1]}<br><extra></extra>"
+        )
+
+    def test_plotly_template_single_column(self):
+        """A SNP-only frame still terminates the template correctly."""
+        hover_df = pd.DataFrame({"SNP": ["rs123"]})
+
+        assert plotly_hovertemplate(hover_df) == (
+            "<b>%{customdata[0]}</b><br><extra></extra>"
+        )
 
 
 class TestBokehTooltipsGeneration:
@@ -251,101 +222,78 @@ class TestBokehTooltipsGeneration:
             }
         )
 
-    def test_bokeh_tooltips_returns_list_of_tuples(self, hover_df):
-        """build_bokeh_tooltips returns list of (name, format) tuples."""
-        config = HoverConfig(
-            snp_col="rs", pos_col="position", p_col="pvalue", ld_col="r2"
-        )
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
+    def test_bokeh_tooltips_full_layout(self, hover_df):
+        """Each column becomes a (display name, field reference) pair in order."""
+        assert bokeh_tooltips(hover_df) == [
+            ("SNP", "@{SNP}"),
+            ("Position", "@{Position}{0,0}"),
+            ("P-value", "@{P-value}{0.2e}"),
+            ("R²", "@{R²}{0.3f}"),
+        ]
 
-        assert isinstance(tooltips, list)
-        assert all(isinstance(t, tuple) and len(t) == 2 for t in tooltips)
+    def test_bokeh_tooltips_key_prefix_namespaces_field_references(self, hover_df):
+        """The prefix reaches the field reference but not the display name.
 
-    def test_bokeh_tooltips_pvalue_scientific_notation(self, hover_df):
-        """build_bokeh_tooltips uses {0.2e} for P-value."""
-        config = HoverConfig(snp_col="rs", p_col="pvalue")
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
-
-        pvalue_tooltip = next((t for t in tooltips if t[0] == "P-value"), None)
-        assert pvalue_tooltip is not None
-        assert "{0.2e}" in pvalue_tooltip[1]
-
-    def test_bokeh_tooltips_position_comma_format(self, hover_df):
-        """build_bokeh_tooltips uses {0,0} for Position."""
-        config = HoverConfig(snp_col="rs", pos_col="position")
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
-
-        pos_tooltip = next((t for t in tooltips if t[0] == "Position"), None)
-        assert pos_tooltip is not None
-        assert "{0,0}" in pos_tooltip[1]
-
-    def test_bokeh_tooltips_r2_decimal_format(self, hover_df):
-        """build_bokeh_tooltips uses {0.3f} for R-squared."""
-        config = HoverConfig(snp_col="rs", ld_col="r2")
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
-
-        r2_tooltip = next((t for t in tooltips if "R" in t[0] or "r" in t[0]), None)
-        assert r2_tooltip is not None
-        assert "{0.3f}" in r2_tooltip[1]
-
-    def test_bokeh_tooltips_column_reference(self, hover_df):
-        """build_bokeh_tooltips uses @{column} format for references."""
-        config = HoverConfig(snp_col="rs", p_col="pvalue")
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
-
-        # SNP should reference @{SNP}
-        snp_tooltip = next((t for t in tooltips if t[0] == "SNP"), None)
-        assert snp_tooltip is not None
-        assert "@{SNP}" in snp_tooltip[1] or "@SNP" in snp_tooltip[1]
+        BokehBackend.scatter relies on this to keep a hover column named "size"
+        or "x" from shadowing the keys it sets for geometry and styling.
+        """
+        assert bokeh_tooltips(hover_df, key_prefix="hover_") == [
+            ("SNP", "@{hover_SNP}"),
+            ("Position", "@{hover_Position}{0,0}"),
+            ("P-value", "@{hover_P-value}{0.2e}"),
+            ("R²", "@{hover_R²}{0.3f}"),
+        ]
 
     def test_bokeh_tooltips_extra_cols_no_format(self):
-        """build_bokeh_tooltips uses no format for extra columns."""
+        """A column with no recognised name gets a bare field reference."""
         hover_df = pd.DataFrame({"SNP": ["rs123"], "Effect": [0.5]})
-        config = HoverConfig(snp_col="rs", extra_cols={"beta": "Effect"})
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
 
-        effect_tooltip = next((t for t in tooltips if t[0] == "Effect"), None)
-        assert effect_tooltip is not None
-        # Should be @Effect or @{Effect} without format specifier
-        assert "@" in effect_tooltip[1]
-        assert "{0." not in effect_tooltip[1]
+        assert bokeh_tooltips(hover_df) == [
+            ("SNP", "@{SNP}"),
+            ("Effect", "@{Effect}"),
+        ]
 
-    def test_bokeh_tooltips_preserves_order(self, hover_df):
-        """build_bokeh_tooltips preserves column order from hover_df."""
-        config = HoverConfig(
-            snp_col="rs", pos_col="position", p_col="pvalue", ld_col="r2"
+
+class TestFormatDetection:
+    """The column-name heuristic both backends share."""
+
+    @pytest.mark.parametrize(
+        "col_name,plotly_spec,bokeh_spec",
+        [
+            ("P-value", ".2e", "0.2e"),
+            ("pval", ".2e", "0.2e"),
+            ("p_value", ".2e", "0.2e"),
+            ("PVAL", ".2e", "0.2e"),
+            ("R²", ".3f", "0.3f"),
+            ("r2", ".3f", "0.3f"),
+            ("LD", ".3f", "0.3f"),
+            ("ld_r2", ".3f", "0.3f"),
+            ("Position", ",.0f", "0,0"),
+            ("POS", ",.0f", "0,0"),
+        ],
+    )
+    def test_recognised_names_get_their_format(self, col_name, plotly_spec, bokeh_spec):
+        hover_df = pd.DataFrame({"SNP": ["rs123"], col_name: [1.0]})
+
+        assert f":{plotly_spec}}}" in plotly_hovertemplate(hover_df)
+        assert bokeh_tooltips(hover_df)[1] == (
+            col_name,
+            f"@{{{col_name}}}{{{bokeh_spec}}}",
         )
-        builder = HoverDataBuilder(config)
-        tooltips = builder.build_bokeh_tooltips(hover_df)
 
-        names = [t[0] for t in tooltips]
-        assert names == ["SNP", "Position", "P-value", "R²"]
+    @pytest.mark.parametrize(
+        "col_name", ["Effect", "Gene", "beta", "MAF", "Consequence"]
+    )
+    def test_unrecognised_names_get_no_format(self, col_name):
+        hover_df = pd.DataFrame({"SNP": ["rs123"], col_name: [1.0]})
 
+        assert f"{col_name}: %{{customdata[1]}}" in plotly_hovertemplate(hover_df)
+        assert bokeh_tooltips(hover_df)[1] == (col_name, f"@{{{col_name}}}")
 
-class TestFormatSpecs:
-    """Tests for format specification constants."""
+    def test_p_value_name_match_is_exact_not_substring(self):
+        """ "pval" formats as a p-value; "n_pval_tests" does not."""
+        exact = pd.DataFrame({"SNP": ["rs1"], "pval": [1.0]})
+        substring = pd.DataFrame({"SNP": ["rs1"], "n_pval_tests": [1.0]})
 
-    def test_format_specs_exist(self):
-        """HoverDataBuilder has FORMAT_SPECS class attribute."""
-        assert hasattr(HoverDataBuilder, "FORMAT_SPECS")
-
-    def test_format_specs_pvalue(self):
-        """FORMAT_SPECS has p_value key with .2e format."""
-        assert "p_value" in HoverDataBuilder.FORMAT_SPECS
-        assert HoverDataBuilder.FORMAT_SPECS["p_value"] == ".2e"
-
-    def test_format_specs_r2(self):
-        """FORMAT_SPECS has r2 key with .3f format."""
-        assert "r2" in HoverDataBuilder.FORMAT_SPECS
-        assert HoverDataBuilder.FORMAT_SPECS["r2"] == ".3f"
-
-    def test_format_specs_position(self):
-        """FORMAT_SPECS has position key with ,.0f format."""
-        assert "position" in HoverDataBuilder.FORMAT_SPECS
-        assert HoverDataBuilder.FORMAT_SPECS["position"] == ",.0f"
+        assert ":.2e}" in plotly_hovertemplate(exact)
+        assert ":.2e}" not in plotly_hovertemplate(substring)

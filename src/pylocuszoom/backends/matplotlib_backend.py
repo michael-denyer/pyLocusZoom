@@ -13,7 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
-from .composition import LegendEntry
+from .composition import LegendEntry, heatmap_highlight_cells
 
 
 @register_backend("matplotlib")
@@ -697,33 +697,18 @@ class MatplotlibBackend:
             color: Highlight color.
             linewidth: Line width for highlight rectangles.
         """
-        if n_snps < 1 or snp_idx < 0 or snp_idx >= n_snps:
-            raise ValueError(f"Invalid snp_idx={snp_idx} for n_snps={n_snps}")
-        # Row highlights (lower triangle: columns 0..snp_idx)
-        for j in range(snp_idx + 1):
-            rect = Rectangle(
-                (j - 0.5, snp_idx - 0.5),
-                1.0,
-                1.0,
-                fill=False,
-                edgecolor=color,
-                linewidth=linewidth,
-                zorder=10,
+        for x, y in heatmap_highlight_cells(snp_idx, n_snps):
+            ax.add_patch(
+                Rectangle(
+                    (x - 0.5, y - 0.5),
+                    1.0,
+                    1.0,
+                    fill=False,
+                    edgecolor=color,
+                    linewidth=linewidth,
+                    zorder=10,
+                )
             )
-            ax.add_patch(rect)
-
-        # Column highlights (below diagonal: rows snp_idx+1..n_snps-1)
-        for i in range(snp_idx + 1, n_snps):
-            rect = Rectangle(
-                (snp_idx - 0.5, i - 0.5),
-                1.0,
-                1.0,
-                fill=False,
-                edgecolor=color,
-                linewidth=linewidth,
-                zorder=10,
-            )
-            ax.add_patch(rect)
 
     def add_heatmap(
         self,
