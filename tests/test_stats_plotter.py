@@ -302,3 +302,48 @@ class TestBarChartCapabilityGate:
                 effect_label="Beta",
                 figsize=(6.0, 4.0),
             )
+
+
+class TestConstructorThresholdIsTheDefault:
+    """StatsPlotter's genomewide_threshold reaches plot_phewas."""
+
+    @staticmethod
+    def _phewas():
+        return pd.DataFrame(
+            {
+                "phenotype": ["a", "b", "c"],
+                "p_value": [1e-9, 1e-4, 0.3],
+                "category": ["x", "x", "y"],
+            }
+        )
+
+    @staticmethod
+    def _dashed_x(fig):
+        return [
+            line.get_xdata()[0]
+            for ax in fig.axes
+            for line in ax.get_lines()
+            if line.get_linestyle() == "--"
+        ]
+
+    def test_plot_phewas_uses_the_constructor_threshold(self):
+        plotter = StatsPlotter(genomewide_threshold=1e-3)
+        fig = plotter.plot_phewas(self._phewas(), variant_id="rs1")
+
+        assert self._dashed_x(fig) == pytest.approx([3.0])
+
+    def test_explicit_argument_beats_the_constructor(self):
+        plotter = StatsPlotter(genomewide_threshold=1e-3)
+        fig = plotter.plot_phewas(
+            self._phewas(), variant_id="rs1", significance_threshold=1e-6
+        )
+
+        assert self._dashed_x(fig) == pytest.approx([6.0])
+
+    def test_explicit_none_still_draws_no_line(self):
+        plotter = StatsPlotter(genomewide_threshold=1e-3)
+        fig = plotter.plot_phewas(
+            self._phewas(), variant_id="rs1", significance_threshold=None
+        )
+
+        assert self._dashed_x(fig) == []

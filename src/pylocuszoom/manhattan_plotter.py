@@ -11,7 +11,12 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
+from ._plotter_utils import (
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+    UNSET,
+    ThresholdArg,
+    resolve_threshold,
+)
 from ._rendering import ManhattanQQRenderer
 from .backends import BackendType, get_backend
 from .manhattan import prepare_categorical_data, prepare_manhattan_data
@@ -62,7 +67,7 @@ class ManhattanPlotter:
         custom_chrom_order: Optional[List[str]] = None,
         category_col: Optional[str] = None,
         category_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        significance_threshold: ThresholdArg = UNSET,
         figsize: Tuple[float, float] = (12, 5),
         title: Optional[str] = None,
     ) -> Any:
@@ -81,8 +86,9 @@ class ManhattanPlotter:
             category_col: If provided, creates a categorical Manhattan plot
                 (like PheWAS) using this column instead of genomic positions.
             category_order: Custom category order for categorical plots.
-            significance_threshold: P-value threshold for genome-wide significance
-                line. Set to None to disable.
+            significance_threshold: P-value threshold for the genome-wide
+                significance line. Defaults to the plotter's
+                ``genomewide_threshold``; pass None to draw no line.
             figsize: Figure size as (width, height).
             title: Plot title. Defaults to "Manhattan Plot".
 
@@ -100,6 +106,10 @@ class ManhattanPlotter:
             ...     p_col="pvalue",
             ... )
         """
+        significance_threshold = resolve_threshold(
+            significance_threshold, self.genomewide_threshold
+        )
+
         # Categorical Manhattan plot
         if category_col is not None:
             return self._plot_manhattan_categorical(
@@ -135,7 +145,7 @@ class ManhattanPlotter:
         category_col: str,
         p_col: str = "p",
         category_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        significance_threshold: Optional[float] = None,
         figsize: Tuple[float, float] = (12, 5),
         title: Optional[str] = None,
     ) -> Any:
@@ -202,7 +212,7 @@ class ManhattanPlotter:
         pos_col: str = "pos",
         p_col: str = "p",
         custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        significance_threshold: ThresholdArg = UNSET,
         panel_labels: Optional[List[str]] = None,
         figsize: Tuple[float, float] = (12, 8),
         title: Optional[str] = None,
@@ -218,8 +228,9 @@ class ManhattanPlotter:
             pos_col: Column name for position.
             p_col: Column name for p-value.
             custom_chrom_order: Custom chromosome order (overrides species).
-            significance_threshold: P-value threshold for genome-wide significance
-                line. Set to None to disable.
+            significance_threshold: P-value threshold for the genome-wide
+                significance line. Defaults to the plotter's
+                ``genomewide_threshold``; pass None to draw no line.
             panel_labels: Labels for each panel (one per DataFrame).
             figsize: Figure size as (width, height).
             title: Overall plot title.
@@ -233,6 +244,9 @@ class ManhattanPlotter:
             ...     panel_labels=["Discovery", "Replication", "Meta-analysis"],
             ... )
         """
+        significance_threshold = resolve_threshold(
+            significance_threshold, self.genomewide_threshold
+        )
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
@@ -270,7 +284,7 @@ class ManhattanPlotter:
         pos_col: str = "pos",
         p_col: str = "p",
         custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        significance_threshold: ThresholdArg = UNSET,
         show_confidence_band: bool = True,
         show_lambda: bool = True,
         figsize: Tuple[float, float] = (14, 5),
@@ -287,7 +301,9 @@ class ManhattanPlotter:
             pos_col: Column name for position.
             p_col: Column name for p-value.
             custom_chrom_order: Custom chromosome order (overrides species).
-            significance_threshold: P-value threshold for genome-wide significance.
+            significance_threshold: P-value threshold for the genome-wide
+                significance line. Defaults to the plotter's
+                ``genomewide_threshold``; pass None to draw no line.
             show_confidence_band: If True, show 95% confidence band on QQ plot.
             show_lambda: If True, show genomic inflation factor on QQ plot.
             figsize: Figure size as (width, height).
@@ -300,6 +316,10 @@ class ManhattanPlotter:
             >>> fig = plotter.plot_manhattan_qq(gwas_df)
             >>> fig.savefig("gwas_summary.png", dpi=150)
         """
+        significance_threshold = resolve_threshold(
+            significance_threshold, self.genomewide_threshold
+        )
+
         # Prepare Manhattan data
         manhattan_df = prepare_manhattan_data(
             df=df,
@@ -329,7 +349,7 @@ class ManhattanPlotter:
         pos_col: str = "pos",
         p_col: str = "p",
         custom_chrom_order: Optional[List[str]] = None,
-        significance_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        significance_threshold: ThresholdArg = UNSET,
         show_confidence_band: bool = True,
         show_lambda: bool = True,
         panel_labels: Optional[List[str]] = None,
@@ -347,7 +367,9 @@ class ManhattanPlotter:
             pos_col: Column name for position.
             p_col: Column name for p-value.
             custom_chrom_order: Custom chromosome order (overrides species).
-            significance_threshold: P-value threshold for genome-wide significance.
+            significance_threshold: P-value threshold for the genome-wide
+                significance line. Defaults to the plotter's
+                ``genomewide_threshold``; pass None to draw no line.
             show_confidence_band: If True, show 95% confidence band on QQ plots.
             show_lambda: If True, show genomic inflation factor on QQ plots.
             panel_labels: List of labels for each GWAS (one per dataset).
@@ -363,6 +385,9 @@ class ManhattanPlotter:
             ...     panel_labels=["Discovery", "Replication"],
             ... )
         """
+        significance_threshold = resolve_threshold(
+            significance_threshold, self.genomewide_threshold
+        )
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")

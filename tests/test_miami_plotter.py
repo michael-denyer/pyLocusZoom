@@ -650,3 +650,41 @@ class TestMiamiHighlight:
 
         assert fig is not None
         assert isinstance(fig, LayoutDOM)
+
+
+class TestConstructorThresholdIsTheDefault:
+    """MiamiPlotter's genomewide_threshold defaults both panel thresholds."""
+
+    @staticmethod
+    def _gwas():
+        return pd.DataFrame(
+            {
+                "chrom": [1, 1, 2, 2],
+                "pos": [1_000_000, 2_000_000, 1_000_000, 2_000_000],
+                "p": [1e-9, 0.01, 1e-6, 0.5],
+            }
+        )
+
+    @staticmethod
+    def _dashed_y(fig):
+        return [
+            line.get_ydata()[0]
+            for ax in fig.axes
+            for line in ax.get_lines()
+            if line.get_linestyle() == "--"
+        ]
+
+    def test_both_panels_use_the_constructor_threshold(self):
+        plotter = MiamiPlotter(genomewide_threshold=1e-3)
+        fig = plotter.plot_miami(self._gwas(), self._gwas())
+
+        # The bottom panel inverts its y-axis, so both lines sit at +3.0.
+        assert self._dashed_y(fig) == pytest.approx([3.0, 3.0])
+
+    def test_explicit_panel_thresholds_beat_the_constructor(self):
+        plotter = MiamiPlotter(genomewide_threshold=1e-3)
+        fig = plotter.plot_miami(
+            self._gwas(), self._gwas(), top_threshold=1e-6, bottom_threshold=None
+        )
+
+        assert self._dashed_y(fig) == pytest.approx([6.0])

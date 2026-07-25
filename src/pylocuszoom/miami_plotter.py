@@ -13,6 +13,9 @@ import pandas as pd
 from ._miami_renderer import MiamiRenderer
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
+    UNSET,
+    ThresholdArg,
+    resolve_threshold,
 )
 from .backends import BackendType, get_backend
 from .manhattan import prepare_manhattan_data
@@ -64,8 +67,8 @@ class MiamiPlotter:
         p_col: str = "p",
         rs_col: Optional[str] = None,
         custom_chrom_order: Optional[List[str]] = None,
-        top_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
-        bottom_threshold: Optional[float] = DEFAULT_GENOMEWIDE_THRESHOLD,
+        top_threshold: ThresholdArg = UNSET,
+        bottom_threshold: ThresholdArg = UNSET,
         top_label: Optional[str] = None,
         bottom_label: Optional[str] = None,
         top_snp_annotations: Optional[List[str]] = None,
@@ -90,8 +93,10 @@ class MiamiPlotter:
             p_col: Column name for p-value.
             rs_col: Column name for SNP RS ID (for hover tooltips and annotations).
             custom_chrom_order: Custom chromosome order (overrides species).
-            top_threshold: Significance threshold for top panel. None to skip.
-            bottom_threshold: Significance threshold for bottom panel. None to skip.
+            top_threshold: Significance threshold for the top panel. Defaults to
+                the plotter's ``genomewide_threshold``; pass None to draw no line.
+            bottom_threshold: Significance threshold for the bottom panel. Same
+                defaulting as ``top_threshold``.
             top_label: Label for top panel (e.g., "Discovery").
             bottom_label: Label for bottom panel (e.g., "Replication").
             top_snp_annotations: List of SNP IDs to annotate on top panel.
@@ -119,6 +124,11 @@ class MiamiPlotter:
             ...     bottom_label="Replication",
             ... )
         """
+        top_threshold = resolve_threshold(top_threshold, self.genomewide_threshold)
+        bottom_threshold = resolve_threshold(
+            bottom_threshold, self.genomewide_threshold
+        )
+
         # Compute union of chromosomes to ensure consistent alignment
         # This is critical to avoid Pitfall #3 from research
         all_chroms = self._get_chromosome_union(top_df, bottom_df, chrom_col)
