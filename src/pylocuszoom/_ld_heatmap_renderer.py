@@ -42,7 +42,9 @@ class LDHeatmapRenderer:
         show_colorbar: bool,
     ) -> Any:
         n_snps = len(snp_ids)
-        fig, axes = self._backend.create_figure(1, [1.0], figsize=figsize, sharex=False)
+        fig, axes = self._backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=figsize, sharex=False
+        )
         ax = axes[0]
         mappable = self._backend.add_heatmap(
             ax,

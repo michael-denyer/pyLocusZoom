@@ -75,6 +75,42 @@ class RecordingBackend:
     def add_panel_label(self, *args, **kwargs):
         self._record("add_panel_label", *args, **kwargs)
 
+    def set_yticks(self, *args, **kwargs):
+        self._record("set_yticks", *args, **kwargs)
+
+    def axvline(self, *args, **kwargs):
+        return self._record("axvline", *args, **kwargs)
+
+    def add_text(self, *args, **kwargs):
+        return self._record("add_text", *args, **kwargs)
+
+    def add_legend(self, *args, **kwargs):
+        return self._record("add_legend", *args, **kwargs)
+
+
+class FullCapabilityBackend(RecordingBackend):
+    """RecordingBackend that also opts into every optional capability.
+
+    RecordingBackend deliberately implements no capability protocol, so it
+    doubles as the backend that declines them. Renderers whose whole figure is
+    a heatmap or a forest plot need one that accepts.
+    """
+
+    def add_heatmap(self, *args, **kwargs):
+        return self._record("add_heatmap", *args, **kwargs)
+
+    def add_colorbar(self, *args, **kwargs):
+        return self._record("add_colorbar", *args, **kwargs)
+
+    def highlight_heatmap_snp(self, *args, **kwargs):
+        self._record("highlight_heatmap_snp", *args, **kwargs)
+
+    def hbar(self, *args, **kwargs):
+        return self._record("hbar", *args, **kwargs)
+
+    def errorbar_h(self, *args, **kwargs):
+        return self._record("errorbar_h", *args, **kwargs)
+
 
 @pytest.fixture
 def prepared_data():
@@ -223,3 +259,205 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
     )
 
     assert backend.calls == []
+
+
+def test_ld_heatmap_renderer_owns_panel_policy():
+    """LDHeatmapRenderer drives the heatmap, its scale, ticks, and layout."""
+    import numpy as np
+
+    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRenderer
+
+    backend = FullCapabilityBackend()
+
+    LDHeatmapRenderer(backend).render(
+        np.eye(3),
+        ["rs1", "rs2", "rs3"],
+        lead_idx=0,
+        highlight_indices=[2],
+        metric="dprime",
+        figsize=(8.0, 8.0),
+        title="Contract Heatmap",
+        show_colorbar=True,
+    )
+
+    names = [name for name, _, _ in backend.calls]
+    assert names[0] == "create_figure"
+    assert names[-1] == "finalize_layout"
+    assert names.count("add_heatmap") == 1
+    # One highlight for the lead, one for each extra SNP.
+    assert names.count("highlight_heatmap_snp") == 2
+    assert "set_xticks" in names and "set_yticks" in names
+    assert "set_title" in names
+
+    colorbar = next(
+        kwargs for name, _, kwargs in backend.calls if name == "add_colorbar"
+    )
+    assert colorbar["label"] == "D'"
+
+
+def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
+    import numpy as np
+
+    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRenderer
+
+    backend = FullCapabilityBackend()
+
+    LDHeatmapRenderer(backend).render(
+        np.eye(2),
+        ["rs1", "rs2"],
+        lead_idx=None,
+        highlight_indices=[],
+        metric="r2",
+        figsize=(8.0, 8.0),
+        title=None,
+        show_colorbar=False,
+    )
+
+    names = [name for name, _, _ in backend.calls]
+    assert "add_heatmap" in names
+    assert "add_colorbar" not in names
+    assert "highlight_heatmap_snp" not in names
+    assert "set_title" not in names
+
+
+def test_stats_renderer_owns_phewas_panel_policy():
+    """PheWAS grouping, the significance line, and axis policy live above the seam."""
+    from pylocuszoom._stats_renderer import StatsRenderer
+
+    backend = FullCapabilityBackend()
+    df = pd.DataFrame(
+        {
+            "phenotype": ["a", "b", "c"],
+            "p_value": [1e-9, 1e-4, 0.3],
+            "neglog10p": [9.0, 4.0, 0.52],
+            "category": ["x", "x", "y"],
+        }
+    )
+
+    StatsRenderer(backend).render_phewas(
+        df,
+        variant_id="rs1",
+        phenotype_col="phenotype",
+        p_col="p_value",
+        category_col="category",
+        effect_col=None,
+        significance_threshold=5e-8,
+        figsize=(10.0, 8.0),
+    )
+
+    names = [name for name, _, _ in backend.calls]
+    assert names[0] == "create_figure"
+    assert names[-1] == "finalize_layout"
+    # One scatter per category, not one per phenotype.
+    assert names.count("scatter") == 2
+    assert names.count("axvline") == 1
+    assert "set_yticks" in names
+    assert "hide_spines" in names
+
+
+def test_stats_renderer_draws_no_significance_line_for_none():
+    from pylocuszoom._stats_renderer import StatsRenderer
+
+    backend = FullCapabilityBackend()
+    df = pd.DataFrame(
+        {
+            "phenotype": ["a"],
+            "p_value": [1e-9],
+            "neglog10p": [9.0],
+            "category": ["x"],
+        }
+    )
+
+    StatsRenderer(backend).render_phewas(
+        df,
+        variant_id="rs1",
+        phenotype_col="phenotype",
+        p_col="p_value",
+        category_col="category",
+        effect_col=None,
+        significance_threshold=None,
+        figsize=(10.0, 8.0),
+    )
+
+    assert "axvline" not in [name for name, _, _ in backend.calls]
+
+
+def test_stats_renderer_owns_forest_panel_policy():
+    """Forest error bars, markers, null line, and x-padding live above the seam."""
+    from pylocuszoom._stats_renderer import StatsRenderer
+
+    backend = FullCapabilityBackend()
+    df = pd.DataFrame(
+        {
+            "study": ["A", "B"],
+            "beta": [0.1, 0.4],
+            "ci_lower": [0.0, 0.2],
+            "ci_upper": [0.2, 0.6],
+        }
+    )
+
+    StatsRenderer(backend).render_forest(
+        df,
+        variant_id="rs1",
+        study_col="study",
+        effect_col="beta",
+        ci_lower_col="ci_lower",
+        ci_upper_col="ci_upper",
+        weight_col=None,
+        null_value=0.0,
+        effect_label="Beta",
+        figsize=(8.0, 6.0),
+    )
+
+    names = [name for name, _, _ in backend.calls]
+    assert names[0] == "create_figure"
+    assert names[-1] == "finalize_layout"
+    # One batched errorbar and one batched scatter, not one call per study.
+    assert names.count("errorbar_h") == 1
+    assert names.count("scatter") == 1
+    assert names.count("axvline") == 1
+
+    xlim = next(args for name, args, _ in backend.calls if name == "set_xlim")
+    # 10% padding either side of the CI span, which spans 0.0 to 0.6.
+    assert xlim[1:] == pytest.approx((-0.06, 0.66))
+
+
+def test_coloc_renderer_owns_panel_policy():
+    """Colocalisation axes, thresholds, legend, and layout live above the seam."""
+    from pylocuszoom._coloc_renderer import ColocRenderer
+
+    backend = FullCapabilityBackend()
+    merged = pd.DataFrame(
+        {
+            "neglog10_gwas": [8.0, 3.0],
+            "neglog10_eqtl": [6.0, 2.0],
+            "color": ["#FF0000", "#0000FF"],
+            "rs": ["rs1", "rs2"],
+        }
+    )
+
+    ColocRenderer(backend).render(
+        merged,
+        lead_idx=0,
+        merged_rs_col="rs",
+        ld_col_merged=None,
+        gwas_threshold=5e-8,
+        eqtl_threshold=1e-5,
+        show_correlation=True,
+        color_by_effect=False,
+        h4_posterior=0.92,
+        title="Contract Coloc",
+        figsize=(8.0, 8.0),
+    )
+
+    names = [name for name, _, _ in backend.calls]
+    assert names[0] == "create_figure"
+    assert names[-1] == "finalize_layout"
+    assert "scatter" in names
+    # One threshold line per axis.
+    assert names.count("axhline") == 1
+    assert names.count("axvline") == 1
+    assert "set_xlabel" in names and "set_ylabel" in names
+    assert "set_title" in names
+    # Correlation and H4 posterior are both annotations.
+    assert names.count("add_text") >= 2

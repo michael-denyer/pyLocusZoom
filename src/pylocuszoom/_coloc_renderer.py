@@ -36,7 +36,9 @@ class ColocRenderer:
         title: Optional[str],
         figsize: Tuple[float, float],
     ) -> Any:
-        fig, axes = self._backend.create_figure(1, [1.0], figsize=figsize)
+        fig, axes = self._backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=figsize
+        )
         ax = axes[0]
         if lead_idx is not None:
             lead_row, other_rows = merged.loc[[lead_idx]], merged.drop(lead_idx)
