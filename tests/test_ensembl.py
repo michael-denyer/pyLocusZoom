@@ -572,3 +572,97 @@ class TestPathTraversalProtection:
 
         with pytest.raises(ValidationError, match="Invalid species name"):
             clear_ensembl_cache(tmp_path, species="../../etc/passwd")
+
+
+class TestEmptyResultCaching:
+    """A cached empty region must reload, and a failed fetch must not be cached.
+
+    Both bugs surfaced as ``pandas.errors.EmptyDataError`` on the second call:
+    an empty DataFrame serialises to a one-byte file that cannot be parsed back.
+    """
+
+    @staticmethod
+    def _ok_response(payload):
+        response = Mock()
+        response.ok = True
+        response.status_code = 200
+        response.json.return_value = payload
+        return response
+
+    @staticmethod
+    def _gene_payload():
+        return [
+            {
+                "feature_type": "gene",
+                "seq_region_name": "1",
+                "start": 1000,
+                "end": 2000,
+                "external_name": "BRCA2",
+                "strand": 1,
+                "id": "ENSG00000139618",
+                "biotype": "protein_coding",
+            }
+        ]
+
+    def test_gene_sparse_region_reloads_from_cache(self, tmp_path):
+        """A region with no genes caches and reloads without raising."""
+        from pylocuszoom.ensembl import get_genes_for_region
+
+        with patch(
+            "pylocuszoom.ensembl.requests.get", return_value=self._ok_response([])
+        ) as mock_get:
+            first = get_genes_for_region("human", "1", 1_000_000, 1_100_000, tmp_path)
+            assert mock_get.call_count == 1
+
+            second = get_genes_for_region("human", "1", 1_000_000, 1_100_000, tmp_path)
+
+        assert first.empty
+        assert second.empty
+        assert mock_get.call_count == 1, "second call must be served from cache"
+        assert list(second.columns) == list(first.columns)
+        assert "gene_name" in second.columns
+
+    def test_failed_fetch_is_not_cached(self, tmp_path):
+        """An API outage must not poison the cache for the region."""
+        import requests
+
+        from pylocuszoom.ensembl import get_genes_for_region
+
+        with (
+            patch("pylocuszoom.ensembl.time.sleep"),
+            patch(
+                "pylocuszoom.ensembl.requests.get",
+                side_effect=requests.exceptions.ConnectionError("network down"),
+            ),
+        ):
+            during_outage = get_genes_for_region(
+                "human", "1", 1_000_000, 1_100_000, tmp_path
+            )
+        assert during_outage.empty
+
+        assert not list(tmp_path.rglob("genes_*.csv")), (
+            "a failed fetch must leave no cache file"
+        )
+
+        with patch(
+            "pylocuszoom.ensembl.requests.get",
+            return_value=self._ok_response(self._gene_payload()),
+        ) as mock_get:
+            after_recovery = get_genes_for_region(
+                "human", "1", 1_000_000, 1_100_000, tmp_path
+            )
+
+        assert mock_get.called, "recovery must retry the API, not reuse a failed result"
+        assert len(after_recovery) == 1
+        assert after_recovery["gene_name"].iloc[0] == "BRCA2"
+
+    def test_zero_byte_cache_file_is_ignored(self, tmp_path):
+        """A cache file poisoned by an older release is treated as a miss."""
+        from pylocuszoom.ensembl import _cache_key, get_cached_genes
+
+        species_dir = tmp_path / "homo_sapiens"
+        species_dir.mkdir()
+        key = _cache_key("homo_sapiens", "1", 1_000_000, 1_100_000)
+        (species_dir / f"genes_{key}.csv").write_text("\n")
+
+        assert get_cached_genes(tmp_path, "human", "1", 1_000_000, 1_100_000) is None

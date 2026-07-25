@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from .exceptions import ValidationError
+from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
 from .utils import _platform_cache_base, normalize_chrom
 
@@ -158,7 +158,9 @@ def get_cached_genes(
     try:
         logger.debug(f"Cache hit: {cache_file}")
         return pd.read_csv(cache_file)
-    except (OSError, pd.errors.ParserError) as e:
+    except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
+        # EmptyDataError subclasses ValueError, not ParserError, so it needs
+        # naming explicitly. Releases before 2.1.1 wrote column-less CSVs.
         logger.warning(f"Corrupt cache file {cache_file}, ignoring: {e}")
         return None
 
@@ -204,7 +206,7 @@ def _make_ensembl_request(
     """Make request to Ensembl API with retry logic.
 
     Always raises on failure; callers that want an empty result instead
-    translate ValidationError at their boundary.
+    translate EnsemblAPIError at their boundary.
 
     Args:
         url: API endpoint URL.
@@ -215,7 +217,7 @@ def _make_ensembl_request(
         JSON response as list.
 
     Raises:
-        ValidationError: If the request ultimately fails.
+        EnsemblAPIError: If the request ultimately fails.
     """
     delay = ENSEMBL_RETRY_DELAY
 
@@ -233,7 +235,7 @@ def _make_ensembl_request(
                 time.sleep(delay)
                 delay *= 2
                 continue
-            raise ValidationError(
+            raise EnsemblAPIError(
                 f"Ensembl API request failed after {max_retries} attempts: {e}"
             )
 
@@ -243,7 +245,7 @@ def _make_ensembl_request(
                 return response.json()
             except (ValueError, requests.exceptions.JSONDecodeError) as e:
                 logger.warning(f"Ensembl API returned invalid JSON: {e}")
-                raise ValidationError(f"Ensembl API returned invalid JSON: {e}")
+                raise EnsemblAPIError(f"Ensembl API returned invalid JSON: {e}")
 
         # Retryable errors (429 rate limit, 503 service unavailable)
         if response.status_code in (429, 503) and attempt < max_retries - 1:
@@ -258,10 +260,10 @@ def _make_ensembl_request(
         # Non-retryable error
         error_msg = f"Ensembl API error {response.status_code}: {response.text[:200]}"
         logger.warning(error_msg)
-        raise ValidationError(error_msg)
+        raise EnsemblAPIError(error_msg)
 
     # All retries exhausted (e.g., repeated 429/503 responses)
-    raise ValidationError(
+    raise EnsemblAPIError(
         f"Ensembl API request failed after {max_retries} attempts (rate limited)"
     )
 
@@ -291,6 +293,18 @@ def _exon_record(feature: dict, chrom_str: str) -> dict:
     }
 
 
+def _empty_feature_frame(
+    record_builder: Callable[[dict, str], dict], chrom_str: str
+) -> pd.DataFrame:
+    """Build an empty frame carrying the record builder's columns.
+
+    A bare ``pd.DataFrame()`` has no columns, so it serialises to a one-byte CSV
+    that ``pd.read_csv`` cannot parse back. Deriving the columns from the record
+    builder's own keys keeps the schema single-sourced.
+    """
+    return pd.DataFrame(columns=list(record_builder({}, chrom_str)))
+
+
 def _fetch_overlap_features(
     species: str,
     chrom: str | int,
@@ -316,13 +330,15 @@ def _fetch_overlap_features(
         params: Query parameters for the overlap request.
         feature_type: Ensembl feature_type to keep (e.g. "gene", "exon").
         record_builder: Maps a kept feature and chrom to a DataFrame row.
-        raise_on_error: If True, raise ValidationError on API errors.
+        raise_on_error: If True, raise EnsemblAPIError on API errors.
 
     Returns:
-        DataFrame of built records; empty on API error or an empty region.
+        DataFrame of built records, always carrying the record_builder's
+        columns; empty on API error or an empty region.
 
     Raises:
-        ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
+        ValidationError: If region > 5Mb.
+        EnsemblAPIError: If raise_on_error=True and the API fails.
     """
     _validate_region_size(start, end, f"{feature_type}s_df")
 
@@ -333,22 +349,28 @@ def _fetch_overlap_features(
 
     logger.debug(f"Fetching {feature_type}s from Ensembl: {url}")
 
+    empty = _empty_feature_frame(record_builder, chrom_str)
+
     try:
         data = _make_ensembl_request(url, params)
-    except ValidationError:
+    except EnsemblAPIError:
         if raise_on_error:
             raise
-        return pd.DataFrame()
+        return empty
 
     if not data:
         logger.debug(f"No {feature_type}s found in region {region}")
-        return pd.DataFrame()
+        return empty
 
     records = [
         record_builder(feature, chrom_str)
         for feature in data
         if feature.get("feature_type") == feature_type
     ]
+    if not records:
+        logger.debug(f"No {feature_type}s found in region {region}")
+        return empty
+
     df = pd.DataFrame(records)
     logger.debug(f"Fetched {len(df)} {feature_type}s from Ensembl")
     return df
@@ -478,13 +500,24 @@ def get_genes_for_region(
                 return cached, exons_df
             return cached
 
-    # Fetch from Ensembl API
-    genes_df = fetch_genes_from_ensembl(
-        species, chrom_str, start, end, raise_on_error=raise_on_error
-    )
+    # Fetch from Ensembl API. Ask it to raise so a service failure stays
+    # distinguishable from a region that genuinely has no genes; only the
+    # latter is safe to cache.
+    fetch_failed = False
+    try:
+        genes_df = fetch_genes_from_ensembl(
+            species, chrom_str, start, end, raise_on_error=True
+        )
+    except EnsemblAPIError:
+        if raise_on_error:
+            raise
+        fetch_failed = True
+        genes_df = _empty_feature_frame(_gene_record, chrom_str)
 
-    # Cache the result (even if empty, to avoid repeated API calls for gene-sparse regions)
-    if use_cache:
+    # Cache the result (even if empty, to avoid repeated API calls for gene-sparse
+    # regions). A failed fetch is never cached: it would be indistinguishable from
+    # an empty region on reload and would permanently hide the region's genes.
+    if use_cache and not fetch_failed:
         save_cached_genes(genes_df, cache_dir, species, chrom_str, start, end)
 
     if include_exons:

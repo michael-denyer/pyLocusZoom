@@ -28,9 +28,20 @@ from ..colors import (
 )
 
 if TYPE_CHECKING:
+    from typing import Protocol
+
     import pandas as pd
 
-    from .base import PlotBackend
+    from .base import PlotBackend, SupportsSecondaryAxis
+
+    class _SecondaryAxisBackend(PlotBackend, SupportsSecondaryAxis, Protocol):
+        """A backend carrying both the required primitives and a secondary axis.
+
+        ``render_recombination_overlay`` needs the intersection: the
+        ``*_secondary`` methods from the optional protocol plus ``hide_spines``
+        from the required one. Python has no intersection type, so callers state
+        it by narrowing with ``isinstance(backend, SupportsSecondaryAxis)``.
+        """
 
 
 @dataclass(frozen=True)
@@ -95,7 +106,7 @@ def finemapping_legend_entries(
 
 
 def render_recombination_overlay(
-    backend: "PlotBackend",
+    backend: "_SecondaryAxisBackend",
     ax: object,
     recomb_df: "pd.DataFrame",
     start: int,

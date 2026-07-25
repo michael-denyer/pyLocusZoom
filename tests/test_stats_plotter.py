@@ -289,7 +289,7 @@ class TestBarChartCapabilityGate:
 
         renderer = StatsRenderer(BarelyABackend())
 
-        with pytest.raises(TypeError, match="does not support error bars"):
+        with pytest.raises(TypeError, match="does not support bar charts"):
             renderer.render_forest(
                 self._forest_df(),
                 variant_id="rs1",
@@ -302,6 +302,45 @@ class TestBarChartCapabilityGate:
                 effect_label="Beta",
                 figsize=(6.0, 4.0),
             )
+
+    def _render(self, backend):
+        from pylocuszoom._stats_renderer import StatsRenderer
+
+        StatsRenderer(backend).render_forest(
+            self._forest_df(),
+            variant_id="rs1",
+            study_col="study",
+            effect_col="beta",
+            ci_lower_col="ci_lower",
+            ci_upper_col="ci_upper",
+            weight_col=None,
+            null_value=0.0,
+            effect_label="Beta",
+            figsize=(6.0, 4.0),
+        )
+
+    def test_error_names_the_backend_and_the_protocol(self):
+        class BarelyABackend:
+            pass
+
+        with pytest.raises(TypeError) as excinfo:
+            self._render(BarelyABackend())
+
+        assert "BarelyABackend" in str(excinfo.value)
+        assert "SupportsBarCharts" in str(excinfo.value)
+
+    def test_error_names_both_required_methods(self):
+        """errorbar_h alone does not satisfy the protocol, so say what is missing."""
+
+        class ErrorBarOnlyBackend:
+            def errorbar_h(self, *args, **kwargs): ...
+
+        with pytest.raises(TypeError) as excinfo:
+            self._render(ErrorBarOnlyBackend())
+
+        message = str(excinfo.value)
+        assert "hbar" in message
+        assert "errorbar_h" in message
 
 
 class TestConstructorThresholdIsTheDefault:
