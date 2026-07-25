@@ -24,7 +24,7 @@ class StatsRenderer:
         p_col: str,
         category_col: str,
         effect_col: Optional[str],
-        significance_threshold: float,
+        significance_threshold: Optional[float],
         figsize: Tuple[float, float],
     ) -> Any:
         if category_col in df.columns:
@@ -81,14 +81,15 @@ class StatsRenderer:
                     linewidth=0.5,
                     zorder=2,
                 )
-        self._backend.axvline(
-            ax,
-            x=-np.log10(significance_threshold),
-            color="red",
-            linestyle="--",
-            linewidth=1,
-            alpha=0.7,
-        )
+        if significance_threshold is not None:
+            self._backend.axvline(
+                ax,
+                x=-np.log10(significance_threshold),
+                color="red",
+                linestyle="--",
+                linewidth=1,
+                alpha=0.7,
+            )
         self._backend.set_xlabel(ax, r"$-\log_{10}$ P")
         self._backend.set_ylabel(ax, "Phenotype")
         self._backend.set_ylim(ax, -0.5, len(df) - 0.5)

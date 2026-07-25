@@ -9,7 +9,13 @@ from typing import Any, Optional, Tuple
 
 import pandas as pd
 
-from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD, transform_pvalues
+from ._plotter_utils import (
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+    UNSET,
+    ThresholdArg,
+    resolve_threshold,
+    transform_pvalues,
+)
 from ._stats_renderer import StatsRenderer
 from .backends import BackendType, get_backend
 from .forest import validate_forest_df
@@ -50,7 +56,7 @@ class StatsPlotter:
         p_col: str = "p_value",
         category_col: str = "category",
         effect_col: Optional[str] = None,
-        significance_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
+        significance_threshold: ThresholdArg = UNSET,
         figsize: Tuple[float, float] = (10, 8),
     ) -> Any:
         """Create a PheWAS (Phenome-Wide Association Study) plot.
@@ -65,7 +71,9 @@ class StatsPlotter:
             p_col: Column name for p-values.
             category_col: Column name for phenotype categories.
             effect_col: Optional column name for effect direction (beta/OR).
-            significance_threshold: P-value threshold for significance line.
+            significance_threshold: P-value threshold for the significance line.
+                Defaults to the plotter's ``genomewide_threshold``; pass None to
+                draw no line.
             figsize: Figure size as (width, height).
 
         Returns:
@@ -78,6 +86,9 @@ class StatsPlotter:
             ...     category_col="category",
             ... )
         """
+        significance_threshold = resolve_threshold(
+            significance_threshold, self.genomewide_threshold
+        )
         validate_phewas_df(phewas_df, phenotype_col, p_col, category_col)
 
         df = phewas_df.copy()

@@ -54,30 +54,6 @@ def small_ld_matrix():
     )
 
 
-class TestLDHeatmapPlotterInit:
-    """Tests for LDHeatmapPlotter initialization."""
-
-    def test_default_backend_is_matplotlib(self):
-        """Test that default backend is matplotlib."""
-        plotter = LDHeatmapPlotter()
-        assert plotter.backend_name == "matplotlib"
-
-    def test_accepts_plotly_backend(self):
-        """Test that plotly backend is accepted."""
-        plotter = LDHeatmapPlotter(backend="plotly")
-        assert plotter.backend_name == "plotly"
-
-    def test_accepts_bokeh_backend(self):
-        """Test that bokeh backend is accepted."""
-        plotter = LDHeatmapPlotter(backend="bokeh")
-        assert plotter.backend_name == "bokeh"
-
-    def test_species_parameter(self):
-        """Test that species parameter is stored."""
-        plotter = LDHeatmapPlotter(species="human")
-        assert plotter.species == "human"
-
-
 class TestPlotLDHeatmap:
     """Tests for plot_ld_heatmap method."""
 

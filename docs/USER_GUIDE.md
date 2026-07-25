@@ -1306,6 +1306,10 @@ plotter = LocusZoomPlotter(species="canine", log_level=None)
 
 ### Custom Significance Threshold
 
+`genomewide_threshold` sets where every plot from that plotter draws its
+significance line. `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, and
+`StatsPlotter` all take it.
+
 ```python
 # Suggestive threshold
 plotter = LocusZoomPlotter(
@@ -1313,6 +1317,23 @@ plotter = LocusZoomPlotter(
     genomewide_threshold=1e-5,
 )
 ```
+
+On the Manhattan, Miami, and PheWAS plotters, each plot method also takes its
+own threshold argument. Omit it to inherit the plotter's `genomewide_threshold`,
+pass a p-value to override it for one call, or pass `None` to draw no line.
+
+```python
+plotter = ManhattanPlotter(genomewide_threshold=1e-5)
+
+plotter.plot_manhattan(df)                                # line at 1e-5
+plotter.plot_manhattan(df, significance_threshold=5e-8)   # line at 5e-8
+plotter.plot_manhattan(df, significance_threshold=None)   # no line
+```
+
+> **Changed:** before this release, `ManhattanPlotter`, `MiamiPlotter`, and
+> `StatsPlotter` accepted `genomewide_threshold` and then ignored it, always
+> drawing at 5e-8. If you passed it and worked around the old behaviour by also
+> passing the per-call argument, that still works and still wins.
 
 ### Large Datasets with PySpark
 

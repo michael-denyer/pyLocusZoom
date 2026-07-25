@@ -1,5 +1,6 @@
 """Tests for ManhattanPlotter class."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -98,3 +99,71 @@ class TestCategoricalManhattanIntegerCategories:
         total_points = sum(len(coll.get_offsets()) for coll in ax.collections)
         assert total_points == 5, f"Expected 5 points rendered, got {total_points}"
         plt.close(fig)
+
+
+class TestConstructorThresholdIsTheDefault:
+    """The constructor's genomewide_threshold reaches every plot method."""
+
+    @staticmethod
+    def _gwas():
+        return pd.DataFrame(
+            {
+                "chrom": [1, 1, 2, 2],
+                "pos": [1_000_000, 2_000_000, 1_000_000, 2_000_000],
+                "p": [1e-9, 0.01, 1e-6, 0.5],
+            }
+        )
+
+    @staticmethod
+    def _dashed_y(fig):
+        return [
+            line.get_ydata()[0]
+            for ax in fig.axes
+            for line in ax.get_lines()
+            if line.get_linestyle() == "--"
+        ]
+
+    def test_plot_manhattan_uses_the_constructor_threshold(self):
+        fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(self._gwas())
+
+        assert self._dashed_y(fig) == pytest.approx([3.0])
+
+    def test_plot_manhattan_stacked_uses_the_constructor_threshold(self):
+        plotter = ManhattanPlotter(genomewide_threshold=1e-3)
+        fig = plotter.plot_manhattan_stacked([self._gwas(), self._gwas()])
+
+        assert self._dashed_y(fig) == pytest.approx([3.0, 3.0])
+
+    def test_plot_manhattan_qq_uses_the_constructor_threshold(self):
+        fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan_qq(
+            self._gwas()
+        )
+
+        assert any(y == pytest.approx(3.0) for y in self._dashed_y(fig))
+
+    def test_categorical_manhattan_uses_the_constructor_threshold(self):
+        df = self._gwas().assign(category=["a", "a", "b", "b"])
+        fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(
+            df, category_col="category"
+        )
+
+        assert self._dashed_y(fig) == pytest.approx([3.0])
+
+    def test_explicit_argument_beats_the_constructor(self):
+        fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(
+            self._gwas(), significance_threshold=1e-6
+        )
+
+        assert self._dashed_y(fig) == pytest.approx([6.0])
+
+    def test_explicit_none_still_draws_no_line(self):
+        fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(
+            self._gwas(), significance_threshold=None
+        )
+
+        assert self._dashed_y(fig) == []
+
+    def test_default_construction_keeps_the_5e_8_line(self):
+        fig = ManhattanPlotter().plot_manhattan(self._gwas())
+
+        assert self._dashed_y(fig) == pytest.approx([-np.log10(5e-8)])
