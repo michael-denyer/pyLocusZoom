@@ -119,18 +119,30 @@ class TestPLINKLoader:
         filepath.write_text(content)
         return filepath
 
-    def test_load_plink_glm_header_eaten_by_comment_char(self, plink_glm_hash_file):
-        """Pin current behaviour for a '#CHROM'-headed PLINK2 --glm file.
+    def test_load_plink_glm_native_hash_header(self, plink_glm_hash_file):
+        """Load a PLINK2 --glm file with its native '#CHROM' header line.
 
-        This is a known defect, not the desired contract. The spec's comment="#"
-        makes pandas drop the header line entirely and promote the first data
-        row, so '#CHROM' in the chr candidates is unreachable.
+        pandas treats '#' as a comment prefix, so a spec-level comment="#"
+        swallowed the header and promoted the first variant to column labels.
+        The chr candidate '#CHROM' exists precisely for this header.
         """
-        with pytest.raises(LoaderValidationError, match="Missing columns") as exc_info:
-            load_plink_assoc(plink_glm_hash_file)
+        df = load_plink_assoc(plink_glm_hash_file)
 
-        # A data value as a column label is what proves the header was consumed
-        assert "rs123" in str(exc_info.value)
+        assert len(df) == 3, "the header line must not be counted as a variant"
+        assert df["chr"].iloc[0] == 1
+        assert df["ps"].iloc[0] == 1000000
+        assert df["rs"].iloc[0] == "rs123"
+        assert df["p_wald"].iloc[0] == 0.01
+
+    def test_load_gwas_detects_plink2_glm(self, plink_glm_hash_file):
+        """A .glm.linear name routes to the PLINK loader, not the warn-default."""
+        renamed = plink_glm_hash_file.parent / "plink2.PHENO1.glm.linear"
+        plink_glm_hash_file.rename(renamed)
+
+        df = load_gwas(renamed)
+
+        assert len(df) == 3
+        assert df["rs"].iloc[0] == "rs123"
 
     def test_load_plink_glm_style_aliases_without_hash(self, plink_glm_file):
         """Map PLINK2 --glm aliases when no '#' hides the header row."""

@@ -1,5 +1,6 @@
 """Tests for utility functions in pylocuszoom.utils."""
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -405,3 +406,61 @@ class TestNormalizeChrom:
         """String with chr prefix has it removed."""
         assert normalize_chrom("chr1") == "1"
         assert normalize_chrom("chrX") == "X"
+
+
+class TestPlatformCacheBase:
+    """One cache root for recombination maps and Ensembl annotations."""
+
+    def test_windows_uses_localappdata(self, tmp_path, monkeypatch):
+        from pylocuszoom.utils import _platform_cache_base
+
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+        assert _platform_cache_base() == tmp_path / "pylocuszoom"
+
+    def test_windows_falls_back_to_appdata_local(self, tmp_path, monkeypatch):
+        """An unset LOCALAPPDATA still resolves to the conventional location.
+
+        Falling back to the profile root would drop a non-hidden cache directory
+        there, and would not match the %LOCALAPPDATA% default it stands in for.
+        """
+        from pylocuszoom.utils import _platform_cache_base
+
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.delenv("LOCALAPPDATA", raising=False)
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        assert _platform_cache_base() == tmp_path / "AppData" / "Local" / "pylocuszoom"
+
+    def test_windows_ignores_dbfs_and_xdg(self, tmp_path, monkeypatch):
+        """The Windows branch short-circuits before the Databricks and XDG checks."""
+        from pylocuszoom.utils import _platform_cache_base
+
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        monkeypatch.setenv("XDG_CACHE_HOME", "/xdg")
+        monkeypatch.setattr("os.path.exists", lambda p: p == "/dbfs")
+
+        assert _platform_cache_base() == tmp_path / "pylocuszoom"
+
+    def test_databricks_beats_xdg(self, monkeypatch):
+        """/dbfs wins over XDG_CACHE_HOME on Linux."""
+        from pylocuszoom.utils import _platform_cache_base
+
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setenv("XDG_CACHE_HOME", "/xdg")
+        monkeypatch.setattr("os.path.exists", lambda p: p == "/dbfs")
+
+        assert _platform_cache_base() == Path("/dbfs/FileStore/reference_data")
+
+    def test_empty_xdg_is_treated_as_unset(self, tmp_path, monkeypatch):
+        """An empty XDG_CACHE_HOME must not resolve to a relative path."""
+        from pylocuszoom.utils import _platform_cache_base
+
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("os.path.exists", lambda _: False)
+        monkeypatch.setenv("XDG_CACHE_HOME", "")
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        assert _platform_cache_base() == tmp_path / ".cache" / "pylocuszoom"
