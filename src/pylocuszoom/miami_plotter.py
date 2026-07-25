@@ -55,7 +55,6 @@ class MiamiPlotter:
         self.species = species
         self._backend = get_backend(backend)
         self._renderer = MiamiRenderer(self._backend)
-        self.backend_name = backend
         self.genomewide_threshold = genomewide_threshold
 
     def plot_miami(

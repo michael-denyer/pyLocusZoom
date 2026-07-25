@@ -93,7 +93,6 @@ class ColocPlotter:
         """Initialize the colocalization plotter."""
         self._backend = get_backend(backend)
         self._renderer = ColocRenderer(self._backend)
-        self.backend_name = backend
 
     def plot_coloc(
         self,

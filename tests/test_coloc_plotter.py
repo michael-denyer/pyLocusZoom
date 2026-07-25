@@ -44,31 +44,6 @@ def gwas_data_with_ld():
     )
 
 
-class TestColocPlotterInit:
-    """Tests for ColocPlotter initialization."""
-
-    def test_default_backend_is_matplotlib(self):
-        """Test that default backend is matplotlib."""
-        from pylocuszoom.coloc_plotter import ColocPlotter
-
-        plotter = ColocPlotter()
-        assert plotter.backend_name == "matplotlib"
-
-    def test_accepts_plotly_backend(self):
-        """Test that plotly backend is accepted."""
-        from pylocuszoom.coloc_plotter import ColocPlotter
-
-        plotter = ColocPlotter(backend="plotly")
-        assert plotter.backend_name == "plotly"
-
-    def test_accepts_bokeh_backend(self):
-        """Test that bokeh backend is accepted."""
-        from pylocuszoom.coloc_plotter import ColocPlotter
-
-        plotter = ColocPlotter(backend="bokeh")
-        assert plotter.backend_name == "bokeh"
-
-
 class TestPlotColoc:
     """Tests for plot_coloc method."""
 
