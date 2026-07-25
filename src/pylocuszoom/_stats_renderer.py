@@ -117,10 +117,18 @@ class StatsRenderer:
         effect_label: str,
         figsize: Tuple[float, float],
     ) -> Any:
+        """Draw a forest plot of per-study effects and confidence intervals.
+
+        Raises:
+            TypeError: If the backend does not implement ``SupportsBarCharts``.
+                The bars are the whole figure here, so there is nothing to
+                degrade to.
+        """
         if not isinstance(self._backend, SupportsBarCharts):
             raise TypeError(
-                f"{type(self._backend).__name__} does not support error bars. "
-                "A forest plot needs a backend implementing SupportsBarCharts."
+                f"{type(self._backend).__name__} does not support bar charts. "
+                "A forest plot needs a backend implementing SupportsBarCharts "
+                "(hbar, errorbar_h)."
             )
         df = df.copy()
         df["y_pos"] = range(len(df) - 1, -1, -1)

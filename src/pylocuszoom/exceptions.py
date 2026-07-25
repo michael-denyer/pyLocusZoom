@@ -33,6 +33,15 @@ class ForestValidationError(ValidationError):
     """Raised when forest plot DataFrame validation fails."""
 
 
+class EnsemblAPIError(ValidationError):
+    """Raised when the Ensembl REST API is unreachable or returns an error.
+
+    Distinguishes a service failure from a rejected request, so callers can
+    tell "the region has no genes" from "we could not ask". Subclasses
+    ValidationError for backward compat with ``raise_on_error=True`` callers.
+    """
+
+
 class BackendError(PyLocusZoomError):
     """Raised when backend operations fail."""
 

@@ -7,6 +7,7 @@ from pylocuszoom.loaders import (
     load_bed,
     load_bolt_lmm,
     load_caviar,
+    load_ensembl_genes,
     load_eqtl_catalogue,
     load_finemap,
     load_gemma,
@@ -94,6 +95,53 @@ chr1\t1100000\t1150000\tGENE3
 class TestPLINKLoader:
     """Tests for PLINK association file loader."""
 
+    @pytest.fixture
+    def plink_glm_hash_file(self, tmp_path):
+        """Create a PLINK2 --glm file with its native '#CHROM' header line."""
+        content = """#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tBETA\tSE\tT_STAT\tP
+1\t1000000\trs123\tA\tG\tG\tADD\t1000\t0.5\t0.2\t2.5\t0.01
+1\t1001000\trs456\tC\tT\tT\tADD\t1000\t0.3\t0.15\t1.5\t0.1
+1\t1002000\trs789\tG\tA\tA\tADD\t1000\t-0.2\t0.1\t-1.0\t1e-8
+"""
+        filepath = tmp_path / "glm_hash.assoc.linear"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def plink_glm_file(self, tmp_path):
+        """Create a PLINK2 --glm file with the leading '#' stripped."""
+        content = """CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tBETA\tSE\tT_STAT\tP
+1\t1000000\trs123\tA\tG\tG\tADD\t1000\t0.5\t0.2\t2.5\t0.01
+1\t1001000\trs456\tC\tT\tT\tADD\t1000\t0.3\t0.15\t1.5\t0.1
+1\t1002000\trs789\tG\tA\tA\tADD\t1000\t-0.2\t0.1\t-1.0\t1e-8
+"""
+        filepath = tmp_path / "glm.assoc.linear"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_plink_glm_header_eaten_by_comment_char(self, plink_glm_hash_file):
+        """Pin current behaviour for a '#CHROM'-headed PLINK2 --glm file.
+
+        This is a known defect, not the desired contract. The spec's comment="#"
+        makes pandas drop the header line entirely and promote the first data
+        row, so '#CHROM' in the chr candidates is unreachable.
+        """
+        with pytest.raises(LoaderValidationError, match="Missing columns") as exc_info:
+            load_plink_assoc(plink_glm_hash_file)
+
+        # A data value as a column label is what proves the header was consumed
+        assert "rs123" in str(exc_info.value)
+
+    def test_load_plink_glm_style_aliases_without_hash(self, plink_glm_file):
+        """Map PLINK2 --glm aliases when no '#' hides the header row."""
+        df = load_plink_assoc(plink_glm_file)
+
+        assert len(df) == 3  # Not 2; no '#' line for comment="#" to swallow
+        assert df["ps"].iloc[0] == 1000000  # POS, the second pos_col candidate
+        assert df["rs"].iloc[0] == "rs123"  # ID, the second rs_col candidate
+        assert df["chr"].iloc[0] == 1  # CHROM, the third chr candidate
+        assert df["p_wald"].iloc[0] == 0.01
+
     def test_load_plink_assoc_basic(self, plink_assoc_file):
         """Test basic PLINK file loading."""
         df = load_plink_assoc(plink_assoc_file)
@@ -127,6 +175,25 @@ class TestPLINKLoader:
 
 class TestREGENIELoader:
     """Tests for REGENIE file loader."""
+
+    @pytest.fixture
+    def regenie_p_only_file(self, tmp_path):
+        """Create a REGENIE file carrying a raw P column and no LOG10P."""
+        content = """CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ N TEST BETA SE CHISQ P
+1 1000000 rs123 A G 0.3 1000 ADD 0.5 0.2 6.25 0.004
+1 1001000 rs456 C T 0.2 1000 ADD 0.3 0.15 4.0 0.05
+1 1002000 rs789 G A 0.4 1000 ADD -0.2 0.1 4.0 2e-9
+"""
+        filepath = tmp_path / "test_p_only.regenie"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_regenie_renames_raw_p_column(self, regenie_p_only_file):
+        """Test that REGENIE renames P when LOG10P is absent."""
+        df = load_regenie(regenie_p_only_file)
+
+        assert df["p_wald"].iloc[0] == 0.004  # Taken as-is, not 10**(-0.004)
+        assert df["p_wald"].iloc[2] == pytest.approx(2e-9, rel=0.01)
 
     def test_load_regenie_basic(self, regenie_file):
         """Test basic REGENIE file loading."""
@@ -273,6 +340,34 @@ class TestGEMMALoader:
         filepath.write_text(content)
         return filepath
 
+    @pytest.fixture
+    def gemma_all_p_file(self, tmp_path):
+        """Create a GEMMA file carrying p_wald, p_lrt and p_score together."""
+        content = """chr\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald\tp_lrt\tp_score
+1\trs123\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.001\t0.02\t0.3
+1\trs456\t1001000\tC\tT\t0.2\t0.3\t0.15\t0.004\t0.06\t0.4
+"""
+        filepath = tmp_path / "output_all_p.assoc.txt"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_gemma_prefers_wald_over_lrt_and_score(self, gemma_all_p_file):
+        """Test that GEMMA prefers p_wald over p_lrt and p_score."""
+        df = load_gemma(gemma_all_p_file)
+
+        assert df["p_wald"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
+
+    def test_load_gemma_precedence_with_custom_p_col(self, gemma_all_p_file):
+        """Test GEMMA p-value precedence through a custom output column.
+
+        With the default p_col a reordered candidate tuple would rename p_lrt
+        onto the existing p_wald column, so the assertion would hit duplicate
+        labels rather than a clean value mismatch.
+        """
+        df = load_gemma(gemma_all_p_file, p_col="pval")
+
+        assert df["pval"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
+
     def test_load_gemma_basic(self, gemma_file):
         """Test basic GEMMA file loading."""
         df = load_gemma(gemma_file)
@@ -367,6 +462,18 @@ ENSG00001_ENST00001\tENSG00001\t1_1001000_C_T\t1\t1001000\tC\tT\t200\t1000\t0.2\
         filepath.write_text(content)
         return filepath
 
+    @pytest.fixture
+    def eqtl_catalogue_substring_file(self, tmp_path):
+        """Create an eQTL Catalogue file whose genes TP5 and TP53 overlap."""
+        content = """chromosome\tposition\tgene_id\tbeta\tpvalue
+1\t1000000\tTP5\t0.5\t1e-6
+1\t1001000\tTP53\t-0.3\t0.01
+1\t1002000\tBRCA1\t0.2\t0.02
+"""
+        filepath = tmp_path / "eqtl_catalogue_substring.tsv"
+        filepath.write_text(content)
+        return filepath
+
     def test_load_eqtl_catalogue_basic(self, eqtl_catalogue_file):
         """Test basic eQTL Catalogue file loading."""
         df = load_eqtl_catalogue(eqtl_catalogue_file)
@@ -389,6 +496,15 @@ ENSG00001_ENST00001\tENSG00001\t1_1001000_C_T\t1\t1001000\tC\tT\t200\t1000\t0.2\
 
         assert len(df) == 2
 
+    def test_load_eqtl_catalogue_gene_filter_is_substring(
+        self, eqtl_catalogue_substring_file
+    ):
+        """Test that eQTL Catalogue gene filtering matches on substring."""
+        df = load_eqtl_catalogue(eqtl_catalogue_substring_file, gene="TP5")
+
+        assert len(df) == 2  # Not 1; "contains" also matches TP53
+        assert set(df["gene"]) == {"TP5", "TP53"}
+
 
 class TestMatrixEQTLLoader:
     """Tests for MatrixEQTL file loader."""
@@ -402,6 +518,18 @@ rs456\tBRCA1\t-0.3\t-2.1\t0.03\t0.1
 rs789\tTP53\t0.2\t2.0\t0.04\t0.12
 """
         filepath = tmp_path / "matrixeqtl.txt"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def matrixeqtl_substring_file(self, tmp_path):
+        """Create a MatrixEQTL file whose genes TP5 and TP53 overlap."""
+        content = """SNP\tgene\tbeta\tt-stat\tp-value\tFDR
+rs123\tTP5\t0.5\t3.5\t1e-6\t1e-5
+rs456\tTP53\t-0.3\t-2.1\t0.03\t0.1
+rs789\tBRCA1\t0.2\t2.0\t0.04\t0.12
+"""
+        filepath = tmp_path / "matrixeqtl_substring.txt"
         filepath.write_text(content)
         return filepath
 
@@ -427,6 +555,13 @@ rs789\tTP53\t0.2\t2.0\t0.04\t0.12
 
         assert len(df) == 2
         assert all(df["gene"] == "BRCA1")
+
+    def test_load_matrixeqtl_gene_filter_is_exact(self, matrixeqtl_substring_file):
+        """Test that MatrixEQTL gene filtering matches on equality."""
+        df = load_matrixeqtl(matrixeqtl_substring_file, gene="TP5")
+
+        assert len(df) == 1  # Not 2; "exact" excludes TP53
+        assert set(df["gene"]) == {"TP5"}
 
 
 class TestAutoFormatDetection:
@@ -518,6 +653,31 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
 
 class TestSuSiELoader:
     """Tests for SuSiE file loader."""
+
+    @pytest.fixture
+    def susie_unset_cs_file(self, tmp_path):
+        """Create a SuSiE file whose cs column holds -1 and a blank, never 0."""
+        content = """pos\tpip\tcs\tsnp
+1000000\t0.85\t1\trs123
+1001000\t0.12\t-1\trs456
+1002000\t0.02\t\trs789
+1003000\t0.45\t2\trs101
+"""
+        filepath = tmp_path / "susie_unset.tsv"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_susie_clamps_negative_credible_set(self, susie_unset_cs_file):
+        """Test that a -1 credible set is clamped to 0."""
+        df = load_susie(susie_unset_cs_file)
+
+        assert df[df["pos"] == 1001000]["cs"].iloc[0] == 0  # Not -1, the file value
+
+    def test_load_susie_fills_blank_credible_set(self, susie_unset_cs_file):
+        """Test that a blank credible set cell becomes 0."""
+        df = load_susie(susie_unset_cs_file)
+
+        assert df[df["pos"] == 1002000]["cs"].iloc[0] == 0  # Not NaN, the file value
 
     def test_load_susie_basic(self, susie_file):
         """Test basic SuSiE file loading."""
@@ -639,6 +799,18 @@ class TestPolyFunLoader:
         filepath.write_text(content)
         return filepath
 
+    @pytest.fixture
+    def polyfun_file_no_pip(self, tmp_path):
+        """Create a PolyFun file with no column the spec can map to pip."""
+        content = """CHR BP SNP A1 A2 CREDIBLE_SET BETA SE
+1 1000000 rs123 A G 1 0.5 0.2
+1 1001000 rs456 C T 1 0.3 0.15
+1 1002000 rs789 G A 0 -0.2 0.1
+"""
+        filepath = tmp_path / "polyfun_no_pip.txt"
+        filepath.write_text(content)
+        return filepath
+
     def test_load_polyfun_basic(self, polyfun_file):
         """Test basic PolyFun file loading."""
         df = load_polyfun(polyfun_file)
@@ -654,6 +826,30 @@ class TestPolyFunLoader:
 
         assert df[df["pos"] == 1000000]["cs"].iloc[0] == 1
         assert df[df["pos"] == 1002000]["cs"].iloc[0] == 0
+
+    def test_load_polyfun_unmappable_pip_warns_and_skips_validation(
+        self, polyfun_file_no_pip
+    ):
+        """Test that an unmappable pip column warns and returns unvalidated rows."""
+        import io
+
+        from pylocuszoom.logging import enable_logging
+
+        log_capture = io.StringIO()
+        enable_logging("WARNING", sink=log_capture)
+        try:
+            df = load_polyfun(polyfun_file_no_pip)
+        finally:
+            enable_logging("INFO")  # Restore the module's import-time default
+
+        assert "pip" not in df.columns
+        assert len(df) == 3
+        assert df[df["pos"] == 1001000]["cs"].iloc[0] == 1
+        assert df[df["pos"] == 1002000]["rs"].iloc[0] == "rs789"
+
+        log_output = log_capture.getvalue()
+        assert "PolyFun loader could not map columns: ['pip']" in log_output
+        assert "Validation skipped" in log_output
 
 
 # =============================================================================
@@ -790,6 +986,66 @@ chr1\tENSEMBL\tgene\t1000000\t1020000\t.\t+\t.\tgene_id "ENSG00001"; gene_biotyp
 
         assert len(df) == 1
         assert df["gene_name"].iloc[0] == "ENSG00001"
+
+
+class TestEnsemblGenesLoader:
+    """Tests for Ensembl BioMart gene export loader."""
+
+    @pytest.fixture
+    def biomart_web_file(self, tmp_path):
+        """Create a BioMart export using the web interface's display labels."""
+        content = """Chromosome/scaffold name\tGene start (bp)\tGene end (bp)\tGene name\tStrand
+1\t1000000\t1020000\tBRCA1\t1
+1\t1050000\t1080000\tTP53\t-1
+"""
+        filepath = tmp_path / "biomart_web.tsv"
+        filepath.write_text(content)
+        return filepath
+
+    @pytest.fixture
+    def biomart_attr_file(self, tmp_path):
+        """Create a BioMart export using the biomaRt attribute labels."""
+        content = """chromosome_name\tstart_position\tend_position\texternal_gene_name\tstrand
+1\t1000000\t1020000\tBRCA1\t1
+1\t1050000\t1080000\tTP53\t-1
+"""
+        filepath = tmp_path / "biomart_attributes.tsv"
+        filepath.write_text(content)
+        return filepath
+
+    def test_load_ensembl_genes_web_export_labels(self, biomart_web_file):
+        """Test that BioMart display labels map to standard column names."""
+        df = load_ensembl_genes(biomart_web_file)
+
+        assert len(df) == 2
+        assert df["chr"].iloc[0] == 1
+        assert df["start"].iloc[0] == 1000000
+        assert df["end"].iloc[0] == 1020000
+        assert df["gene_name"].iloc[0] == "BRCA1"
+
+    def test_load_ensembl_genes_web_export_strand_symbols(self, biomart_web_file):
+        """Test that display-label strand integers become +/- symbols."""
+        df = load_ensembl_genes(biomart_web_file)
+
+        assert df["strand"].iloc[0] == "+"  # Not the raw 1
+        assert df["strand"].iloc[1] == "-"  # Not the raw -1
+
+    def test_load_ensembl_genes_attribute_labels(self, biomart_attr_file):
+        """Test that biomaRt attribute labels map to standard column names."""
+        df = load_ensembl_genes(biomart_attr_file)
+
+        assert len(df) == 2
+        assert df["chr"].iloc[0] == 1
+        assert df["start"].iloc[0] == 1000000
+        assert df["end"].iloc[0] == 1020000
+        assert df["gene_name"].iloc[0] == "BRCA1"
+
+    def test_load_ensembl_genes_attribute_strand_symbols(self, biomart_attr_file):
+        """Test that attribute-label strand integers become +/- symbols."""
+        df = load_ensembl_genes(biomart_attr_file)
+
+        assert df["strand"].iloc[0] == "+"  # Not the raw 1
+        assert df["strand"].iloc[1] == "-"  # Not the raw -1
 
 
 # =============================================================================

@@ -1306,9 +1306,10 @@ plotter = LocusZoomPlotter(species="canine", log_level=None)
 
 ### Custom Significance Threshold
 
-`genomewide_threshold` sets where every plot from that plotter draws its
-significance line. `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, and
-`StatsPlotter` all take it.
+`genomewide_threshold` sets where that plotter draws its significance line.
+`LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, and `StatsPlotter` all
+take it. It applies to the plot families that have a significance line; QQ plots
+(`plot_qq`) and forest plots (`plot_forest`) do not draw one and ignore it.
 
 ```python
 # Suggestive threshold
@@ -1318,9 +1319,24 @@ plotter = LocusZoomPlotter(
 )
 ```
 
-On the Manhattan, Miami, and PheWAS plotters, each plot method also takes its
-own threshold argument. Omit it to inherit the plotter's `genomewide_threshold`,
-pass a p-value to override it for one call, or pass `None` to draw no line.
+Some plot methods also take a per-call threshold argument. Omit it to inherit
+the plotter's `genomewide_threshold`, pass a p-value to override it for one
+call, or pass `None` to draw no line. The argument is not spelled the same way
+everywhere, and two methods do not take one at all:
+
+| Method | Per-call argument |
+|--------|-------------------|
+| `ManhattanPlotter.plot_manhattan` | `significance_threshold` |
+| `ManhattanPlotter.plot_manhattan_stacked` | `significance_threshold` |
+| `ManhattanPlotter.plot_manhattan_qq` | `significance_threshold` |
+| `ManhattanPlotter.plot_manhattan_qq_stacked` | `significance_threshold` |
+| `StatsPlotter.plot_phewas` | `significance_threshold` |
+| `MiamiPlotter.plot_miami` | `top_threshold` and `bottom_threshold` |
+| `ManhattanPlotter.plot_qq` | none |
+| `StatsPlotter.plot_forest` | none |
+
+`LocusZoomPlotter.plot` and `plot_stacked` have no per-call significance
+threshold either; the constructor value is the only control.
 
 ```python
 plotter = ManhattanPlotter(genomewide_threshold=1e-5)
@@ -1328,6 +1344,10 @@ plotter = ManhattanPlotter(genomewide_threshold=1e-5)
 plotter.plot_manhattan(df)                                # line at 1e-5
 plotter.plot_manhattan(df, significance_threshold=5e-8)   # line at 5e-8
 plotter.plot_manhattan(df, significance_threshold=None)   # no line
+
+# Miami names one threshold per panel, not significance_threshold
+miami = MiamiPlotter(genomewide_threshold=1e-5)
+miami.plot_miami(top_df, bottom_df, top_threshold=5e-8, bottom_threshold=None)
 ```
 
 > **Changed:** before this release, `ManhattanPlotter`, `MiamiPlotter`, and

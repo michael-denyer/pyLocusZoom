@@ -17,7 +17,7 @@ flowchart TB
     end
 
     subgraph Layer2["⚙️ Validation"]
-        VD["DataFrameValidator<br/><small>2a</small>"]
+        VD["ColumnSpec + check()<br/><small>2a</small>"]
         SCH["schemas.validate_*<br/><small>2b</small>"]
         CFG["Pydantic PlotConfig<br/><small>2c</small>"]
     end
@@ -143,8 +143,11 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 | 1e | LDHeatmapPlotter | Pairwise LD heatmaps | [ld_heatmap_plotter.py](../src/pylocuszoom/ld_heatmap_plotter.py) |
 | 1f | ColocPlotter | Colocalisation scatter (GWAS × eQTL) | [coloc_plotter.py](../src/pylocuszoom/coloc_plotter.py) |
 | 1g | load_gwas | Auto-detecting GWAS format loader | [loaders.py](../src/pylocuszoom/loaders.py) |
+| 1g | LoaderSpec | Frozen per-format loader contract (separator, renames, p-value and first-present candidates, transform) driven by one `_load_tabular` engine | [loaders.py](../src/pylocuszoom/loaders.py) |
 
 ### File Loaders [1g]
+
+Each static format is a `LoaderSpec` constant plus a thin public wrapper. `load_gtf`, `load_bed`, and `load_caviar` stay bespoke where the table did not fit.
 
 | Domain | Formats | Entry points |
 |--------|---------|--------------|
@@ -157,11 +160,14 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 
 ## [2] Validation
 
-One validation engine, `DataFrameValidator`, with per-family specs expressed on it. The strict load-time schemas live in `schemas.py`; plot-time validation in `utils` is deliberately more permissive. Plot options validate via Pydantic.
+One validation engine, driven declaratively. Each family states its rules as a frozen `ColumnSpec` and runs it through the `check(df, spec)` function; `DataFrameValidator` is the rule runner `check` drives internally, and no production module builds one directly. The strict load-time schemas live in `schemas.py`; plot-time validation in `utils` is deliberately more permissive. Plot options validate via Pydantic.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
-| 2a | DataFrameValidator | Fluent DataFrame validator | [validation.py](../src/pylocuszoom/validation.py) |
+| 2a | ColumnSpec | Frozen per-family validation contract (required, numeric, not-null, ranges, p-value, ordering) | [validation.py](../src/pylocuszoom/validation.py) |
+| 2a | RangeRule | One numeric-range constraint inside a `ColumnSpec` | [validation.py](../src/pylocuszoom/validation.py) |
+| 2a | check | Runs a `ColumnSpec` against a DataFrame in fixed rule order | [validation.py](../src/pylocuszoom/validation.py) |
+| 2a | DataFrameValidator | Fluent rule runner behind `check` | [validation.py](../src/pylocuszoom/validation.py) |
 | 2b | validate_gwas_dataframe | GWAS column/type/range checks | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_eqtl_dataframe | eQTL schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_finemapping_dataframe | Fine-mapping schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
@@ -190,6 +196,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
 | 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 | 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
+| 3i | render_manhattan_points, shared_manhattan_limits | Per-chromosome scatter loop and axis padding shared by the Manhattan and Miami renderers, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
 
 ### LD Colour Bins [3b]
 
@@ -271,7 +278,7 @@ sequenceDiagram
         participant P as LocusZoomPlotter (1a)
     end
     box rgb(216, 67, 21) Validation
-        participant V as DataFrameValidator (2a)
+        participant V as utils.validate_gwas_df
         participant C as PlotConfig (2c)
     end
     box rgb(46, 125, 50) Core
@@ -286,7 +293,7 @@ sequenceDiagram
     U->>P: plot(gwas_df, chrom, start, end, ...)
     P->>C: validate kwargs
     C-->>P: PlotConfig
-    P->>V: require columns + ranges
+    P->>V: required columns present?
     V-->>P: OK
 
     opt LD requested
@@ -297,9 +304,8 @@ sequenceDiagram
     P->>B: create_figure()
     activate B
     P->>B: scatter(pos, -log10p, colors)
-    P->>G: assign_gene_positions()
-    G-->>P: row assignments
-    P->>B: plot_gene_track()
+    P->>G: plot_gene_track_generic(ax, backend, genes_df)
+    G->>B: add_rectangle(), add_polygon(), add_text()
     opt Recombination
         P->>O: render_recombination_overlay()
         O->>B: create_twin_axis(), fill_between_secondary()
@@ -319,7 +325,7 @@ classDiagram
         +create_figure()
         +scatter()
         +axhline()
-        +plot_gene_track()
+        +add_rectangle()
         +add_legend(entries)
         +finalize_layout()
     }
@@ -353,6 +359,11 @@ classDiagram
         +plotly_hovertemplate()
         +bokeh_tooltips()
     }
+    class gene_track {
+        <<module>>
+        +assign_gene_positions()
+        +plot_gene_track_generic()
+    }
     class MatplotlibBackend
     class PlotlyBackend
     class BokehBackend
@@ -370,6 +381,7 @@ classDiagram
     SupportsBarCharts <|.. PlotlyBackend
     SupportsBarCharts <|.. BokehBackend
     composition ..> PlotBackend : drives primitives
+    gene_track ..> PlotBackend : drives primitives
     PlotlyBackend ..> hover : uses
     BokehBackend ..> hover : uses
 
@@ -382,6 +394,7 @@ classDiagram
     style BokehBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style composition fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
     style hover fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+    style gene_track fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
 ```
 
 ---
