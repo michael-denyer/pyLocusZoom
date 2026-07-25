@@ -200,7 +200,11 @@ class BokehBackend:
         # Prepare data source
         data = {"x": x.values, "y": y.values}
 
-        data["color"] = [colors] * len(x) if isinstance(colors, str) else list(colors)
+        # Handle colors
+        if isinstance(colors, str):
+            data["color"] = [colors] * len(x)
+        else:
+            data["color"] = list(colors) if hasattr(colors, "tolist") else colors
 
         # Handle sizes (convert from area to diameter)
         if isinstance(sizes, (int, float)):
@@ -286,8 +290,8 @@ class BokehBackend:
         x_arr = x.values
         return ax.varea(
             x=x_arr,
-            y1=_as_list(y1, len(x_arr)),
-            y2=_as_list(y2, len(x_arr)),
+            y1=_broadcast(y1, len(x_arr)),
+            y2=_broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
         )
@@ -536,8 +540,8 @@ class BokehBackend:
         x_arr = x.values
         return ax.varea(
             x=x_arr,
-            y1=_as_list(y1, len(x_arr)),
-            y2=_as_list(y2, len(x_arr)),
+            y1=_broadcast(y1, len(x_arr)),
+            y2=_broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
             y_range_name=yaxis_name,
@@ -786,7 +790,13 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Create horizontal bar chart."""
-        left_arr = _as_list(left, len(y))
+        # Convert left to array if scalar
+        if isinstance(left, (int, float)):
+            left_arr = [left] * len(y)
+        else:
+            left_arr = list(left) if hasattr(left, "tolist") else left
+
+        # Calculate right edge
         right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
 
         return ax.hbar(
@@ -1048,15 +1058,16 @@ class BokehBackend:
         return color_bar
 
 
-def _as_list(value: Union[float, pd.Series, List[Any]], n: int) -> List[Any]:
-    """Broadcast a scalar to length ``n``, or materialize a sequence as a list.
+def _broadcast(value: Union[float, pd.Series, List[Any]], n: int) -> Any:
+    """Repeat a scalar varea bound across ``n`` items, or pass a sequence through.
 
-    Bokeh glyph properties take a per-item sequence, so a scalar y-bound or bar
-    origin has to be repeated across every item before it is handed over.
+    A pandas Series is handed over as its ndarray rather than a list. Bokeh
+    packs an ndarray into the document as base64 and a list as plain JSON, so
+    materializing it would inflate every exported HTML carrying a filled band.
     """
     if isinstance(value, (int, float)):
         return [value] * n
-    return list(value)
+    return value.values if hasattr(value, "values") else list(value)
 
 
 def _parse_color_to_rgb(color: str) -> Tuple[int, int, int]:
