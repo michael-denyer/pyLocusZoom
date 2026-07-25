@@ -187,9 +187,11 @@ def _warn_validator(
 # =============================================================================
 
 
+# No comment= here on purpose. PLINK 2's --glm header line starts with "#CHROM",
+# so a "#" comment prefix makes pandas discard the header and promote the first
+# variant to column labels. PLINK writes no comment lines of its own.
 _PLINK_SPEC = LoaderSpec(
     sep=r"\s+",
-    comment="#",
     log_fmt="Loaded PLINK file with {n} variants",
     col_candidates={
         "pos_col": ("BP", "POS", "bp", "pos"),
@@ -918,7 +920,7 @@ def load_gwas(
 
     # Auto-detect format from filename
     if format is None:
-        if ".assoc" in name or ".qassoc" in name:
+        if ".assoc" in name or ".qassoc" in name or ".glm." in name:
             format = "plink"
         elif ".regenie" in name:
             format = "regenie"

@@ -28,12 +28,12 @@ def _platform_cache_base() -> Path:
     (``recombination_maps`` / ``ensembl``).
 
     Resolution order:
-    - Windows: %LOCALAPPDATA%/pylocuszoom (or ~/pylocuszoom if unset)
+    - Windows: %LOCALAPPDATA%/pylocuszoom (or ~/AppData/Local/pylocuszoom if unset)
     - Databricks (``/dbfs`` present): /dbfs/FileStore/reference_data
     - macOS/Linux: $XDG_CACHE_HOME/pylocuszoom (or ~/.cache/pylocuszoom)
     """
     if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
     elif os.path.exists("/dbfs"):
         return Path("/dbfs/FileStore/reference_data")
     else:

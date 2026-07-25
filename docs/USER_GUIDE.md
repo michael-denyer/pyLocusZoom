@@ -965,7 +965,7 @@ pyLocusZoom includes convenience functions for loading common file formats direc
 | Function | Format | Description |
 |----------|--------|-------------|
 | `load_gwas()` | Auto | Auto-detects format from filename |
-| `load_plink_assoc()` | PLINK | `.assoc`, `.assoc.linear`, `.assoc.logistic`, `.qassoc` |
+| `load_plink_assoc()` | PLINK 1.x and 2 | `.assoc`, `.assoc.linear`, `.assoc.logistic`, `.qassoc`, and PLINK 2 `--glm` output (`.glm.linear`, `.glm.logistic`), whose header line starts with `#CHROM` |
 | `load_regenie()` | REGENIE | `.regenie` files |
 | `load_bolt_lmm()` | BOLT-LMM | `.stats` files |
 | `load_gemma()` | GEMMA | `.assoc.txt` files |
