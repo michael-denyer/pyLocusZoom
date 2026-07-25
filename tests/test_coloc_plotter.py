@@ -630,3 +630,84 @@ class TestColocConfigIntegration:
         # h4_posterior out of range
         with pytest.raises(ValidationError, match="h4_posterior"):
             ColocConfig(h4_posterior=1.5)
+
+
+class TestLeadSelectionRules:
+    """When plot_coloc picks a lead variant, and when it picks none."""
+
+    @staticmethod
+    def _frames():
+        gwas = pd.DataFrame(
+            {
+                "pos": [100, 200, 300],
+                "p_gwas": [1e-8, 1e-3, 0.4],
+                "rs": ["rs1", "rs2", "rs3"],
+                "ld": [1.0, 0.6, 0.1],
+            }
+        )
+        eqtl = pd.DataFrame(
+            {
+                "pos": [100, 200, 300],
+                "p_eqtl": [1e-6, 1e-2, 0.5],
+                "rs": ["rs1", "rs2", "rs3"],
+            }
+        )
+        return gwas, eqtl
+
+    def test_auto_selects_the_strongest_combined_signal_when_ld_is_present(self):
+        from pylocuszoom.coloc_plotter import (
+            ColocConfig,
+            _merge_and_transform,
+            _resolve_lead_idx,
+        )
+
+        gwas, eqtl = self._frames()
+        config = ColocConfig(ld_col="ld")
+        merged = _merge_and_transform(gwas, eqtl, config)
+
+        lead = _resolve_lead_idx(merged, config)
+
+        assert merged.data.loc[lead, merged.rs_col] == "rs1"
+
+    def test_no_lead_without_ld_and_without_a_named_snp(self):
+        from pylocuszoom.coloc_plotter import (
+            ColocConfig,
+            _merge_and_transform,
+            _resolve_lead_idx,
+        )
+
+        gwas, eqtl = self._frames()
+        config = ColocConfig(ld_col=None)
+        merged = _merge_and_transform(gwas, eqtl, config)
+
+        assert _resolve_lead_idx(merged, config) is None
+
+    def test_a_named_lead_snp_beats_the_auto_selection(self):
+        from pylocuszoom.coloc_plotter import (
+            ColocConfig,
+            _merge_and_transform,
+            _resolve_lead_idx,
+        )
+
+        gwas, eqtl = self._frames()
+        config = ColocConfig(ld_col="ld", lead_snp="rs3")
+        merged = _merge_and_transform(gwas, eqtl, config)
+
+        lead = _resolve_lead_idx(merged, config)
+
+        assert merged.data.loc[lead, merged.rs_col] == "rs3"
+
+    def test_named_lead_snp_without_an_rs_column_raises(self):
+        from pylocuszoom.coloc_plotter import (
+            ColocConfig,
+            _merge_and_transform,
+            _resolve_lead_idx,
+        )
+
+        gwas, eqtl = self._frames()
+        gwas, eqtl = gwas.drop(columns=["rs"]), eqtl.drop(columns=["rs"])
+        config = ColocConfig(rs_col=None, lead_snp="rs1")
+        merged = _merge_and_transform(gwas, eqtl, config)
+
+        with pytest.raises(ValueError, match="rs_col not found"):
+            _resolve_lead_idx(merged, config)

@@ -36,7 +36,9 @@ class StatsRenderer:
             categories, palette = [], {}
         df = df.copy()
         df["y_pos"] = range(len(df))
-        fig, axes = self._backend.create_figure(1, [1.0], figsize=figsize)
+        fig, axes = self._backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=figsize
+        )
         ax = axes[0]
         groups = categories or [None]
         for cat in groups:
@@ -132,7 +134,9 @@ class StatsRenderer:
             )
         else:
             sizes = 80
-        fig, axes = self._backend.create_figure(1, [1.0], figsize=figsize)
+        fig, axes = self._backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=figsize
+        )
         ax = axes[0]
         self._backend.errorbar_h(
             ax,
