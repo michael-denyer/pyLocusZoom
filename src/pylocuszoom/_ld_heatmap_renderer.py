@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
-from .backends.base import PlotBackend
+from .backends.base import PlotBackend, SupportsHeatmap
 from .colors import (
     LD_HEATMAP_COLORS,
     LEAD_SNP_HIGHLIGHT_COLOR,
@@ -13,9 +13,20 @@ from .colors import (
 
 
 class LDHeatmapRenderer:
-    """Render a prepared LD matrix intent."""
+    """Render a prepared LD matrix intent.
+
+    Raises:
+        TypeError: If the backend does not implement ``SupportsHeatmap``. The
+            heatmap is the whole figure here, so there is nothing to degrade to.
+    """
 
     def __init__(self, backend: PlotBackend):
+        if not isinstance(backend, SupportsHeatmap):
+            raise TypeError(
+                f"{type(backend).__name__} does not support heatmaps. "
+                "An LD heatmap needs a backend implementing SupportsHeatmap "
+                "(add_heatmap, add_colorbar, highlight_heatmap_snp)."
+            )
         self._backend = backend
 
     def render(

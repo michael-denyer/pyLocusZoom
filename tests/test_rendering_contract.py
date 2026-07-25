@@ -192,3 +192,34 @@ def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):
     )
 
     assert figure is not None
+
+
+def test_regional_renderer_skips_heatmap_panel_without_the_capability():
+    """A backend that declines SupportsHeatmap loses the panel, not the figure.
+
+    The heatmap is one panel among several in a regional plot, so an adapter
+    without it degrades the way the SNP-label and recombination gates do,
+    rather than failing the whole render.
+    """
+    import numpy as np
+
+    from pylocuszoom._regional import RegionalPlotComposer
+
+    backend = RecordingBackend()
+    ld_matrix = pd.DataFrame(np.eye(3), index=list("abc"), columns=list("abc"))
+
+    composer = RegionalPlotComposer(backend, "recording", genomewide_line=5e-8)
+
+    composer.render_heatmap_panel(
+        ax=SimpleNamespace(),
+        fig=SimpleNamespace(),
+        ld_matrix=ld_matrix,
+        x_positions=[1, 2, 3],
+        snp_ids=["a", "b", "c"],
+        metric="r2",
+        lead_snp_id="a",
+        start=0,
+        end=10,
+    )
+
+    assert backend.calls == []

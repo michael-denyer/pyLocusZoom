@@ -19,6 +19,8 @@ from typing import Literal
 
 from .base import (
     PlotBackend,
+    SupportsBarCharts,
+    SupportsHeatmap,
     SupportsRegionHighlight,
     SupportsSecondaryAxis,
     SupportsSNPLabels,
@@ -133,6 +135,8 @@ def __getattr__(name: str):
 
 __all__ = [
     "PlotBackend",
+    "SupportsBarCharts",
+    "SupportsHeatmap",
     "SupportsRegionHighlight",
     "SupportsSNPLabels",
     "SupportsSecondaryAxis",
