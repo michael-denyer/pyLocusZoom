@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-07-25
+
+A patch release of user-visible bug fixes. No API changes, no behaviour changes
+for code that was already working.
+
 ### Fixed
 
 - **A gene-sparse region no longer breaks on its second plot, and a failed Ensembl fetch no longer hides a region's genes.** Both defects surfaced as `pandas.errors.EmptyDataError` raised from inside pandas, with nothing naming pyLocusZoom or its cache. An empty `DataFrame` carries no columns, so it serialised to a one-byte CSV that `pd.read_csv` cannot parse back: caching empty results exists to spare the API on regions that genuinely have no genes, and it had never once round-tripped. Separately, a fetch that failed was cached as if it were an empty region, so a single dropped connection or Ensembl 503 permanently replaced that region's genes with "none" until the user wiped the cache by hand. Empty frames now carry their schema's columns, and `get_genes_for_region` declines to cache a fetch it could not complete. The corrupt-cache guard now also names `EmptyDataError`, which subclasses `ValueError` rather than `ParserError` and so never fired, recovering caches poisoned by earlier releases without user action.
