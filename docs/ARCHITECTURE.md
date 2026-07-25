@@ -181,9 +181,9 @@ stages:
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
 | `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
 | `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
-| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, neutral `add_legend`, heatmap) |
+| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, neutral `add_legend`). Heatmap and bar-chart drawing left the contract in 2.1 and are optional protocols (ADR-0005) |
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry` and `render_recombination_overlay` |
-| `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
+| `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsBarCharts` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns panel policy while retaining the primitive backend seam for compatibility |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
@@ -222,8 +222,11 @@ pyLocusZoom/
 │   ├── _coloc_renderer.py      # Colocalization figure composition
 │   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition
 │   ├── _rendering.py          # Semantic Manhattan/QQ rendering module
+│   ├── _manhattan_panel.py    # Manhattan primitives shared with the Miami renderer
 │   ├── backends/              # Pluggable rendering backends
-│   │   ├── base.py            # PlotBackend protocol definition
+│   │   ├── __init__.py        # Backend registry (@register_backend, get_backend)
+│   │   ├── base.py            # PlotBackend protocol + optional capability protocols
+│   │   ├── composition.py     # Legend and recombination-overlay composition above the seam
 │   │   ├── matplotlib_backend.py
 │   │   ├── plotly_backend.py
 │   │   ├── bokeh_backend.py
@@ -311,10 +314,10 @@ Two more clusters left `PlotBackend` in 2.1, following the same rule
 | `SupportsHeatmap` | `add_heatmap`, `add_colorbar`, `highlight_heatmap_snp` | LD heatmaps (standalone and the regional heatmap panel) |
 | `SupportsBarCharts` | `hbar`, `errorbar_h` | Forest plots |
 
-Signatures are unchanged, so a 2.0 backend that implements all five needs no
-edits: it satisfies both new protocols structurally. A backend that implements
-none of the five optional capabilities still renders every regional, Manhattan,
-Miami, colocalisation, and PheWAS plot.
+Signatures are unchanged, so a 2.0 backend that implements all five of those
+methods needs no edits: it satisfies both new protocols structurally. A backend
+that implements none of the five optional protocols still renders every
+regional, Manhattan, Miami, colocalisation, and PheWAS plot.
 
 How a caller reacts to a missing capability depends on what is left without it.
 `RegionalPlotComposer.render_heatmap_panel` skips the panel with a debug log,
