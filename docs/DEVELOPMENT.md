@@ -163,8 +163,15 @@ For a concrete example, see `prepare_manhattan_data` in
 8. There is no `.github/PULL_REQUEST_TEMPLATE.md` at time of writing — write a concise
    description covering *what* changed and *why*, and reference any related GitHub
    issues. Do not include AI-assistant attribution in commit messages or PR bodies.
-9. Releases are cut from `main` by bumping `version` in `pyproject.toml`, changing the
-   `## [Unreleased]` CHANGELOG heading to `## [X.Y.Z] - YYYY-MM-DD`, committing, and
-   creating a GitHub release with tag `vX.Y.Z`. `.github/workflows/publish.yml` then
-   publishes to PyPI via Trusted Publishing. BiocondaBot opens a follow-up PR against
-   bioconda-recipes automatically once the PyPI release is detected.
+9. Releases are cut from `main` by bumping `version` in `pyproject.toml`, running `uv lock`,
+   changing the `## [Unreleased]` CHANGELOG heading to `## [X.Y.Z] - YYYY-MM-DD`, committing
+   `pyproject.toml`, `uv.lock`, and `CHANGELOG.md` together, and creating a GitHub release
+   with tag `vX.Y.Z`. `.github/workflows/publish.yml` then publishes to PyPI via Trusted
+   Publishing. BiocondaBot opens a follow-up PR against bioconda-recipes automatically once
+   the PyPI release is detected.
+
+   Two things that catch people out:
+   - `uv.lock` does not regenerate itself on a version bump. Skipping `uv lock` leaves a
+     stale lock file committed alongside the new version.
+   - Publishing triggers on the **GitHub release**, not on a tag push. Pushing a bare
+     `vX.Y.Z` tag runs no workflow and publishes nothing.
