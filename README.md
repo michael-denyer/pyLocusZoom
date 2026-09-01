@@ -161,6 +161,22 @@ fig = plotter.plot(gwas_df, chrom=13, start=32000000, end=33000000)
 Supported species aliases: `human`, `mouse`, `rat`, `canine`/`dog`, `feline`/`cat`, or any Ensembl species name.
 Data is cached locally for fast subsequent plots. Maximum region size is 5Mb (Ensembl API limit).
 
+### Genome builds and Ensembl
+
+Ensembl serves one reference assembly per species and ignores requests for any
+other, so fetched genes always arrive in that assembly regardless of the
+`genome_build` you set. Dog is `ROS_Cfam_1.0`, not CanFam3.1 or CanFam4, and cat
+is `F.catus_Fca126_mat1.0`, not FelCat9. Ensembl 116 was the final release on the
+legacy REST platform, so the retired assemblies will not come back.
+
+When the two disagree, pyLocusZoom warns and names both assemblies. The fetched
+genes are still in Ensembl's coordinates, so the fix is yours to choose: pass
+`genes_df` in your own build's coordinates, or work in the assembly Ensembl
+serves. Each gene row carries an `assembly` column recording which one it is.
+
+`genome_build` continues to select the recombination map, where CanFam3.1 and
+CanFam4 are both supported.
+
 ## Backends
 
 pyLocusZoom supports multiple rendering backends (set at initialization):

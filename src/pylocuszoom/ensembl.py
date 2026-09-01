@@ -9,7 +9,9 @@ Use species-specific recombination maps instead (see recombination.py).
 """
 
 import hashlib
+import re
 import time
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
@@ -73,6 +75,73 @@ ENSEMBL_MAX_RETRIES = 3
 ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 
 
+# Different spellings of the same assembly, keyed by _assembly_token output.
+ASSEMBLY_SYNONYMS: dict[str, str] = {
+    # Canine
+    "canfam31": "canfam3",
+    "canfam40": "canfam4",
+    "uucfamgsd10": "canfam4",
+    "roscfam10": "roscfam1",
+    # Feline
+    "felcat90": "felcat9",
+    "feliscatus90": "felcat9",
+    "fcatusfca126mat10": "fca126",
+    # Human
+    "hg19": "grch37",
+    "grch37p13": "grch37",
+    "hg38": "grch38",
+    "grch38p14": "grch38",
+    # Mouse
+    "mm39": "grcm39",
+}
+
+
+def _assembly_token(name: str) -> str:
+    """Reduce an assembly or build name to a comparable token.
+
+    Strips punctuation and case, then folds known synonyms together, so
+    ``"CanFam4.0"``, ``"canfam4"`` and ``"UU_Cfam_GSD_1.0"`` all compare equal.
+    """
+    token = re.sub(r"[^a-z0-9]", "", name.lower())
+    return ASSEMBLY_SYNONYMS.get(token, token)
+
+
+def _response_assembly(features: list) -> str:
+    """Read the assembly Ensembl actually served from an overlap response."""
+    for feature in features:
+        assembly = feature.get("assembly_name")
+        if assembly:
+            return str(assembly)
+    return ""
+
+
+def _warn_on_assembly_mismatch(
+    assembly: str, genome_build: str | None, species: str
+) -> None:
+    """Warn when Ensembl's assembly differs from the caller's genome build.
+
+    Ensembl serves exactly one reference assembly per species and silently
+    ignores a ``coord_system_version`` asking for any other, so a mismatch
+    yields plausible-looking genes in the wrong coordinate system rather than
+    an error. Dog is the worst case in practice: Ensembl retired CanFam3.1 and
+    now serves ROS_Cfam_1.0 only, which puts ATP9B at chr1:938,796 instead of
+    chr1:1,136,865, a shift of roughly 198 kb.
+    """
+    if not assembly or not genome_build:
+        return
+    if _assembly_token(assembly) == _assembly_token(genome_build):
+        return
+    warnings.warn(
+        f"Ensembl returned {species} annotations on assembly {assembly!r}, but "
+        f"genome_build is {genome_build!r}. Ensembl serves one assembly per "
+        f"species and ignores requests for any other, so these gene coordinates "
+        f"do not line up with your data. Supply genes_df yourself in "
+        f"{genome_build!r} coordinates, or set genome_build={assembly!r}.",
+        UserWarning,
+        stacklevel=2,
+    )
+
+
 def _validate_region_size(start: int, end: int, context: str) -> None:
     """Validate region size is within Ensembl API limits.
 
@@ -120,9 +189,20 @@ def get_ensembl_cache_dir() -> Path:
     return cache_dir
 
 
-def _cache_key(species: str, chrom: str, start: int, end: int) -> str:
-    """Generate cache key for a region."""
-    key_str = f"{species}_{chrom}_{start}_{end}"
+def _cache_key(
+    species: str,
+    chrom: str,
+    start: int,
+    end: int,
+    genome_build: str | None = None,
+) -> str:
+    """Generate cache key for a region.
+
+    The build is part of the key so two plots of the same region under
+    different builds never share an entry. Including it also orphans every
+    entry written before builds were tracked, whose assembly is unknowable.
+    """
+    key_str = f"{species}_{chrom}_{start}_{end}_{_assembly_token(genome_build or '')}"
     return hashlib.md5(key_str.encode()).hexdigest()[:16]
 
 
@@ -132,6 +212,7 @@ def get_cached_genes(
     chrom: str | int,
     start: int,
     end: int,
+    genome_build: str | None = None,
 ) -> pd.DataFrame | None:
     """Load cached genes if available.
 
@@ -141,13 +222,15 @@ def get_cached_genes(
         chrom: Chromosome name or number.
         start: Region start position.
         end: Region end position.
+        genome_build: Build the caller's data is in; part of the cache key and
+            checked against the assembly recorded in the cached frame.
 
     Returns:
         DataFrame if cache hit, None if cache miss.
     """
     ensembl_species = get_ensembl_species_name(species)
     chrom_str = normalize_chrom(chrom)
-    cache_key = _cache_key(ensembl_species, chrom_str, start, end)
+    cache_key = _cache_key(ensembl_species, chrom_str, start, end, genome_build)
 
     species_dir = _safe_species_dir(cache_dir, ensembl_species)
     cache_file = species_dir / f"genes_{cache_key}.csv"
@@ -157,12 +240,18 @@ def get_cached_genes(
 
     try:
         logger.debug(f"Cache hit: {cache_file}")
-        return pd.read_csv(cache_file)
+        df = pd.read_csv(cache_file)
     except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
         # EmptyDataError subclasses ValueError, not ParserError, so it needs
         # naming explicitly. Releases before 2.1.1 wrote column-less CSVs.
         logger.warning(f"Corrupt cache file {cache_file}, ignoring: {e}")
         return None
+
+    if "assembly" in df.columns and not df.empty:
+        _warn_on_assembly_mismatch(
+            str(df["assembly"].iloc[0]), genome_build, ensembl_species
+        )
+    return df
 
 
 def save_cached_genes(
@@ -172,6 +261,7 @@ def save_cached_genes(
     chrom: str | int,
     start: int,
     end: int,
+    genome_build: str | None = None,
 ) -> None:
     """Save genes to cache as CSV.
 
@@ -182,10 +272,11 @@ def save_cached_genes(
         chrom: Chromosome name or number.
         start: Region start position.
         end: Region end position.
+        genome_build: Build the caller's data is in; part of the cache key.
     """
     ensembl_species = get_ensembl_species_name(species)
     chrom_str = normalize_chrom(chrom)
-    cache_key = _cache_key(ensembl_species, chrom_str, start, end)
+    cache_key = _cache_key(ensembl_species, chrom_str, start, end, genome_build)
 
     species_dir = _safe_species_dir(cache_dir, ensembl_species)
     species_dir.mkdir(parents=True, exist_ok=True)
@@ -278,6 +369,7 @@ def _gene_record(feature: dict, chrom_str: str) -> dict:
         "strand": "+" if feature.get("strand", 1) == 1 else "-",
         "gene_id": feature.get("id", ""),
         "biotype": feature.get("biotype", ""),
+        "assembly": str(feature.get("assembly_name", "")),
     }
 
 
@@ -315,6 +407,7 @@ def _fetch_overlap_features(
     feature_type: str,
     record_builder: Callable[[dict, str], dict],
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame:
     """Fetch features from the Ensembl overlap/region endpoint.
 
@@ -331,6 +424,8 @@ def _fetch_overlap_features(
         feature_type: Ensembl feature_type to keep (e.g. "gene", "exon").
         record_builder: Maps a kept feature and chrom to a DataFrame row.
         raise_on_error: If True, raise EnsemblAPIError on API errors.
+        genome_build: Build the caller's data is in; warns if Ensembl serves a
+            different assembly.
 
     Returns:
         DataFrame of built records, always carrying the record_builder's
@@ -362,6 +457,8 @@ def _fetch_overlap_features(
         logger.debug(f"No {feature_type}s found in region {region}")
         return empty
 
+    _warn_on_assembly_mismatch(_response_assembly(data), genome_build, ensembl_species)
+
     records = [
         record_builder(feature, chrom_str)
         for feature in data
@@ -383,6 +480,7 @@ def fetch_genes_from_ensembl(
     end: int,
     biotype: str = "protein_coding",
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame:
     """Fetch gene annotations from Ensembl REST API.
 
@@ -393,9 +491,12 @@ def fetch_genes_from_ensembl(
         end: Region end position (1-based).
         biotype: Gene biotype filter (default: protein_coding).
         raise_on_error: If True, raise ValidationError on API errors.
+        genome_build: Build the caller's data is in; warns if Ensembl serves a
+            different assembly.
 
     Returns:
-        DataFrame with columns: chr, start, end, gene_name, strand, gene_id, biotype.
+        DataFrame with columns: chr, start, end, gene_name, strand, gene_id,
+        biotype, assembly.
         Returns empty DataFrame on API error (unless raise_on_error=True).
 
     Raises:
@@ -410,6 +511,7 @@ def fetch_genes_from_ensembl(
         feature_type="gene",
         record_builder=_gene_record,
         raise_on_error=raise_on_error,
+        genome_build=genome_build,
     )
 
 
@@ -419,6 +521,7 @@ def fetch_exons_from_ensembl(
     start: int,
     end: int,
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame:
     """Fetch exon annotations from Ensembl REST API.
 
@@ -428,6 +531,8 @@ def fetch_exons_from_ensembl(
         start: Region start position (1-based).
         end: Region end position (1-based).
         raise_on_error: If True, raise ValidationError on API errors.
+        genome_build: Build the caller's data is in; warns if Ensembl serves a
+            different assembly.
 
     Returns:
         DataFrame with columns: chr, start, end, gene_name, exon_id, transcript_id.
@@ -445,6 +550,7 @@ def fetch_exons_from_ensembl(
         feature_type="exon",
         record_builder=_exon_record,
         raise_on_error=raise_on_error,
+        genome_build=genome_build,
     )
 
 
@@ -457,6 +563,7 @@ def get_genes_for_region(
     use_cache: bool = True,
     include_exons: bool = False,
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """Get gene annotations for a genomic region.
 
@@ -471,6 +578,8 @@ def get_genes_for_region(
         use_cache: Whether to use disk cache.
         include_exons: If True, also fetch exons and return tuple (genes_df, exons_df).
         raise_on_error: If True, raise ValidationError on API errors.
+        genome_build: Build the caller's data is in. Part of the cache key, and
+            warns when Ensembl serves annotations on a different assembly.
 
     Returns:
         If include_exons=False: DataFrame with gene annotations.
@@ -490,12 +599,19 @@ def get_genes_for_region(
 
     # Check cache first
     if use_cache:
-        cached = get_cached_genes(cache_dir, species, chrom_str, start, end)
+        cached = get_cached_genes(
+            cache_dir, species, chrom_str, start, end, genome_build=genome_build
+        )
         if cached is not None:
             if include_exons:
                 # Exons not cached separately (yet)
                 exons_df = fetch_exons_from_ensembl(
-                    species, chrom_str, start, end, raise_on_error=raise_on_error
+                    species,
+                    chrom_str,
+                    start,
+                    end,
+                    raise_on_error=raise_on_error,
+                    genome_build=genome_build,
                 )
                 return cached, exons_df
             return cached
@@ -506,7 +622,12 @@ def get_genes_for_region(
     fetch_failed = False
     try:
         genes_df = fetch_genes_from_ensembl(
-            species, chrom_str, start, end, raise_on_error=True
+            species,
+            chrom_str,
+            start,
+            end,
+            raise_on_error=True,
+            genome_build=genome_build,
         )
     except EnsemblAPIError:
         if raise_on_error:
@@ -518,11 +639,24 @@ def get_genes_for_region(
     # regions). A failed fetch is never cached: it would be indistinguishable from
     # an empty region on reload and would permanently hide the region's genes.
     if use_cache and not fetch_failed:
-        save_cached_genes(genes_df, cache_dir, species, chrom_str, start, end)
+        save_cached_genes(
+            genes_df,
+            cache_dir,
+            species,
+            chrom_str,
+            start,
+            end,
+            genome_build=genome_build,
+        )
 
     if include_exons:
         exons_df = fetch_exons_from_ensembl(
-            species, chrom_str, start, end, raise_on_error=raise_on_error
+            species,
+            chrom_str,
+            start,
+            end,
+            raise_on_error=raise_on_error,
+            genome_build=genome_build,
         )
         return genes_df, exons_df
 

@@ -666,3 +666,141 @@ class TestEmptyResultCaching:
         (species_dir / f"genes_{key}.csv").write_text("\n")
 
         assert get_cached_genes(tmp_path, "human", "1", 1_000_000, 1_100_000) is None
+
+
+class TestAssemblyMismatch:
+    """Ensembl serves one assembly per species and ignores coord_system_version.
+
+    Asking for canine genes while working in CanFam3.1 returns ROS_Cfam_1.0
+    coordinates with no error, shifting ATP9B on chr1 from 1,136,865 to
+    938,796. The mismatch has to be loud, and the cache must not mix builds.
+    """
+
+    @staticmethod
+    def _ok_response(payload):
+        response = Mock()
+        response.ok = True
+        response.status_code = 200
+        response.json.return_value = payload
+        return response
+
+    @staticmethod
+    def _dog_payload():
+        return [
+            {
+                "feature_type": "gene",
+                "seq_region_name": "1",
+                "start": 938796,
+                "end": 1175952,
+                "external_name": "ATP9B",
+                "strand": -1,
+                "id": "ENSCAFG00845000134",
+                "biotype": "protein_coding",
+                "assembly_name": "ROS_Cfam_1.0",
+            }
+        ]
+
+    def test_assembly_token_folds_synonyms(self):
+        """Equivalent spellings of one assembly compare equal."""
+        from pylocuszoom.ensembl import _assembly_token
+
+        assert _assembly_token("CanFam4.0") == _assembly_token("UU_Cfam_GSD_1.0")
+        assert _assembly_token("CanFam3.1") == _assembly_token("canfam3")
+        assert _assembly_token("hg38") == _assembly_token("GRCh38")
+        assert _assembly_token("CanFam3.1") != _assembly_token("ROS_Cfam_1.0")
+
+    def test_cache_key_separates_builds(self):
+        """The same region under two builds must not share a cache entry."""
+        from pylocuszoom.ensembl import _cache_key
+
+        canfam3 = _cache_key("canis_lupus_familiaris", "1", 1, 100, "canfam3.1")
+        canfam4 = _cache_key("canis_lupus_familiaris", "1", 1, 100, "canfam4")
+        assert canfam3 != canfam4
+
+    def test_gene_record_carries_assembly(self):
+        """Every gene row records the assembly Ensembl served it on."""
+        from pylocuszoom.ensembl import fetch_genes_from_ensembl
+
+        with patch(
+            "pylocuszoom.ensembl.requests.get",
+            return_value=self._ok_response(self._dog_payload()),
+        ):
+            genes = fetch_genes_from_ensembl("canine", "1", 900_000, 1_200_000)
+
+        assert genes["assembly"].tolist() == ["ROS_Cfam_1.0"]
+
+    def test_fetch_warns_when_assembly_differs(self):
+        """A CanFam3.1 caller is told the genes came back on ROS_Cfam_1.0."""
+        from pylocuszoom.ensembl import fetch_genes_from_ensembl
+
+        with patch(
+            "pylocuszoom.ensembl.requests.get",
+            return_value=self._ok_response(self._dog_payload()),
+        ):
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                fetch_genes_from_ensembl(
+                    "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"
+                )
+
+    def test_fetch_silent_when_assembly_matches(self, recwarn):
+        """No warning when the caller already works in Ensembl's assembly."""
+        from pylocuszoom.ensembl import fetch_genes_from_ensembl
+
+        with patch(
+            "pylocuszoom.ensembl.requests.get",
+            return_value=self._ok_response(self._dog_payload()),
+        ):
+            fetch_genes_from_ensembl(
+                "canine", "1", 900_000, 1_200_000, genome_build="ROS_Cfam_1.0"
+            )
+
+        assert [w for w in recwarn.list if w.category is UserWarning] == []
+
+    def test_cache_hit_still_warns(self, tmp_path):
+        """Reloading from cache in a fresh session repeats the warning."""
+        from pylocuszoom.ensembl import get_genes_for_region
+
+        with patch(
+            "pylocuszoom.ensembl.requests.get",
+            return_value=self._ok_response(self._dog_payload()),
+        ) as mock_get:
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                get_genes_for_region(
+                    "canine",
+                    "1",
+                    900_000,
+                    1_200_000,
+                    tmp_path,
+                    genome_build="canfam3.1",
+                )
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                cached = get_genes_for_region(
+                    "canine",
+                    "1",
+                    900_000,
+                    1_200_000,
+                    tmp_path,
+                    genome_build="canfam3.1",
+                )
+
+        assert mock_get.call_count == 1, "second call must be served from cache"
+        assert cached["assembly"].tolist() == ["ROS_Cfam_1.0"]
+
+    def test_plotter_passes_its_build_through(self):
+        """auto_genes must hand the plotter's build to the Ensembl fetch."""
+        from pylocuszoom import LocusZoomPlotter
+
+        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
+        gwas = pd.DataFrame(
+            {"ps": [1_000_000, 1_050_000], "p_wald": [0.5, 1e-6], "rs": ["a", "b"]}
+        )
+
+        with patch(
+            "pylocuszoom.plotter.get_genes_for_region",
+            return_value=pd.DataFrame(
+                columns=["chr", "start", "end", "gene_name", "assembly"]
+            ),
+        ) as mock_fetch:
+            plotter.plot(gwas, chrom=1, start=900_000, end=1_200_000)
+
+        assert mock_fetch.call_args.kwargs["genome_build"] == plotter.genome_build

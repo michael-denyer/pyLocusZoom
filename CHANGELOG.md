@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ensembl gene tracks no longer land silently in the wrong coordinate system.** Ensembl serves exactly one reference assembly per species and ignores a `coord_system_version` asking for any other, returning HTTP 200 either way. A canine plot built on CanFam3.1 therefore drew genes in ROS_Cfam_1.0 coordinates, which puts `ATP9B` on chr1 at 938,796 instead of 1,136,865, a shift of about 198 kb, with no error and nothing in the figure to show it. Ensembl 116 is the final release on the legacy platform, so CanFam3.1 will not return; feline moved from FelCat9 to F.catus_Fca126_mat1.0 on the same terms. `fetch_genes_from_ensembl`, `fetch_exons_from_ensembl` and `get_genes_for_region` now take `genome_build` and raise a `UserWarning` naming both assemblies when they disagree, and `LocusZoomPlotter` passes its own `genome_build` through when `auto_genes` is enabled.
+
+### Added
+
+- **Gene frames from Ensembl carry an `assembly` column** recording the assembly each row was served on. It is written to the disk cache, so the mismatch warning also fires on a cache hit in a later session rather than only on the original fetch.
+
+### Changed
+
+- **The Ensembl gene cache key includes the genome build.** Two builds of the same region no longer share an entry. Every entry written before this release is orphaned rather than reused, because the assembly its coordinates are in cannot be recovered. Call `clear_ensembl_cache()` to reclaim the disk.
+
 ## [2.1.1] - 2026-07-25
 
 A patch release of user-visible bug fixes. No API changes, no behaviour changes

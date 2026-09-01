@@ -1239,6 +1239,8 @@ Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
 
 **Region Limit:** Maximum 5Mb per request (Ensembl API limitation). For larger regions, provide `genes_df` directly.
 
+**Genome Build:** Ensembl serves one reference assembly per species and ignores requests for any other. Dog is `ROS_Cfam_1.0`, not CanFam3.1 or CanFam4; cat is `F.catus_Fca126_mat1.0`, not FelCat9. Fetched genes are always in that assembly whatever `genome_build` says, so a mismatch shifts the gene track by hundreds of kilobases without any error. pyLocusZoom raises a `UserWarning` naming both assemblies when they disagree, and every gene row carries an `assembly` column recording the one it came from. To plot in a build Ensembl no longer serves, supply `genes_df` yourself in that build's coordinates. `genome_build` still selects the recombination map, where CanFam3.1 and CanFam4 are both supported.
+
 **Error Handling:** By default, API errors result in warnings and an empty gene track. Use `raise_on_error=True` in low-level functions to get exceptions instead.
 
 **Cache Location:**
