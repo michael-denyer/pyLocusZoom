@@ -152,9 +152,10 @@ stages:
    eQTL effect-size color, credible-set color, or PheWAS category color
    depending on the plotter).
 5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py` (or
-   fetched via `ensembl.py`). Recombination rates are loaded via
-   `recombination.py`, which handles download of bundled canine maps and
-   CanFam3.1 → CanFam4 liftover through pyliftover.
+   fetched via `ensembl.py`, which serves one assembly per species and warns
+   when that is not the plotter's `genome_build`). Recombination rates are
+   loaded via `recombination.py`, which handles download of bundled canine maps
+   and CanFam3.1 → CanFam4 liftover through pyliftover.
 6. **Regional composition and backend dispatch.** `LocusZoomPlotter` routes
    both single and stacked association panels through `RegionalPlotComposer`,
    which owns shared axes, labels, significance line, LD legend, SNP-label,

@@ -729,6 +729,21 @@ class TestAssemblyMismatch:
 
         assert genes["assembly"].tolist() == ["ROS_Cfam_1.0"]
 
+    def test_exon_record_carries_assembly(self):
+        """Exon rows record their assembly too, not just genes."""
+        from pylocuszoom.ensembl import fetch_exons_from_ensembl
+
+        exon = dict(self._dog_payload()[0], feature_type="exon", id="ENSCAFE00000001")
+        with patch(
+            "pylocuszoom.ensembl.requests.get", return_value=self._ok_response([exon])
+        ):
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                exons = fetch_exons_from_ensembl(
+                    "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"
+                )
+
+        assert exons["assembly"].tolist() == ["ROS_Cfam_1.0"]
+
     def test_fetch_warns_when_assembly_differs(self):
         """A CanFam3.1 caller is told the genes came back on ROS_Cfam_1.0."""
         from pylocuszoom.ensembl import fetch_genes_from_ensembl

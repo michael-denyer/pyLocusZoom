@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Gene frames from Ensembl carry an `assembly` column** recording the assembly each row was served on. It is written to the disk cache, so the mismatch warning also fires on a cache hit in a later session rather than only on the original fetch.
+- **Gene and exon frames from Ensembl carry an `assembly` column** recording the assembly each row was served on. It is written to the disk cache, so the mismatch warning also fires on a cache hit in a later session rather than only on the original fetch. The column is optional on frames you supply yourself and is ignored when plotting.
 
 ### Changed
 

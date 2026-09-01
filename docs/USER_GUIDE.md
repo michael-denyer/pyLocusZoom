@@ -1099,6 +1099,7 @@ gwas_df = pd.DataFrame({
 | `end` | int | Yes | Gene end position (bp). |
 | `gene_name` | str | Yes | Gene symbol for display. |
 | `strand` | str | No | "+" or "-" for directional arrows. |
+| `assembly` | str | No | Assembly the coordinates are in. Set on frames fetched from Ensembl; ignored when plotting. |
 
 ### Exons DataFrame
 
@@ -1108,6 +1109,7 @@ gwas_df = pd.DataFrame({
 | `start` | int | Yes | Exon start position. |
 | `end` | int | Yes | Exon end position. |
 | `gene_name` | str | Yes | Parent gene (must match genes_df). |
+| `assembly` | str | No | Assembly the coordinates are in. Set on frames fetched from Ensembl; ignored when plotting. |
 
 ### Recombination DataFrame
 

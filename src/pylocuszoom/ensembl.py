@@ -4,6 +4,14 @@
 Provides functions to fetch gene and exon annotations from the Ensembl REST API
 (https://rest.ensembl.org) for any species.
 
+Ensembl serves exactly one reference assembly per species and answers a request
+naming any other with that same assembly and an HTTP 200, so the caller's
+genome build cannot be honoured and a mismatch is invisible without checking
+``assembly_name`` on the response. Every fetch here therefore takes an optional
+``genome_build`` and warns when the two disagree. Release 116 was the last on
+this REST platform, so retired assemblies such as CanFam3.1 and FelCat9 will
+not reappear on it.
+
 Note: Recombination rates are NOT available from Ensembl for most species.
 Use species-specific recombination maps instead (see recombination.py).
 """
@@ -382,6 +390,7 @@ def _exon_record(feature: dict, chrom_str: str) -> dict:
         "gene_name": "",  # Exon endpoint doesn't include gene name
         "exon_id": feature.get("id", ""),
         "transcript_id": feature.get("Parent", ""),
+        "assembly": str(feature.get("assembly_name", "")),
     }
 
 
@@ -535,7 +544,8 @@ def fetch_exons_from_ensembl(
             different assembly.
 
     Returns:
-        DataFrame with columns: chr, start, end, gene_name, exon_id, transcript_id.
+        DataFrame with columns: chr, start, end, gene_name, exon_id,
+        transcript_id, assembly.
         Returns empty DataFrame on API error (unless raise_on_error=True).
 
     Raises:
@@ -584,6 +594,7 @@ def get_genes_for_region(
     Returns:
         If include_exons=False: DataFrame with gene annotations.
         If include_exons=True: Tuple of (genes_df, exons_df).
+        Both carry an ``assembly`` column naming the assembly Ensembl served.
 
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
