@@ -11,6 +11,7 @@ import shutil
 import tarfile
 import tempfile
 import uuid
+import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +20,7 @@ import requests
 from tqdm import tqdm
 
 from ._liftover import PyLiftOverLifter, liftover_positions
+from .exceptions import DataDownloadError
 from .logging import logger
 from .utils import _platform_cache_base, filter_by_region
 
@@ -57,7 +59,8 @@ def ensure_recomb_header(content: str, source_name: str) -> str:
         The content, with a header row prepended if it was missing.
 
     Raises:
-        RuntimeError: If the first token is non-numeric and not a known header.
+        DataDownloadError: If the first token is non-numeric and not a known
+            header.
     """
     lines = content.strip().split("\n")
     first_token = lines[0].split()[0] if lines[0].split() else ""
@@ -67,7 +70,7 @@ def ensure_recomb_header(content: str, source_name: str) -> str:
         has_header = False
     except ValueError:
         if normalised_token not in _KNOWN_HEADER_TOKENS:
-            raise RuntimeError(
+            raise DataDownloadError(
                 f"Unrecognised first token {first_token!r} in recombination "
                 f"map {source_name}; refusing to treat as header. The "
                 f"downloaded archive may be corrupted."
@@ -122,15 +125,14 @@ def _download_with_progress(
         desc: Description for the progress bar.
 
     Raises:
-        requests.RequestException: If the request or the stream fails.
+        DataDownloadError: If the request or the stream fails.
     """
-    response = requests.get(url, stream=True, timeout=60)
-    response.raise_for_status()
-
-    total_size = int(response.headers.get("content-length", 0))
     partial_path = dest_path.with_name(dest_path.name + ".part")
 
     try:
+        response = requests.get(url, stream=True, timeout=60)
+        response.raise_for_status()
+        total_size = int(response.headers.get("content-length", 0))
         with (
             open(partial_path, "wb") as f,
             tqdm(
@@ -147,6 +149,9 @@ def _download_with_progress(
                     f.write(chunk)
                     pbar.update(len(chunk))
         os.replace(partial_path, dest_path)
+    except requests.RequestException as e:
+        partial_path.unlink(missing_ok=True)
+        raise DataDownloadError(f"Failed to download {url}: {e}") from e
     except BaseException:
         partial_path.unlink(missing_ok=True)
         raise
@@ -162,7 +167,7 @@ def download_liftover_chain(force: bool = False) -> Path:
         Path to the downloaded chain file.
 
     Raises:
-        requests.HTTPError: If the download fails with an HTTP error.
+        DataDownloadError: If the download fails.
     """
     chain_path = get_chain_file_path()
 
@@ -174,17 +179,11 @@ def download_liftover_chain(force: bool = False) -> Path:
     logger.info("Downloading CanFam3 to CanFam4 liftover chain...")
     logger.debug(f"Source: {CANFAM3_TO_CANFAM4_CHAIN_URL}")
 
-    try:
-        _download_with_progress(
-            CANFAM3_TO_CANFAM4_CHAIN_URL,
-            chain_path,
-            desc="Liftover chain",
-        )
-    except requests.HTTPError as e:
-        raise requests.HTTPError(
-            f"HTTP error downloading liftover chain file from "
-            f"{CANFAM3_TO_CANFAM4_CHAIN_URL}: {e}"
-        ) from e
+    _download_with_progress(
+        CANFAM3_TO_CANFAM4_CHAIN_URL,
+        chain_path,
+        desc="Liftover chain",
+    )
 
     logger.info(f"Chain file saved to: {chain_path}")
     return chain_path
@@ -259,7 +258,7 @@ def _publish_map_generation(staging_dir: Path, output_path: Path) -> Path:
 
     if not _has_complete_canine_maps(generation):
         shutil.rmtree(generation)
-        raise RuntimeError(
+        raise DataDownloadError(
             "Downloaded recombination archive does not contain the complete canine "
             "map set (chromosomes 1-38)"
         )
@@ -316,6 +315,10 @@ def download_canine_recombination_maps(
 
     Returns:
         Path to the directory containing recombination map files.
+
+    Raises:
+        DataDownloadError: If the download fails or the archive is corrupt,
+            incomplete, or not a recombination map set.
     """
     # Determine output directory
     if output_dir is None:
@@ -351,18 +354,26 @@ def download_canine_recombination_maps(
 
         # Extract tar.gz with path traversal protection
         logger.debug("Extracting genetic maps...")
-        with tarfile.open(tar_path, "r:gz") as tar:
-            # Filter to prevent path traversal attacks
-            safe_members = []
-            for member in tar.getmembers():
-                # Resolve the path and ensure it stays within tmpdir
-                member_path = Path(tmpdir) / member.name
-                try:
-                    member_path.resolve().relative_to(Path(tmpdir).resolve())
-                    safe_members.append(member)
-                except (ValueError, OSError):
-                    logger.warning(f"Skipping unsafe path in archive: {member.name}")
-            tar.extractall(tmpdir, members=safe_members)
+        try:
+            with tarfile.open(tar_path, "r:gz") as tar:
+                # Filter to prevent path traversal attacks
+                safe_members = []
+                for member in tar.getmembers():
+                    # Resolve the path and ensure it stays within tmpdir
+                    member_path = Path(tmpdir) / member.name
+                    try:
+                        member_path.resolve().relative_to(Path(tmpdir).resolve())
+                        safe_members.append(member)
+                    except (ValueError, OSError):
+                        logger.warning(
+                            f"Skipping unsafe path in archive: {member.name}"
+                        )
+                tar.extractall(tmpdir, members=safe_members)
+        except tarfile.TarError as e:
+            raise DataDownloadError(
+                f"Downloaded recombination archive from {CANINE_RECOMB_URL} "
+                f"is not a valid tar.gz: {e}"
+            ) from e
 
         # Find and process the extracted files
         extracted_dir = Path(tmpdir)
@@ -377,7 +388,7 @@ def download_canine_recombination_maps(
         if not map_files:
             all_files = list(extracted_dir.rglob("*"))
             logger.error(f"Extracted files: {[f.name for f in all_files[:20]]}")
-            raise RuntimeError("Could not find chromosome map files in archive")
+            raise DataDownloadError("Could not find chromosome map files in archive")
 
         logger.debug(f"Found {len(map_files)} chromosome files")
 
@@ -526,7 +537,8 @@ def ensure_recomb_maps(
 
     Returns:
         Path to recombination maps directory, or None if species not supported
-        or download fails.
+        or the maps could not be downloaded. A failed download emits a
+        UserWarning naming the cause so the missing overlay is not silent.
     """
     if species != "canine":
         logger.debug(f"No built-in recombination maps for species: {species}")
@@ -546,6 +558,10 @@ def ensure_recomb_maps(
     logger.info("Downloading canine recombination maps...")
     try:
         return download_canine_recombination_maps(output_dir=str(output_path))
-    except (requests.RequestException, tarfile.TarError, OSError) as e:
-        logger.error(f"Could not download recombination maps: {e!r}")
+    except (DataDownloadError, OSError) as e:
+        warnings.warn(
+            f"Recombination overlay skipped; could not download recombination "
+            f"maps: {e}",
+            stacklevel=2,
+        )
         return None

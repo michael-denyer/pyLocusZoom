@@ -33,28 +33,6 @@ class ForestValidationError(ValidationError):
     """Raised when forest plot DataFrame validation fails."""
 
 
-class ReferenceAPIError(ValidationError):
-    """Raised when a reference-annotation API is unreachable or errors.
-
-    Distinguishes a service failure from a rejected request, so callers can
-    tell "the region has no genes" from "we could not ask" without knowing
-    which source answered. Subclasses ValidationError for backward compat
-    with ``raise_on_error=True`` callers.
-    """
-
-
-class EnsemblAPIError(ReferenceAPIError):
-    """Raised when the Ensembl REST API is unreachable or returns an error."""
-
-
-class UCSCAPIError(ReferenceAPIError):
-    """Raised when the UCSC REST API is unreachable or returns an error."""
-
-
-class BackendError(PyLocusZoomError):
-    """Raised when backend operations fail."""
-
-
 class PlinkError(PyLocusZoomError, RuntimeError):
     """Raised when PLINK subprocess fails."""
 
@@ -65,3 +43,20 @@ class EmptyLDOutputError(PlinkError):
 
 class DataDownloadError(PyLocusZoomError, RuntimeError):
     """Raised when data download operations fail."""
+
+
+class ReferenceAPIError(DataDownloadError):
+    """Raised when a reference-annotation API is unreachable or errors.
+
+    Distinguishes a service failure from a rejected request, so callers can
+    tell "the region has no genes" from "we could not ask" without knowing
+    which source answered.
+    """
+
+
+class EnsemblAPIError(ReferenceAPIError):
+    """Raised when the Ensembl REST API is unreachable or returns an error."""
+
+
+class UCSCAPIError(ReferenceAPIError):
+    """Raised when the UCSC REST API is unreachable or returns an error."""
