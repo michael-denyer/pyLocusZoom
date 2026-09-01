@@ -12,6 +12,7 @@ import requests
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
+    _download_with_progress,
     _normalize_build,
     _publish_map_generation,
     download_canine_recombination_maps,
@@ -618,6 +619,46 @@ class TestEnsureRecombMaps:
             plz_logger.enable("INFO")
 
         assert expected_msg in log_capture.getvalue()
+
+
+class TestDownloadWithProgress:
+    """A download must never leave a truncated file at the destination."""
+
+    @staticmethod
+    def _streaming_response(chunks):
+        response = MagicMock()
+        response.headers = {"content-length": str(sum(len(c) for c in chunks))}
+        response.iter_content.return_value = iter(chunks)
+        return response
+
+    def test_complete_download_lands_at_dest(self, tmp_path):
+        dest = tmp_path / "file.gz"
+        response = self._streaming_response([b"abcd", b"efgh"])
+
+        with patch("pylocuszoom.recombination.requests.get", return_value=response):
+            _download_with_progress("https://example.invalid/f", dest)
+
+        assert dest.read_bytes() == b"abcdefgh"
+        assert [p.name for p in tmp_path.iterdir()] == ["file.gz"]
+
+    def test_interrupted_download_leaves_nothing_behind(self, tmp_path):
+        dest = tmp_path / "file.gz"
+
+        def chunks():
+            yield b"abcd"
+            raise requests.ConnectionError("connection reset")
+
+        response = self._streaming_response([])
+        response.iter_content.return_value = chunks()
+
+        with (
+            patch("pylocuszoom.recombination.requests.get", return_value=response),
+            pytest.raises(requests.ConnectionError),
+        ):
+            _download_with_progress("https://example.invalid/f", dest)
+
+        assert not dest.exists()
+        assert list(tmp_path.iterdir()) == []
 
 
 class TestDownloadLiftoverChainHTTPError:

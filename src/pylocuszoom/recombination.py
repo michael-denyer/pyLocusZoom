@@ -112,31 +112,44 @@ def _download_with_progress(
 ) -> None:
     """Download a file with a progress bar.
 
+    Streams into a ``.part`` sibling and renames it onto ``dest_path`` only
+    once the stream completes, so an interrupted download never leaves a
+    truncated file where a later ``exists()`` check would trust it.
+
     Args:
         url: URL to download from.
         dest_path: Destination file path.
         desc: Description for the progress bar.
+
+    Raises:
+        requests.RequestException: If the request or the stream fails.
     """
     response = requests.get(url, stream=True, timeout=60)
     response.raise_for_status()
 
     total_size = int(response.headers.get("content-length", 0))
+    partial_path = dest_path.with_name(dest_path.name + ".part")
 
-    with (
-        open(dest_path, "wb") as f,
-        tqdm(
-            total=total_size,
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-            desc=desc,
-            disable=total_size == 0,  # Disable if size unknown
-        ) as pbar,
-    ):
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
-                pbar.update(len(chunk))
+    try:
+        with (
+            open(partial_path, "wb") as f,
+            tqdm(
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
+                desc=desc,
+                disable=total_size == 0,  # Disable if size unknown
+            ) as pbar,
+        ):
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+        os.replace(partial_path, dest_path)
+    except BaseException:
+        partial_path.unlink(missing_ok=True)
+        raise
 
 
 def download_liftover_chain(force: bool = False) -> Path:
