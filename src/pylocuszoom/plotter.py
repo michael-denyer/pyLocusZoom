@@ -16,11 +16,11 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from ._data import prepare_pvalue_data
 from ._ld_plotting import enrich_with_ld
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     calculate_gene_track_height,
-    transform_pvalues,
 )
 from ._regional import (
     AssociationPanel,
@@ -118,14 +118,12 @@ class LocusZoomPlotter:
             genome_build if genome_build else self._default_build(species)
         )
         self._backend = get_backend(backend)
-        self._backend_name = backend
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
         self._genomewide_line = -np.log10(genomewide_threshold)
         self._regional_composer = RegionalPlotComposer(
             self._backend,
-            self._backend_name,
             self._genomewide_line,
         )
         self._auto_genes = auto_genes
@@ -303,7 +301,7 @@ class LocusZoomPlotter:
         # the caller's notebook session and disables auto-display for all
         # subsequent plots from any library. Backends manage their own state.
 
-        df = transform_pvalues(gwas_df, columns.p_col)
+        df = prepare_pvalue_data(gwas_df, columns.p_col)
 
         df, resolved_ld_col = enrich_with_ld(
             df,
@@ -601,7 +599,7 @@ class LocusZoomPlotter:
 
         heatmap_data = None
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is not None:
-            first_gwas = transform_pvalues(gwas_dfs[0], columns.p_col)
+            first_gwas = prepare_pvalue_data(gwas_dfs[0], columns.p_col)
             heatmap_data = self._transform_heatmap_to_genomic_coords(
                 ld_matrix=ld_heatmap_df,
                 snp_ids=ld_heatmap_snp_ids,
@@ -626,7 +624,7 @@ class LocusZoomPlotter:
         for index, (gwas_df, lead_pos) in enumerate(
             zip(gwas_dfs, resolved_lead_positions)
         ):
-            df = transform_pvalues(gwas_df, columns.p_col)
+            df = prepare_pvalue_data(gwas_df, columns.p_col)
             reference_file = (
                 resolved_reference_files[index] if resolved_reference_files else None
             )
@@ -707,7 +705,7 @@ class LocusZoomPlotter:
                 eqtl_data = eqtl_data[mask]
 
             if not eqtl_data.empty:
-                eqtl_data = transform_pvalues(eqtl_data, "p_value")
+                eqtl_data = prepare_pvalue_data(eqtl_data, "p_value")
             panels.append(
                 EqtlPanel(
                     data=eqtl_data,

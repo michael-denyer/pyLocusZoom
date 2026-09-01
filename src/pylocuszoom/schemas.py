@@ -8,9 +8,6 @@ These are the strict, load-time schemas. Plot-time validation in
 ``CONTEXT.md``.
 """
 
-from pathlib import Path
-from typing import Union
-
 import pandas as pd
 
 from .exceptions import LoaderValidationError
@@ -153,31 +150,3 @@ def validate_genes_dataframe(
     """
     check(df, _GENES_SPEC)
     return df
-
-
-# =============================================================================
-# File Path Validation
-# =============================================================================
-
-
-def validate_file_path(filepath: Union[str, Path]) -> Path:
-    """Validate that a file path exists and is readable.
-
-    Args:
-        filepath: Path to validate.
-
-    Returns:
-        Validated Path object.
-
-    Raises:
-        LoaderValidationError: If file doesn't exist or isn't readable.
-    """
-    path = Path(filepath)
-
-    if not path.exists():
-        raise LoaderValidationError(f"File not found: {path}")
-
-    if not path.is_file():
-        raise LoaderValidationError(f"Not a file: {path}")
-
-    return path

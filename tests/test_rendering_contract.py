@@ -234,7 +234,7 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
     backend = RecordingBackend()
     ld_matrix = pd.DataFrame(np.eye(3), index=list("abc"), columns=list("abc"))
 
-    composer = RegionalPlotComposer(backend, "recording", genomewide_line=5e-8)
+    composer = RegionalPlotComposer(backend, genomewide_line=5e-8)
 
     composer.render_heatmap_panel(
         ax=SimpleNamespace(),

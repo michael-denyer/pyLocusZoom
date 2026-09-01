@@ -17,7 +17,6 @@ from .utils import filter_by_region
 from .validation import ColumnSpec, RangeRule, check
 
 # Required columns for fine-mapping data (default column names)
-REQUIRED_FINEMAPPING_COLS = ["pos", "pip"]
 
 
 def validate_finemapping_df(
@@ -183,32 +182,6 @@ def get_top_pip_variants(
     """
     filtered = df[df[pip_col] >= pip_threshold]
     return filtered.nlargest(n, pip_col)
-
-
-def calculate_credible_set_coverage(
-    df: pd.DataFrame,
-    cs_col: str = "cs",
-    pip_col: str = "pip",
-) -> dict:
-    """Calculate cumulative PIP for each credible set.
-
-    Args:
-        df: Fine-mapping DataFrame.
-        cs_col: Column containing credible set assignments.
-        pip_col: Column containing PIP values.
-
-    Returns:
-        Dictionary mapping credible set ID to cumulative PIP.
-    """
-    if cs_col not in df.columns:
-        return {}
-
-    coverage = {}
-    for cs_id in get_credible_sets(df, cs_col):
-        cs_data = filter_by_credible_set(df, cs_id, cs_col)
-        coverage[cs_id] = cs_data[pip_col].sum()
-
-    return coverage
 
 
 def plot_finemapping(

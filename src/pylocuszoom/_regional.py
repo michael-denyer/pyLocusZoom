@@ -127,11 +127,9 @@ class RegionalPlotComposer:
     def __init__(
         self,
         backend: PlotBackend,
-        backend_name: str,
         genomewide_line: float,
     ):
         self._backend = backend
-        self._backend_name = backend_name
         self._genomewide_line = genomewide_line
 
     def render(self, plan: RegionalFigurePlan) -> Any:

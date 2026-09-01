@@ -164,15 +164,6 @@ def get_eqtl_bin(effect: Optional[float]) -> str:
     return _find_eqtl_bin(effect).label
 
 
-def get_eqtl_color_palette() -> dict[str, str]:
-    """Get color palette for eQTL effect bins.
-
-    Returns:
-        Dictionary mapping bin labels to hex colors.
-    """
-    return {b.label: b.color for b in (*EQTL_POSITIVE_BINS, *EQTL_NEGATIVE_BINS)}
-
-
 def _find_ld_bin(r2: float) -> LDBin:
     """Find the LD bin for a given R-squared value.
 

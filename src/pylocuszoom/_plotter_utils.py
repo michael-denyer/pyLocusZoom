@@ -8,8 +8,6 @@ from typing import Any, Optional, Union
 import numpy as np
 import pandas as pd
 
-from ._data import prepare_pvalue_data
-
 # Significance thresholds
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
 
@@ -57,24 +55,6 @@ QQ_POINT_COLOR = "#1f77b4"
 QQ_CI_COLOR = "#CCCCCC"
 QQ_CI_ALPHA = 0.5
 SIGNIFICANCE_LINE_COLOR = "red"
-
-
-def transform_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
-    """Validate, filter, and -log10 transform p-values.
-
-    Filters out invalid rows before transformation:
-    - NaN p-values are removed.
-    - Out-of-range p-values (< 0 or > 1) are removed.
-    - Very small valid p-values (< 1e-300) are clipped to avoid -inf.
-
-    Args:
-        df: DataFrame with p-value column.
-        p_col: Name of p-value column.
-
-    Returns:
-        DataFrame with invalid rows removed and neglog10p column added.
-    """
-    return prepare_pvalue_data(df, p_col)
 
 
 def add_significance_line(

@@ -26,9 +26,6 @@ class LDHeatmapPlotter:
     - bokeh: Interactive HTML for dashboards
 
     Args:
-        species: Accepted for signature symmetry with the other plotters and
-            otherwise ignored. A heatmap renders a precomputed LD matrix, so
-            no part of it depends on the species.
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
 
     Example:
@@ -39,7 +36,6 @@ class LDHeatmapPlotter:
 
     def __init__(
         self,
-        species: str = "canine",
         backend: BackendType = "matplotlib",
     ):
         """Initialize the LD heatmap plotter."""
