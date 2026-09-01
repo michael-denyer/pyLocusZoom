@@ -435,7 +435,6 @@ class TestHeatmapMethods:
         assert mappable is not None
         # Should have a colormap
         assert hasattr(mappable, "get_cmap")
-        backend.close(fig)
 
     def test_matplotlib_add_heatmap_mask_upper(self, sample_ld_matrix):
         """Matplotlib add_heatmap with mask_upper should produce masked array."""
@@ -454,7 +453,6 @@ class TestHeatmapMethods:
 
         # The underlying data should be masked
         assert mappable is not None
-        backend.close(fig)
 
     def test_matplotlib_add_colorbar(self, sample_ld_matrix):
         """Matplotlib add_colorbar should not raise."""
@@ -470,7 +468,6 @@ class TestHeatmapMethods:
         )
         cbar = backend.add_colorbar(axes[0], mappable, label="R²")
         assert cbar is not None
-        backend.close(fig)
 
     def test_plotly_add_heatmap_returns_trace(self, sample_ld_matrix):
         """Plotly add_heatmap should return Heatmap trace."""
@@ -598,7 +595,6 @@ class TestHeatmapMethods:
             cmap_colors=["#0000FF", "#FFFF00"],
         )
         assert mappable is not None
-        backend.close(fig)
 
     def test_heatmap_mask_upper_lower_triangle(self, sample_ld_matrix):
         """Test that mask_upper=True renders only lower triangle."""
@@ -622,7 +618,6 @@ class TestHeatmapMethods:
         array_data = mappable.get_array()
         # Check that upper triangle is masked
         assert np.ma.is_masked(array_data)
-        backend.close(fig)
 
 
 class TestCustomBackendCompatibility:
@@ -712,7 +707,6 @@ class TestLegendPlacement:
         fig, axes = backend.create_figure(1, [1.0], (6, 4))
         legend = backend.add_legend(axes[0], self._entries(), loc="lower left")
         assert legend._get_loc() == Legend.codes["lower left"]
-        backend.close(fig)
 
     def test_matplotlib_honours_edgecolor(self):
         """Matplotlib draws the swatch edge in the requested colour."""
@@ -725,7 +719,6 @@ class TestLegendPlacement:
         legend = backend.add_legend(axes[0], self._entries(), loc="upper right")
         marker_handle = legend.legend_handles[0]
         assert to_hex(marker_handle.get_markeredgecolor()) == "#00ff00"
-        backend.close(fig)
 
     def test_plotly_honours_loc(self):
         """Plotly anchors the legend per the matplotlib loc vocabulary."""
@@ -813,7 +806,6 @@ class TestLegendTitleMathtext:
             axes[0], ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
         )
         assert legend.get_title().get_text() == r"$r^2$"
-        backend.close(fig)
 
     def test_interactive_backends_show_unicode(self):
         """Plotly and Bokeh convert the mathtext to a plain unicode r²."""

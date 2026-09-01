@@ -903,32 +903,6 @@ class PlotlyBackend:
         # Store (row, col, n_cols) tuple for proper axis naming later
         fig._mb_format_rows.append((row, col, n_cols))
 
-    def save(
-        self,
-        fig: go.Figure,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file.
-
-        Supports .html for interactive and .png/.pdf for static.
-        """
-        if path.endswith(".html"):
-            fig.write_html(path)
-        else:
-            # Static export requires kaleido
-            scale = dpi / 100
-            fig.write_image(path, scale=scale)
-
-    def show(self, fig: go.Figure) -> None:
-        """Display the figure."""
-        fig.show()
-
-    def close(self, fig: go.Figure) -> None:
-        """Close the figure (no-op for plotly)."""
-        pass
-
     def axvline(
         self,
         ax: Tuple[go.Figure, int],

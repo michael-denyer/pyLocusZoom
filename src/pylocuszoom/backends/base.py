@@ -58,10 +58,6 @@ class SupportsSNPLabels(Protocol):
         """Add SNP labels to a panel and return the text objects."""
         ...
 
-    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
-        """Reposition SNP labels after axis limits are final."""
-        ...
-
 
 @runtime_checkable
 class SupportsSecondaryAxis(Protocol):
@@ -760,42 +756,5 @@ class PlotBackend(Protocol):
 
         Returns:
             The legend object, if the backend produces one.
-        """
-        ...
-
-    # =========================================================================
-    # File Operations
-    # =========================================================================
-
-    def save(
-        self,
-        fig: Any,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file.
-
-        Args:
-            fig: Figure object.
-            path: Output file path (.png, .pdf, .html).
-            dpi: Resolution for raster formats.
-            bbox_inches: Bounding box adjustment.
-        """
-        ...
-
-    def show(self, fig: Any) -> None:
-        """Display the figure.
-
-        Args:
-            fig: Figure object.
-        """
-        ...
-
-    def close(self, fig: Any) -> None:
-        """Close the figure and free resources.
-
-        Args:
-            fig: Figure object.
         """
         ...

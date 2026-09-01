@@ -513,44 +513,6 @@ class TestBackendConsistency:
             assert fig is not None, f"{backend_name} failed with ld_col"
 
 
-class TestBackendSaveOperations:
-    """Tests for backend save functionality."""
-
-    def test_plotly_backend_save_html(self, sample_gwas_df):
-        """PlotlyBackend.save() should work for HTML files."""
-        backend = PlotlyBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
-        )
-
-        # Add some data
-        x = sample_gwas_df["ps"]
-        y = -np.log10(sample_gwas_df["p_wald"])
-        backend.scatter(axes[0], x, y, colors="#BEBEBE")
-
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            backend.save(layout, f.name)
-            assert Path(f.name).exists()
-            assert Path(f.name).stat().st_size > 0
-
-    def test_bokeh_backend_save_html(self, sample_gwas_df):
-        """BokehBackend.save() should work for HTML files."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
-        )
-
-        # Add some data
-        x = sample_gwas_df["ps"]
-        y = -np.log10(sample_gwas_df["p_wald"])
-        backend.scatter(axes[0], x, y, colors="#BEBEBE")
-
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            backend.save(layout, f.name)
-            assert Path(f.name).exists()
-            assert Path(f.name).stat().st_size > 0
-
-
 class TestDatabricksSpecific:
     """Tests specific to Databricks notebook environment."""
 

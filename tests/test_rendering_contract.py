@@ -175,29 +175,22 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     manhattan_df, qq_df = prepared_data
     backend = get_backend(backend_name)
     renderer = ManhattanQQRenderer(backend)
-    figures = []
-    try:
-        figures.append(
-            renderer.render_manhattan(
-                manhattan_df,
-                figsize=(12, 5),
-                significance_threshold=5e-8,
-                title="Contract Manhattan",
-            )
-        )
-        figures.append(
-            renderer.render_qq(
-                qq_df,
-                figsize=(6, 6),
-                show_confidence_band=True,
-                show_lambda=True,
-                title=None,
-            )
-        )
-        assert all(figure is not None for figure in figures)
-    finally:
-        for figure in figures:
-            backend.close(figure)
+    figures = [
+        renderer.render_manhattan(
+            manhattan_df,
+            figsize=(12, 5),
+            significance_threshold=5e-8,
+            title="Contract Manhattan",
+        ),
+        renderer.render_qq(
+            qq_df,
+            figsize=(6, 6),
+            show_confidence_band=True,
+            show_lambda=True,
+            title=None,
+        ),
+    ]
+    assert all(figure is not None for figure in figures)
 
 
 def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):

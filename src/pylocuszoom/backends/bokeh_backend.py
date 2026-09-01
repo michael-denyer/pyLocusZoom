@@ -699,45 +699,6 @@ class BokehBackend:
             code="return (tick / 1e6).toFixed(2);"
         )
 
-    def save(
-        self,
-        fig: Any,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file.
-
-        Supports .html for interactive and .png/.svg for static.
-
-        Raises:
-            ValueError: If the file extension is not supported.
-        """
-        from bokeh.io import export_png, export_svgs, save
-        from bokeh.resources import CDN
-
-        if path.endswith(".html"):
-            save(fig, filename=path, resources=CDN)
-        elif path.endswith(".png"):
-            export_png(fig, filename=path)
-        elif path.endswith(".svg"):
-            export_svgs(fig, filename=path)
-        else:
-            raise ValueError(
-                f"Unsupported file format: {path!r}. "
-                "Supported formats: .html, .png, .svg"
-            )
-
-    def show(self, fig: Any) -> None:
-        """Display the figure."""
-        from bokeh.io import show
-
-        show(fig)
-
-    def close(self, fig: Any) -> None:
-        """Close the figure (no-op for bokeh)."""
-        pass
-
     def axvline(
         self,
         ax: figure,

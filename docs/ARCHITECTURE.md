@@ -168,8 +168,9 @@ stages:
    primitive contract. Backend implementations translate the primitive calls
    into matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
 7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
-   their respective figure objects that serialize to HTML via `save()` or
-   their native export methods.
+   their respective figure objects. Callers export with the figure's own
+   methods (`fig.savefig()`, `fig.write_html()`, `bokeh.io.save()`); the
+   backend contract carries drawing primitives only.
 
 ## Key Abstractions
 

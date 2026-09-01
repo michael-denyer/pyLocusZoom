@@ -299,17 +299,6 @@ class MatplotlibBackend:
             region_span=region_span,
         )
 
-    def adjust_snp_labels(self, ax: Axes, texts: List[Any]) -> None:
-        """Adjust SNP label positions after axis limits are set.
-
-        Args:
-            ax: Matplotlib axes.
-            texts: List of text annotation objects from add_snp_labels().
-        """
-        from ..labels import adjust_snp_labels as _adjust_snp_labels
-
-        _adjust_snp_labels(ax, texts)
-
     def add_rectangle(
         self,
         ax: Axes,
@@ -562,24 +551,6 @@ class MatplotlibBackend:
         """Format x-axis to show megabase values."""
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1e6:.2f}"))
         ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
-
-    def save(
-        self,
-        fig: Figure,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file."""
-        fig.savefig(path, dpi=dpi, bbox_inches=bbox_inches)
-
-    def show(self, fig: Figure) -> None:
-        """Display the figure."""
-        plt.show()
-
-    def close(self, fig: Figure) -> None:
-        """Close the figure and free resources."""
-        plt.close(fig)
 
     def axvline(
         self,
