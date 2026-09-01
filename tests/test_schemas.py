@@ -10,7 +10,6 @@ import pytest
 from pylocuszoom.exceptions import LoaderValidationError
 from pylocuszoom.schemas import (
     validate_eqtl_dataframe,
-    validate_file_path,
     validate_finemapping_dataframe,
     validate_genes_dataframe,
     validate_gwas_dataframe,
@@ -257,37 +256,3 @@ class TestGenesValidationEdgeCases:
         msg = str(exc_info.value)
         for col in ["chr", "start", "end", "gene_name"]:
             assert col in msg
-
-
-# =============================================================================
-# File path validation
-# =============================================================================
-
-
-class TestFilePathValidation:
-    """Tests for validate_file_path."""
-
-    def test_valid_file(self, tmp_path):
-        """Existing file returns Path object."""
-        f = tmp_path / "test.txt"
-        f.write_text("content")
-        result = validate_file_path(f)
-        assert result == f
-
-    def test_nonexistent_file_raises(self, tmp_path):
-        """Non-existent path raises LoaderValidationError."""
-        missing = tmp_path / "no_such_file.txt"
-        with pytest.raises(LoaderValidationError, match="File not found"):
-            validate_file_path(missing)
-
-    def test_directory_raises(self, tmp_path):
-        """Directory path raises LoaderValidationError."""
-        with pytest.raises(LoaderValidationError, match="Not a file"):
-            validate_file_path(tmp_path)
-
-    def test_string_path_accepted(self, tmp_path):
-        """String filepath is accepted (converted to Path internally)."""
-        f = tmp_path / "test.txt"
-        f.write_text("content")
-        result = validate_file_path(str(f))
-        assert result == f

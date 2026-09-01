@@ -120,7 +120,6 @@ class TestPlotManhattan:
 
     def test_plot_manhattan_plotly_backend(self, sample_gwas_df):
         """plot_manhattan should work with plotly backend."""
-        pytest.importorskip("plotly")
         import plotly.graph_objects as go
 
         plotter = ManhattanPlotter(species="human", backend="plotly")
@@ -129,7 +128,6 @@ class TestPlotManhattan:
 
     def test_plot_manhattan_bokeh_backend(self, sample_gwas_df):
         """plot_manhattan should work with bokeh backend."""
-        pytest.importorskip("bokeh")
 
         plotter = ManhattanPlotter(species="human", backend="bokeh")
         fig = plotter.plot_manhattan(sample_gwas_df)
@@ -224,7 +222,6 @@ class TestPlotQQ:
 
     def test_plot_qq_plotly_backend(self, sample_pvalues_df):
         """plot_qq should work with plotly backend."""
-        pytest.importorskip("plotly")
         import plotly.graph_objects as go
 
         plotter = ManhattanPlotter(backend="plotly")
@@ -233,7 +230,6 @@ class TestPlotQQ:
 
     def test_plot_qq_bokeh_backend(self, sample_pvalues_df):
         """plot_qq should work with bokeh backend."""
-        pytest.importorskip("bokeh")
 
         plotter = ManhattanPlotter(backend="bokeh")
         fig = plotter.plot_qq(sample_pvalues_df)
@@ -361,7 +357,6 @@ class TestPlotManhattanStacked:
 
     def test_plot_manhattan_stacked_plotly_backend(self, sample_gwas_dfs):
         """plot_manhattan_stacked should work with plotly backend."""
-        pytest.importorskip("plotly")
         import plotly.graph_objects as go
 
         plotter = ManhattanPlotter(species="human", backend="plotly")
@@ -370,7 +365,6 @@ class TestPlotManhattanStacked:
 
     def test_plot_manhattan_stacked_bokeh_backend(self, sample_gwas_dfs):
         """plot_manhattan_stacked should work with bokeh backend."""
-        pytest.importorskip("bokeh")
 
         plotter = ManhattanPlotter(species="human", backend="bokeh")
         fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
@@ -447,7 +441,6 @@ class TestPlotManhattanQQSideBySide:
 
     def test_plot_manhattan_qq_plotly_backend(self, sample_gwas_df):
         """plot_manhattan_qq should work with plotly backend."""
-        pytest.importorskip("plotly")
         import plotly.graph_objects as go
 
         plotter = ManhattanPlotter(species="human", backend="plotly")
@@ -456,7 +449,6 @@ class TestPlotManhattanQQSideBySide:
 
     def test_plot_manhattan_qq_bokeh_backend(self, sample_gwas_df):
         """plot_manhattan_qq should work with bokeh backend."""
-        pytest.importorskip("bokeh")
 
         plotter = ManhattanPlotter(species="human", backend="bokeh")
         fig = plotter.plot_manhattan_qq(sample_gwas_df)
@@ -548,7 +540,6 @@ class TestPlotManhattanQQStacked:
 
     def test_plot_manhattan_qq_stacked_plotly_backend(self, sample_gwas_dfs):
         """plot_manhattan_qq_stacked should work with plotly backend."""
-        pytest.importorskip("plotly")
         import plotly.graph_objects as go
 
         plotter = ManhattanPlotter(species="human", backend="plotly")
@@ -557,7 +548,6 @@ class TestPlotManhattanQQStacked:
 
     def test_plot_manhattan_qq_stacked_bokeh_backend(self, sample_gwas_dfs):
         """plot_manhattan_qq_stacked should work with bokeh backend."""
-        pytest.importorskip("bokeh")
 
         plotter = ManhattanPlotter(species="human", backend="bokeh")
         fig = plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)

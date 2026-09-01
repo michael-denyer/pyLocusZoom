@@ -10,43 +10,11 @@ Covers issues found in code review:
 - Low #7: redundant local ColumnDataSource import (code cleanup)
 """
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
-
-
-class TestSaveNoGlobalState:
-    """High #1: save() should not pollute Bokeh global state."""
-
-    def test_save_html_uses_filename_param(self, tmp_path):
-        """save() should pass filename directly, not use global output_file()."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        x = pd.Series([1, 2, 3])
-        y = pd.Series([4, 5, 6])
-        backend.scatter(axes[0], x, y, colors="#BEBEBE")
-
-        path = str(tmp_path / "test.html")
-        backend.save(layout, path)
-
-        assert Path(path).exists()
-        assert Path(path).stat().st_size > 0
-
-    def test_save_unknown_extension_raises(self, tmp_path):
-        """save() should raise ValueError for unsupported file extensions."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-
-        with pytest.raises(ValueError, match="Unsupported file format"):
-            backend.save(layout, str(tmp_path / "test.csv"))
 
 
 class TestAddPanelLabelWithDataRange1d:

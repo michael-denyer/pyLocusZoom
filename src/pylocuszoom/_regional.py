@@ -53,7 +53,6 @@ class AssociationPanel:
     p_col: Optional[str]
     snp_labels: bool
     label_top_n: int
-    genes_df: Optional[pd.DataFrame]
     recomb_df: Optional[pd.DataFrame]
     panel_label: Optional[str] = None
     add_ld_legend: bool = False
@@ -127,11 +126,9 @@ class RegionalPlotComposer:
     def __init__(
         self,
         backend: PlotBackend,
-        backend_name: str,
         genomewide_line: float,
     ):
         self._backend = backend
-        self._backend_name = backend_name
         self._genomewide_line = genomewide_line
 
     def render(self, plan: RegionalFigurePlan) -> Any:
@@ -155,12 +152,10 @@ class RegionalPlotComposer:
                     lead_pos=panel.lead_pos,
                     rs_col=panel.rs_col,
                     p_col=panel.p_col,
-                    chrom=plan.chrom,
                     start=plan.start,
                     end=plan.end,
                     snp_labels=panel.snp_labels,
                     label_top_n=panel.label_top_n,
-                    genes_df=panel.genes_df,
                     recomb_df=panel.recomb_df,
                     panel_label=panel.panel_label,
                     add_ld_legend=panel.add_ld_legend,
@@ -217,12 +212,10 @@ class RegionalPlotComposer:
         lead_pos: Optional[int],
         rs_col: Optional[str],
         p_col: Optional[str],
-        chrom: int | str,
         start: int,
         end: int,
         snp_labels: bool,
         label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
         recomb_df: Optional[pd.DataFrame],
         panel_label: Optional[str] = None,
         add_ld_legend: bool = False,
@@ -261,8 +254,6 @@ class RegionalPlotComposer:
                 neglog10p_col="neglog10p",
                 rs_col=rs_col,
                 label_top_n=label_top_n,
-                genes_df=genes_df,
-                chrom=chrom,
                 adjust=True,
                 lead_pos=lead_pos,
                 region_span=end - start,
@@ -271,9 +262,6 @@ class RegionalPlotComposer:
         has_recomb = recomb_df is not None and not recomb_df.empty
         if has_recomb and isinstance(self._backend, SupportsSecondaryAxis):
             render_recombination_overlay(self._backend, ax, recomb_df, start, end)
-            self._backend.hide_spines(ax, ["top"])
-        else:
-            self._backend.hide_spines(ax, ["top", "right"])
 
         if panel_label:
             self._backend.add_panel_label(ax, panel_label)
@@ -393,8 +381,7 @@ class RegionalPlotComposer:
                 linewidth=2,
             )
         self._backend.set_xlim(ax, start, end)
-        self._backend.set_yticks(ax, [], [])
-        self._backend.hide_spines(ax, ["top", "right", "left"])
+        self._backend.hide_yaxis(ax)
 
     def render_gene_panel(
         self,
@@ -410,7 +397,6 @@ class RegionalPlotComposer:
         plot_gene_track_generic(
             ax, self._backend, genes_df, chrom, start, end, exons_df
         )
-        self._backend.hide_spines(ax, ["top", "right", "left"])
 
     def render_finemapping_panel(
         self,
@@ -445,7 +431,6 @@ class RegionalPlotComposer:
                 )
         self._backend.set_ylabel(ax, "PIP")
         self._backend.set_ylim(ax, -0.05, 1.05)
-        self._backend.hide_spines(ax, ["top", "right"])
 
     def render_eqtl_panel(
         self,
@@ -521,4 +506,3 @@ class RegionalPlotComposer:
             linewidth=1,
             alpha=0.65,
         )
-        self._backend.hide_spines(ax, ["top", "right"])

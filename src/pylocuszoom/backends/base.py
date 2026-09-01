@@ -49,17 +49,11 @@ class SupportsSNPLabels(Protocol):
         neglog10p_col: str,
         rs_col: str,
         label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
         adjust: bool = True,
         lead_pos: Optional[int] = None,
         region_span: Optional[int] = None,
     ) -> List[Any]:
         """Add SNP labels to a panel and return the text objects."""
-        ...
-
-    def adjust_snp_labels(self, ax: Any, texts: List[Any]) -> None:
-        """Reposition SNP labels after axis limits are final."""
         ...
 
 
@@ -720,15 +714,6 @@ class PlotBackend(Protocol):
         """
         ...
 
-    def hide_spines(self, ax: Any, spines: List[str]) -> None:
-        """Hide specified axis spines.
-
-        Args:
-            ax: Axes or panel.
-            spines: List of spine names ('top', 'right', 'bottom', 'left').
-        """
-        ...
-
     def hide_yaxis(self, ax: Any) -> None:
         """Hide y-axis for gene track panels.
 
@@ -769,42 +754,5 @@ class PlotBackend(Protocol):
 
         Returns:
             The legend object, if the backend produces one.
-        """
-        ...
-
-    # =========================================================================
-    # File Operations
-    # =========================================================================
-
-    def save(
-        self,
-        fig: Any,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file.
-
-        Args:
-            fig: Figure object.
-            path: Output file path (.png, .pdf, .html).
-            dpi: Resolution for raster formats.
-            bbox_inches: Bounding box adjustment.
-        """
-        ...
-
-    def show(self, fig: Any) -> None:
-        """Display the figure.
-
-        Args:
-            fig: Figure object.
-        """
-        ...
-
-    def close(self, fig: Any) -> None:
-        """Close the figure and free resources.
-
-        Args:
-            fig: Figure object.
         """
         ...

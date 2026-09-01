@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom._plotter_utils import transform_pvalues
+from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
@@ -851,8 +851,8 @@ class TestPValueValidation:
         )
         plt.close(fig)
 
-    def test_transform_pvalues_filters_invalid_range(self, plotter):
-        """_transform_pvalues filters out-of-range p-values (< 0 or > 1)."""
+    def test_prepare_pvalue_data_filters_invalid_range(self, plotter):
+        """prepare_pvalue_data filters out-of-range p-values (< 0 or > 1)."""
         import io
 
         from loguru import logger as loguru_logger
@@ -874,7 +874,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = transform_pvalues(df.copy(), "p_wald")
+            result = prepare_pvalue_data(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -888,8 +888,8 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "2 p-values outside [0, 1]" in log_output
 
-    def test_transform_pvalues_filters_nan(self, plotter):
-        """_transform_pvalues filters NaN p-values."""
+    def test_prepare_pvalue_data_filters_nan(self, plotter):
+        """prepare_pvalue_data filters NaN p-values."""
         import io
 
         from loguru import logger as loguru_logger
@@ -910,7 +910,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = transform_pvalues(df.copy(), "p_wald")
+            result = prepare_pvalue_data(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -922,8 +922,8 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "1 NaN p-values" in log_output
 
-    def test_transform_pvalues_clips_very_small(self, plotter):
-        """_transform_pvalues clips very small p-values to 1e-300."""
+    def test_prepare_pvalue_data_clips_very_small(self, plotter):
+        """prepare_pvalue_data clips very small p-values to 1e-300."""
         import io
 
         from loguru import logger as loguru_logger
@@ -944,7 +944,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = transform_pvalues(df.copy(), "p_wald")
+            result = prepare_pvalue_data(df.copy(), "p_wald")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -957,8 +957,8 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "Clipping" in log_output
 
-    def test_transform_pvalues_preserves_valid_data(self, plotter):
-        """_transform_pvalues passes through all-valid data unchanged."""
+    def test_prepare_pvalue_data_preserves_valid_data(self, plotter):
+        """prepare_pvalue_data passes through all-valid data unchanged."""
         df = pd.DataFrame(
             {
                 "ps": [1100000, 1500000, 1900000],
@@ -966,7 +966,7 @@ class TestPValueValidation:
             }
         )
 
-        result = transform_pvalues(df.copy(), "p_wald")
+        result = prepare_pvalue_data(df.copy(), "p_wald")
 
         assert len(result) == 3
         assert result["neglog10p"].iloc[0] == pytest.approx(3.0)
@@ -978,7 +978,7 @@ class TestPValueValidation:
 
         Regression test: lead detection only filtered NaN but not out-of-range
         p-values, so a lead SNP with p=-0.1 could be selected and then removed
-        by _transform_pvalues, causing missing lead highlighting.
+        by prepare_pvalue_data, causing missing lead highlighting.
         """
         gwas_df = pd.DataFrame(
             {
@@ -1384,22 +1384,22 @@ class TestRecombinationDownloadErrors:
 class TestPvalueTransformation:
     """Tests for p-value transformation helper."""
 
-    def test_transform_pvalues_adds_neglog10p_column(self):
+    def test_prepare_pvalue_data_adds_neglog10p_column(self):
         """Helper creates neglog10p column from p-values."""
         df = pd.DataFrame({"pval": [0.01, 0.001, 1e-8]})
 
-        result = transform_pvalues(df.copy(), "pval")
+        result = prepare_pvalue_data(df.copy(), "pval")
 
         assert "neglog10p" in result.columns
         assert result["neglog10p"].iloc[0] == pytest.approx(2.0)  # -log10(0.01)
         assert result["neglog10p"].iloc[1] == pytest.approx(3.0)  # -log10(0.001)
         assert result["neglog10p"].iloc[2] == pytest.approx(8.0)  # -log10(1e-8)
 
-    def test_transform_pvalues_clips_extreme_values(self):
+    def test_prepare_pvalue_data_clips_extreme_values(self):
         """Extremely small p-values are clipped to avoid -inf."""
         df = pd.DataFrame({"pval": [1e-350, 0.0]})  # Would be -inf without clipping
 
-        result = transform_pvalues(df.copy(), "pval")
+        result = prepare_pvalue_data(df.copy(), "pval")
 
         # Should be clipped to 1e-300, giving ~300
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)

@@ -69,9 +69,6 @@ class RecordingBackend:
     def set_suptitle(self, *args, **kwargs):
         self._record("set_suptitle", *args, **kwargs)
 
-    def hide_spines(self, *args, **kwargs):
-        self._record("hide_spines", *args, **kwargs)
-
     def add_panel_label(self, *args, **kwargs):
         self._record("add_panel_label", *args, **kwargs)
 
@@ -172,35 +169,25 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     backend_name, prepared_data
 ):
     """All built-in adapters accept the same prepared rendering intent."""
-    if backend_name != "matplotlib":
-        pytest.importorskip(backend_name)
-
     manhattan_df, qq_df = prepared_data
     backend = get_backend(backend_name)
     renderer = ManhattanQQRenderer(backend)
-    figures = []
-    try:
-        figures.append(
-            renderer.render_manhattan(
-                manhattan_df,
-                figsize=(12, 5),
-                significance_threshold=5e-8,
-                title="Contract Manhattan",
-            )
-        )
-        figures.append(
-            renderer.render_qq(
-                qq_df,
-                figsize=(6, 6),
-                show_confidence_band=True,
-                show_lambda=True,
-                title=None,
-            )
-        )
-        assert all(figure is not None for figure in figures)
-    finally:
-        for figure in figures:
-            backend.close(figure)
+    figures = [
+        renderer.render_manhattan(
+            manhattan_df,
+            figsize=(12, 5),
+            significance_threshold=5e-8,
+            title="Contract Manhattan",
+        ),
+        renderer.render_qq(
+            qq_df,
+            figsize=(6, 6),
+            show_confidence_band=True,
+            show_lambda=True,
+            title=None,
+        ),
+    ]
+    assert all(figure is not None for figure in figures)
 
 
 def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):
@@ -244,7 +231,7 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
     backend = RecordingBackend()
     ld_matrix = pd.DataFrame(np.eye(3), index=list("abc"), columns=list("abc"))
 
-    composer = RegionalPlotComposer(backend, "recording", genomewide_line=5e-8)
+    composer = RegionalPlotComposer(backend, genomewide_line=5e-8)
 
     composer.render_heatmap_panel(
         ax=SimpleNamespace(),
@@ -352,7 +339,6 @@ def test_stats_renderer_owns_phewas_panel_policy():
     assert names.count("scatter") == 2
     assert names.count("axvline") == 1
     assert "set_yticks" in names
-    assert "hide_spines" in names
 
 
 def test_stats_renderer_draws_no_significance_line_for_none():

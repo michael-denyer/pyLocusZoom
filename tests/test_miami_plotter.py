@@ -3,19 +3,9 @@
 import pandas as pd
 import pytest
 
-# Test for import error first (RED phase)
-try:
-    from pylocuszoom.miami_plotter import MiamiPlotter
-
-    MIAMI_PLOTTER_AVAILABLE = True
-except ImportError:
-    MIAMI_PLOTTER_AVAILABLE = False
-    MiamiPlotter = None
+from pylocuszoom.miami_plotter import MiamiPlotter
 
 
-@pytest.mark.skipif(
-    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
-)
 class TestMiamiPlotter:
     """Tests for the MiamiPlotter class."""
 
@@ -156,9 +146,6 @@ class TestMiamiPlotter:
         )
 
 
-@pytest.mark.skipif(
-    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
-)
 class TestMiamiPlotterOptions:
     """Tests for MiamiPlotter configuration options."""
 
@@ -245,9 +232,6 @@ class TestMiamiPlotterOptions:
         assert fig is not None
 
 
-@pytest.mark.skipif(
-    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
-)
 class TestMiamiPlotterHoverData:
     """Tests for Miami plotter hover data support."""
 
@@ -290,9 +274,6 @@ class TestMiamiPlotterHoverData:
         assert fig is not None
 
 
-@pytest.mark.skipif(
-    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
-)
 class TestMiamiSignificance:
     """Tests for Miami plot significance lines."""
 
@@ -400,9 +381,6 @@ class TestMiamiSignificance:
         assert len(bottom_lines) == 0, "Bottom panel should have no significance line"
 
 
-@pytest.mark.skipif(
-    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
-)
 class TestMiamiLabels:
     """Tests for Miami plot panel labels and SNP annotations."""
 
@@ -515,9 +493,6 @@ class TestMiamiLabels:
         assert "rs2" in bottom_texts
 
 
-@pytest.mark.skipif(
-    not MIAMI_PLOTTER_AVAILABLE, reason="MiamiPlotter not implemented yet"
-)
 class TestMiamiHighlight:
     """Tests for Miami plot region highlighting."""
 

@@ -877,15 +877,6 @@ class PlotlyBackend:
             )
         self._configure_legend(fig, row, legend_key, title or "", loc)
 
-    def hide_spines(self, ax: Tuple[go.Figure, int], spines: List[str]) -> None:
-        """Hide specified axis spines (lines).
-
-        Plotly doesn't have spines, but we can hide axis lines.
-        """
-        # Plotly's template "plotly_white" already hides top/right lines
-        # No action needed - method exists for API compatibility
-        pass
-
     def hide_yaxis(self, ax: Tuple[go.Figure, int]) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
         fig, row, col, n_cols = self._extract_row_col(ax)
@@ -911,32 +902,6 @@ class PlotlyBackend:
             fig._mb_format_rows = []
         # Store (row, col, n_cols) tuple for proper axis naming later
         fig._mb_format_rows.append((row, col, n_cols))
-
-    def save(
-        self,
-        fig: go.Figure,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file.
-
-        Supports .html for interactive and .png/.pdf for static.
-        """
-        if path.endswith(".html"):
-            fig.write_html(path)
-        else:
-            # Static export requires kaleido
-            scale = dpi / 100
-            fig.write_image(path, scale=scale)
-
-    def show(self, fig: go.Figure) -> None:
-        """Display the figure."""
-        fig.show()
-
-    def close(self, fig: go.Figure) -> None:
-        """Close the figure (no-op for plotly)."""
-        pass
 
     def axvline(
         self,

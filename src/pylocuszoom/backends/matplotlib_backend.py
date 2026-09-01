@@ -58,6 +58,7 @@ class MatplotlibBackend:
         """
         if n_panels == 1:
             fig, ax = plt.subplots(figsize=figsize)
+            self._hide_top_right(ax)
             return fig, [ax]
 
         fig, axes = plt.subplots(
@@ -68,6 +69,8 @@ class MatplotlibBackend:
             sharex=sharex,
         )
 
+        for ax in axes:
+            self._hide_top_right(ax)
         return fig, list(axes)
 
     def create_figure_grid(
@@ -106,9 +109,15 @@ class MatplotlibBackend:
         # Flatten axes to list
         import numpy as np
 
-        if isinstance(axes, np.ndarray):
-            return fig, list(axes.flatten())
-        return fig, [axes]
+        flat = list(axes.flatten()) if isinstance(axes, np.ndarray) else [axes]
+        for ax in flat:
+            self._hide_top_right(ax)
+        return fig, flat
+
+    @staticmethod
+    def _hide_top_right(ax: Axes) -> None:
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
     def scatter(
         self,
@@ -248,8 +257,6 @@ class MatplotlibBackend:
         neglog10p_col: str,
         rs_col: str,
         label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
         adjust: bool = True,
         lead_pos: Optional[int] = None,
         region_span: Optional[int] = None,
@@ -263,8 +270,6 @@ class MatplotlibBackend:
             neglog10p_col: Column name for -log10(p-value).
             rs_col: Column name for SNP ID.
             label_top_n: Number of top SNPs to label.
-            genes_df: Gene annotations (unused, for signature compatibility).
-            chrom: Chromosome number (unused, for signature compatibility).
             adjust: If True, run adjustText immediately. If False, caller
                 must call adjust_snp_labels() after setting axis limits.
             lead_pos: Position of the lead SNP. Non-lead SNPs nearby are
@@ -283,23 +288,10 @@ class MatplotlibBackend:
             neglog10p_col=neglog10p_col,
             rs_col=rs_col,
             label_top_n=label_top_n,
-            genes_df=genes_df,
-            chrom=chrom,
             adjust=adjust,
             lead_pos=lead_pos,
             region_span=region_span,
         )
-
-    def adjust_snp_labels(self, ax: Axes, texts: List[Any]) -> None:
-        """Adjust SNP label positions after axis limits are set.
-
-        Args:
-            ax: Matplotlib axes.
-            texts: List of text annotation objects from add_snp_labels().
-        """
-        from ..labels import adjust_snp_labels as _adjust_snp_labels
-
-        _adjust_snp_labels(ax, texts)
 
     def add_rectangle(
         self,
@@ -401,7 +393,10 @@ class MatplotlibBackend:
 
     def create_twin_axis(self, ax: Axes) -> Axes:
         """Create a secondary y-axis sharing the same x-axis."""
-        return ax.twinx()
+        secondary = ax.twinx()
+        ax.spines["right"].set_visible(True)
+        secondary.spines["top"].set_visible(False)
+        return secondary
 
     def line_secondary(
         self,
@@ -541,37 +536,15 @@ class MatplotlibBackend:
             labelspacing=0.4,
         )
 
-    def hide_spines(self, ax: Axes, spines: List[str]) -> None:
-        """Hide specified axis spines."""
-        for spine in spines:
-            ax.spines[spine].set_visible(False)
-
     def hide_yaxis(self, ax: Axes) -> None:
         """Hide y-axis ticks, labels, and line."""
         ax.yaxis.set_visible(False)
+        ax.spines["left"].set_visible(False)
 
     def format_xaxis_mb(self, ax: Axes) -> None:
         """Format x-axis to show megabase values."""
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1e6:.2f}"))
         ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
-
-    def save(
-        self,
-        fig: Figure,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file."""
-        fig.savefig(path, dpi=dpi, bbox_inches=bbox_inches)
-
-    def show(self, fig: Figure) -> None:
-        """Display the figure."""
-        plt.show()
-
-    def close(self, fig: Figure) -> None:
-        """Close the figure and free resources."""
-        plt.close(fig)
 
     def axvline(
         self,

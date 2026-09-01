@@ -686,14 +686,6 @@ class BokehBackend:
             )
         self._create_legend(ax, items, title or "", loc)
 
-    def hide_spines(self, ax: figure, spines: List[str]) -> None:
-        """Hide specified axis spines (no-op for Bokeh).
-
-        Bokeh doesn't have matplotlib-style spines. This method exists
-        for interface compatibility but has no visual effect.
-        """
-        pass
-
     def hide_yaxis(self, ax: figure) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
         ax.yaxis.visible = False
@@ -706,45 +698,6 @@ class BokehBackend:
         ax.xaxis.formatter = CustomJSTickFormatter(
             code="return (tick / 1e6).toFixed(2);"
         )
-
-    def save(
-        self,
-        fig: Any,
-        path: str,
-        dpi: int = 150,
-        bbox_inches: str = "tight",
-    ) -> None:
-        """Save figure to file.
-
-        Supports .html for interactive and .png/.svg for static.
-
-        Raises:
-            ValueError: If the file extension is not supported.
-        """
-        from bokeh.io import export_png, export_svgs, save
-        from bokeh.resources import CDN
-
-        if path.endswith(".html"):
-            save(fig, filename=path, resources=CDN)
-        elif path.endswith(".png"):
-            export_png(fig, filename=path)
-        elif path.endswith(".svg"):
-            export_svgs(fig, filename=path)
-        else:
-            raise ValueError(
-                f"Unsupported file format: {path!r}. "
-                "Supported formats: .html, .png, .svg"
-            )
-
-    def show(self, fig: Any) -> None:
-        """Display the figure."""
-        from bokeh.io import show
-
-        show(fig)
-
-    def close(self, fig: Any) -> None:
-        """Close the figure (no-op for bokeh)."""
-        pass
 
     def axvline(
         self,

@@ -513,44 +513,6 @@ class TestBackendConsistency:
             assert fig is not None, f"{backend_name} failed with ld_col"
 
 
-class TestBackendSaveOperations:
-    """Tests for backend save functionality."""
-
-    def test_plotly_backend_save_html(self, sample_gwas_df):
-        """PlotlyBackend.save() should work for HTML files."""
-        backend = PlotlyBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
-        )
-
-        # Add some data
-        x = sample_gwas_df["ps"]
-        y = -np.log10(sample_gwas_df["p_wald"])
-        backend.scatter(axes[0], x, y, colors="#BEBEBE")
-
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            backend.save(layout, f.name)
-            assert Path(f.name).exists()
-            assert Path(f.name).stat().st_size > 0
-
-    def test_bokeh_backend_save_html(self, sample_gwas_df):
-        """BokehBackend.save() should work for HTML files."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
-        )
-
-        # Add some data
-        x = sample_gwas_df["ps"]
-        y = -np.log10(sample_gwas_df["p_wald"])
-        backend.scatter(axes[0], x, y, colors="#BEBEBE")
-
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            backend.save(layout, f.name)
-            assert Path(f.name).exists()
-            assert Path(f.name).stat().st_size > 0
-
-
 class TestDatabricksSpecific:
     """Tests specific to Databricks notebook environment."""
 
@@ -999,7 +961,6 @@ class TestPlotlySecondaryAxisNaming:
         Regression test: create_twin_axis used offset of 10, which collides
         with primary yaxis10+ when figures have 10+ subplots.
         """
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -1020,7 +981,6 @@ class TestPlotlySecondaryAxisNaming:
 
     def test_plotly_secondary_axes_unique_across_subplots(self):
         """Each subplot's secondary axis should have a unique name."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -1041,7 +1001,6 @@ class TestHeatmapCoordinates:
 
     def test_plotly_heatmap_uses_actual_coords(self):
         """Plotly heatmap should use passed x/y coords, not range(len(coords))."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -1065,7 +1024,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_uses_actual_coords(self):
         """Bokeh heatmap should use passed x/y coords, not index values."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1088,7 +1046,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_mask_upper_uses_actual_coords(self):
         """Bokeh heatmap with mask_upper=True should still use actual coords."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1112,7 +1069,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_rect_dimensions_scale_with_coords(self):
         """Bokeh heatmap rect width/height should match coordinate spacing."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1144,7 +1100,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_nonuniform_spacing(self):
         """Bokeh heatmap per-cell sizing handles non-uniform coordinate spacing."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()

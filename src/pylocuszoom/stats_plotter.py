@@ -9,12 +9,12 @@ from typing import Any, Optional, Tuple
 
 import pandas as pd
 
+from ._data import prepare_pvalue_data
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
     ThresholdArg,
     resolve_threshold,
-    transform_pvalues,
 )
 from ._stats_renderer import StatsRenderer
 from .backends import BackendType, get_backend
@@ -92,7 +92,7 @@ class StatsPlotter:
         validate_phewas_df(phewas_df, phenotype_col, p_col, category_col)
 
         df = phewas_df.copy()
-        df = transform_pvalues(df, p_col)
+        df = prepare_pvalue_data(df, p_col)
 
         return self._renderer.render_phewas(
             df,

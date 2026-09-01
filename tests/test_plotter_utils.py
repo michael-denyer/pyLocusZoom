@@ -5,17 +5,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylocuszoom._plotter_utils import add_significance_line, transform_pvalues
+from pylocuszoom._data import prepare_pvalue_data
+from pylocuszoom._plotter_utils import add_significance_line
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
 
 class TestTransformPvalues:
-    """Tests for the transform_pvalues utility."""
+    """Tests for the prepare_pvalue_data utility."""
 
     def test_basic_transformation(self):
         """Test basic -log10 transformation."""
         df = pd.DataFrame({"p": [0.01, 0.001, 0.0001]})
-        result = transform_pvalues(df, "p")
+        result = prepare_pvalue_data(df, "p")
 
         assert "neglog10p" in result.columns
         np.testing.assert_array_almost_equal(
@@ -27,7 +28,7 @@ class TestTransformPvalues:
     def test_clipping_extreme_values(self):
         """Test that extremely small p-values are clipped to avoid -inf."""
         df = pd.DataFrame({"p": [1e-350, 1e-400]})
-        result = transform_pvalues(df, "p")
+        result = prepare_pvalue_data(df, "p")
 
         # Should be clipped to 1e-300, giving -log10(1e-300) = 300
         assert np.isfinite(result["neglog10p"].iloc[0])
@@ -36,7 +37,7 @@ class TestTransformPvalues:
     def test_preserves_original_columns(self):
         """Test that original DataFrame columns are preserved."""
         df = pd.DataFrame({"p": [0.05], "snp": ["rs123"], "pos": [1000]})
-        result = transform_pvalues(df, "p")
+        result = prepare_pvalue_data(df, "p")
 
         assert "snp" in result.columns
         assert "pos" in result.columns

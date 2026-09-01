@@ -24,7 +24,6 @@ from pylocuszoom.colors import (
     get_credible_set_color_palette,
     get_eqtl_bin,
     get_eqtl_color,
-    get_eqtl_color_palette,
     get_ld_bin,
     get_ld_color,
     get_ld_color_palette,
@@ -185,30 +184,6 @@ class TestEqtlBins:
         """Near-zero effects return the appropriate near-zero bins."""
         assert get_eqtl_bin(0.05) == "0.0 : 0.1"
         assert get_eqtl_bin(-0.05) == "-0.1 : 0.0"
-
-
-class TestEqtlColorPalette:
-    """Tests for eQTL color palette generation."""
-
-    def test_palette_contains_all_positive_bins(self):
-        """Palette should have all positive bin labels."""
-        palette = get_eqtl_color_palette()
-        for _, _, label, _ in EQTL_POSITIVE_BINS:
-            assert label in palette
-
-    def test_palette_contains_all_negative_bins(self):
-        """Palette should have all negative bin labels."""
-        palette = get_eqtl_color_palette()
-        for _, _, label, _ in EQTL_NEGATIVE_BINS:
-            assert label in palette
-
-    def test_palette_colors_match(self):
-        """Palette colors should match bin definitions."""
-        palette = get_eqtl_color_palette()
-        for _, _, label, color in EQTL_POSITIVE_BINS:
-            assert palette[label] == color
-        for _, _, label, color in EQTL_NEGATIVE_BINS:
-            assert palette[label] == color
 
 
 class TestCredibleSetColors:
