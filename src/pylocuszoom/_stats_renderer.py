@@ -99,7 +99,6 @@ class StatsRenderer:
             ax, df["y_pos"].tolist(), df[phenotype_col].tolist(), fontsize=8
         )
         self._backend.set_title(ax, f"PheWAS: {variant_id}")
-        self._backend.hide_spines(ax, ["top", "right"])
         self._backend.finalize_layout(fig)
         return fig
 
@@ -181,6 +180,5 @@ class StatsRenderer:
             ax, df["y_pos"].tolist(), df[study_col].tolist(), fontsize=10
         )
         self._backend.set_title(ax, f"Forest Plot: {variant_id}")
-        self._backend.hide_spines(ax, ["top", "right"])
         self._backend.finalize_layout(fig)
         return fig

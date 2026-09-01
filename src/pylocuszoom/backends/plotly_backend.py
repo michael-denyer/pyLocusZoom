@@ -877,15 +877,6 @@ class PlotlyBackend:
             )
         self._configure_legend(fig, row, legend_key, title or "", loc)
 
-    def hide_spines(self, ax: Tuple[go.Figure, int], spines: List[str]) -> None:
-        """Hide specified axis spines (lines).
-
-        Plotly doesn't have spines, but we can hide axis lines.
-        """
-        # Plotly's template "plotly_white" already hides top/right lines
-        # No action needed - method exists for API compatibility
-        pass
-
     def hide_yaxis(self, ax: Tuple[go.Figure, int]) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
         fig, row, col, n_cols = self._extract_row_col(ax)

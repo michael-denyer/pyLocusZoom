@@ -122,7 +122,6 @@ class ColocRenderer:
         self._backend.set_ylabel(ax, r"eQTL $-\log_{10}$ P")
         if title:
             self._backend.set_title(ax, title)
-        self._backend.hide_spines(ax, ["top", "right"])
         if color_by_effect:
             self._backend.add_legend(
                 ax, effect_legend_entries(), loc="upper right", title="Effect"

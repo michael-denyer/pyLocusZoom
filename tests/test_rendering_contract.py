@@ -69,9 +69,6 @@ class RecordingBackend:
     def set_suptitle(self, *args, **kwargs):
         self._record("set_suptitle", *args, **kwargs)
 
-    def hide_spines(self, *args, **kwargs):
-        self._record("hide_spines", *args, **kwargs)
-
     def add_panel_label(self, *args, **kwargs):
         self._record("add_panel_label", *args, **kwargs)
 
@@ -352,7 +349,6 @@ def test_stats_renderer_owns_phewas_panel_policy():
     assert names.count("scatter") == 2
     assert names.count("axvline") == 1
     assert "set_yticks" in names
-    assert "hide_spines" in names
 
 
 def test_stats_renderer_draws_no_significance_line_for_none():

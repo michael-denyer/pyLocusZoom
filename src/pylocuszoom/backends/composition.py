@@ -38,9 +38,9 @@ if TYPE_CHECKING:
         """A backend carrying both the required primitives and a secondary axis.
 
         ``render_recombination_overlay`` needs the intersection: the
-        ``*_secondary`` methods from the optional protocol plus ``hide_spines``
-        from the required one. Python has no intersection type, so callers state
-        it by narrowing with ``isinstance(backend, SupportsSecondaryAxis)``.
+        ``*_secondary`` methods from the optional protocol plus the required
+        primitives. Python has no intersection type, so callers state it by
+        narrowing with ``isinstance(backend, SupportsSecondaryAxis)``.
         """
 
 
@@ -141,7 +141,6 @@ def render_recombination_overlay(
     backend.set_secondary_ylabel(
         secondary, "Recombination rate (cM/Mb)", color="black", fontsize=9
     )
-    backend.hide_spines(secondary, ["top"])
 
 
 def heatmap_highlight_cells(snp_idx: int, n_snps: int) -> List[Tuple[int, int]]:

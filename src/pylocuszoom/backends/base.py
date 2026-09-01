@@ -720,15 +720,6 @@ class PlotBackend(Protocol):
         """
         ...
 
-    def hide_spines(self, ax: Any, spines: List[str]) -> None:
-        """Hide specified axis spines.
-
-        Args:
-            ax: Axes or panel.
-            spines: List of spine names ('top', 'right', 'bottom', 'left').
-        """
-        ...
-
     def hide_yaxis(self, ax: Any) -> None:
         """Hide y-axis for gene track panels.
 

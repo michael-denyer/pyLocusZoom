@@ -271,9 +271,6 @@ class RegionalPlotComposer:
         has_recomb = recomb_df is not None and not recomb_df.empty
         if has_recomb and isinstance(self._backend, SupportsSecondaryAxis):
             render_recombination_overlay(self._backend, ax, recomb_df, start, end)
-            self._backend.hide_spines(ax, ["top"])
-        else:
-            self._backend.hide_spines(ax, ["top", "right"])
 
         if panel_label:
             self._backend.add_panel_label(ax, panel_label)
@@ -393,8 +390,7 @@ class RegionalPlotComposer:
                 linewidth=2,
             )
         self._backend.set_xlim(ax, start, end)
-        self._backend.set_yticks(ax, [], [])
-        self._backend.hide_spines(ax, ["top", "right", "left"])
+        self._backend.hide_yaxis(ax)
 
     def render_gene_panel(
         self,
@@ -410,7 +406,6 @@ class RegionalPlotComposer:
         plot_gene_track_generic(
             ax, self._backend, genes_df, chrom, start, end, exons_df
         )
-        self._backend.hide_spines(ax, ["top", "right", "left"])
 
     def render_finemapping_panel(
         self,
@@ -445,7 +440,6 @@ class RegionalPlotComposer:
                 )
         self._backend.set_ylabel(ax, "PIP")
         self._backend.set_ylim(ax, -0.05, 1.05)
-        self._backend.hide_spines(ax, ["top", "right"])
 
     def render_eqtl_panel(
         self,
@@ -521,4 +515,3 @@ class RegionalPlotComposer:
             linewidth=1,
             alpha=0.65,
         )
-        self._backend.hide_spines(ax, ["top", "right"])

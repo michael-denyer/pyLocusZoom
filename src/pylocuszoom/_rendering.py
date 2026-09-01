@@ -112,7 +112,6 @@ class ManhattanQQRenderer:
         self._backend.set_xlabel(ax, "Category", fontsize=12)
         self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
         self._backend.set_title(ax, title or "Categorical Manhattan Plot", fontsize=14)
-        self._backend.hide_spines(ax, ["top", "right"])
         self._backend.finalize_layout(fig)
         return fig
 
@@ -141,7 +140,6 @@ class ManhattanQQRenderer:
             fontsize=12,
             title_fontsize=14,
         )
-        self._backend.hide_spines(ax, ["top", "right"])
         self._backend.finalize_layout(fig)
         return fig
 
@@ -229,7 +227,6 @@ class ManhattanQQRenderer:
             fontsize=12,
             title_fontsize=12,
         )
-        self._backend.hide_spines(axes[1], ["top", "right"])
 
         if title:
             self._backend.set_suptitle(fig, title, fontsize=14)
@@ -294,7 +291,6 @@ class ManhattanQQRenderer:
                 stacked=True,
                 title_fontsize=10,
             )
-            self._backend.hide_spines(qq_ax, ["top", "right"])
 
         if title:
             self._backend.set_suptitle(fig, title, fontsize=14)
@@ -345,7 +341,6 @@ class ManhattanQQRenderer:
             )
         if panel_label:
             self._backend.add_panel_label(ax, panel_label)
-        self._backend.hide_spines(ax, ["top", "right"])
 
     def _render_qq_panel(
         self,

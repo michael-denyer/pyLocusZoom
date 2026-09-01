@@ -103,8 +103,6 @@ class MiamiRenderer:
                     highlight_color,
                     highlight_alpha,
                 )
-        self._backend.hide_spines(top_ax, ["top", "right"])
-        self._backend.hide_spines(bottom_ax, ["top", "right"])
         if title:
             self._backend.set_suptitle(fig, title, fontsize=14)
             self._backend.finalize_layout(fig, top=0.92, hspace=0.05)

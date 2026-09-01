@@ -686,14 +686,6 @@ class BokehBackend:
             )
         self._create_legend(ax, items, title or "", loc)
 
-    def hide_spines(self, ax: figure, spines: List[str]) -> None:
-        """Hide specified axis spines (no-op for Bokeh).
-
-        Bokeh doesn't have matplotlib-style spines. This method exists
-        for interface compatibility but has no visual effect.
-        """
-        pass
-
     def hide_yaxis(self, ax: figure) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
         ax.yaxis.visible = False

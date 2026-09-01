@@ -114,9 +114,6 @@ class _RecordingSecondaryBackend:
     def set_secondary_ylabel(self, secondary, *args, **kwargs):
         self.calls.append("set_secondary_ylabel")
 
-    def hide_spines(self, secondary, spines):
-        self.calls.append("hide_spines")
-
 
 class TestRecombinationOverlay:
     def test_drives_secondary_primitives_in_order(self):
@@ -133,7 +130,6 @@ class TestRecombinationOverlay:
             "line_secondary",
             "set_secondary_ylim",
             "set_secondary_ylabel",
-            "hide_spines",
         ]
 
     def test_empty_region_skips_all_primitives(self):

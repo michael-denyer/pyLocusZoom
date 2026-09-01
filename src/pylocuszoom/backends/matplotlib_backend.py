@@ -58,6 +58,7 @@ class MatplotlibBackend:
         """
         if n_panels == 1:
             fig, ax = plt.subplots(figsize=figsize)
+            self._hide_top_right(ax)
             return fig, [ax]
 
         fig, axes = plt.subplots(
@@ -68,6 +69,8 @@ class MatplotlibBackend:
             sharex=sharex,
         )
 
+        for ax in axes:
+            self._hide_top_right(ax)
         return fig, list(axes)
 
     def create_figure_grid(
@@ -106,9 +109,15 @@ class MatplotlibBackend:
         # Flatten axes to list
         import numpy as np
 
-        if isinstance(axes, np.ndarray):
-            return fig, list(axes.flatten())
-        return fig, [axes]
+        flat = list(axes.flatten()) if isinstance(axes, np.ndarray) else [axes]
+        for ax in flat:
+            self._hide_top_right(ax)
+        return fig, flat
+
+    @staticmethod
+    def _hide_top_right(ax: Axes) -> None:
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
     def scatter(
         self,
@@ -401,7 +410,10 @@ class MatplotlibBackend:
 
     def create_twin_axis(self, ax: Axes) -> Axes:
         """Create a secondary y-axis sharing the same x-axis."""
-        return ax.twinx()
+        secondary = ax.twinx()
+        ax.spines["right"].set_visible(True)
+        secondary.spines["top"].set_visible(False)
+        return secondary
 
     def line_secondary(
         self,
@@ -541,14 +553,10 @@ class MatplotlibBackend:
             labelspacing=0.4,
         )
 
-    def hide_spines(self, ax: Axes, spines: List[str]) -> None:
-        """Hide specified axis spines."""
-        for spine in spines:
-            ax.spines[spine].set_visible(False)
-
     def hide_yaxis(self, ax: Axes) -> None:
         """Hide y-axis ticks, labels, and line."""
         ax.yaxis.set_visible(False)
+        ax.spines["left"].set_visible(False)
 
     def format_xaxis_mb(self, ax: Axes) -> None:
         """Format x-axis to show megabase values."""
