@@ -16,15 +16,14 @@ Note: Recombination rates are NOT available from Ensembl for most species.
 Use species-specific recombination maps instead (see recombination.py).
 """
 
-import time
 import warnings
 from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
-import requests
 
 from ._gene_cache import cache_root, clear_cache, load_genes, save_genes
+from ._http import request_json
 from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
 from .utils import assembly_token, normalize_chrom
@@ -205,76 +204,6 @@ def save_cached_genes(
     )
 
 
-def _make_ensembl_request(
-    url: str,
-    params: dict,
-    max_retries: int = ENSEMBL_MAX_RETRIES,
-) -> list:
-    """Make request to Ensembl API with retry logic.
-
-    Always raises on failure; callers that want an empty result instead
-    translate EnsemblAPIError at their boundary.
-
-    Args:
-        url: API endpoint URL.
-        params: Query parameters.
-        max_retries: Maximum retry attempts for retryable errors.
-
-    Returns:
-        JSON response as list.
-
-    Raises:
-        EnsemblAPIError: If the request ultimately fails.
-    """
-    delay = ENSEMBL_RETRY_DELAY
-
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(
-                url,
-                params=params,
-                headers={"Content-Type": "application/json"},
-                timeout=ENSEMBL_REQUEST_TIMEOUT,
-            )
-        except requests.RequestException as e:
-            logger.warning(f"Ensembl API request failed (attempt {attempt + 1}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            raise EnsemblAPIError(
-                f"Ensembl API request failed after {max_retries} attempts: {e}"
-            )
-
-        # Success
-        if response.ok:
-            try:
-                return response.json()
-            except (ValueError, requests.exceptions.JSONDecodeError) as e:
-                logger.warning(f"Ensembl API returned invalid JSON: {e}")
-                raise EnsemblAPIError(f"Ensembl API returned invalid JSON: {e}")
-
-        # Retryable errors (429 rate limit, 503 service unavailable)
-        if response.status_code in (429, 503) and attempt < max_retries - 1:
-            logger.warning(
-                f"Ensembl API returned {response.status_code} "
-                f"(attempt {attempt + 1}), retrying..."
-            )
-            time.sleep(delay)
-            delay *= 2
-            continue
-
-        # Non-retryable error
-        error_msg = f"Ensembl API error {response.status_code}: {response.text[:200]}"
-        logger.warning(error_msg)
-        raise EnsemblAPIError(error_msg)
-
-    # All retries exhausted (e.g., repeated 429/503 responses)
-    raise EnsemblAPIError(
-        f"Ensembl API request failed after {max_retries} attempts (rate limited)"
-    )
-
-
 def _gene_record(feature: dict, chrom_str: str) -> dict:
     """Build a gene DataFrame row from an Ensembl overlap feature."""
     return {
@@ -364,7 +293,16 @@ def _fetch_overlap_features(
     empty = _empty_feature_frame(record_builder, chrom_str)
 
     try:
-        data = _make_ensembl_request(url, params)
+        data = request_json(
+            url,
+            params,
+            error_cls=EnsemblAPIError,
+            service="Ensembl",
+            headers={"Content-Type": "application/json"},
+            timeout=ENSEMBL_REQUEST_TIMEOUT,
+            max_retries=ENSEMBL_MAX_RETRIES,
+            retry_delay=ENSEMBL_RETRY_DELAY,
+        )
     except EnsemblAPIError:
         if raise_on_error:
             raise

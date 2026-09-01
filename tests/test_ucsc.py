@@ -64,7 +64,7 @@ class TestUCSCGeneFetch:
         from pylocuszoom.ucsc import fetch_genes_from_ucsc
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ):
             genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
@@ -80,7 +80,7 @@ class TestUCSCGeneFetch:
         from pylocuszoom.ucsc import fetch_genes_from_ucsc
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ):
             all_genes = fetch_genes_from_ucsc(
@@ -96,7 +96,7 @@ class TestUCSCGeneFetch:
         from pylocuszoom.ucsc import fetch_genes_from_ucsc
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ):
             genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
@@ -108,7 +108,7 @@ class TestUCSCGeneFetch:
         from pylocuszoom.ucsc import fetch_exons_from_ucsc
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ):
             exons = fetch_exons_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
@@ -124,9 +124,9 @@ class TestUCSCGeneFetch:
         from pylocuszoom.ucsc import fetch_genes_from_ucsc
 
         with (
-            patch("pylocuszoom.ucsc.time.sleep"),
+            patch("pylocuszoom._http.time.sleep"),
             patch(
-                "pylocuszoom.ucsc.requests.get",
+                "pylocuszoom._http.requests.get",
                 side_effect=requests.exceptions.ConnectionError("network down"),
             ),
         ):
@@ -144,9 +144,9 @@ class TestUCSCGeneFetch:
         from pylocuszoom.ucsc import fetch_genes_from_ucsc
 
         with (
-            patch("pylocuszoom.ucsc.time.sleep"),
+            patch("pylocuszoom._http.time.sleep"),
             patch(
-                "pylocuszoom.ucsc.requests.get",
+                "pylocuszoom._http.requests.get",
                 side_effect=requests.exceptions.ConnectionError("network down"),
             ),
             pytest.raises(UCSCAPIError),
@@ -161,7 +161,7 @@ class TestUCSCCaching:
         from pylocuszoom.ucsc import get_genes_for_region_ucsc
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ) as mock_get:
             first = get_genes_for_region_ucsc(
@@ -181,9 +181,9 @@ class TestUCSCCaching:
         from pylocuszoom.ucsc import get_genes_for_region_ucsc
 
         with (
-            patch("pylocuszoom.ucsc.time.sleep"),
+            patch("pylocuszoom._http.time.sleep"),
             patch(
-                "pylocuszoom.ucsc.requests.get",
+                "pylocuszoom._http.requests.get",
                 side_effect=requests.exceptions.ConnectionError("network down"),
             ),
         ):
@@ -193,7 +193,7 @@ class TestUCSCCaching:
         assert during_outage.empty
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ):
             after = get_genes_for_region_ucsc(
@@ -205,7 +205,7 @@ class TestUCSCCaching:
         from pylocuszoom.ucsc import get_genes_for_region_ucsc
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ) as mock_get:
             get_genes_for_region_ucsc("canFam3", "1", 1_000_000, 1_200_000, tmp_path)
@@ -241,7 +241,7 @@ class TestBuildRouting:
         from pylocuszoom.reference_genes import get_genes_for_build
 
         with patch(
-            "pylocuszoom.ucsc.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(_refseq_payload()),
         ):
             genes = get_genes_for_build(
@@ -274,7 +274,7 @@ class TestBuildRouting:
             }
         ]
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=_ok_response(ensembl_payload),
         ):
             genes = get_genes_for_build(

@@ -15,12 +15,10 @@ Frames match the shape ``ensembl.py`` returns, including the ``assembly``
 column, so either source drops into the same plot.
 """
 
-import time
-
 import pandas as pd
-import requests
 
 from ._gene_cache import cache_root, clear_cache, load_genes, save_genes
+from ._http import request_json
 from .exceptions import UCSCAPIError
 from .logging import logger
 from .utils import normalize_chrom
@@ -48,60 +46,12 @@ def get_ucsc_cache_dir():
     return cache_root("ucsc")
 
 
-def _make_ucsc_request(url: str, params: dict) -> dict:
-    """Make a request to the UCSC API with retry on rate limits and outages.
-
-    Always raises on failure; callers that want an empty result instead
-    translate UCSCAPIError at their boundary.
-
-    Raises:
-        UCSCAPIError: If the request ultimately fails.
-    """
-    delay = UCSC_RETRY_DELAY
-
-    for attempt in range(UCSC_MAX_RETRIES):
-        try:
-            response = requests.get(url, params=params, timeout=UCSC_REQUEST_TIMEOUT)
-        except requests.RequestException as e:
-            logger.warning(f"UCSC API request failed (attempt {attempt + 1}): {e}")
-            if attempt < UCSC_MAX_RETRIES - 1:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            raise UCSCAPIError(
-                f"UCSC API request failed after {UCSC_MAX_RETRIES} attempts: {e}"
-            )
-
-        if response.ok:
-            try:
-                return response.json()
-            except (ValueError, requests.exceptions.JSONDecodeError) as e:
-                raise UCSCAPIError(f"UCSC API returned invalid JSON: {e}")
-
-        if response.status_code in (429, 503) and attempt < UCSC_MAX_RETRIES - 1:
-            logger.warning(
-                f"UCSC API returned {response.status_code} "
-                f"(attempt {attempt + 1}), retrying..."
-            )
-            time.sleep(delay)
-            delay *= 2
-            continue
-
-        raise UCSCAPIError(
-            f"UCSC API error {response.status_code}: {response.text[:200]}"
-        )
-
-    raise UCSCAPIError(
-        f"UCSC API request failed after {UCSC_MAX_RETRIES} attempts (rate limited)"
-    )
-
-
 def _fetch_track(
     ucsc_genome: str, chrom: str | int, start: int, end: int
 ) -> list[dict]:
     """Fetch raw ncbiRefSeq transcript rows overlapping a region."""
     chrom_str = normalize_chrom(chrom)
-    payload = _make_ucsc_request(
+    payload = request_json(
         f"{UCSC_REST_URL}/getData/track",
         {
             "genome": ucsc_genome,
@@ -110,6 +60,11 @@ def _fetch_track(
             "start": start,
             "end": end,
         },
+        error_cls=UCSCAPIError,
+        service="UCSC",
+        timeout=UCSC_REQUEST_TIMEOUT,
+        max_retries=UCSC_MAX_RETRIES,
+        retry_delay=UCSC_RETRY_DELAY,
     )
     rows = payload.get(UCSC_GENE_TRACK, [])
     # UCSC returns a chrom-keyed dict when the request spans the whole genome.

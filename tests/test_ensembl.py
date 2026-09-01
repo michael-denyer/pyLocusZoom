@@ -61,7 +61,7 @@ def test_fetch_genes_from_ensembl_success():
         },
     ]
 
-    with patch("pylocuszoom.ensembl.requests.get", return_value=mock_response):
+    with patch("pylocuszoom._http.requests.get", return_value=mock_response):
         df = fetch_genes_from_ensembl("human", chrom="13", start=32000000, end=33000000)
 
     assert isinstance(df, pd.DataFrame)
@@ -85,7 +85,7 @@ def test_fetch_genes_from_ensembl_api_error_warns():
     mock_response.status_code = 503
     mock_response.text = "Service Unavailable"
 
-    with patch("pylocuszoom.ensembl.requests.get", return_value=mock_response):
+    with patch("pylocuszoom._http.requests.get", return_value=mock_response):
         df = fetch_genes_from_ensembl("human", chrom="13", start=32000000, end=33000000)
 
     # Should return empty DataFrame on error
@@ -127,10 +127,8 @@ def test_fetch_genes_retry_on_429():
         },
     ]
 
-    with patch(
-        "pylocuszoom.ensembl.requests.get", side_effect=[mock_429, mock_success]
-    ):
-        with patch("pylocuszoom.ensembl.time.sleep"):  # Skip actual sleep
+    with patch("pylocuszoom._http.requests.get", side_effect=[mock_429, mock_success]):
+        with patch("pylocuszoom._http.time.sleep"):  # Skip actual sleep
             df = fetch_genes_from_ensembl(
                 "human", chrom="13", start=32000000, end=33000000
             )
@@ -166,7 +164,7 @@ def test_fetch_exons_from_ensembl_success():
         },
     ]
 
-    with patch("pylocuszoom.ensembl.requests.get", return_value=mock_response):
+    with patch("pylocuszoom._http.requests.get", return_value=mock_response):
         df = fetch_exons_from_ensembl("human", chrom="13", start=32000000, end=33000000)
 
     assert isinstance(df, pd.DataFrame)
@@ -319,7 +317,7 @@ def test_get_genes_for_region_uses_cache():
         save_cached_genes(cached_df, cache_dir, "human", "13", 32000000, 33000000)
 
         # Mock the API call - should NOT be called due to cache hit
-        with patch("pylocuszoom.ensembl.requests.get") as mock_get:
+        with patch("pylocuszoom._http.requests.get") as mock_get:
             result = get_genes_for_region(
                 species="human",
                 chrom="13",
@@ -357,7 +355,7 @@ def test_get_genes_for_region_fetches_and_caches():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
 
-        with patch("pylocuszoom.ensembl.requests.get", return_value=mock_response):
+        with patch("pylocuszoom._http.requests.get", return_value=mock_response):
             result = get_genes_for_region(
                 species="human",
                 chrom="13",
@@ -411,7 +409,7 @@ def test_get_genes_for_region_include_exons():
         cache_dir = Path(tmpdir)
 
         with patch(
-            "pylocuszoom.ensembl.requests.get", side_effect=[mock_genes, mock_exons]
+            "pylocuszoom._http.requests.get", side_effect=[mock_genes, mock_exons]
         ):
             genes_df, exons_df = get_genes_for_region(
                 species="human",
@@ -609,7 +607,7 @@ class TestEmptyResultCaching:
         from pylocuszoom.ensembl import get_genes_for_region
 
         with patch(
-            "pylocuszoom.ensembl.requests.get", return_value=self._ok_response([])
+            "pylocuszoom._http.requests.get", return_value=self._ok_response([])
         ) as mock_get:
             first = get_genes_for_region("human", "1", 1_000_000, 1_100_000, tmp_path)
             assert mock_get.call_count == 1
@@ -629,9 +627,9 @@ class TestEmptyResultCaching:
         from pylocuszoom.ensembl import get_genes_for_region
 
         with (
-            patch("pylocuszoom.ensembl.time.sleep"),
+            patch("pylocuszoom._http.time.sleep"),
             patch(
-                "pylocuszoom.ensembl.requests.get",
+                "pylocuszoom._http.requests.get",
                 side_effect=requests.exceptions.ConnectionError("network down"),
             ),
         ):
@@ -645,7 +643,7 @@ class TestEmptyResultCaching:
         )
 
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=self._ok_response(self._gene_payload()),
         ) as mock_get:
             after_recovery = get_genes_for_region(
@@ -715,7 +713,7 @@ class TestAssemblyMismatch:
         from pylocuszoom.ensembl import get_genes_for_region
 
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=self._ok_response(self._dog_payload()),
         ) as mock_get:
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
@@ -734,7 +732,7 @@ class TestAssemblyMismatch:
         from pylocuszoom.ensembl import fetch_genes_from_ensembl
 
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=self._ok_response(self._dog_payload()),
         ):
             genes = fetch_genes_from_ensembl("canine", "1", 900_000, 1_200_000)
@@ -747,7 +745,7 @@ class TestAssemblyMismatch:
 
         exon = dict(self._dog_payload()[0], feature_type="exon", id="ENSCAFE00000001")
         with patch(
-            "pylocuszoom.ensembl.requests.get", return_value=self._ok_response([exon])
+            "pylocuszoom._http.requests.get", return_value=self._ok_response([exon])
         ):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 exons = fetch_exons_from_ensembl(
@@ -761,7 +759,7 @@ class TestAssemblyMismatch:
         from pylocuszoom.ensembl import fetch_genes_from_ensembl
 
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=self._ok_response(self._dog_payload()),
         ):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
@@ -774,7 +772,7 @@ class TestAssemblyMismatch:
         from pylocuszoom.ensembl import fetch_genes_from_ensembl
 
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=self._ok_response(self._dog_payload()),
         ):
             fetch_genes_from_ensembl(
@@ -788,7 +786,7 @@ class TestAssemblyMismatch:
         from pylocuszoom.ensembl import get_genes_for_region
 
         with patch(
-            "pylocuszoom.ensembl.requests.get",
+            "pylocuszoom._http.requests.get",
             return_value=self._ok_response(self._dog_payload()),
         ) as mock_get:
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
