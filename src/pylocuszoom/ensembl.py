@@ -17,7 +17,6 @@ Use species-specific recombination maps instead (see recombination.py).
 """
 
 import hashlib
-import re
 import time
 import warnings
 from collections.abc import Callable
@@ -28,7 +27,7 @@ import requests
 
 from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
-from .utils import _platform_cache_base, normalize_chrom
+from .utils import _platform_cache_base, assembly_token, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
@@ -83,37 +82,6 @@ ENSEMBL_MAX_RETRIES = 3
 ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 
 
-# Different spellings of the same assembly, keyed by _assembly_token output.
-ASSEMBLY_SYNONYMS: dict[str, str] = {
-    # Canine
-    "canfam31": "canfam3",
-    "canfam40": "canfam4",
-    "uucfamgsd10": "canfam4",
-    "roscfam10": "roscfam1",
-    # Feline
-    "felcat90": "felcat9",
-    "feliscatus90": "felcat9",
-    "fcatusfca126mat10": "fca126",
-    # Human
-    "hg19": "grch37",
-    "grch37p13": "grch37",
-    "hg38": "grch38",
-    "grch38p14": "grch38",
-    # Mouse
-    "mm39": "grcm39",
-}
-
-
-def _assembly_token(name: str) -> str:
-    """Reduce an assembly or build name to a comparable token.
-
-    Strips punctuation and case, then folds known synonyms together, so
-    ``"CanFam4.0"``, ``"canfam4"`` and ``"UU_Cfam_GSD_1.0"`` all compare equal.
-    """
-    token = re.sub(r"[^a-z0-9]", "", name.lower())
-    return ASSEMBLY_SYNONYMS.get(token, token)
-
-
 def _response_assembly(features: list) -> str:
     """Read the assembly Ensembl actually served from an overlap response."""
     for feature in features:
@@ -137,7 +105,7 @@ def _warn_on_assembly_mismatch(
     """
     if not assembly or not genome_build:
         return
-    if _assembly_token(assembly) == _assembly_token(genome_build):
+    if assembly_token(assembly) == assembly_token(genome_build):
         return
     warnings.warn(
         f"Ensembl returned {species} annotations on assembly {assembly!r}, but "
@@ -210,7 +178,7 @@ def _cache_key(
     different builds never share an entry. Including it also orphans every
     entry written before builds were tracked, whose assembly is unknowable.
     """
-    key_str = f"{species}_{chrom}_{start}_{end}_{_assembly_token(genome_build or '')}"
+    key_str = f"{species}_{chrom}_{start}_{end}_{assembly_token(genome_build or '')}"
     return hashlib.md5(key_str.encode()).hexdigest()[:16]
 
 

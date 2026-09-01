@@ -1241,7 +1241,22 @@ Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
 
 **Region Limit:** Maximum 5Mb per request (Ensembl API limitation). For larger regions, provide `genes_df` directly.
 
-**Genome Build:** Ensembl serves one reference assembly per species and ignores requests for any other. Dog is `ROS_Cfam_1.0`, not CanFam3.1 or CanFam4; cat is `F.catus_Fca126_mat1.0`, not FelCat9. Fetched genes are always in that assembly whatever `genome_build` says, so a mismatch shifts the gene track by hundreds of kilobases without any error. pyLocusZoom raises a `UserWarning` naming both assemblies when they disagree, and every gene row carries an `assembly` column recording the one it came from. To plot in a build Ensembl no longer serves, supply `genes_df` yourself in that build's coordinates. `genome_build` still selects the recombination map, where CanFam3.1 and CanFam4 are both supported.
+**Genome Build:** Genes are fetched in the build you set, from whichever source can serve it. CanFam3.1, CanFam4 and FelCat9 come from UCSC's `ncbiRefSeq` track; every other build comes from Ensembl.
+
+| `genome_build` | Source | Assembly returned |
+|----------------|--------|-------------------|
+| `canfam3.1` (canine default) | UCSC `ncbiRefSeq` | CanFam3.1 |
+| `canfam4`, `UU_Cfam_GSD_1.0` | UCSC `ncbiRefSeq` | UU_Cfam_GSD_1.0 |
+| `felCat9` (feline default) | UCSC `ncbiRefSeq` | Felis_catus_9.0 |
+| anything else | Ensembl REST | Ensembl's current assembly for the species |
+
+Ensembl serves exactly one reference assembly per species and answers a request naming any other with that same assembly and an HTTP 200, so it cannot supply the three retired builds and will not say so. Its dog is `ROS_Cfam_1.0` and its cat is `F.catus_Fca126_mat1.0`. Release 116 was the last on the legacy REST platform and the archive REST hosts redirect to a help page, so those builds have no Ensembl source at any URL.
+
+Both sources return the same columns, including an `assembly` column naming the assembly each row is in. On the Ensembl path, a `genome_build` that disagrees with what Ensembl served raises a `UserWarning` naming both assemblies, since the coordinates will be off by hundreds of kilobases with nothing in the figure to show it.
+
+UCSC's `ncbiRefSeq` is a transcript-level track, so transcripts sharing a symbol are collapsed into one gene row spanning the widest of them, and the default `biotype="protein_coding"` filter keeps genes with at least one `NM_`/`XM_` transcript. UCSC imposes no 5Mb region limit, so that cap applies only to the Ensembl path.
+
+`genome_build` also selects the recombination map, where CanFam3.1 and CanFam4 are both supported.
 
 **Error Handling:** By default, API errors result in warnings and an empty gene track. Use `raise_on_error=True` in low-level functions to get exceptions instead.
 

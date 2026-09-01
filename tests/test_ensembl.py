@@ -702,12 +702,12 @@ class TestAssemblyMismatch:
 
     def test_assembly_token_folds_synonyms(self):
         """Equivalent spellings of one assembly compare equal."""
-        from pylocuszoom.ensembl import _assembly_token
+        from pylocuszoom.utils import assembly_token
 
-        assert _assembly_token("CanFam4.0") == _assembly_token("UU_Cfam_GSD_1.0")
-        assert _assembly_token("CanFam3.1") == _assembly_token("canfam3")
-        assert _assembly_token("hg38") == _assembly_token("GRCh38")
-        assert _assembly_token("CanFam3.1") != _assembly_token("ROS_Cfam_1.0")
+        assert assembly_token("CanFam4.0") == assembly_token("UU_Cfam_GSD_1.0")
+        assert assembly_token("CanFam3.1") == assembly_token("canfam3")
+        assert assembly_token("hg38") == assembly_token("GRCh38")
+        assert assembly_token("CanFam3.1") != assembly_token("ROS_Cfam_1.0")
 
     def test_cache_key_separates_builds(self):
         """The same region under two builds must not share a cache entry."""
@@ -811,7 +811,7 @@ class TestAssemblyMismatch:
         )
 
         with patch(
-            "pylocuszoom.plotter.get_genes_for_region",
+            "pylocuszoom.plotter.get_genes_for_build",
             return_value=pd.DataFrame(
                 columns=["chr", "start", "end", "gene_name", "assembly"]
             ),

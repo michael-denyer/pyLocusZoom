@@ -161,21 +161,31 @@ fig = plotter.plot(gwas_df, chrom=13, start=32000000, end=33000000)
 Supported species aliases: `human`, `mouse`, `rat`, `canine`/`dog`, `feline`/`cat`, or any Ensembl species name.
 Data is cached locally for fast subsequent plots. Maximum region size is 5Mb (Ensembl API limit).
 
-### Genome builds and Ensembl
+### Genome builds and gene sources
 
-Ensembl serves one reference assembly per species and ignores requests for any
-other, so fetched genes always arrive in that assembly regardless of the
-`genome_build` you set. Dog is `ROS_Cfam_1.0`, not CanFam3.1 or CanFam4, and cat
-is `F.catus_Fca126_mat1.0`, not FelCat9. Ensembl 116 was the final release on the
-legacy REST platform, so the retired assemblies will not come back.
+Genes are fetched in the build you set, from whichever source can serve it:
 
-When the two disagree, pyLocusZoom warns and names both assemblies. The fetched
-genes are still in Ensembl's coordinates, so the fix is yours to choose: pass
-`genes_df` in your own build's coordinates, or work in the assembly Ensembl
-serves. Each gene row carries an `assembly` column recording which one it is.
+| `genome_build` | Source | Assembly returned |
+|----------------|--------|-------------------|
+| `canfam3.1` (canine default) | UCSC `ncbiRefSeq` | CanFam3.1 |
+| `canfam4`, `UU_Cfam_GSD_1.0` | UCSC `ncbiRefSeq` | UU_Cfam_GSD_1.0 |
+| `felCat9` (feline default) | UCSC `ncbiRefSeq` | Felis_catus_9.0 |
+| anything else | Ensembl REST | Ensembl's current assembly for the species |
 
-`genome_build` continues to select the recombination map, where CanFam3.1 and
-CanFam4 are both supported.
+Ensembl serves exactly one reference assembly per species and answers a request
+naming any other with that same assembly and an HTTP 200, so it cannot supply
+CanFam3.1, CanFam4 or FelCat9 and will not say so. Its dog is `ROS_Cfam_1.0` and
+its cat is `F.catus_Fca126_mat1.0`. Release 116 was the last on the legacy REST
+platform and the archive REST hosts redirect to a help page, so those builds
+have no Ensembl source at any URL. UCSC hosts all three, which is where
+pyLocusZoom fetches them.
+
+Both sources return the same columns, including an `assembly` column naming the
+assembly each row is in. On the Ensembl path, a `genome_build` that disagrees
+with what Ensembl served raises a `UserWarning` naming both.
+
+`genome_build` also selects the recombination map, where CanFam3.1 and CanFam4
+are both supported.
 
 ## Backends
 

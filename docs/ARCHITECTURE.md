@@ -34,7 +34,7 @@ graph TD
         DATA[_data.py: shared p-value intake]
         LD[ld.py: PLINK wrapper]
         RECOMB[recombination.py: maps + CanFam4 liftover]
-        ENSEMBL[ensembl.py: gene fetch]
+        ENSEMBL["reference_genes.py:<br/>gene fetch by build<br/>(ensembl.py, ucsc.py)"]
         COLORS[colors.py: LD bins, eQTL, credible sets]
     end
 
@@ -151,11 +151,12 @@ stages:
 4. **Color assignment.** `colors.py` maps each SNP to an LD bin color (or an
    eQTL effect-size color, credible-set color, or PheWAS category color
    depending on the plotter).
-5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py` (or
-   fetched via `ensembl.py`, which serves one assembly per species and warns
-   when that is not the plotter's `genome_build`). Recombination rates are
-   loaded via `recombination.py`, which handles download of bundled canine maps
-   and CanFam3.1 → CanFam4 liftover through pyliftover.
+5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py`, or
+   fetched through `reference_genes.py`, which routes the plotter's
+   `genome_build` to whichever source can serve it: `ucsc.py` for CanFam3.1,
+   CanFam4 and FelCat9, `ensembl.py` for everything else. Recombination rates
+   are loaded via `recombination.py`, which handles download of bundled canine
+   maps and CanFam3.1 → CanFam4 liftover through pyliftover.
 6. **Regional composition and backend dispatch.** `LocusZoomPlotter` routes
    both single and stacked association panels through `RegionalPlotComposer`,
    which owns shared axes, labels, significance line, LD legend, SNP-label,
@@ -238,6 +239,9 @@ pyLocusZoom/
 │   ├── reference_data/        # Bundled reference datasets (auto-populated)
 │   ├── gene_track.py          # Gene/exon rendering with overlap resolution
 │   ├── ensembl.py             # Ensembl REST client with caching
+│   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired
+│   ├── reference_genes.py     # Routes a genome build to its gene source
+│   ├── _gene_cache.py         # Disk cache shared by both gene sources
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
 │   ├── phewas.py              # PheWAS validation

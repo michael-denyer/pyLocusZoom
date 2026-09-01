@@ -42,6 +42,14 @@ class EnsemblAPIError(ValidationError):
     """
 
 
+class UCSCAPIError(ValidationError):
+    """Raised when the UCSC REST API is unreachable or returns an error.
+
+    The UCSC counterpart of EnsemblAPIError, with the same contract: a service
+    failure stays distinguishable from a region that genuinely has no genes.
+    """
+
+
 class BackendError(PyLocusZoomError):
     """Raised when backend operations fail."""
 

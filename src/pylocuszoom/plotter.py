@@ -33,7 +33,6 @@ from ._regional import (
 )
 from .backends import BackendType, get_backend
 from .config import PlotConfig, RegionConfig, StackedPlotConfig
-from .ensembl import get_genes_for_region
 from .eqtl import validate_eqtl_df
 from .finemapping import prepare_finemapping_for_plotting
 from .ld import find_plink
@@ -42,6 +41,7 @@ from .recombination import (
     ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
+from .reference_genes import get_genes_for_build
 from .utils import filter_by_region, validate_genes_df, validate_gwas_df
 
 # Precomputed significance line value (used for plotting)
@@ -272,7 +272,7 @@ class LocusZoomPlotter:
                 region.start,
                 region.end,
             )
-            genes_df = get_genes_for_region(
+            genes_df = get_genes_for_build(
                 species=self.species,
                 chrom=region.chrom,
                 start=region.start,
