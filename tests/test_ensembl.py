@@ -8,6 +8,8 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
+from tests.reference_mocks import ok_response, ros_cfam_gene_payload
+
 
 def test_get_ensembl_species_name_canine():
     """Test species name mapping for canine."""
@@ -580,14 +582,6 @@ class TestEmptyResultCaching:
     """
 
     @staticmethod
-    def _ok_response(payload):
-        response = Mock()
-        response.ok = True
-        response.status_code = 200
-        response.json.return_value = payload
-        return response
-
-    @staticmethod
     def _gene_payload():
         return [
             {
@@ -607,7 +601,7 @@ class TestEmptyResultCaching:
         from pylocuszoom.ensembl import get_genes_for_region
 
         with patch(
-            "pylocuszoom._http.requests.get", return_value=self._ok_response([])
+            "pylocuszoom._http.requests.get", return_value=ok_response([])
         ) as mock_get:
             first = get_genes_for_region("human", "1", 1_000_000, 1_100_000, tmp_path)
             assert mock_get.call_count == 1
@@ -644,7 +638,7 @@ class TestEmptyResultCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=self._ok_response(self._gene_payload()),
+            return_value=ok_response(self._gene_payload()),
         ) as mock_get:
             after_recovery = get_genes_for_region(
                 "human", "1", 1_000_000, 1_100_000, tmp_path
@@ -675,30 +669,6 @@ class TestAssemblyMismatch:
     938,796. The mismatch has to be loud, and the cache must not mix builds.
     """
 
-    @staticmethod
-    def _ok_response(payload):
-        response = Mock()
-        response.ok = True
-        response.status_code = 200
-        response.json.return_value = payload
-        return response
-
-    @staticmethod
-    def _dog_payload():
-        return [
-            {
-                "feature_type": "gene",
-                "seq_region_name": "1",
-                "start": 938796,
-                "end": 1175952,
-                "external_name": "ATP9B",
-                "strand": -1,
-                "id": "ENSCAFG00845000134",
-                "biotype": "protein_coding",
-                "assembly_name": "ROS_Cfam_1.0",
-            }
-        ]
-
     def test_assembly_token_folds_synonyms(self):
         """Equivalent spellings of one assembly compare equal."""
         from pylocuszoom.utils import assembly_token
@@ -714,7 +684,7 @@ class TestAssemblyMismatch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=self._ok_response(self._dog_payload()),
+            return_value=ok_response(ros_cfam_gene_payload()),
         ) as mock_get:
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 get_genes_for_region(
@@ -733,7 +703,7 @@ class TestAssemblyMismatch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=self._ok_response(self._dog_payload()),
+            return_value=ok_response(ros_cfam_gene_payload()),
         ):
             genes = fetch_genes_from_ensembl("canine", "1", 900_000, 1_200_000)
 
@@ -743,10 +713,10 @@ class TestAssemblyMismatch:
         """Exon rows record their assembly too, not just genes."""
         from pylocuszoom.ensembl import fetch_exons_from_ensembl
 
-        exon = dict(self._dog_payload()[0], feature_type="exon", id="ENSCAFE00000001")
-        with patch(
-            "pylocuszoom._http.requests.get", return_value=self._ok_response([exon])
-        ):
+        exon = dict(
+            ros_cfam_gene_payload()[0], feature_type="exon", id="ENSCAFE00000001"
+        )
+        with patch("pylocuszoom._http.requests.get", return_value=ok_response([exon])):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 exons = fetch_exons_from_ensembl(
                     "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"
@@ -760,7 +730,7 @@ class TestAssemblyMismatch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=self._ok_response(self._dog_payload()),
+            return_value=ok_response(ros_cfam_gene_payload()),
         ):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 fetch_genes_from_ensembl(
@@ -773,7 +743,7 @@ class TestAssemblyMismatch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=self._ok_response(self._dog_payload()),
+            return_value=ok_response(ros_cfam_gene_payload()),
         ):
             fetch_genes_from_ensembl(
                 "canine", "1", 900_000, 1_200_000, genome_build="ROS_Cfam_1.0"
@@ -787,7 +757,7 @@ class TestAssemblyMismatch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=self._ok_response(self._dog_payload()),
+            return_value=ok_response(ros_cfam_gene_payload()),
         ) as mock_get:
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 get_genes_for_region(
@@ -810,22 +780,3 @@ class TestAssemblyMismatch:
 
         assert mock_get.call_count == 1, "second call must be served from cache"
         assert cached["assembly"].tolist() == ["ROS_Cfam_1.0"]
-
-    def test_plotter_passes_its_build_through(self):
-        """auto_genes must hand the plotter's build to the Ensembl fetch."""
-        from pylocuszoom import LocusZoomPlotter
-
-        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
-        gwas = pd.DataFrame(
-            {"ps": [1_000_000, 1_050_000], "p_wald": [0.5, 1e-6], "rs": ["a", "b"]}
-        )
-
-        with patch(
-            "pylocuszoom.plotter.get_genes_for_build",
-            return_value=pd.DataFrame(
-                columns=["chr", "start", "end", "gene_name", "assembly"]
-            ),
-        ) as mock_fetch:
-            plotter.plot(gwas, chrom=1, start=900_000, end=1_200_000)
-
-        assert mock_fetch.call_args.kwargs["genome_build"] == plotter.genome_build

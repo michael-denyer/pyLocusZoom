@@ -6,18 +6,12 @@ redirect to a help page, so these builds have no Ensembl source at any URL.
 UCSC hosts all three, which is the only reason this client exists.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-
-def _ok_response(payload):
-    response = Mock()
-    response.ok = True
-    response.status_code = 200
-    response.json.return_value = payload
-    return response
+from tests.reference_mocks import ok_response, ros_cfam_gene_payload
 
 
 def _refseq_payload():
@@ -65,7 +59,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ):
             genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
 
@@ -81,7 +75,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ):
             all_genes = fetch_genes_from_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, biotype=""
@@ -97,7 +91,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ):
             genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
 
@@ -109,7 +103,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ):
             exons = fetch_exons_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
 
@@ -162,7 +156,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ) as mock_get:
             first = get_genes_for_region_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, tmp_path
@@ -194,7 +188,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ):
             after = get_genes_for_region_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, tmp_path
@@ -206,7 +200,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ) as mock_get:
             get_genes_for_region_ucsc("canFam3", "1", 1_000_000, 1_200_000, tmp_path)
             get_genes_for_region_ucsc("canFam4", "1", 1_000_000, 1_200_000, tmp_path)
@@ -242,7 +236,7 @@ class TestBuildRouting:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(_refseq_payload()),
+            return_value=ok_response(_refseq_payload()),
         ):
             genes = get_genes_for_build(
                 "canine",
@@ -260,22 +254,9 @@ class TestBuildRouting:
         """A build Ensembl serves is not diverted to UCSC."""
         from pylocuszoom.reference_genes import get_genes_for_build
 
-        ensembl_payload = [
-            {
-                "feature_type": "gene",
-                "seq_region_name": "1",
-                "start": 938796,
-                "end": 1175952,
-                "external_name": "ATP9B",
-                "strand": -1,
-                "id": "ENSCAFG00845000134",
-                "biotype": "protein_coding",
-                "assembly_name": "ROS_Cfam_1.0",
-            }
-        ]
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=_ok_response(ensembl_payload),
+            return_value=ok_response(ros_cfam_gene_payload()),
         ):
             genes = get_genes_for_build(
                 "canine",
