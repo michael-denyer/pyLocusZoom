@@ -242,6 +242,7 @@ pyLocusZoom/
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired
 │   ├── reference_genes.py     # Routes a genome build to its gene source
 │   ├── _gene_cache.py         # Disk cache shared by both gene sources
+│   ├── _http.py               # Retrying JSON GET shared by both gene sources
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
 │   ├── phewas.py              # PheWAS validation

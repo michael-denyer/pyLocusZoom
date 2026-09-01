@@ -1252,7 +1252,7 @@ Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
 
 Ensembl serves exactly one reference assembly per species and answers a request naming any other with that same assembly and an HTTP 200, so it cannot supply the three retired builds and will not say so. Its dog is `ROS_Cfam_1.0` and its cat is `F.catus_Fca126_mat1.0`. Release 116 was the last on the legacy REST platform and the archive REST hosts redirect to a help page, so those builds have no Ensembl source at any URL.
 
-Both sources return the same columns, including an `assembly` column naming the assembly each row is in. On the Ensembl path, a `genome_build` that disagrees with what Ensembl served raises a `UserWarning` naming both assemblies, since the coordinates will be off by hundreds of kilobases with nothing in the figure to show it.
+Both sources return the same columns, including an `assembly` column naming the assembly each row is in. On the Ensembl path, a `genome_build` that disagrees with what Ensembl served warns with a `UserWarning` naming both assemblies, since the coordinates will be off by hundreds of kilobases with nothing in the figure to show it.
 
 UCSC's `ncbiRefSeq` is a transcript-level track, so transcripts sharing a symbol are collapsed into one gene row spanning the widest of them, and the default `biotype="protein_coding"` filter keeps genes with at least one `NM_`/`XM_` transcript. UCSC imposes no 5Mb region limit, so that cap applies only to the Ensembl path.
 

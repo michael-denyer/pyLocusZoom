@@ -182,7 +182,7 @@ pyLocusZoom fetches them.
 
 Both sources return the same columns, including an `assembly` column naming the
 assembly each row is in. On the Ensembl path, a `genome_build` that disagrees
-with what Ensembl served raises a `UserWarning` naming both.
+with what Ensembl served warns with a `UserWarning` naming both.
 
 `genome_build` also selects the recombination map, where CanFam3.1 and CanFam4
 are both supported.
