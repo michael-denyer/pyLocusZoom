@@ -5,6 +5,7 @@ Shared helpers used across multiple modules.
 """
 
 import os
+import re
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Union
@@ -108,6 +109,37 @@ def to_pandas(
         f"Unsupported DataFrame type: {type(df).__name__}. "
         f"Expected pandas.DataFrame or pyspark.sql.DataFrame"
     )
+
+
+# Different spellings of the same assembly, keyed by assembly_token output.
+ASSEMBLY_SYNONYMS: dict[str, str] = {
+    # Canine
+    "canfam31": "canfam3",
+    "canfam40": "canfam4",
+    "uucfamgsd10": "canfam4",
+    "roscfam10": "roscfam1",
+    # Feline
+    "felcat90": "felcat9",
+    "feliscatus90": "felcat9",
+    "fcatusfca126mat10": "fca126",
+    # Human
+    "hg19": "grch37",
+    "grch37p13": "grch37",
+    "hg38": "grch38",
+    "grch38p14": "grch38",
+    # Mouse
+    "mm39": "grcm39",
+}
+
+
+def assembly_token(name: str) -> str:
+    """Reduce an assembly or build name to a comparable token.
+
+    Strips punctuation and case, then folds known synonyms together, so
+    ``"CanFam4.0"``, ``"canfam4"`` and ``"UU_Cfam_GSD_1.0"`` all compare equal.
+    """
+    token = re.sub(r"[^a-z0-9]", "", name.lower())
+    return ASSEMBLY_SYNONYMS.get(token, token)
 
 
 def normalize_chrom(chrom: Union[int, str]) -> str:

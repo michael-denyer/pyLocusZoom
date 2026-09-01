@@ -64,6 +64,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 - `tests/test_ld.py` — PLINK wrapper (PLINK calls are mocked; no real PLINK binary required)
 - `tests/test_notebook_backends.py` — Plotly/Bokeh backend parity checks
 - `tests/test_recombination.py` — recombination map loading and CanFam4 liftover
+- `tests/test_ucsc.py` — the UCSC gene client and the build-to-source routing (HTTP mocked)
 - `tests/test_gene_track.py`, `tests/test_labels.py`, `tests/test_colors.py`, etc.
 
 Test classes use `TestThing` and test functions use `test_behavior_when_condition`.

@@ -92,6 +92,8 @@ from .exceptions import (
     PheWASValidationError,
     PlinkError,
     PyLocusZoomError,
+    ReferenceAPIError,
+    UCSCAPIError,
     ValidationError,
 )
 
@@ -167,8 +169,17 @@ from .recombination import (
     load_recombination_map,
 )
 
+# Gene source routing, and the UCSC client behind it
+from .reference_genes import get_genes_for_build
+
 # Statistical visualizations (PheWAS, forest plots)
 from .stats_plotter import StatsPlotter
+from .ucsc import (
+    clear_ucsc_cache,
+    fetch_exons_from_ucsc,
+    fetch_genes_from_ucsc,
+    get_genes_for_region_ucsc,
+)
 
 # Validation utilities
 from .utils import to_pandas
@@ -234,6 +245,8 @@ __all__ = [
     "DataDownloadError",
     "EmptyLDOutputError",
     "EnsemblAPIError",
+    "ReferenceAPIError",
+    "UCSCAPIError",
     "PlinkError",
     "PheWASValidationError",
     "ForestValidationError",
@@ -272,4 +285,10 @@ __all__ = [
     "fetch_exons_from_ensembl",
     "get_ensembl_species_name",
     "clear_ensembl_cache",
+    # UCSC integration, for the builds Ensembl has retired
+    "get_genes_for_build",
+    "fetch_genes_from_ucsc",
+    "fetch_exons_from_ucsc",
+    "get_genes_for_region_ucsc",
+    "clear_ucsc_cache",
 ]

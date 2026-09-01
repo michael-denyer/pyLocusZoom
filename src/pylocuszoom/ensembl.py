@@ -4,49 +4,32 @@
 Provides functions to fetch gene and exon annotations from the Ensembl REST API
 (https://rest.ensembl.org) for any species.
 
+Ensembl serves exactly one reference assembly per species and answers a request
+naming any other with that same assembly and an HTTP 200, so the caller's
+genome build cannot be honoured and a mismatch is invisible without checking
+``assembly_name`` on the response. Every fetch here therefore takes an optional
+``genome_build`` and warns when the two disagree. Release 116 was the last on
+this REST platform, so retired assemblies such as CanFam3.1 and FelCat9 will
+not reappear on it.
+
 Note: Recombination rates are NOT available from Ensembl for most species.
 Use species-specific recombination maps instead (see recombination.py).
 """
 
-import hashlib
-import time
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
-import requests
 
+from ._gene_cache import cache_root, clear_cache, load_genes, save_genes
+from ._http import request_json
 from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
-from .utils import _platform_cache_base, normalize_chrom
+from .utils import assembly_token, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
-
-
-def _safe_species_dir(cache_dir: Path, ensembl_species: str) -> Path:
-    """Resolve species subdirectory and validate it stays within cache_dir.
-
-    Prevents path traversal attacks from untrusted species strings
-    (e.g., "../../etc" would escape the cache root).
-
-    Args:
-        cache_dir: Root cache directory.
-        ensembl_species: Ensembl species name (from get_ensembl_species_name).
-
-    Returns:
-        Resolved Path to species subdirectory.
-
-    Raises:
-        ValidationError: If resolved path escapes cache_dir.
-    """
-    species_dir = (cache_dir / ensembl_species).resolve()
-    if not species_dir.is_relative_to(cache_dir.resolve()):
-        raise ValidationError(
-            f"Invalid species name: {ensembl_species!r} "
-            f"(resolved path escapes cache directory)"
-        )
-    return species_dir
 
 
 # Species name aliases -> Ensembl species names
@@ -71,6 +54,42 @@ ENSEMBL_REST_URL = "https://rest.ensembl.org"
 ENSEMBL_REQUEST_TIMEOUT = 30  # seconds
 ENSEMBL_MAX_RETRIES = 3
 ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
+
+
+def _response_assembly(features: list) -> str:
+    """Read the assembly Ensembl actually served from an overlap response."""
+    for feature in features:
+        assembly = feature.get("assembly_name")
+        if assembly:
+            return str(assembly)
+    return ""
+
+
+def _warn_on_assembly_mismatch(
+    assembly: str, genome_build: str | None, species: str
+) -> None:
+    """Warn when Ensembl's assembly differs from the caller's genome build.
+
+    Ensembl serves exactly one reference assembly per species and silently
+    ignores a ``coord_system_version`` asking for any other, so a mismatch
+    yields plausible-looking genes in the wrong coordinate system rather than
+    an error. Dog is the worst case in practice: Ensembl retired CanFam3.1 and
+    now serves ROS_Cfam_1.0 only, which puts ATP9B at chr1:938,796 instead of
+    chr1:1,136,865, a shift of roughly 198 kb.
+    """
+    if not assembly or not genome_build:
+        return
+    if assembly_token(assembly) == assembly_token(genome_build):
+        return
+    warnings.warn(
+        f"Ensembl returned {species} annotations on assembly {assembly!r}, but "
+        f"genome_build is {genome_build!r}. Ensembl serves one assembly per "
+        f"species and ignores requests for any other, so these gene coordinates "
+        f"do not line up with your data. Supply genes_df yourself in "
+        f"{genome_build!r} coordinates, or set genome_build={assembly!r}.",
+        UserWarning,
+        stacklevel=2,
+    )
 
 
 def _validate_region_size(start: int, end: int, context: str) -> None:
@@ -107,23 +126,10 @@ def get_ensembl_species_name(species: str) -> str:
 def get_ensembl_cache_dir() -> Path:
     """Get the cache directory for Ensembl data.
 
-    Shares the platform cache root with recombination maps
-    (see ``utils._platform_cache_base``) and appends the ``ensembl`` leaf, so
-    ``$XDG_CACHE_HOME`` is honored on macOS and Linux and Databricks routes to
-    ``/dbfs/FileStore/reference_data/ensembl``.
-
     Returns:
         Path to cache directory (created if doesn't exist).
     """
-    cache_dir = _platform_cache_base() / "ensembl"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
-
-
-def _cache_key(species: str, chrom: str, start: int, end: int) -> str:
-    """Generate cache key for a region."""
-    key_str = f"{species}_{chrom}_{start}_{end}"
-    return hashlib.md5(key_str.encode()).hexdigest()[:16]
+    return cache_root("ensembl")
 
 
 def get_cached_genes(
@@ -132,6 +138,7 @@ def get_cached_genes(
     chrom: str | int,
     start: int,
     end: int,
+    genome_build: str | None = None,
 ) -> pd.DataFrame | None:
     """Load cached genes if available.
 
@@ -141,28 +148,29 @@ def get_cached_genes(
         chrom: Chromosome name or number.
         start: Region start position.
         end: Region end position.
+        genome_build: Build the caller's data is in; part of the cache key and
+            checked against the assembly recorded in the cached frame.
 
     Returns:
         DataFrame if cache hit, None if cache miss.
     """
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = normalize_chrom(chrom)
-    cache_key = _cache_key(ensembl_species, chrom_str, start, end)
-
-    species_dir = _safe_species_dir(cache_dir, ensembl_species)
-    cache_file = species_dir / f"genes_{cache_key}.csv"
-
-    if not cache_file.exists():
+    df = load_genes(
+        cache_dir,
+        ensembl_species,
+        chrom,
+        start,
+        end,
+        build_token=assembly_token(genome_build or ""),
+    )
+    if df is None:
         return None
 
-    try:
-        logger.debug(f"Cache hit: {cache_file}")
-        return pd.read_csv(cache_file)
-    except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
-        # EmptyDataError subclasses ValueError, not ParserError, so it needs
-        # naming explicitly. Releases before 2.1.1 wrote column-less CSVs.
-        logger.warning(f"Corrupt cache file {cache_file}, ignoring: {e}")
-        return None
+    if "assembly" in df.columns and not df.empty:
+        _warn_on_assembly_mismatch(
+            str(df["assembly"].iloc[0]), genome_build, ensembl_species
+        )
+    return df
 
 
 def save_cached_genes(
@@ -172,6 +180,7 @@ def save_cached_genes(
     chrom: str | int,
     start: int,
     end: int,
+    genome_build: str | None = None,
 ) -> None:
     """Save genes to cache as CSV.
 
@@ -182,89 +191,16 @@ def save_cached_genes(
         chrom: Chromosome name or number.
         start: Region start position.
         end: Region end position.
+        genome_build: Build the caller's data is in; part of the cache key.
     """
-    ensembl_species = get_ensembl_species_name(species)
-    chrom_str = normalize_chrom(chrom)
-    cache_key = _cache_key(ensembl_species, chrom_str, start, end)
-
-    species_dir = _safe_species_dir(cache_dir, ensembl_species)
-    species_dir.mkdir(parents=True, exist_ok=True)
-
-    cache_file = species_dir / f"genes_{cache_key}.csv"
-    try:
-        df.to_csv(cache_file, index=False)
-        logger.debug(f"Cached genes to: {cache_file}")
-    except OSError as e:
-        logger.warning(f"Failed to write gene cache {cache_file}: {e}")
-
-
-def _make_ensembl_request(
-    url: str,
-    params: dict,
-    max_retries: int = ENSEMBL_MAX_RETRIES,
-) -> list:
-    """Make request to Ensembl API with retry logic.
-
-    Always raises on failure; callers that want an empty result instead
-    translate EnsemblAPIError at their boundary.
-
-    Args:
-        url: API endpoint URL.
-        params: Query parameters.
-        max_retries: Maximum retry attempts for retryable errors.
-
-    Returns:
-        JSON response as list.
-
-    Raises:
-        EnsemblAPIError: If the request ultimately fails.
-    """
-    delay = ENSEMBL_RETRY_DELAY
-
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(
-                url,
-                params=params,
-                headers={"Content-Type": "application/json"},
-                timeout=ENSEMBL_REQUEST_TIMEOUT,
-            )
-        except requests.RequestException as e:
-            logger.warning(f"Ensembl API request failed (attempt {attempt + 1}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            raise EnsemblAPIError(
-                f"Ensembl API request failed after {max_retries} attempts: {e}"
-            )
-
-        # Success
-        if response.ok:
-            try:
-                return response.json()
-            except (ValueError, requests.exceptions.JSONDecodeError) as e:
-                logger.warning(f"Ensembl API returned invalid JSON: {e}")
-                raise EnsemblAPIError(f"Ensembl API returned invalid JSON: {e}")
-
-        # Retryable errors (429 rate limit, 503 service unavailable)
-        if response.status_code in (429, 503) and attempt < max_retries - 1:
-            logger.warning(
-                f"Ensembl API returned {response.status_code} "
-                f"(attempt {attempt + 1}), retrying..."
-            )
-            time.sleep(delay)
-            delay *= 2
-            continue
-
-        # Non-retryable error
-        error_msg = f"Ensembl API error {response.status_code}: {response.text[:200]}"
-        logger.warning(error_msg)
-        raise EnsemblAPIError(error_msg)
-
-    # All retries exhausted (e.g., repeated 429/503 responses)
-    raise EnsemblAPIError(
-        f"Ensembl API request failed after {max_retries} attempts (rate limited)"
+    save_genes(
+        df,
+        cache_dir,
+        get_ensembl_species_name(species),
+        chrom,
+        start,
+        end,
+        build_token=assembly_token(genome_build or ""),
     )
 
 
@@ -278,6 +214,7 @@ def _gene_record(feature: dict, chrom_str: str) -> dict:
         "strand": "+" if feature.get("strand", 1) == 1 else "-",
         "gene_id": feature.get("id", ""),
         "biotype": feature.get("biotype", ""),
+        "assembly": str(feature.get("assembly_name", "")),
     }
 
 
@@ -290,6 +227,7 @@ def _exon_record(feature: dict, chrom_str: str) -> dict:
         "gene_name": "",  # Exon endpoint doesn't include gene name
         "exon_id": feature.get("id", ""),
         "transcript_id": feature.get("Parent", ""),
+        "assembly": str(feature.get("assembly_name", "")),
     }
 
 
@@ -315,6 +253,7 @@ def _fetch_overlap_features(
     feature_type: str,
     record_builder: Callable[[dict, str], dict],
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame:
     """Fetch features from the Ensembl overlap/region endpoint.
 
@@ -331,6 +270,8 @@ def _fetch_overlap_features(
         feature_type: Ensembl feature_type to keep (e.g. "gene", "exon").
         record_builder: Maps a kept feature and chrom to a DataFrame row.
         raise_on_error: If True, raise EnsemblAPIError on API errors.
+        genome_build: Build the caller's data is in; warns if Ensembl serves a
+            different assembly.
 
     Returns:
         DataFrame of built records, always carrying the record_builder's
@@ -352,7 +293,16 @@ def _fetch_overlap_features(
     empty = _empty_feature_frame(record_builder, chrom_str)
 
     try:
-        data = _make_ensembl_request(url, params)
+        data = request_json(
+            url,
+            params,
+            error_cls=EnsemblAPIError,
+            service="Ensembl",
+            headers={"Content-Type": "application/json"},
+            timeout=ENSEMBL_REQUEST_TIMEOUT,
+            max_retries=ENSEMBL_MAX_RETRIES,
+            retry_delay=ENSEMBL_RETRY_DELAY,
+        )
     except EnsemblAPIError:
         if raise_on_error:
             raise
@@ -361,6 +311,8 @@ def _fetch_overlap_features(
     if not data:
         logger.debug(f"No {feature_type}s found in region {region}")
         return empty
+
+    _warn_on_assembly_mismatch(_response_assembly(data), genome_build, ensembl_species)
 
     records = [
         record_builder(feature, chrom_str)
@@ -383,6 +335,7 @@ def fetch_genes_from_ensembl(
     end: int,
     biotype: str = "protein_coding",
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame:
     """Fetch gene annotations from Ensembl REST API.
 
@@ -393,9 +346,12 @@ def fetch_genes_from_ensembl(
         end: Region end position (1-based).
         biotype: Gene biotype filter (default: protein_coding).
         raise_on_error: If True, raise ValidationError on API errors.
+        genome_build: Build the caller's data is in; warns if Ensembl serves a
+            different assembly.
 
     Returns:
-        DataFrame with columns: chr, start, end, gene_name, strand, gene_id, biotype.
+        DataFrame with columns: chr, start, end, gene_name, strand, gene_id,
+        biotype, assembly.
         Returns empty DataFrame on API error (unless raise_on_error=True).
 
     Raises:
@@ -410,6 +366,7 @@ def fetch_genes_from_ensembl(
         feature_type="gene",
         record_builder=_gene_record,
         raise_on_error=raise_on_error,
+        genome_build=genome_build,
     )
 
 
@@ -419,6 +376,7 @@ def fetch_exons_from_ensembl(
     start: int,
     end: int,
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame:
     """Fetch exon annotations from Ensembl REST API.
 
@@ -428,9 +386,12 @@ def fetch_exons_from_ensembl(
         start: Region start position (1-based).
         end: Region end position (1-based).
         raise_on_error: If True, raise ValidationError on API errors.
+        genome_build: Build the caller's data is in; warns if Ensembl serves a
+            different assembly.
 
     Returns:
-        DataFrame with columns: chr, start, end, gene_name, exon_id, transcript_id.
+        DataFrame with columns: chr, start, end, gene_name, exon_id,
+        transcript_id, assembly.
         Returns empty DataFrame on API error (unless raise_on_error=True).
 
     Raises:
@@ -445,6 +406,7 @@ def fetch_exons_from_ensembl(
         feature_type="exon",
         record_builder=_exon_record,
         raise_on_error=raise_on_error,
+        genome_build=genome_build,
     )
 
 
@@ -457,6 +419,7 @@ def get_genes_for_region(
     use_cache: bool = True,
     include_exons: bool = False,
     raise_on_error: bool = False,
+    genome_build: str | None = None,
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """Get gene annotations for a genomic region.
 
@@ -471,10 +434,13 @@ def get_genes_for_region(
         use_cache: Whether to use disk cache.
         include_exons: If True, also fetch exons and return tuple (genes_df, exons_df).
         raise_on_error: If True, raise ValidationError on API errors.
+        genome_build: Build the caller's data is in. Part of the cache key, and
+            warns when Ensembl serves annotations on a different assembly.
 
     Returns:
         If include_exons=False: DataFrame with gene annotations.
         If include_exons=True: Tuple of (genes_df, exons_df).
+        Both carry an ``assembly`` column naming the assembly Ensembl served.
 
     Raises:
         ValidationError: If region > 5Mb or if raise_on_error=True and API fails.
@@ -490,12 +456,19 @@ def get_genes_for_region(
 
     # Check cache first
     if use_cache:
-        cached = get_cached_genes(cache_dir, species, chrom_str, start, end)
+        cached = get_cached_genes(
+            cache_dir, species, chrom_str, start, end, genome_build=genome_build
+        )
         if cached is not None:
             if include_exons:
                 # Exons not cached separately (yet)
                 exons_df = fetch_exons_from_ensembl(
-                    species, chrom_str, start, end, raise_on_error=raise_on_error
+                    species,
+                    chrom_str,
+                    start,
+                    end,
+                    raise_on_error=raise_on_error,
+                    genome_build=genome_build,
                 )
                 return cached, exons_df
             return cached
@@ -506,7 +479,12 @@ def get_genes_for_region(
     fetch_failed = False
     try:
         genes_df = fetch_genes_from_ensembl(
-            species, chrom_str, start, end, raise_on_error=True
+            species,
+            chrom_str,
+            start,
+            end,
+            raise_on_error=True,
+            genome_build=genome_build,
         )
     except EnsemblAPIError:
         if raise_on_error:
@@ -518,11 +496,24 @@ def get_genes_for_region(
     # regions). A failed fetch is never cached: it would be indistinguishable from
     # an empty region on reload and would permanently hide the region's genes.
     if use_cache and not fetch_failed:
-        save_cached_genes(genes_df, cache_dir, species, chrom_str, start, end)
+        save_cached_genes(
+            genes_df,
+            cache_dir,
+            species,
+            chrom_str,
+            start,
+            end,
+            genome_build=genome_build,
+        )
 
     if include_exons:
         exons_df = fetch_exons_from_ensembl(
-            species, chrom_str, start, end, raise_on_error=raise_on_error
+            species,
+            chrom_str,
+            start,
+            end,
+            raise_on_error=raise_on_error,
+            genome_build=genome_build,
         )
         return genes_df, exons_df
 
@@ -545,21 +536,7 @@ def clear_ensembl_cache(
     if cache_dir is None:
         cache_dir = get_ensembl_cache_dir()
 
-    deleted = 0
-
-    if species:
-        # Clear only specific species
-        ensembl_species = get_ensembl_species_name(species)
-        species_dir = _safe_species_dir(cache_dir, ensembl_species)
-        if species_dir.exists():
-            for cache_file in species_dir.glob("*.csv"):
-                cache_file.unlink()
-                deleted += 1
-    else:
-        # Clear all species
-        for cache_file in cache_dir.glob("**/*.csv"):
-            cache_file.unlink()
-            deleted += 1
-
+    ensembl_species = get_ensembl_species_name(species) if species else None
+    deleted = clear_cache(cache_dir, ensembl_species)
     logger.info(f"Cleared {deleted} cached Ensembl files from {cache_dir}")
     return deleted

@@ -192,7 +192,7 @@ class TestAutoGenes:
         )
 
     def test_plot_with_auto_genes_enabled(self, sample_gwas_df):
-        """Test that auto_genes=True fetches genes from Ensembl."""
+        """Test that auto_genes=True fetches genes from the reference source."""
         # Mock the Ensembl API response
         mock_genes = pd.DataFrame(
             {
@@ -206,7 +206,7 @@ class TestAutoGenes:
 
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
-        with patch("pylocuszoom.plotter.get_genes_for_region", return_value=mock_genes):
+        with patch("pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes):
             fig = plotter.plot(
                 sample_gwas_df,
                 chrom=1,
@@ -236,7 +236,7 @@ class TestAutoGenes:
         """Test that explicit genes_df is used even when auto_genes=True."""
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
-        with patch("pylocuszoom.plotter.get_genes_for_region") as mock_fetch:
+        with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
             fig = plotter.plot(
                 sample_gwas_df,
                 chrom=1,
