@@ -67,10 +67,6 @@ class TestManhattanPlotterBackends:
         fig = plotter.plot_manhattan(gwas_data)
         assert fig is not None
 
-    @pytest.mark.skipif(
-        True,
-        reason="Plotly backend requires plotly package",
-    )
     def test_plotly_backend(self, gwas_data):
         """Test ManhattanPlotter with plotly backend."""
         plotter = ManhattanPlotter(species="canine", backend="plotly")

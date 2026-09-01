@@ -69,7 +69,6 @@ class TestGetBackend:
 
     def test_get_backend_plotly_works_when_installed(self):
         """get_backend('plotly') returns PlotlyBackend when plotly is available."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends import get_backend
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
@@ -78,7 +77,6 @@ class TestGetBackend:
 
     def test_get_backend_bokeh_works_when_installed(self):
         """get_backend('bokeh') returns BokehBackend when bokeh is available."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends import get_backend
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
@@ -93,7 +91,6 @@ class TestBackendImportErrors:
         """No error when plotly is available."""
         from pylocuszoom.backends import get_backend
 
-        pytest.importorskip("plotly")
         backend = get_backend("plotly")
         assert backend is not None
 
@@ -101,7 +98,6 @@ class TestBackendImportErrors:
         """No error when bokeh is available."""
         from pylocuszoom.backends import get_backend
 
-        pytest.importorskip("bokeh")
         backend = get_backend("bokeh")
         assert backend is not None
 
@@ -150,7 +146,6 @@ class TestBackendCapabilities:
 
     def test_plotly_has_capabilities(self):
         """PlotlyBackend supports secondary axis and hover, not SNP labels."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends import (
             SupportsSecondaryAxis,
             SupportsSNPLabels,
@@ -164,7 +159,6 @@ class TestBackendCapabilities:
 
     def test_bokeh_has_capabilities(self):
         """BokehBackend supports secondary axis and hover, not SNP labels."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends import (
             SupportsSecondaryAxis,
             SupportsSNPLabels,
@@ -192,7 +186,6 @@ class TestBackendRegistration:
 
     def test_plotly_registered_on_import(self):
         """PlotlyBackend is registered when module is imported."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends import _BACKENDS
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
@@ -201,7 +194,6 @@ class TestBackendRegistration:
 
     def test_bokeh_registered_on_import(self):
         """BokehBackend is registered when module is imported."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends import _BACKENDS
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
@@ -223,7 +215,6 @@ class TestBackendRegistration:
         assert '@register_backend("matplotlib")' in source
 
         # Check plotly if available
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         source_file = inspect.getsourcefile(PlotlyBackend)
@@ -233,7 +224,6 @@ class TestBackendRegistration:
         assert '@register_backend("plotly")' in source
 
         # Check bokeh if available
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         source_file = inspect.getsourcefile(BokehBackend)
@@ -261,7 +251,6 @@ class TestSetXticks:
 
     def test_plotly_set_xticks(self):
         """Plotly backend should set x-axis ticks."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -274,7 +263,6 @@ class TestSetXticks:
 
     def test_bokeh_set_xticks(self):
         """Bokeh backend should set x-axis ticks."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -471,7 +459,6 @@ class TestHeatmapMethods:
 
     def test_plotly_add_heatmap_returns_trace(self, sample_ld_matrix):
         """Plotly add_heatmap should return Heatmap trace."""
-        pytest.importorskip("plotly")
         import plotly.graph_objects as go
 
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
@@ -489,7 +476,6 @@ class TestHeatmapMethods:
 
     def test_plotly_add_colorbar_enables_the_trace_scale(self, sample_ld_matrix):
         """Plotly's colorbar is the trace's own scale, off until asked for."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -510,7 +496,6 @@ class TestHeatmapMethods:
 
     def test_plotly_add_colorbar_honours_orientation(self, sample_ld_matrix):
         """Horizontal orientation maps to Plotly's 'h'."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -527,7 +512,6 @@ class TestHeatmapMethods:
 
     def test_bokeh_add_heatmap_returns_mapper(self, sample_ld_matrix):
         """Bokeh add_heatmap should return LinearColorMapper."""
-        pytest.importorskip("bokeh")
         from bokeh.models import LinearColorMapper
 
         from pylocuszoom.backends.bokeh_backend import BokehBackend
@@ -545,7 +529,6 @@ class TestHeatmapMethods:
 
     def test_bokeh_add_colorbar_adds_to_layout(self, sample_ld_matrix):
         """Bokeh add_colorbar should add ColorBar to figure."""
-        pytest.importorskip("bokeh")
         from bokeh.models import ColorBar
 
         from pylocuszoom.backends.bokeh_backend import BokehBackend
@@ -569,9 +552,6 @@ class TestHeatmapMethods:
         from pylocuszoom.backends import get_backend
 
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
-            if backend_name in ["plotly", "bokeh"]:
-                pytest.importorskip(backend_name)
-
             backend = get_backend(backend_name)
             assert hasattr(backend, "add_heatmap"), (
                 f"{backend_name} missing add_heatmap"
@@ -672,7 +652,6 @@ class TestCustomBackendCompatibility:
     @pytest.mark.parametrize("backend_name", ["matplotlib", "plotly", "bokeh"])
     def test_bundled_backends_declare_every_optional_capability(self, backend_name):
         """The three shipped backends opt into heatmaps and bar charts."""
-        pytest.importorskip(backend_name)
         from pylocuszoom.backends import (
             SupportsBarCharts,
             SupportsHeatmap,
@@ -722,7 +701,6 @@ class TestLegendPlacement:
 
     def test_plotly_honours_loc(self):
         """Plotly anchors the legend per the matplotlib loc vocabulary."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -734,7 +712,6 @@ class TestLegendPlacement:
 
     def test_plotly_honours_edgecolor(self):
         """Plotly draws the swatch edge in the requested colour."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -745,7 +722,6 @@ class TestLegendPlacement:
 
     def test_bokeh_honours_loc(self):
         """Bokeh maps the matplotlib loc vocabulary to its own locations."""
-        pytest.importorskip("bokeh")
         from bokeh.models import Legend
 
         from pylocuszoom.backends.bokeh_backend import BokehBackend
@@ -758,7 +734,6 @@ class TestLegendPlacement:
 
     def test_bokeh_honours_edgecolor(self):
         """Bokeh draws the swatch edge in the requested colour."""
-        pytest.importorskip("bokeh")
         from bokeh.models import Legend
 
         from pylocuszoom.backends.bokeh_backend import BokehBackend
@@ -772,8 +747,6 @@ class TestLegendPlacement:
 
     def test_unknown_loc_falls_back_without_raising(self):
         """An unmapped loc degrades to the default corner, it does not raise."""
-        pytest.importorskip("plotly")
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
@@ -809,8 +782,6 @@ class TestLegendTitleMathtext:
 
     def test_interactive_backends_show_unicode(self):
         """Plotly and Bokeh convert the mathtext to a plain unicode r²."""
-        pytest.importorskip("plotly")
-        pytest.importorskip("bokeh")
         from bokeh.models import Legend
 
         from pylocuszoom.backends.bokeh_backend import BokehBackend

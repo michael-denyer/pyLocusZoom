@@ -169,9 +169,6 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     backend_name, prepared_data
 ):
     """All built-in adapters accept the same prepared rendering intent."""
-    if backend_name != "matplotlib":
-        pytest.importorskip(backend_name)
-
     manhattan_df, qq_df = prepared_data
     backend = get_backend(backend_name)
     renderer = ManhattanQQRenderer(backend)

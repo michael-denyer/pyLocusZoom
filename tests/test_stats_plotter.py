@@ -256,13 +256,11 @@ class TestStatsPlotterInit:
 
     def test_plotly_backend(self):
         """StatsPlotter should work with plotly backend."""
-        pytest.importorskip("plotly")
         plotter = StatsPlotter(backend="plotly")
         assert plotter._backend is not None
 
     def test_bokeh_backend(self):
         """StatsPlotter should work with bokeh backend."""
-        pytest.importorskip("bokeh")
         plotter = StatsPlotter(backend="bokeh")
         assert plotter._backend is not None
 

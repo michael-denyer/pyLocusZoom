@@ -240,53 +240,6 @@ def gene_dataframes(
 
 
 @st.composite
-def recomb_dataframes(
-    draw,
-    start: int | None = None,
-    end: int | None = None,
-    min_points: int = 2,
-    max_points: int = 20,
-) -> pd.DataFrame:
-    """Generate valid recombination rate DataFrames.
-
-    Args:
-        start: Region start.
-        end: Region end.
-        min_points: Minimum data points.
-        max_points: Maximum data points.
-
-    Returns:
-        DataFrame with pos, rate columns.
-    """
-    if start is None or end is None:
-        start = draw(st.integers(min_value=1_000_000, max_value=100_000_000))
-        end = start + draw(st.integers(min_value=500_000, max_value=10_000_000))
-
-    n_points = draw(st.integers(min_value=min_points, max_value=max_points))
-    positions = sorted(
-        draw(
-            st.lists(
-                st.integers(min_value=start, max_value=end),
-                min_size=n_points,
-                max_size=n_points,
-                unique=True,
-            )
-        )
-    )
-    rates = [
-        draw(st.floats(min_value=0.0, max_value=100.0, allow_nan=False))
-        for _ in range(n_points)
-    ]
-
-    return pd.DataFrame({"pos": positions, "rate": rates})
-
-
-# =============================================================================
-# Invalid Data Strategies (for error handling tests)
-# =============================================================================
-
-
-@st.composite
 def pvalues_invalid(draw) -> float:
     """Generate invalid p-values for error handling tests.
 
@@ -300,13 +253,3 @@ def pvalues_invalid(draw) -> float:
             st.just(float("nan")),  # NaN
         )
     )
-
-
-@st.composite
-def positions_invalid(draw) -> int:
-    """Generate invalid genomic positions.
-
-    Returns:
-        Integer that is invalid as a position (negative or zero).
-    """
-    return draw(st.integers(max_value=0))

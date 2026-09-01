@@ -12,6 +12,7 @@ Covers issues found in code review:
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
 

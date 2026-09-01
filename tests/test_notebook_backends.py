@@ -961,7 +961,6 @@ class TestPlotlySecondaryAxisNaming:
         Regression test: create_twin_axis used offset of 10, which collides
         with primary yaxis10+ when figures have 10+ subplots.
         """
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -982,7 +981,6 @@ class TestPlotlySecondaryAxisNaming:
 
     def test_plotly_secondary_axes_unique_across_subplots(self):
         """Each subplot's secondary axis should have a unique name."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -1003,7 +1001,6 @@ class TestHeatmapCoordinates:
 
     def test_plotly_heatmap_uses_actual_coords(self):
         """Plotly heatmap should use passed x/y coords, not range(len(coords))."""
-        pytest.importorskip("plotly")
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
@@ -1027,7 +1024,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_uses_actual_coords(self):
         """Bokeh heatmap should use passed x/y coords, not index values."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1050,7 +1046,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_mask_upper_uses_actual_coords(self):
         """Bokeh heatmap with mask_upper=True should still use actual coords."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1074,7 +1069,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_rect_dimensions_scale_with_coords(self):
         """Bokeh heatmap rect width/height should match coordinate spacing."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1106,7 +1100,6 @@ class TestHeatmapCoordinates:
 
     def test_bokeh_heatmap_nonuniform_spacing(self):
         """Bokeh heatmap per-cell sizing handles non-uniform coordinate spacing."""
-        pytest.importorskip("bokeh")
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
