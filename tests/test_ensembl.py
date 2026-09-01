@@ -236,24 +236,24 @@ def test_cache_resolvers_share_base(tmp_path, monkeypatch):
     assert get_ensembl_cache_dir().parent == get_default_data_dir().parent
 
 
-def test_get_cached_genes_miss():
+def test_load_genes_miss():
     """Test cache miss returns None."""
-    from pylocuszoom.ensembl import get_cached_genes
+    from pylocuszoom._gene_cache import load_genes
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        result = get_cached_genes(
-            cache_dir=Path(tmpdir),
-            species="human",
-            chrom="13",
-            start=32000000,
-            end=33000000,
+        result = load_genes(
+            Path(tmpdir),
+            "homo_sapiens",
+            "13",
+            32000000,
+            33000000,
         )
         assert result is None
 
 
 def test_save_and_load_cached_genes():
     """Test saving and loading cached genes using CSV."""
-    from pylocuszoom.ensembl import get_cached_genes, save_cached_genes
+    from pylocuszoom._gene_cache import load_genes, save_genes
 
     df = pd.DataFrame(
         {
@@ -268,25 +268,25 @@ def test_save_and_load_cached_genes():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
 
-        save_cached_genes(
+        save_genes(
             df,
-            cache_dir=cache_dir,
-            species="human",
-            chrom="13",
-            start=32000000,
-            end=33000000,
+            cache_dir,
+            "homo_sapiens",
+            "13",
+            32000000,
+            33000000,
         )
 
         # Verify CSV file created (not parquet)
         csv_files = list(cache_dir.glob("**/*.csv"))
         assert len(csv_files) == 1
 
-        loaded = get_cached_genes(
-            cache_dir=cache_dir,
-            species="human",
-            chrom="13",
-            start=32000000,
-            end=33000000,
+        loaded = load_genes(
+            cache_dir,
+            "homo_sapiens",
+            "13",
+            32000000,
+            33000000,
         )
 
         assert loaded is not None
@@ -301,7 +301,8 @@ def test_save_and_load_cached_genes():
 
 def test_get_genes_for_region_uses_cache():
     """Test that get_genes_for_region uses cache when available."""
-    from pylocuszoom.ensembl import get_genes_for_region, save_cached_genes
+    from pylocuszoom._gene_cache import save_genes
+    from pylocuszoom.ensembl import get_genes_for_region
 
     # Pre-populate cache
     cached_df = pd.DataFrame(
@@ -316,7 +317,7 @@ def test_get_genes_for_region_uses_cache():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
-        save_cached_genes(cached_df, cache_dir, "human", "13", 32000000, 33000000)
+        save_genes(cached_df, cache_dir, "homo_sapiens", "13", 32000000, 33000000)
 
         # Mock the API call - should NOT be called due to cache hit
         with patch("pylocuszoom._http.requests.get") as mock_get:
@@ -431,7 +432,8 @@ def test_get_genes_for_region_include_exons():
 
 def test_clear_ensembl_cache():
     """Test clearing the Ensembl cache."""
-    from pylocuszoom.ensembl import clear_ensembl_cache, save_cached_genes
+    from pylocuszoom._gene_cache import save_genes
+    from pylocuszoom.ensembl import clear_ensembl_cache
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -446,8 +448,8 @@ def test_clear_ensembl_cache():
                 "strand": ["+"],
             }
         )
-        save_cached_genes(df, cache_dir, "human", "1", 100, 200)
-        save_cached_genes(df, cache_dir, "mouse", "1", 100, 200)
+        save_genes(df, cache_dir, "homo_sapiens", "1", 100, 200)
+        save_genes(df, cache_dir, "mus_musculus", "1", 100, 200)
 
         # Should have 2 CSV files in species subdirs
         csv_files = list(cache_dir.glob("**/*.csv"))
@@ -462,7 +464,8 @@ def test_clear_ensembl_cache():
 
 def test_clear_ensembl_cache_species_specific():
     """Test clearing cache for specific species only."""
-    from pylocuszoom.ensembl import clear_ensembl_cache, save_cached_genes
+    from pylocuszoom._gene_cache import save_genes
+    from pylocuszoom.ensembl import clear_ensembl_cache
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -476,8 +479,8 @@ def test_clear_ensembl_cache_species_specific():
                 "strand": ["+"],
             }
         )
-        save_cached_genes(df, cache_dir, "human", "1", 100, 200)
-        save_cached_genes(df, cache_dir, "mouse", "1", 100, 200)
+        save_genes(df, cache_dir, "homo_sapiens", "1", 100, 200)
+        save_genes(df, cache_dir, "mus_musculus", "1", 100, 200)
 
         # Clear only human cache
         deleted = clear_ensembl_cache(cache_dir, species="human")
@@ -546,24 +549,24 @@ class TestPathTraversalProtection:
         result = safe_species_dir(tmp_path, "canis_lupus_familiaris")
         assert result.is_relative_to(tmp_path)
 
-    def test_get_cached_genes_rejects_traversal(self, tmp_path):
-        """get_cached_genes should reject path traversal species."""
-        from pylocuszoom.ensembl import get_cached_genes
+    def test_load_genes_rejects_traversal(self, tmp_path):
+        """load_genes should reject path traversal species."""
+        from pylocuszoom._gene_cache import load_genes
         from pylocuszoom.utils import ValidationError
 
         with pytest.raises(ValidationError, match="Invalid species name"):
-            get_cached_genes(tmp_path, "../../etc/passwd", "1", 1, 100)
+            load_genes(tmp_path, "../../etc/passwd", "1", 1, 100)
 
-    def test_save_cached_genes_rejects_traversal(self, tmp_path):
-        """save_cached_genes should reject path traversal species."""
+    def test_save_genes_rejects_traversal(self, tmp_path):
+        """save_genes should reject path traversal species."""
         import pandas as pd
 
-        from pylocuszoom.ensembl import save_cached_genes
+        from pylocuszoom._gene_cache import save_genes
         from pylocuszoom.utils import ValidationError
 
         df = pd.DataFrame({"gene": ["BRCA1"]})
         with pytest.raises(ValidationError, match="Invalid species name"):
-            save_cached_genes(df, tmp_path, "../../etc/passwd", "1", 1, 100)
+            save_genes(df, tmp_path, "../../etc/passwd", "1", 1, 100)
 
     def test_clear_ensembl_cache_rejects_traversal(self, tmp_path):
         """clear_ensembl_cache should reject path traversal species."""
@@ -650,15 +653,14 @@ class TestEmptyResultCaching:
 
     def test_zero_byte_cache_file_is_ignored(self, tmp_path):
         """A cache file poisoned by an older release is treated as a miss."""
-        from pylocuszoom._gene_cache import cache_key
-        from pylocuszoom.ensembl import get_cached_genes
+        from pylocuszoom._gene_cache import cache_key, load_genes
 
         species_dir = tmp_path / "homo_sapiens"
         species_dir.mkdir()
         key = cache_key("homo_sapiens", "1", 1_000_000, 1_100_000)
         (species_dir / f"genes_{key}.csv").write_text("\n")
 
-        assert get_cached_genes(tmp_path, "human", "1", 1_000_000, 1_100_000) is None
+        assert load_genes(tmp_path, "homo_sapiens", "1", 1_000_000, 1_100_000) is None
 
 
 class TestAssemblyMismatch:
