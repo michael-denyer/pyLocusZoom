@@ -7,7 +7,6 @@ import pytest
 from loguru import logger as _loguru_logger
 
 from pylocuszoom.exceptions import (
-    BackendError,
     DataDownloadError,
     EQTLValidationError,
     FinemappingValidationError,
@@ -284,7 +283,6 @@ class TestExceptionHierarchy:
             LoaderValidationError,
             PheWASValidationError,
             ForestValidationError,
-            BackendError,
             PlinkError,
             DataDownloadError,
         ]
@@ -332,7 +330,6 @@ class TestExceptionHierarchy:
             PheWASValidationError,
             ForestValidationError,
             PlinkError,
-            BackendError,
             DataDownloadError,
         ]:
             with pytest.raises(PyLocusZoomError):
@@ -352,7 +349,7 @@ class TestExceptionHierarchy:
         assert hasattr(pylocuszoom, "PheWASValidationError")
         assert hasattr(pylocuszoom, "ForestValidationError")
         assert hasattr(pylocuszoom, "PlinkError")
-        assert hasattr(pylocuszoom, "BackendError")
+        assert hasattr(pylocuszoom, "DataDownloadError")
 
 
 class TestSpecializedExceptionsInUse:

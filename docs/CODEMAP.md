@@ -261,10 +261,12 @@ PyLocusZoomError
 │   ├── LoaderValidationError
 │   ├── PheWASValidationError
 │   └── ForestValidationError
-├── BackendError
 ├── PlinkError (also RuntimeError)
 │   └── EmptyLDOutputError
 └── DataDownloadError (also RuntimeError)
+    └── ReferenceAPIError
+        ├── EnsemblAPIError
+        └── UCSCAPIError
 ```
 
 ---

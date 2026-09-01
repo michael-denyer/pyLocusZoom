@@ -10,8 +10,10 @@ import pytest
 import requests
 
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
+from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
+    _download_with_progress,
     _normalize_build,
     _publish_map_generation,
     download_canine_recombination_maps,
@@ -44,7 +46,7 @@ class TestEnsureRecombHeader:
 
     def test_rejects_unrecognised_first_token(self):
         content = "<html><body>404 Not Found</body></html>\n"
-        with pytest.raises(RuntimeError, match="refusing to treat as header"):
+        with pytest.raises(DataDownloadError, match="refusing to treat as header"):
             ensure_recomb_header(content, "chr1_recomb.tsv")
 
 
@@ -460,9 +462,9 @@ class TestDownloadCanineRecombinationMaps:
         for i in range(1, 40):
             (tmp_path / f"chr{i}_recomb.tsv").touch()
 
-        mock_download.side_effect = requests.RequestException("download attempted")
+        mock_download.side_effect = DataDownloadError("download attempted")
 
-        with pytest.raises(requests.RequestException, match="download attempted"):
+        with pytest.raises(DataDownloadError, match="download attempted"):
             download_canine_recombination_maps(output_dir=str(tmp_path), force=False)
 
 
@@ -506,7 +508,7 @@ class TestPublishMapGeneration:
         staging = tmp_path / "incomplete-staging"
         self._write_maps(staging, "new", complete=False)
 
-        with pytest.raises(RuntimeError, match="complete canine map set"):
+        with pytest.raises(DataDownloadError, match="complete canine map set"):
             _publish_map_generation(staging, output)
 
         assert not output.is_symlink()
@@ -557,96 +559,113 @@ class TestEnsureRecombMaps:
 
     @patch("pylocuszoom.recombination.download_canine_recombination_maps")
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_handles_network_error(
+    def test_ensure_recomb_maps_warns_and_returns_none_on_download_error(
         self, mock_get_dir, mock_download, tmp_path
     ):
-        """Test that ensure_recomb_maps returns None on network errors."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = requests.RequestException("Network error")
+        mock_download.side_effect = DataDownloadError("Network error")
 
-        result = ensure_recomb_maps(species="canine")
+        with pytest.warns(UserWarning, match="recombination maps.*Network error"):
+            result = ensure_recomb_maps(species="canine")
+
         assert result is None
 
     @patch("pylocuszoom.recombination.download_canine_recombination_maps")
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_handles_io_error(
+    def test_ensure_recomb_maps_warns_and_returns_none_on_io_error(
         self, mock_get_dir, mock_download, tmp_path
     ):
-        """Test that ensure_recomb_maps returns None on IO errors."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = IOError("Disk full")
+        mock_download.side_effect = OSError("Disk full")
 
-        result = ensure_recomb_maps(species="canine")
+        with pytest.warns(UserWarning, match="recombination maps.*Disk full"):
+            result = ensure_recomb_maps(species="canine")
+
         assert result is None
-
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_handles_tar_error(
-        self, mock_get_dir, mock_download, tmp_path
-    ):
-        """Test that ensure_recomb_maps returns None on corrupt archive."""
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = tarfile.TarError("Corrupt archive")
-
-        result = ensure_recomb_maps(species="canine")
-        assert result is None
-
-    @pytest.mark.parametrize(
-        "exception,expected_msg",
-        [
-            (requests.RequestException("Connection refused"), "recombination maps"),
-            (tarfile.TarError("Bad header"), "recombination maps"),
-            (OSError("Permission denied"), "recombination maps"),
-        ],
-    )
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_error_message(
-        self, mock_get_dir, mock_download, tmp_path, exception, expected_msg
-    ):
-        """Download errors produce log message with context."""
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = exception
-
-        log_capture = io.StringIO()
-        from pylocuszoom.logging import logger as plz_logger
-
-        plz_logger.enable("ERROR", sink=log_capture)
-        try:
-            ensure_recomb_maps(species="canine")
-        finally:
-            plz_logger.enable("INFO")
-
-        assert expected_msg in log_capture.getvalue()
-
-
-class TestDownloadLiftoverChainHTTPError:
-    """Tests for HTTPError handling in download_liftover_chain."""
 
     @patch("pylocuszoom.recombination._download_with_progress")
-    def test_http_error_includes_url(self, mock_download, tmp_path, monkeypatch):
-        """HTTPError should include the URL in the error message."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
-        )
-        mock_download.side_effect = requests.HTTPError("404 Client Error")
+    def test_ensure_recomb_maps_warns_and_returns_none_on_corrupt_archive(
+        self, mock_download, tmp_path
+    ):
+        def write_garbage(url, dest_path, desc=None):
+            dest_path.write_bytes(b"not a gzip archive")
 
-        with pytest.raises(requests.HTTPError, match="liftover chain file"):
-            download_liftover_chain(force=True)
+        mock_download.side_effect = write_garbage
 
-    @patch("pylocuszoom.recombination._download_with_progress")
-    def test_http_error_preserves_original(self, mock_download, tmp_path, monkeypatch):
-        """HTTPError should chain the original exception."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
-        )
+        with pytest.warns(UserWarning, match="recombination maps"):
+            result = ensure_recomb_maps(species="canine", data_dir=str(tmp_path / "x"))
+
+        assert result is None
+
+
+class TestDownloadWithProgress:
+    """A download must never leave a truncated file at the destination."""
+
+    @staticmethod
+    def _streaming_response(chunks):
+        response = MagicMock()
+        response.headers = {"content-length": str(sum(len(c) for c in chunks))}
+        response.iter_content.return_value = iter(chunks)
+        return response
+
+    def test_complete_download_lands_at_dest(self, tmp_path):
+        dest = tmp_path / "file.gz"
+        response = self._streaming_response([b"abcd", b"efgh"])
+
+        with patch("pylocuszoom.recombination.requests.get", return_value=response):
+            _download_with_progress("https://example.invalid/f", dest)
+
+        assert dest.read_bytes() == b"abcdefgh"
+        assert [p.name for p in tmp_path.iterdir()] == ["file.gz"]
+
+    def test_interrupted_download_leaves_nothing_behind(self, tmp_path):
+        dest = tmp_path / "file.gz"
+
+        def chunks():
+            yield b"abcd"
+            raise requests.ConnectionError("connection reset")
+
+        response = self._streaming_response([])
+        response.iter_content.return_value = chunks()
+
+        with (
+            patch("pylocuszoom.recombination.requests.get", return_value=response),
+            pytest.raises(DataDownloadError, match="example.invalid/f") as exc_info,
+        ):
+            _download_with_progress("https://example.invalid/f", dest)
+
+        assert isinstance(exc_info.value.__cause__, requests.ConnectionError)
+        assert not dest.exists()
+        assert list(tmp_path.iterdir()) == []
+
+    def test_http_error_raises_download_error(self, tmp_path):
+        dest = tmp_path / "file.gz"
+        response = self._streaming_response([])
         original = requests.HTTPError("404 Client Error")
-        mock_download.side_effect = original
+        response.raise_for_status.side_effect = original
 
-        with pytest.raises(requests.HTTPError) as exc_info:
-            download_liftover_chain(force=True)
+        with (
+            patch("pylocuszoom.recombination.requests.get", return_value=response),
+            pytest.raises(DataDownloadError, match="example.invalid/f") as exc_info,
+        ):
+            _download_with_progress("https://example.invalid/f", dest)
 
         assert exc_info.value.__cause__ is original
+        assert list(tmp_path.iterdir()) == []
+
+
+class TestDownloadLiftoverChainDownloadError:
+    """download_liftover_chain surfaces failures as DataDownloadError."""
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_download_error_propagates(self, mock_download, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
+        mock_download.side_effect = DataDownloadError("404 Client Error")
+
+        with pytest.raises(DataDownloadError, match="404 Client Error"):
+            download_liftover_chain(force=True)
 
 
 class TestTarTraversalOSError:
@@ -684,7 +703,9 @@ class TestTarTraversalOSError:
         plz_logger.enable("WARNING", sink=log_capture)
         try:
             with patch.object(Path, "resolve", patched_resolve):
-                with pytest.raises(RuntimeError, match="Could not find chromosome"):
+                with pytest.raises(
+                    DataDownloadError, match="Could not find chromosome"
+                ):
                     download_canine_recombination_maps(
                         output_dir=str(tmp_path / "output"), force=True
                     )
@@ -730,12 +751,34 @@ class TestDownloadCanineRecombHeaderDetection:
 
     @patch("pylocuszoom.recombination._download_with_progress")
     def test_raises_on_html_corrupted_body(self, mock_download, tmp_path):
-        """An HTML error body masquerading as a map must raise RuntimeError."""
+        """An HTML error body masquerading as a map is a download failure."""
         html_content = "<html><body>502 Bad Gateway</body></html>\n"
         mock_download.side_effect = self._fake_download("chr1.txt", html_content)
 
-        with pytest.raises(RuntimeError, match="Unrecognised first token"):
+        with pytest.raises(DataDownloadError, match="Unrecognised first token"):
             download_canine_recombination_maps(tmp_path / "out")
+
+    @patch("pylocuszoom.recombination._download_with_progress")
+    def test_plot_warns_and_renders_without_overlay_on_corrupt_archive(
+        self, mock_download, tmp_path
+    ):
+        """A corrupted mirror must be loud, but must not stop the plot."""
+        from pylocuszoom import LocusZoomPlotter
+
+        html_content = "<html><body>502 Bad Gateway</body></html>\n"
+        mock_download.side_effect = self._fake_download("chr1.txt", html_content)
+        plotter = LocusZoomPlotter(
+            species="canine", recomb_data_dir=str(tmp_path / "out"), log_level=None
+        )
+        gwas = pd.DataFrame(
+            {"ps": [1_000_000, 1_050_000], "p_wald": [0.5, 1e-6], "rs": ["a", "b"]}
+        )
+
+        with pytest.warns(UserWarning, match="Unrecognised first token"):
+            fig = plotter.plot(gwas, chrom=1, start=900_000, end=1_200_000)
+
+        assert fig is not None
+        assert not (tmp_path / "out").exists()
 
     @patch("pylocuszoom.recombination._download_with_progress")
     def test_accepts_lowercase_chr_header(self, mock_download, tmp_path):

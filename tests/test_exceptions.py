@@ -3,7 +3,6 @@
 import pytest
 
 from pylocuszoom.exceptions import (
-    BackendError,
     DataDownloadError,
     EmptyLDOutputError,
     EQTLValidationError,
@@ -11,6 +10,7 @@ from pylocuszoom.exceptions import (
     LoaderValidationError,
     PlinkError,
     PyLocusZoomError,
+    ReferenceAPIError,
     ValidationError,
 )
 
@@ -45,10 +45,11 @@ class TestExceptionHierarchy:
         assert issubclass(LoaderValidationError, PyLocusZoomError)
         assert issubclass(LoaderValidationError, ValueError)
 
-    def test_backend_error_inherits_from_base(self):
-        """BackendError inherits from PyLocusZoomError."""
-        assert issubclass(BackendError, PyLocusZoomError)
-        assert not issubclass(BackendError, ValueError)
+    def test_reference_api_error_is_a_download_error(self):
+        """A service failure is a download failure, not an input validation one."""
+        assert issubclass(ReferenceAPIError, DataDownloadError)
+        assert not issubclass(ReferenceAPIError, ValidationError)
+        assert not issubclass(ReferenceAPIError, ValueError)
 
     def test_data_download_error_inherits_from_base_and_runtime_error(self):
         """DataDownloadError inherits from both PyLocusZoomError and RuntimeError."""
@@ -88,11 +89,6 @@ class TestExceptionInstantiation:
         """LoaderValidationError can be instantiated with message."""
         err = LoaderValidationError("loader validation failed")
         assert str(err) == "loader validation failed"
-
-    def test_backend_error_with_message(self):
-        """BackendError can be instantiated with message."""
-        err = BackendError("backend failed")
-        assert str(err) == "backend failed"
 
     def test_data_download_error_with_message(self):
         """DataDownloadError can be instantiated with message."""
@@ -157,7 +153,7 @@ class TestCatchingExceptions:
             EQTLValidationError("e"),
             FinemappingValidationError("f"),
             LoaderValidationError("l"),
-            BackendError("b"),
+            ReferenceAPIError("r"),
             DataDownloadError("d"),
         ]
         for exc in exceptions:

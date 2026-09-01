@@ -932,9 +932,8 @@ def load_gwas(
             format = "saige"
         else:
             logger.warning(
-                "Could not detect GWAS file format for '%s'. "
-                "Defaulting to 'plink'. Specify format= parameter explicitly.",
-                filepath,
+                f"Could not detect GWAS file format for '{filepath}'. "
+                "Defaulting to 'plink'. Specify format= parameter explicitly."
             )
             format = "plink"
 

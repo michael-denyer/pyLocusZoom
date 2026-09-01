@@ -320,3 +320,28 @@ class TestNoRedundantImport:
 
         source = backend._ensure_legend_range(ax)
         assert isinstance(source, ColumnDataSource)
+
+
+class TestAddTextAnchors:
+    """add_text must honour every (ha, va) pair, not just four."""
+
+    @pytest.mark.parametrize(
+        "ha,va,text_align,text_baseline",
+        [
+            ("center", "center", "center", "middle"),
+            ("left", "top", "left", "top"),
+            ("right", "baseline", "right", "alphabetic"),
+            ("center", "bottom", "center", "bottom"),
+        ],
+    )
+    def test_alignment_maps_independently(self, ha, va, text_align, text_baseline):
+        from bokeh.models import Label
+
+        backend = BokehBackend()
+        _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        backend.add_text(axes[0], 1.0, 2.0, "note", ha=ha, va=va)
+
+        labels = [r for r in axes[0].center if isinstance(r, Label)]
+        assert len(labels) == 1
+        assert labels[0].text_align == text_align
+        assert labels[0].text_baseline == text_baseline

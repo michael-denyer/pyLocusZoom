@@ -1,5 +1,7 @@
 """Tests for file format loaders and pydantic validation."""
 
+import io
+
 import pandas as pd
 import pytest
 
@@ -612,13 +614,18 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
 
         from pylocuszoom.logging import enable_logging
 
-        # Enable logging so the warning message gets emitted
-        enable_logging("WARNING")
+        log_capture = io.StringIO()
+        enable_logging("WARNING", sink=log_capture)
+        try:
+            df = load_gwas(filepath)
+        finally:
+            enable_logging("INFO")
 
-        # The function should still succeed (defaults to plink)
-        df = load_gwas(filepath)
         assert "ps" in df.columns
         assert len(df) == 1
+        message = log_capture.getvalue()
+        assert "results.unknown_ext" in message
+        assert "%s" not in message
 
     def test_load_gwas_explicit_format_overrides_detection(self, tmp_path):
         """Explicit format= parameter overrides auto-detection."""

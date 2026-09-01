@@ -81,7 +81,6 @@ from .eqtl import (
 
 # Exception hierarchy
 from .exceptions import (
-    BackendError,
     DataDownloadError,
     EmptyLDOutputError,
     EnsemblAPIError,
@@ -241,7 +240,6 @@ __all__ = [
     # Exceptions
     "PyLocusZoomError",
     "ValidationError",
-    "BackendError",
     "DataDownloadError",
     "EmptyLDOutputError",
     "EnsemblAPIError",

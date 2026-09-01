@@ -1,7 +1,7 @@
 """Tests for LocusZoomPlotter class."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -212,6 +212,27 @@ class TestAutoGenes:
                 chrom=1,
                 start=1000000,
                 end=2000000,
+            )
+
+        assert fig is not None
+
+    def test_plot_auto_genes_warns_when_source_fails(self, sample_gwas_df, tmp_path):
+        """A gene-source outage warns instead of passing as an empty region."""
+        plotter = LocusZoomPlotter(species="canine", log_level=None, auto_genes=True)
+        unavailable = Mock(ok=False, status_code=503, text="Service Unavailable")
+
+        with (
+            patch("pylocuszoom.ucsc.get_ucsc_cache_dir", return_value=tmp_path),
+            patch("pylocuszoom._http.time.sleep"),
+            patch("pylocuszoom._http.requests.get", return_value=unavailable),
+            pytest.warns(UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"),
+        ):
+            fig = plotter.plot(
+                sample_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=False,
             )
 
         assert fig is not None

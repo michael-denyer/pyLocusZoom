@@ -44,6 +44,8 @@ _DASH_MAP = {
     ":": "dotted",
     "-.": "dashdot",
 }
+# matplotlib va vocabulary to bokeh text_baseline; "top" and "bottom" pass through.
+_BASELINE_MAP = {"center": "middle", "baseline": "alphabetic"}
 # Namespaces hover columns in a ColumnDataSource so a hover column named "x"
 # or "size" cannot shadow the keys scatter() sets for geometry and styling.
 _HOVER_KEY_PREFIX = "hover_"
@@ -335,23 +337,14 @@ class BokehBackend:
         """Add text annotation to figure."""
         from bokeh.models import Label
 
-        # Map alignment
-        anchor_map = {
-            ("center", "bottom"): ("center", "bottom"),
-            ("center", "top"): ("center", "top"),
-            ("left", "bottom"): ("left", "bottom"),
-            ("right", "bottom"): ("right", "bottom"),
-        }
-        text_align, text_baseline = anchor_map.get((ha, va), ("center", "bottom"))
-
         label = Label(
             x=x,
             y=y,
             text=text,
             text_font_size=f"{fontsize}pt",
             text_color=color,
-            text_align=text_align,
-            text_baseline=text_baseline,
+            text_align=ha,
+            text_baseline=_BASELINE_MAP.get(va, va),
             angle=rotation,
             angle_units="deg",
         )
