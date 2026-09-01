@@ -284,34 +284,3 @@ def validate_genes_df(df: pd.DataFrame) -> None:
         ValidationError: If required columns are missing.
     """
     validate_dataframe(df, ["chr", "start", "end", "gene_name"], "genes_df")
-
-
-def validate_plink_files(bfile_path: Union[str, Path]) -> Path:
-    """Validate that PLINK binary fileset exists.
-
-    Checks for .bed, .bim, and .fam files.
-
-    Args:
-        bfile_path: Path prefix for PLINK files (without extension).
-
-    Returns:
-        Path object if files exist.
-
-    Raises:
-        ValidationError: If any PLINK files are missing.
-    """
-    path = Path(bfile_path)
-    missing = []
-    # Use string concatenation rather than with_suffix() — PLINK prefixes
-    # frequently contain dots (e.g. "ukbb.v3"), which with_suffix would
-    # truncate, causing validation to check the wrong file.
-    for ext in [".bed", ".bim", ".fam"]:
-        if not Path(str(path) + ext).exists():
-            missing.append(ext)
-
-    if missing:
-        raise ValidationError(
-            f"PLINK files missing for {path}: {missing}. "
-            f"Expected: {path}.bed, {path}.bim, {path}.fam"
-        )
-    return path
