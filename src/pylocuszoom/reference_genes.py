@@ -13,6 +13,8 @@ anything else from Ensembl. Both sources return the same columns, including
 ``assembly``, so callers do not branch on which one answered.
 """
 
+from pathlib import Path
+
 import pandas as pd
 
 from .ensembl import get_genes_for_region
@@ -43,7 +45,7 @@ def get_genes_for_build(
     start: int,
     end: int,
     genome_build: str | None = None,
-    cache_dir=None,
+    cache_dir: Path | None = None,
     use_cache: bool = True,
     include_exons: bool = False,
     raise_on_error: bool = False,
@@ -65,6 +67,12 @@ def get_genes_for_build(
     Returns:
         Gene annotations in the requested build, or a (genes_df, exons_df)
         tuple when include_exons. Both carry an ``assembly`` column.
+
+    Raises:
+        ValidationError: If an Ensembl-served build asks for a region over
+            5Mb. UCSC imposes no region limit, so UCSC-served builds don't.
+        ReferenceAPIError: If raise_on_error=True and the serving API fails
+            (EnsemblAPIError or UCSCAPIError, depending on the source).
     """
     ucsc_genome = ucsc_genome_for_build(genome_build)
     if ucsc_genome is not None:

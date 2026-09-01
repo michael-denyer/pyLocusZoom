@@ -280,7 +280,7 @@ class LocusZoomPlotter:
                 genome_build=self.genome_build,
             )
             if genes_df.empty:
-                logger.debug("No genes found in region from Ensembl")
+                logger.debug("No genes found in region")
                 genes_df = None
 
         if genes_df is not None:
