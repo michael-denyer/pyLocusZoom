@@ -92,6 +92,7 @@ from .exceptions import (
     PheWASValidationError,
     PlinkError,
     PyLocusZoomError,
+    ReferenceAPIError,
     UCSCAPIError,
     ValidationError,
 )
@@ -244,6 +245,7 @@ __all__ = [
     "DataDownloadError",
     "EmptyLDOutputError",
     "EnsemblAPIError",
+    "ReferenceAPIError",
     "UCSCAPIError",
     "PlinkError",
     "PheWASValidationError",
