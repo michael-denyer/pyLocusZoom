@@ -525,25 +525,25 @@ class TestPathTraversalProtection:
 
     def test_path_traversal_species_raises_validation_error(self, tmp_path):
         """Species name with '../' should raise ValidationError."""
-        from pylocuszoom.ensembl import _safe_species_dir
+        from pylocuszoom._gene_cache import safe_species_dir
         from pylocuszoom.utils import ValidationError
 
         with pytest.raises(ValidationError, match="Invalid species name"):
-            _safe_species_dir(tmp_path, "../../etc")
+            safe_species_dir(tmp_path, "../../etc")
 
     def test_absolute_path_species_raises_validation_error(self, tmp_path):
         """Absolute path as species should raise ValidationError."""
-        from pylocuszoom.ensembl import _safe_species_dir
+        from pylocuszoom._gene_cache import safe_species_dir
         from pylocuszoom.utils import ValidationError
 
         with pytest.raises(ValidationError, match="Invalid species name"):
-            _safe_species_dir(tmp_path, "/etc/passwd")
+            safe_species_dir(tmp_path, "/etc/passwd")
 
     def test_safe_species_stays_within_cache(self, tmp_path):
         """Normal species name should resolve within cache_dir."""
-        from pylocuszoom.ensembl import _safe_species_dir
+        from pylocuszoom._gene_cache import safe_species_dir
 
-        result = _safe_species_dir(tmp_path, "canis_lupus_familiaris")
+        result = safe_species_dir(tmp_path, "canis_lupus_familiaris")
         assert result.is_relative_to(tmp_path)
 
     def test_get_cached_genes_rejects_traversal(self, tmp_path):
@@ -658,11 +658,12 @@ class TestEmptyResultCaching:
 
     def test_zero_byte_cache_file_is_ignored(self, tmp_path):
         """A cache file poisoned by an older release is treated as a miss."""
-        from pylocuszoom.ensembl import _cache_key, get_cached_genes
+        from pylocuszoom._gene_cache import cache_key
+        from pylocuszoom.ensembl import get_cached_genes
 
         species_dir = tmp_path / "homo_sapiens"
         species_dir.mkdir()
-        key = _cache_key("homo_sapiens", "1", 1_000_000, 1_100_000)
+        key = cache_key("homo_sapiens", "1", 1_000_000, 1_100_000)
         (species_dir / f"genes_{key}.csv").write_text("\n")
 
         assert get_cached_genes(tmp_path, "human", "1", 1_000_000, 1_100_000) is None
@@ -709,13 +710,24 @@ class TestAssemblyMismatch:
         assert assembly_token("hg38") == assembly_token("GRCh38")
         assert assembly_token("CanFam3.1") != assembly_token("ROS_Cfam_1.0")
 
-    def test_cache_key_separates_builds(self):
+    def test_two_builds_do_not_share_a_cache_entry(self, tmp_path):
         """The same region under two builds must not share a cache entry."""
-        from pylocuszoom.ensembl import _cache_key
+        from pylocuszoom.ensembl import get_genes_for_region
 
-        canfam3 = _cache_key("canis_lupus_familiaris", "1", 1, 100, "canfam3.1")
-        canfam4 = _cache_key("canis_lupus_familiaris", "1", 1, 100, "canfam4")
-        assert canfam3 != canfam4
+        with patch(
+            "pylocuszoom.ensembl.requests.get",
+            return_value=self._ok_response(self._dog_payload()),
+        ) as mock_get:
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                get_genes_for_region(
+                    "canine", "1", 1, 100, tmp_path, genome_build="canfam3.1"
+                )
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                get_genes_for_region(
+                    "canine", "1", 1, 100, tmp_path, genome_build="canfam4"
+                )
+
+        assert mock_get.call_count == 2, "each build must fetch its own entry"
 
     def test_gene_record_carries_assembly(self):
         """Every gene row records the assembly Ensembl served it on."""

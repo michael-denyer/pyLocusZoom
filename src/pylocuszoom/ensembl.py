@@ -16,7 +16,6 @@ Note: Recombination rates are NOT available from Ensembl for most species.
 Use species-specific recombination maps instead (see recombination.py).
 """
 
-import hashlib
 import time
 import warnings
 from collections.abc import Callable
@@ -25,37 +24,13 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from ._gene_cache import cache_root, clear_cache, load_genes, save_genes
 from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
-from .utils import _platform_cache_base, assembly_token, normalize_chrom
+from .utils import assembly_token, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
-
-
-def _safe_species_dir(cache_dir: Path, ensembl_species: str) -> Path:
-    """Resolve species subdirectory and validate it stays within cache_dir.
-
-    Prevents path traversal attacks from untrusted species strings
-    (e.g., "../../etc" would escape the cache root).
-
-    Args:
-        cache_dir: Root cache directory.
-        ensembl_species: Ensembl species name (from get_ensembl_species_name).
-
-    Returns:
-        Resolved Path to species subdirectory.
-
-    Raises:
-        ValidationError: If resolved path escapes cache_dir.
-    """
-    species_dir = (cache_dir / ensembl_species).resolve()
-    if not species_dir.is_relative_to(cache_dir.resolve()):
-        raise ValidationError(
-            f"Invalid species name: {ensembl_species!r} "
-            f"(resolved path escapes cache directory)"
-        )
-    return species_dir
 
 
 # Species name aliases -> Ensembl species names
@@ -152,34 +127,10 @@ def get_ensembl_species_name(species: str) -> str:
 def get_ensembl_cache_dir() -> Path:
     """Get the cache directory for Ensembl data.
 
-    Shares the platform cache root with recombination maps
-    (see ``utils._platform_cache_base``) and appends the ``ensembl`` leaf, so
-    ``$XDG_CACHE_HOME`` is honored on macOS and Linux and Databricks routes to
-    ``/dbfs/FileStore/reference_data/ensembl``.
-
     Returns:
         Path to cache directory (created if doesn't exist).
     """
-    cache_dir = _platform_cache_base() / "ensembl"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
-
-
-def _cache_key(
-    species: str,
-    chrom: str,
-    start: int,
-    end: int,
-    genome_build: str | None = None,
-) -> str:
-    """Generate cache key for a region.
-
-    The build is part of the key so two plots of the same region under
-    different builds never share an entry. Including it also orphans every
-    entry written before builds were tracked, whose assembly is unknowable.
-    """
-    key_str = f"{species}_{chrom}_{start}_{end}_{assembly_token(genome_build or '')}"
-    return hashlib.md5(key_str.encode()).hexdigest()[:16]
+    return cache_root("ensembl")
 
 
 def get_cached_genes(
@@ -205,22 +156,15 @@ def get_cached_genes(
         DataFrame if cache hit, None if cache miss.
     """
     ensembl_species = get_ensembl_species_name(species)
-    chrom_str = normalize_chrom(chrom)
-    cache_key = _cache_key(ensembl_species, chrom_str, start, end, genome_build)
-
-    species_dir = _safe_species_dir(cache_dir, ensembl_species)
-    cache_file = species_dir / f"genes_{cache_key}.csv"
-
-    if not cache_file.exists():
-        return None
-
-    try:
-        logger.debug(f"Cache hit: {cache_file}")
-        df = pd.read_csv(cache_file)
-    except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
-        # EmptyDataError subclasses ValueError, not ParserError, so it needs
-        # naming explicitly. Releases before 2.1.1 wrote column-less CSVs.
-        logger.warning(f"Corrupt cache file {cache_file}, ignoring: {e}")
+    df = load_genes(
+        cache_dir,
+        ensembl_species,
+        chrom,
+        start,
+        end,
+        build_token=assembly_token(genome_build or ""),
+    )
+    if df is None:
         return None
 
     if "assembly" in df.columns and not df.empty:
@@ -250,19 +194,15 @@ def save_cached_genes(
         end: Region end position.
         genome_build: Build the caller's data is in; part of the cache key.
     """
-    ensembl_species = get_ensembl_species_name(species)
-    chrom_str = normalize_chrom(chrom)
-    cache_key = _cache_key(ensembl_species, chrom_str, start, end, genome_build)
-
-    species_dir = _safe_species_dir(cache_dir, ensembl_species)
-    species_dir.mkdir(parents=True, exist_ok=True)
-
-    cache_file = species_dir / f"genes_{cache_key}.csv"
-    try:
-        df.to_csv(cache_file, index=False)
-        logger.debug(f"Cached genes to: {cache_file}")
-    except OSError as e:
-        logger.warning(f"Failed to write gene cache {cache_file}: {e}")
+    save_genes(
+        df,
+        cache_dir,
+        get_ensembl_species_name(species),
+        chrom,
+        start,
+        end,
+        build_token=assembly_token(genome_build or ""),
+    )
 
 
 def _make_ensembl_request(
@@ -658,21 +598,7 @@ def clear_ensembl_cache(
     if cache_dir is None:
         cache_dir = get_ensembl_cache_dir()
 
-    deleted = 0
-
-    if species:
-        # Clear only specific species
-        ensembl_species = get_ensembl_species_name(species)
-        species_dir = _safe_species_dir(cache_dir, ensembl_species)
-        if species_dir.exists():
-            for cache_file in species_dir.glob("*.csv"):
-                cache_file.unlink()
-                deleted += 1
-    else:
-        # Clear all species
-        for cache_file in cache_dir.glob("**/*.csv"):
-            cache_file.unlink()
-            deleted += 1
-
+    ensembl_species = get_ensembl_species_name(species) if species else None
+    deleted = clear_cache(cache_dir, ensembl_species)
     logger.info(f"Cleared {deleted} cached Ensembl files from {cache_dir}")
     return deleted
