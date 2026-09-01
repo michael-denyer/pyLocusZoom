@@ -9,6 +9,7 @@ Supports multiple backends:
 - bokeh: Interactive HTML for dashboards
 """
 
+import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
@@ -34,6 +35,7 @@ from ._regional import (
 from .backends import BackendType, get_backend
 from .config import PlotConfig, RegionConfig, StackedPlotConfig
 from .eqtl import validate_eqtl_df
+from .exceptions import ReferenceAPIError
 from .finemapping import prepare_finemapping_for_plotting
 from .ld import find_plink
 from .logging import enable_logging, logger
@@ -272,16 +274,26 @@ class LocusZoomPlotter:
                 region.start,
                 region.end,
             )
-            genes_df = get_genes_for_build(
-                species=self.species,
-                chrom=region.chrom,
-                start=region.start,
-                end=region.end,
-                genome_build=self.genome_build,
-            )
-            if genes_df.empty:
-                logger.debug("No genes found in region")
+            try:
+                genes_df = get_genes_for_build(
+                    species=self.species,
+                    chrom=region.chrom,
+                    start=region.start,
+                    end=region.end,
+                    genome_build=self.genome_build,
+                    raise_on_error=True,
+                )
+            except ReferenceAPIError as e:
+                warnings.warn(
+                    f"Gene track skipped for chr{region.chrom}:{region.start}-"
+                    f"{region.end}; the gene source failed: {e}",
+                    stacklevel=2,
+                )
                 genes_df = None
+            else:
+                if genes_df.empty:
+                    logger.debug("No genes found in region")
+                    genes_df = None
 
         if genes_df is not None:
             validate_genes_df(genes_df)
