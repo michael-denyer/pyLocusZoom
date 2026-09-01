@@ -349,7 +349,6 @@ class LocusZoomPlotter:
                 p_col=columns.p_col,
                 snp_labels=display.snp_labels,
                 label_top_n=display.label_top_n,
-                genes_df=genes_df,
                 recomb_df=recomb_df,
                 add_ld_legend=True,
             )
@@ -652,7 +651,6 @@ class LocusZoomPlotter:
                     p_col=columns.p_col,
                     snp_labels=display.snp_labels,
                     label_top_n=display.label_top_n,
-                    genes_df=genes_df,
                     recomb_df=recomb_df if index == 0 else None,
                     panel_label=(
                         config.panel_labels[index] if config.panel_labels else None

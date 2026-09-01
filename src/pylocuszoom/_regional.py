@@ -53,7 +53,6 @@ class AssociationPanel:
     p_col: Optional[str]
     snp_labels: bool
     label_top_n: int
-    genes_df: Optional[pd.DataFrame]
     recomb_df: Optional[pd.DataFrame]
     panel_label: Optional[str] = None
     add_ld_legend: bool = False
@@ -153,12 +152,10 @@ class RegionalPlotComposer:
                     lead_pos=panel.lead_pos,
                     rs_col=panel.rs_col,
                     p_col=panel.p_col,
-                    chrom=plan.chrom,
                     start=plan.start,
                     end=plan.end,
                     snp_labels=panel.snp_labels,
                     label_top_n=panel.label_top_n,
-                    genes_df=panel.genes_df,
                     recomb_df=panel.recomb_df,
                     panel_label=panel.panel_label,
                     add_ld_legend=panel.add_ld_legend,
@@ -215,12 +212,10 @@ class RegionalPlotComposer:
         lead_pos: Optional[int],
         rs_col: Optional[str],
         p_col: Optional[str],
-        chrom: int | str,
         start: int,
         end: int,
         snp_labels: bool,
         label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
         recomb_df: Optional[pd.DataFrame],
         panel_label: Optional[str] = None,
         add_ld_legend: bool = False,
@@ -259,8 +254,6 @@ class RegionalPlotComposer:
                 neglog10p_col="neglog10p",
                 rs_col=rs_col,
                 label_top_n=label_top_n,
-                genes_df=genes_df,
-                chrom=chrom,
                 adjust=True,
                 lead_pos=lead_pos,
                 region_span=end - start,

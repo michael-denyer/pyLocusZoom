@@ -49,8 +49,6 @@ class SupportsSNPLabels(Protocol):
         neglog10p_col: str,
         rs_col: str,
         label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
         adjust: bool = True,
         lead_pos: Optional[int] = None,
         region_span: Optional[int] = None,

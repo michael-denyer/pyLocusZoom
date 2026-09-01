@@ -257,8 +257,6 @@ class MatplotlibBackend:
         neglog10p_col: str,
         rs_col: str,
         label_top_n: int,
-        genes_df: Optional[pd.DataFrame],
-        chrom: int,
         adjust: bool = True,
         lead_pos: Optional[int] = None,
         region_span: Optional[int] = None,
@@ -272,8 +270,6 @@ class MatplotlibBackend:
             neglog10p_col: Column name for -log10(p-value).
             rs_col: Column name for SNP ID.
             label_top_n: Number of top SNPs to label.
-            genes_df: Gene annotations (unused, for signature compatibility).
-            chrom: Chromosome number (unused, for signature compatibility).
             adjust: If True, run adjustText immediately. If False, caller
                 must call adjust_snp_labels() after setting axis limits.
             lead_pos: Position of the lead SNP. Non-lead SNPs nearby are
@@ -292,8 +288,6 @@ class MatplotlibBackend:
             neglog10p_col=neglog10p_col,
             rs_col=rs_col,
             label_top_n=label_top_n,
-            genes_df=genes_df,
-            chrom=chrom,
             adjust=adjust,
             lead_pos=lead_pos,
             region_span=region_span,

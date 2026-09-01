@@ -5,7 +5,7 @@ Provides automatic labeling of top significant SNPs with:
 - Automatic overlap avoidance (if adjustText installed)
 """
 
-from typing import Any, List, Optional, Union
+from typing import List, Optional
 
 import pandas as pd
 from matplotlib.axes import Axes
@@ -21,14 +21,11 @@ def add_snp_labels(
     neglog10p_col: str = "neglog10p",
     rs_col: str = "rs",
     label_top_n: int = 5,
-    genes_df: Optional[pd.DataFrame] = None,
-    chrom: Optional[Union[int, str]] = None,
     max_label_length: int = 15,
     adjust: bool = True,
     lead_pos: Optional[int] = None,
     region_span: Optional[int] = None,
     min_label_distance: float = 0.05,
-    **kwargs: Any,
 ) -> List[Annotation]:
     """Add text labels to top SNPs in the regional plot.
 
@@ -44,8 +41,6 @@ def add_snp_labels(
         neglog10p_col: Column name for -log10(p-value).
         rs_col: Column name for SNP ID.
         label_top_n: Number of top SNPs to label.
-        genes_df: Unused, kept for backward compatibility.
-        chrom: Unused, kept for backward compatibility.
         max_label_length: Maximum label length before truncation.
         adjust: If True, run adjustText immediately. If False, caller must
             call adjust_snp_labels() after setting axis limits.
@@ -68,8 +63,6 @@ def add_snp_labels(
         >>> # ... plot your data ...
         >>> texts = add_snp_labels(ax, df, label_top_n=5)
     """
-    # genes_df and chrom are unused but kept for backward compatibility
-    del genes_df, chrom, kwargs
     if neglog10p_col not in df.columns:
         raise ValueError(
             f"Column '{neglog10p_col}' not found in DataFrame. "
