@@ -7,14 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-import requests
 
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
 from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     RECOMB_COLOR,
-    _download_with_progress,
-    _normalize_build,
     _publish_map_generation,
     download_canine_recombination_maps,
     download_liftover_chain,
@@ -178,35 +175,6 @@ class TestGetRecombinationRateForRegion:
         assert list(result.columns) == ["pos", "rate"]
 
 
-class TestNormalizeBuild:
-    """Tests for _normalize_build function."""
-
-    def test_none_returns_none(self):
-        """None input returns None."""
-        assert _normalize_build(None) is None
-
-    def test_canfam4_variations(self):
-        """Various CanFam4 names normalize correctly."""
-        assert _normalize_build("canfam4") == "canfam4"
-        assert _normalize_build("CanFam4.0") == "canfam4"
-        assert _normalize_build("UU_Cfam_GSD_1.0") == "canfam4"
-
-    def test_canfam3_variations(self):
-        """Various CanFam3 names normalize correctly."""
-        assert _normalize_build("canfam3") == "canfam3"
-        assert _normalize_build("CanFam3.1") == "canfam3"
-
-    def test_unknown_build_lowercase(self):
-        """Unknown build returns lowercase."""
-        assert _normalize_build("hg38") == "hg38"
-
-    def test_unknown_build_does_not_raise(self):
-        """Unknown build returns lowercase without raising."""
-        result = _normalize_build("FelCat9")
-        assert result == "felcat9"
-        assert isinstance(result, str)
-
-
 class TestDownloadLiftoverChain:
     """Tests for download_liftover_chain function."""
 
@@ -222,7 +190,7 @@ class TestDownloadLiftoverChain:
         result = download_liftover_chain(force=False)
         assert result == chain_file
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_downloads_when_missing(self, mock_download, tmp_path, monkeypatch):
         """Downloads chain file when not present."""
         monkeypatch.setattr(
@@ -239,7 +207,7 @@ class TestDownloadLiftoverChain:
         mock_download.assert_called_once()
         assert result.exists()
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_force_redownload(self, mock_download, tmp_path, monkeypatch):
         """Force=True re-downloads even if file exists."""
         monkeypatch.setattr(
@@ -456,7 +424,7 @@ class TestDownloadCanineRecombinationMaps:
         result = download_canine_recombination_maps(force=False)
         assert result == tmp_path
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_rejects_wrong_39_file_manifest(self, mock_download, tmp_path):
         """A count of 39 files is not proof that the canine set is complete."""
         for i in range(1, 40):
@@ -583,7 +551,7 @@ class TestEnsureRecombMaps:
 
         assert result is None
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_ensure_recomb_maps_warns_and_returns_none_on_corrupt_archive(
         self, mock_download, tmp_path
     ):
@@ -598,66 +566,10 @@ class TestEnsureRecombMaps:
         assert result is None
 
 
-class TestDownloadWithProgress:
-    """A download must never leave a truncated file at the destination."""
-
-    @staticmethod
-    def _streaming_response(chunks):
-        response = MagicMock()
-        response.headers = {"content-length": str(sum(len(c) for c in chunks))}
-        response.iter_content.return_value = iter(chunks)
-        return response
-
-    def test_complete_download_lands_at_dest(self, tmp_path):
-        dest = tmp_path / "file.gz"
-        response = self._streaming_response([b"abcd", b"efgh"])
-
-        with patch("pylocuszoom.recombination.requests.get", return_value=response):
-            _download_with_progress("https://example.invalid/f", dest)
-
-        assert dest.read_bytes() == b"abcdefgh"
-        assert [p.name for p in tmp_path.iterdir()] == ["file.gz"]
-
-    def test_interrupted_download_leaves_nothing_behind(self, tmp_path):
-        dest = tmp_path / "file.gz"
-
-        def chunks():
-            yield b"abcd"
-            raise requests.ConnectionError("connection reset")
-
-        response = self._streaming_response([])
-        response.iter_content.return_value = chunks()
-
-        with (
-            patch("pylocuszoom.recombination.requests.get", return_value=response),
-            pytest.raises(DataDownloadError, match="example.invalid/f") as exc_info,
-        ):
-            _download_with_progress("https://example.invalid/f", dest)
-
-        assert isinstance(exc_info.value.__cause__, requests.ConnectionError)
-        assert not dest.exists()
-        assert list(tmp_path.iterdir()) == []
-
-    def test_http_error_raises_download_error(self, tmp_path):
-        dest = tmp_path / "file.gz"
-        response = self._streaming_response([])
-        original = requests.HTTPError("404 Client Error")
-        response.raise_for_status.side_effect = original
-
-        with (
-            patch("pylocuszoom.recombination.requests.get", return_value=response),
-            pytest.raises(DataDownloadError, match="example.invalid/f") as exc_info,
-        ):
-            _download_with_progress("https://example.invalid/f", dest)
-
-        assert exc_info.value.__cause__ is original
-        assert list(tmp_path.iterdir()) == []
-
-
 class TestDownloadLiftoverChainDownloadError:
     """download_liftover_chain surfaces failures as DataDownloadError."""
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_download_error_propagates(self, mock_download, tmp_path, monkeypatch):
         monkeypatch.setattr(
             "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
@@ -671,7 +583,7 @@ class TestDownloadLiftoverChainDownloadError:
 class TestTarTraversalOSError:
     """Tests for OSError handling in tar path traversal check."""
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_oserror_in_tar_member_path_is_caught(self, mock_download, tmp_path):
         """OSError during Path.resolve() in tar extraction is caught and skipped."""
         # Create a real tar.gz in memory with a normal file
@@ -731,7 +643,7 @@ class TestDownloadCanineRecombHeaderDetection:
             tar.addfile(info, io.BytesIO(data))
 
     def _fake_download(self, filename: str, content: str):
-        """Return a _download_with_progress mock that writes our fake tarball."""
+        """Return a download_file mock that writes our fake tarball."""
 
         def side_effect(url, dest_path, desc=None):
             with tarfile.open(dest_path, "w:gz") as tar:
@@ -749,7 +661,7 @@ class TestDownloadCanineRecombHeaderDetection:
 
         return side_effect
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_raises_on_html_corrupted_body(self, mock_download, tmp_path):
         """An HTML error body masquerading as a map is a download failure."""
         html_content = "<html><body>502 Bad Gateway</body></html>\n"
@@ -758,7 +670,7 @@ class TestDownloadCanineRecombHeaderDetection:
         with pytest.raises(DataDownloadError, match="Unrecognised first token"):
             download_canine_recombination_maps(tmp_path / "out")
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_plot_warns_and_renders_without_overlay_on_corrupt_archive(
         self, mock_download, tmp_path
     ):
@@ -780,7 +692,7 @@ class TestDownloadCanineRecombHeaderDetection:
         assert fig is not None
         assert not (tmp_path / "out").exists()
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_accepts_lowercase_chr_header(self, mock_download, tmp_path):
         """Pre-existing canonical header form must still be accepted."""
         content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
@@ -789,7 +701,7 @@ class TestDownloadCanineRecombHeaderDetection:
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_accepts_capitalised_chromosome_header(self, mock_download, tmp_path):
         """'Chromosome' is used by several mirrors; must pass."""
         content = "Chromosome\tPosition\tRate\tcM\n1\t1000\t0.5\t0.1\n"
@@ -798,7 +710,7 @@ class TestDownloadCanineRecombHeaderDetection:
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_accepts_hash_prefixed_header(self, mock_download, tmp_path):
         """Some maps use '#chr' as a commented header; must pass."""
         content = "#chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
@@ -807,7 +719,7 @@ class TestDownloadCanineRecombHeaderDetection:
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
 
-    @patch("pylocuszoom.recombination._download_with_progress")
+    @patch("pylocuszoom.recombination.download_file")
     def test_accepts_numeric_first_token_prepends_header(self, mock_download, tmp_path):
         """Numeric first token means no header; one is prepended."""
         content = "1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
