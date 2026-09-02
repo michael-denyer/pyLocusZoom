@@ -5,11 +5,11 @@ from typing import Any, List, Optional, Tuple
 import pandas as pd
 
 from ._manhattan_panel import (
-    padded_ymax,
-    render_manhattan_points,
+    chromosome_ticks,
+    manhattan_spec,
+    render_manhattan_panel,
     shared_manhattan_limits,
 )
-from ._plotter_utils import add_significance_line
 from .backends.base import PlotBackend, SupportsRegionHighlight
 from .backends.hover import HoverConfig
 
@@ -47,42 +47,42 @@ class MiamiRenderer:
             sharex=True,
         )
         top_ax, bottom_ax = axes
-        chrom_order = top_df.attrs["chrom_order"]
-        chrom_centers = top_df.attrs["chrom_centers"]
         hover = (
             HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
             if rs_col is not None
             else None
         )
-        for ax, prepared_df, threshold in (
-            (top_ax, top_df, top_threshold),
-            (bottom_ax, bottom_df, bottom_threshold),
-        ):
-            render_manhattan_points(
-                self._backend, ax, prepared_df, chrom_order, hover=hover
-            )
-            add_significance_line(self._backend, ax, threshold)
-
         x_limits = shared_manhattan_limits([top_df, bottom_df])
-        self._backend.set_xlim(top_ax, *x_limits)
-        self._backend.set_xlim(bottom_ax, *x_limits)
-        top_y_max = padded_ymax(top_df["_neg_log_p"].max())
-        bottom_y_max = padded_ymax(bottom_df["_neg_log_p"].max())
-        self._backend.set_ylim(top_ax, 0, top_y_max)
-        self._backend.set_ylim(bottom_ax, bottom_y_max, 0)
-
-        valid_chroms = [c for c in chrom_order if c in chrom_centers]
-        positions = [chrom_centers[c] for c in valid_chroms]
-        labels = [str(c) for c in valid_chroms]
-        for ax in axes:
-            self._backend.set_xticks(ax, positions, labels, fontsize=8)
-        self._backend.set_ylabel(top_ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_ylabel(bottom_ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_xlabel(bottom_ax, "Chromosome", fontsize=12)
-        if top_label:
-            self._backend.add_panel_label(top_ax, top_label, y_frac=0.95)
-        if bottom_label:
-            self._backend.add_panel_label(bottom_ax, bottom_label, y_frac=0.05)
+        ticks = chromosome_ticks(
+            top_df.attrs["chrom_order"], top_df.attrs["chrom_centers"]
+        )
+        render_manhattan_panel(
+            self._backend,
+            top_ax,
+            manhattan_spec(
+                top_df,
+                x_limits=x_limits,
+                ticks=ticks,
+                significance_threshold=top_threshold,
+                panel_label=top_label,
+                hover=hover,
+            ),
+        )
+        render_manhattan_panel(
+            self._backend,
+            bottom_ax,
+            manhattan_spec(
+                bottom_df,
+                x_limits=x_limits,
+                ticks=ticks,
+                significance_threshold=bottom_threshold,
+                x_label="Chromosome",
+                panel_label=bottom_label,
+                panel_label_y_frac=0.05,
+                invert_y=True,
+                hover=hover,
+            ),
+        )
         if top_snp_annotations and rs_col:
             self._add_snp_annotations(top_ax, top_df, rs_col, top_snp_annotations)
         if bottom_snp_annotations and rs_col:

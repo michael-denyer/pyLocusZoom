@@ -196,7 +196,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
 | 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 | 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
-| 3i | render_manhattan_points, shared_manhattan_limits | Per-chromosome scatter loop and axis padding shared by the Manhattan and Miami renderers, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
+| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request and the function that draws it, shared by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
 
 ### LD Colour Bins [3b]
 
