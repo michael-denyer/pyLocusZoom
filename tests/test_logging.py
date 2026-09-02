@@ -1,6 +1,8 @@
 """Tests for logging utilities and exception hierarchy."""
 
 import io
+import subprocess
+import sys
 
 import pandas as pd
 import pytest
@@ -379,3 +381,23 @@ class TestSpecializedExceptionsInUse:
         df = pd.DataFrame({"wrong_col": [1]})
         with pytest.raises(ValidationError):
             validate_forest_df(df)
+
+
+class TestImportSideEffects:
+    """Importing the package must leave the host application's sinks alone."""
+
+    def test_host_sink_survives_import(self):
+        script = (
+            "import io, sys\n"
+            "from loguru import logger\n"
+            "buf = io.StringIO()\n"
+            "logger.add(buf, format='{message}')\n"
+            "import pylocuszoom.logging\n"
+            "logger.info('host sink alive')\n"
+            "sys.stdout.write(buf.getvalue())\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=True
+        )
+
+        assert "host sink alive" in result.stdout

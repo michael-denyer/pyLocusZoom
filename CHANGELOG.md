@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Bokeh Manhattan+QQ figures keep their title.** `set_suptitle` looked only at the layout's first child, which on a `create_figure_grid` layout is a `Row` with no title, so `plot_manhattan_qq(title=...)` and `plot_manhattan_qq_stacked(title=...)` silently dropped the title on bokeh. The backend now walks to the first plot in the layout tree.
 - **`load_gwas` auto-detects GEMMA `.assoc.txt` files.** The `.assoc` PLINK hint matched first, so every GEMMA default filename went through the PLINK loader. That passed by coincidence when the output column names were left at their GEMMA defaults and raised `LoaderValidationError` for `load_gwas("output.assoc.txt", pos_col="pos")`. Format hints are now tried longest first.
+- **Importing pyLocusZoom no longer removes the host application's loguru handlers.** The logging wrapper called `loguru.logger.remove()` with no argument at import, which deletes every handler, not just loguru's default. It now removes only the default stderr handler, so sinks an application configured before `import pylocuszoom` keep receiving messages.
 
 ## [3.0.0] - 2026-09-02
 

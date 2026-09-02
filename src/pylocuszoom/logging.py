@@ -16,6 +16,8 @@ from typing import Optional
 
 from loguru import logger as _loguru_logger
 
+_LOGURU_DEFAULT_HANDLER_ID = 0
+
 
 class _LoguruWrapper:
     """Wrapper around loguru logger with enable/disable support.
@@ -28,8 +30,7 @@ class _LoguruWrapper:
         self._enabled = False
         self._handler_id = None
         self._error_handler_id = None
-        # Remove default handler
-        _loguru_logger.remove()
+        self._remove_handler(_LOGURU_DEFAULT_HANDLER_ID)
 
     def _add_error_handler(self) -> None:
         """Add error-only handler (used when main handler is disabled)."""
