@@ -164,7 +164,6 @@ class PlotlyBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given panel."""
         fig, row, col = ax.fig, ax.row, ax.col
@@ -196,8 +195,8 @@ class PlotlyBackend:
             ),
             customdata=customdata,
             hovertemplate=hovertemplate,
-            name=label or "",
-            showlegend=label is not None,
+            name="",
+            showlegend=False,
         )
 
         fig.add_trace(trace, row=row, col=col)
@@ -213,7 +212,6 @@ class PlotlyBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given panel or secondary axis."""
         dash = _DASH_MAP.get(linestyle, "solid")
@@ -224,8 +222,8 @@ class PlotlyBackend:
             mode="lines",
             line=dict(color=color, width=linewidth, dash=dash),
             opacity=alpha,
-            name=label or "",
-            showlegend=label is not None,
+            name="",
+            showlegend=False,
             xaxis=ax.xref,
             yaxis=ax.yref,
             # A secondary trace is a decoration over the panel's own data, so

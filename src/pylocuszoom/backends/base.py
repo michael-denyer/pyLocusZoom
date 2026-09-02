@@ -216,6 +216,11 @@ class PlotBackend(Protocol):
     Capability Properties:
         supports_hover: Whether backend supports hover tooltips.
 
+    ``zorder`` is advisory. Matplotlib honours it; the interactive backends
+    accept it and draw in call order, because neither library orders glyphs by
+    a depth key. Legend content is composed above the seam and rendered by
+    ``add_legend``, so no drawing primitive takes a label.
+
     Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
     SupportsRegionHighlight, SupportsHeatmap, SupportsBarCharts) are separate
     runtime_checkable protocols, checked with isinstance rather than a boolean
@@ -322,7 +327,6 @@ class PlotBackend(Protocol):
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given axes.
 
@@ -337,7 +341,6 @@ class PlotBackend(Protocol):
             linewidth: Marker edge width.
             zorder: Drawing order.
             hover_data: DataFrame with columns for hover tooltips.
-            label: Legend label.
 
         Returns:
             The scatter plot object.
@@ -354,7 +357,6 @@ class PlotBackend(Protocol):
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given axes.
 
@@ -367,7 +369,6 @@ class PlotBackend(Protocol):
             alpha: Transparency.
             linestyle: Line style ('-', '--', ':', '-.').
             zorder: Drawing order.
-            label: Legend label.
 
         Returns:
             The line plot object.

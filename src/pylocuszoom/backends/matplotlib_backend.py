@@ -110,7 +110,6 @@ class MatplotlibBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given axes.
 
@@ -125,7 +124,6 @@ class MatplotlibBackend:
             edgecolor=edgecolor,
             linewidth=linewidth,
             zorder=zorder,
-            label=label,
         )
 
     def line(
@@ -138,7 +136,6 @@ class MatplotlibBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given axes."""
         (line,) = ax.plot(
@@ -149,7 +146,6 @@ class MatplotlibBackend:
             alpha=alpha,
             linestyle=linestyle,
             zorder=zorder,
-            label=label,
         )
         return line
 

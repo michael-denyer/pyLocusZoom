@@ -207,7 +207,6 @@ class BokehBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given figure."""
         # Prepare data source
@@ -229,18 +228,16 @@ class BokehBackend:
         marker_type = _MARKER_MAP.get(marker, "circle")
 
         # Create scatter using scatter() method (Bokeh 3.4+ preferred API)
-        scatter_kwargs = {
-            "source": source,
-            "marker": marker_type,
-            "size": "size",
-            "fill_color": "color",
-            "line_color": edgecolor,
-            "line_width": linewidth,
-        }
-        if label:
-            scatter_kwargs["legend_label"] = label
-
-        renderer = ax.scatter("x", "y", **scatter_kwargs)
+        renderer = ax.scatter(
+            "x",
+            "y",
+            source=source,
+            marker=marker_type,
+            size="size",
+            fill_color="color",
+            line_color=edgecolor,
+            line_width=linewidth,
+        )
 
         # Add hover tool if we have hover data
         if tooltips:
@@ -263,23 +260,19 @@ class BokehBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given figure or secondary axis."""
         target, y_range_name = _draw_target(ax)
-        line_dash = _DASH_MAP.get(linestyle, "solid")
 
-        line_kwargs = {
-            "line_color": color,
-            "line_width": linewidth,
-            "line_alpha": alpha,
-            "line_dash": line_dash,
-            "y_range_name": y_range_name,
-        }
-        if label:
-            line_kwargs["legend_label"] = label
-
-        return target.line(x.values, y.values, **line_kwargs)
+        return target.line(
+            x.values,
+            y.values,
+            line_color=color,
+            line_width=linewidth,
+            line_alpha=alpha,
+            line_dash=_DASH_MAP.get(linestyle, "solid"),
+            y_range_name=y_range_name,
+        )
 
     def fill_between(
         self,

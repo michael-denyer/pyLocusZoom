@@ -304,7 +304,8 @@ def add_legend(self, ax, entries: list[LegendEntry], loc="upper left", title=Non
 ```
 
 Backends must honour `loc` (matplotlib's vocabulary) and each entry's
-`edgecolor`, falling back to black when it is `None`.
+`edgecolor`, falling back to black when it is `None`. No drawing primitive
+takes a label, so `add_legend` is the only route to legend content.
 
 **2. `add_recombination_overlay` is gone.** The overlay is composed from
 primitives by `composition.render_recombination_overlay()`. A backend that wants
