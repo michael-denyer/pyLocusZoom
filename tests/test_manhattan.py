@@ -176,11 +176,7 @@ class TestPrepareManhattanData:
         assert "2" in centers
 
     def test_frames_share_one_layout(self):
-        """Frames prepared together place a variant at the same x.
-
-        chr2's offset depends on how far chr1 reaches, so two frames with
-        different chr1 extents used to disagree about where chr2 starts.
-        """
+        """Frames prepared together place a variant at the same x."""
         from pylocuszoom.manhattan import prepare_manhattan_frames
 
         first = pd.DataFrame(

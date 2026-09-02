@@ -83,12 +83,7 @@ class TestMiamiPlotter:
         assert bottom_ax is not None
 
     def test_panels_share_chromosome_offsets(self):
-        """Both panels place a chromosome at the same x, whatever their extent.
-
-        The offset of chr2 depends on how far chr1 reaches. When the two
-        studies stop at different points on chr1 the panels must still agree,
-        because they share one x axis and one set of ticks.
-        """
+        """Both panels place a chromosome at the same x, whatever their extent."""
         plotter = MiamiPlotter(species="human")
         top_df = pd.DataFrame(
             {
@@ -119,11 +114,7 @@ class TestMiamiPlotter:
             plotter.plot_miami(top_df, bottom_df)
 
     def test_species_order_drives_chromosome_ticks(self):
-        """The species table orders the axis, not an alphabetic sort.
-
-        The feline table ends X, Y, MT. Sorting the chromosome names instead
-        would put MT first of the three.
-        """
+        """The species table orders the axis, not an alphabetic sort."""
         plotter = MiamiPlotter(species="feline")
         panel_df = pd.DataFrame(
             {

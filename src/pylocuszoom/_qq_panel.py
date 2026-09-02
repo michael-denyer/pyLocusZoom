@@ -1,11 +1,4 @@
-"""One QQ panel: the typed request and the function that draws it.
-
-A standalone QQ plot, the QQ half of a Manhattan+QQ figure, and each QQ panel
-of a stacked one are the same drawing steps at different label sizes and with
-a different title. :class:`QQPanelSpec` names those differences so the three
-call sites in :mod:`._rendering` share one policy instead of passing a growing
-keyword list and a mode flag.
-"""
+"""One QQ panel: the typed request and the function that draws it."""
 
 from dataclasses import dataclass
 from typing import Any, Optional

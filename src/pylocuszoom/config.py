@@ -19,7 +19,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
 
-# A p-value a significance line may be drawn at.
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
 
 

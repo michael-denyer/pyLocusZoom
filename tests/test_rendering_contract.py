@@ -469,13 +469,7 @@ def test_coloc_renderer_owns_panel_policy():
 
 
 def test_manhattan_spec_defaults_match_the_spec():
-    """``manhattan_spec``'s keyword defaults must not drift from the dataclass.
-
-    The helper enumerates the policy fields its three call sites vary so a
-    misspelled keyword is a type error rather than a runtime ``TypeError``.
-    That means restating those defaults, and this is what keeps the two
-    copies honest.
-    """
+    """``manhattan_spec``'s keyword defaults must not drift from the dataclass."""
     spec_defaults = {
         field.name: field.default
         for field in dataclasses.fields(ManhattanPanelSpec)

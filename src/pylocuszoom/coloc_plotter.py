@@ -99,9 +99,6 @@ def _merge_and_transform(
 ) -> _MergedColoc:
     """Transform both p-value columns through the shared intake, then merge.
 
-    Each frame goes through ``prepare_pvalue_data`` before the merge, so both
-    sides get the filtering, clipping and warnings every other family gets.
-
     Args:
         gwas_df: Validated GWAS results.
         eqtl_df: Validated eQTL results.

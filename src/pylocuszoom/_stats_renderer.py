@@ -8,11 +8,31 @@ import pandas as pd
 from .backends.base import PlotBackend, SupportsBarCharts
 from .colors import get_phewas_category_palette
 
-# The group a null category joins, and the group every point joins when the
-# frame has no category column. The colour applies only to the second case,
-# where a palette index would be arbitrary.
 UNCATEGORISED = "Uncategorised"
 UNCATEGORISED_COLOR = "#4169E1"
+
+
+def _phewas_groups(
+    df: pd.DataFrame, category_col: str, p_col: str
+) -> Tuple[pd.DataFrame, dict[str, str]]:
+    """Assign every PheWAS row a drawing group and give each group a colour.
+
+    Args:
+        df: Validated PheWAS results.
+        category_col: Column naming each phenotype's category, absent from the
+            frame when the caller supplied none.
+        p_col: Column name for p-value.
+
+    Returns:
+        A sorted copy carrying ``_group``, and one hex colour per group.
+    """
+    if category_col in df.columns:
+        df = df.sort_values([category_col, p_col]).copy()
+        df["_group"] = df[category_col].fillna(UNCATEGORISED)
+        return df, get_phewas_category_palette(df["_group"].unique().tolist())
+    df = df.sort_values(p_col).copy()
+    df["_group"] = UNCATEGORISED
+    return df, {UNCATEGORISED: UNCATEGORISED_COLOR}
 
 
 def _effect_subsets(
@@ -51,14 +71,7 @@ class StatsRenderer:
         significance_threshold: Optional[float],
         figsize: Tuple[float, float],
     ) -> Any:
-        if category_col in df.columns:
-            df = df.sort_values([category_col, p_col]).copy()
-            df["_group"] = df[category_col].fillna(UNCATEGORISED)
-            palette = get_phewas_category_palette(df["_group"].unique().tolist())
-        else:
-            df = df.sort_values(p_col).copy()
-            df["_group"] = UNCATEGORISED
-            palette = {UNCATEGORISED: UNCATEGORISED_COLOR}
+        df, palette = _phewas_groups(df, category_col, p_col)
         df["y_pos"] = range(len(df))
         fig, axes = self._backend.create_figure(
             n_panels=1, height_ratios=[1.0], figsize=figsize

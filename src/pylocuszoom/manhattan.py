@@ -9,10 +9,8 @@ import pandas as pd
 
 from ._data import prepare_pvalue_data
 
-# Blank x space between one chromosome's last base and the next one's first.
 CHROMOSOME_GAP = 1_000_000
 
-# What the p-value intake raises when a Manhattan-style frame has no plottable row.
 ALL_PVALUES_INVALID = (
     "All rows have invalid p-values in column '{p_col}' "
     "(NaN, negative, or > 1). Cannot create plot."
@@ -231,7 +229,6 @@ class CategoryLayout:
         return [float(index) for index in range(len(self.order))]
 
 
-# A Manhattan-style panel's x-axis layout, genomic or categorical.
 PanelLayout = Union[GenomeLayout, CategoryLayout]
 
 
