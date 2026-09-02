@@ -260,7 +260,8 @@ fig = plotter.plot_stacked(
 
 ## eQTL Overlay
 
-Add expression QTL data as a separate panel:
+Add expression QTL data as a separate panel. `plot()` takes the same
+`eqtl_*` and `finemapping_*` arguments for a single GWAS:
 
 ```python
 from pylocuszoom import LocusZoomPlotter

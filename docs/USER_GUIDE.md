@@ -848,6 +848,10 @@ fig = plotter.plot(
     genes_df=None,              # Gene annotations
     exons_df=None,              # Exon annotations
     recomb_df=None,             # Custom recombination data
+    eqtl_df=None,               # eQTL data
+    eqtl_gene=None,             # Filter eQTL to gene
+    finemapping_df=None,        # Fine-mapping results
+    finemapping_cs_col="cs",    # Credible set column
 )
 ```
 
@@ -872,6 +876,11 @@ fig = plotter.plot(
 | `genes_df` | DataFrame | None | Gene annotations for track. |
 | `exons_df` | DataFrame | None | Exon annotations for gene structure. |
 | `recomb_df` | DataFrame | None | Custom recombination rate data. |
+| `eqtl_df` | DataFrame | None | eQTL data for additional panel. |
+| `eqtl_gene` | str | None | Filter eQTL to specific gene; requires a `gene` column. |
+| `eqtl_threshold` | float | `1e-5` | eQTL significance line. |
+| `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
+| `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
 | `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel when supplied. |
 | `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. |
 | `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
@@ -881,7 +890,7 @@ fig = plotter.plot(
 
 ### plot_stacked() Method
 
-Create stacked plots for comparing multiple GWAS or adding eQTL/fine-mapping panels.
+Create stacked plots comparing multiple GWAS. The optional eQTL, fine-mapping, gene-track and LD-heatmap panels are the same ones `plot()` accepts.
 
 ```python
 fig = plotter.plot_stacked(
@@ -894,6 +903,7 @@ fig = plotter.plot_stacked(
     ld_reference_file=None,     # Single PLINK fileset (broadcast to all panels)
     ld_reference_files=None,    # Per-panel PLINK filesets
     ld_col=None,                # Pre-computed LD column
+    auto_genes=None,            # Override the constructor's auto_genes
     show_recombination=True,    # Show recomb overlay
     snp_labels=True,            # Label top SNPs
     label_top_n=3,              # SNPs to label per panel
@@ -924,6 +934,7 @@ fig = plotter.plot_stacked(
 | `ld_reference_file` | str | None | Single PLINK fileset (broadcast to all panels with lead_positions). |
 | `ld_reference_files` | list | None | Per-panel PLINK filesets. |
 | `ld_col` | str | None | Pre-computed LD column name. |
+| `auto_genes` | bool | None | Fetch the gene track when `genes_df` is not supplied; `None` inherits the constructor setting. |
 | `show_recombination` | bool | True | Whether to show recombination overlay. |
 | `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
 | `label_top_n` | int | 3 | Number of top SNPs to label per panel. |
@@ -934,7 +945,7 @@ fig = plotter.plot_stacked(
 | `genes_df` | DataFrame | None | Gene annotations for track. |
 | `exons_df` | DataFrame | None | Exon annotations. |
 | `eqtl_df` | DataFrame | None | eQTL data for additional panel. |
-| `eqtl_gene` | str | None | Filter eQTL to specific gene. |
+| `eqtl_gene` | str | None | Filter eQTL to specific gene; requires a `gene` column. |
 | `eqtl_threshold` | float | `1e-5` | eQTL significance line. |
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |

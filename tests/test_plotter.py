@@ -237,6 +237,35 @@ class TestAutoGenes:
 
         assert fig is not None
 
+    def test_plot_stacked_auto_genes_overrides_constructor(self, sample_gwas_df):
+        """plot_stacked(auto_genes=True) fetches genes on a plotter built without it."""
+        mock_genes = pd.DataFrame(
+            {
+                "chr": ["1"],
+                "start": [1200000],
+                "end": [1400000],
+                "gene_name": ["GENE1"],
+                "strand": ["+"],
+            }
+        )
+        plotter = LocusZoomPlotter(species="human", log_level=None)
+
+        with patch(
+            "pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes
+        ) as mock_fetch:
+            fig = plotter.plot_stacked(
+                [sample_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=False,
+                auto_genes=True,
+            )
+
+        mock_fetch.assert_called_once()
+        assert len(fig.get_axes()) == 2
+        plt.close(fig)
+
     def test_plot_auto_genes_disabled_by_default(self, sample_gwas_df):
         """Test that auto_genes=False by default (backward compatible)."""
         plotter = LocusZoomPlotter(species="canine", log_level=None)
@@ -1120,6 +1149,29 @@ class TestBackendEQTLFinemapping:
         )
 
         assert fig is not None
+        plt.close(fig)
+
+    def test_plot_accepts_eqtl_and_finemapping_panels(
+        self, sample_gwas_df, sample_eqtl_df, sample_finemapping_df
+    ):
+        """plot() carries the same optional panels as plot_stacked()."""
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE1",
+            finemapping_df=sample_finemapping_df,
+        )
+
+        axes = fig.get_axes()
+        assert len(axes) == 3
+        assert axes[1].get_ylabel() == "PIP"
+        assert "eQTL" in axes[2].get_ylabel()
         plt.close(fig)
 
     def test_plotly_eqtl_with_effects(self, sample_gwas_df, sample_eqtl_df):
