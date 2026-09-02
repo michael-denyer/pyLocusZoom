@@ -1,6 +1,5 @@
 """Tests for QQ plot functionality."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -227,7 +226,6 @@ class TestQQWithVariousPvalueDistributions:
         ax = fig.axes[0]
         title = ax.get_title()
         assert "λ" in title
-        plt.close(fig)
 
     def test_qq_extreme_pvalues(self, default_manhattan_plotter):
         """QQ plot with very small p-values should not produce inf."""
@@ -239,7 +237,6 @@ class TestQQWithVariousPvalueDistributions:
 
         fig = default_manhattan_plotter.plot_qq(df, p_col="p")
         assert fig is not None
-        plt.close(fig)
 
 
 class TestEmptyQQInput:

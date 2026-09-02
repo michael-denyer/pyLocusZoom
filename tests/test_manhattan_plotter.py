@@ -1,6 +1,5 @@
 """Tests for ManhattanPlotter class."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -83,12 +82,11 @@ class TestManhattanPlotterBackends:
         assert fig is not None
 
 
-class TestCategoricalManhattanIntegerCategories:
+class TestCategoricalManhattanRendersIntegerCategories:
     """Test categorical Manhattan with integer category columns."""
 
     def test_integer_categories_render_all_points(self):
         """Categorical Manhattan should render all points, not silently drop by type mismatch."""
-        import matplotlib.pyplot as plt
 
         df = pd.DataFrame(
             {
@@ -103,7 +101,6 @@ class TestCategoricalManhattanIntegerCategories:
         ax = fig.axes[0]
         total_points = sum(len(coll.get_offsets()) for coll in ax.collections)
         assert total_points == 5, f"Expected 5 points rendered, got {total_points}"
-        plt.close(fig)
 
 
 class TestConstructorThresholdIsTheDefault:
@@ -199,7 +196,6 @@ class TestManhattanSingleChromosome:
         ax = fig.axes[0]
         tick_labels = [t.get_text() for t in ax.get_xticklabels()]
         assert "1" in tick_labels
-        plt.close(fig)
 
 
 class TestManhattanStackedValidation:

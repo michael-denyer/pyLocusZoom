@@ -273,10 +273,7 @@ class TestGeneTrackProperties:
         end = int(genes_df["end"].max())
 
         fig, ax = plt.subplots()
-        try:
-            _draw(MatplotlibBackend(), ax, genes_df, chrom, start, end)
-        finally:
-            plt.close(fig)
+        _draw(MatplotlibBackend(), ax, genes_df, chrom, start, end)
 
 
 class TestStrandNaNHandling:
@@ -303,12 +300,9 @@ class TestStrandNaNHandling:
             }
         )
         fig, ax = plt.subplots()
-        try:
-            from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
-            _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
-        finally:
-            plt.close(fig)
+        _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
 
     def test_invalid_strand_string_treated_as_missing(self):
         """A garbage strand value (not '+' or '-') is treated like NaN."""
@@ -322,9 +316,6 @@ class TestStrandNaNHandling:
             }
         )
         fig, ax = plt.subplots()
-        try:
-            from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
-            _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
-        finally:
-            plt.close(fig)
+        _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)

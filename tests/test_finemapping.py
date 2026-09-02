@@ -175,10 +175,7 @@ class TestDrawFinemapping:
         """
         backend = MatplotlibBackend()
         fig, ax = plt.subplots()
-        try:
-            yield backend, ax
-        finally:
-            plt.close(fig)
+        yield backend, ax
 
     def test_pip_line_carries_the_input_values(self, rendering_axes):
         """PIP values are rendered as a single line on the axes."""

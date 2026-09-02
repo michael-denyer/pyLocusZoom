@@ -1,5 +1,7 @@
 """Tests for backend registration and fallback."""
 
+import sys
+
 import pytest
 
 from pylocuszoom.backends import BUILTIN_BACKENDS
@@ -9,23 +11,23 @@ from pylocuszoom.colors import LD_HEATMAP_COLORS
 class TestRegisterBackend:
     """Tests for the @register_backend decorator."""
 
-    def test_register_backend_adds_to_registry(self):
-        """@register_backend decorator adds class to _BACKENDS dict."""
-        from pylocuszoom.backends import _BACKENDS, register_backend
+    def test_registered_backend_resolves_through_get_backend(self, monkeypatch):
+        """A name registered by the decorator is resolvable by that name."""
+        from pylocuszoom.backends import _BACKENDS, get_backend, register_backend
+
+        monkeypatch.delitem(_BACKENDS, "test_dummy", raising=False)
 
         @register_backend("test_dummy")
         class DummyBackend:
             pass
 
-        assert "test_dummy" in _BACKENDS
-        assert _BACKENDS["test_dummy"] is DummyBackend
+        assert isinstance(get_backend("test_dummy"), DummyBackend)
 
-        # Clean up
-        del _BACKENDS["test_dummy"]
-
-    def test_register_backend_returns_class_unchanged(self):
+    def test_register_backend_returns_class_unchanged(self, monkeypatch):
         """Decorator returns the class unchanged."""
         from pylocuszoom.backends import _BACKENDS, register_backend
+
+        monkeypatch.delitem(_BACKENDS, "test_unchanged", raising=False)
 
         @register_backend("test_unchanged")
         class OriginalBackend:
@@ -33,9 +35,6 @@ class TestRegisterBackend:
                 return "original"
 
         assert OriginalBackend().method() == "original"
-
-        # Clean up
-        del _BACKENDS["test_unchanged"]
 
 
 class TestGetBackend:
@@ -104,31 +103,35 @@ class TestBackendImportErrors:
         backend = get_backend("bokeh")
         assert backend is not None
 
-    def test_error_messages_contain_install_instructions(self):
-        """Verify ImportError messages contain install instructions."""
-        import inspect
+    @pytest.mark.parametrize("name", ["plotly", "bokeh"])
+    def test_missing_optional_backend_names_its_install_command(
+        self, monkeypatch, name
+    ):
+        """An uninstalled optional backend raises ImportError naming the pip command."""
+        from pylocuszoom import backends
 
+        for cached in [m for m in sys.modules if m.split(".")[0] == name]:
+            monkeypatch.delitem(sys.modules, cached)
+        monkeypatch.setitem(sys.modules, name, None)
+        monkeypatch.delitem(
+            sys.modules, f"pylocuszoom.backends.{name}_backend", raising=False
+        )
+        monkeypatch.delitem(backends._BACKENDS, name, raising=False)
+
+        with pytest.raises(ImportError, match=f"pip install {name}"):
+            backends.get_backend(name)
+
+    def test_repeated_calls_return_fresh_instances_of_one_class(self):
+        """Each call builds a new backend, both from the same registered class."""
         from pylocuszoom.backends import get_backend
-
-        source = inspect.getsource(get_backend)
-        assert "pip install plotly" in source
-        assert "pip install bokeh" in source
-
-    def test_registry_persists_across_calls(self):
-        """Registry persists across multiple get_backend calls."""
-        from pylocuszoom.backends import _BACKENDS, get_backend
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
-        # First call registers matplotlib
-        backend1 = get_backend("matplotlib")
-        assert isinstance(backend1, MatplotlibBackend)
-        assert "matplotlib" in _BACKENDS
+        first = get_backend("matplotlib")
+        second = get_backend("matplotlib")
 
-        # Second call uses same registry
-        backend2 = get_backend("matplotlib")
-        assert isinstance(backend2, MatplotlibBackend)
-        # Both are instances of the registered class
-        assert _BACKENDS["matplotlib"] is MatplotlibBackend
+        assert isinstance(first, MatplotlibBackend)
+        assert isinstance(second, MatplotlibBackend)
+        assert first is not second
 
 
 class TestBackendCapabilities:
@@ -175,65 +178,30 @@ class TestBackendCapabilities:
 
 
 class TestBackendRegistration:
-    """Tests for backend decorator registration integration."""
+    """Every built-in backend reaches the registry through its decorator."""
 
-    def test_matplotlib_registered_on_import(self):
-        """MatplotlibBackend is registered when module is imported."""
-        from pylocuszoom.backends import _BACKENDS
-
-        # Import triggers registration
+    @staticmethod
+    def _builtin_classes():
+        from pylocuszoom.backends.bokeh_backend import BokehBackend
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        assert "matplotlib" in _BACKENDS
-        assert _BACKENDS["matplotlib"] is MatplotlibBackend
-
-    def test_plotly_registered_on_import(self):
-        """PlotlyBackend is registered when module is imported."""
-        from pylocuszoom.backends import _BACKENDS
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
-        assert "plotly" in _BACKENDS
-        assert _BACKENDS["plotly"] is PlotlyBackend
+        return {
+            "matplotlib": MatplotlibBackend,
+            "plotly": PlotlyBackend,
+            "bokeh": BokehBackend,
+        }
 
-    def test_bokeh_registered_on_import(self):
-        """BokehBackend is registered when module is imported."""
-        from pylocuszoom.backends import _BACKENDS
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
+    @pytest.mark.parametrize("name", BUILTIN_BACKENDS)
+    def test_builtin_name_resolves_to_its_backend_class(self, name):
+        """Importing a backend module makes its name resolvable to that class."""
+        from pylocuszoom.backends import get_backend
 
-        assert "bokeh" in _BACKENDS
-        assert _BACKENDS["bokeh"] is BokehBackend
+        assert isinstance(get_backend(name), self._builtin_classes()[name])
 
-    def test_decorator_on_all_backends(self):
-        """All backend classes use @register_backend decorator."""
-        import inspect
-
-        # Check matplotlib (always available)
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        # Read the module source file to verify decorator is present
-        source_file = inspect.getsourcefile(MatplotlibBackend)
-        with open(source_file) as f:
-            source = f.read()
-        assert "@register_backend" in source
-        assert '@register_backend("matplotlib")' in source
-
-        # Check plotly if available
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
-
-        source_file = inspect.getsourcefile(PlotlyBackend)
-        with open(source_file) as f:
-            source = f.read()
-        assert "@register_backend" in source
-        assert '@register_backend("plotly")' in source
-
-        # Check bokeh if available
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
-
-        source_file = inspect.getsourcefile(BokehBackend)
-        with open(source_file) as f:
-            source = f.read()
-        assert "@register_backend" in source
-        assert '@register_backend("bokeh")' in source
+    def test_builtin_backends_covers_every_registered_name(self):
+        """BUILTIN_BACKENDS names exactly the backends that ship with the package."""
+        assert set(BUILTIN_BACKENDS) == set(self._builtin_classes())
 
 
 class TestSetXticks:
@@ -378,20 +346,6 @@ class TestLazyAttributeAccess:
         ]
         for name in expected:
             assert name in __all__
-
-
-class TestBackendTypeLiteral:
-    """Tests for BackendType type literal."""
-
-    def test_backend_type_values(self):
-        """BackendType should be a valid Literal type."""
-        from pylocuszoom.backends import get_backend
-
-        # These should all work without type errors at runtime
-        for backend_name in BUILTIN_BACKENDS:
-            # Type checkers would verify BackendType compatibility
-            backend = get_backend(backend_name)
-            assert backend is not None
 
 
 class TestHeatmapMethods:
@@ -555,18 +509,12 @@ class TestHeatmapMethods:
         # Should be added to right layout
         assert cbar in axes[0].right
 
-    def test_all_backends_have_heatmap_methods(self):
-        """All backends should have add_heatmap and add_colorbar methods."""
-        from pylocuszoom.backends import get_backend
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_every_backend_supports_heatmaps(self, backend_name):
+        """Every backend satisfies the SupportsHeatmap protocol."""
+        from pylocuszoom.backends import SupportsHeatmap, get_backend
 
-        for backend_name in BUILTIN_BACKENDS:
-            backend = get_backend(backend_name)
-            assert hasattr(backend, "add_heatmap"), (
-                f"{backend_name} missing add_heatmap"
-            )
-            assert hasattr(backend, "add_colorbar"), (
-                f"{backend_name} missing add_colorbar"
-            )
+        assert isinstance(get_backend(backend_name), SupportsHeatmap)
 
     def test_matplotlib_custom_colors(self, ld_matrix_array):
         """Matplotlib add_heatmap should accept custom color gradient."""

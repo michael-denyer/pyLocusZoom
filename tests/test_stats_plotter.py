@@ -1,6 +1,5 @@
 """Tests for StatsPlotter class."""
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 from matplotlib.colors import to_hex
@@ -40,13 +39,11 @@ class TestStatsPlotter:
         """Test that plot_phewas returns a figure object."""
         fig = stats_plotter.plot_phewas(phewas_data, variant_id="rs12345")
         assert fig is not None
-        plt.close(fig)
 
     def test_plot_forest_returns_figure(self, stats_plotter, forest_data):
         """Test that plot_forest returns a figure object."""
         fig = stats_plotter.plot_forest(forest_data, variant_id="rs12345")
         assert fig is not None
-        plt.close(fig)
 
 
 class TestStatsPlotterBackends:
@@ -68,7 +65,6 @@ class TestStatsPlotterBackends:
         plotter = StatsPlotter(backend="matplotlib")
         fig = plotter.plot_phewas(phewas_data, variant_id="rs12345")
         assert fig is not None
-        plt.close(fig)
 
 
 class TestPheWASEdgeCases:
@@ -91,7 +87,6 @@ class TestPheWASEdgeCases:
             category_col="nonexistent",  # Column doesn't exist
         )
         assert fig is not None
-        plt.close(fig)
 
     def test_phewas_with_effect_column_positive(self, stats_plotter):
         """PheWAS plot with positive effects should show upward triangles."""
@@ -105,7 +100,6 @@ class TestPheWASEdgeCases:
         )
         fig = stats_plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
         assert fig is not None
-        plt.close(fig)
 
     def test_phewas_with_effect_column_negative(self, stats_plotter):
         """PheWAS plot with negative effects should show downward triangles."""
@@ -119,7 +113,6 @@ class TestPheWASEdgeCases:
         )
         fig = stats_plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
         assert fig is not None
-        plt.close(fig)
 
     def test_phewas_with_mixed_effects(self, stats_plotter):
         """PheWAS plot with mixed effects should show both markers."""
@@ -133,7 +126,6 @@ class TestPheWASEdgeCases:
         )
         fig = stats_plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
         assert fig is not None
-        plt.close(fig)
 
     def test_phewas_with_multiple_categories(self, stats_plotter):
         """PheWAS plot with multiple categories should color correctly."""
@@ -146,7 +138,6 @@ class TestPheWASEdgeCases:
         )
         fig = stats_plotter.plot_phewas(df, variant_id="rs12345")
         assert fig is not None
-        plt.close(fig)
 
     def test_phewas_with_nan_category(self, stats_plotter):
         """A null category is its own group and takes the next palette colour."""
@@ -168,7 +159,6 @@ class TestPheWASEdgeCases:
             (get_phewas_category_color(0).lower(), 2),
             (get_phewas_category_color(1).lower(), 1),
         ]
-        plt.close(fig)
 
 
 class TestForestPlotEdgeCases:
@@ -187,7 +177,6 @@ class TestForestPlotEdgeCases:
         )
         fig = stats_plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
         assert fig is not None
-        plt.close(fig)
 
     def test_forest_with_equal_weights(self, stats_plotter):
         """Forest plot with equal weights should have uniform marker sizes."""
@@ -202,7 +191,6 @@ class TestForestPlotEdgeCases:
         )
         fig = stats_plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
         assert fig is not None
-        plt.close(fig)
 
     def test_forest_with_odds_ratio(self, stats_plotter):
         """Forest plot with odds ratio should use null_value=1.0."""
@@ -221,7 +209,6 @@ class TestForestPlotEdgeCases:
             effect_label="Odds Ratio",
         )
         assert fig is not None
-        plt.close(fig)
 
     def test_forest_with_custom_figsize(self, stats_plotter):
         """Forest plot should accept custom figure size."""
@@ -235,7 +222,6 @@ class TestForestPlotEdgeCases:
         )
         fig = stats_plotter.plot_forest(df, variant_id="rs12345", figsize=(12, 10))
         assert fig is not None
-        plt.close(fig)
 
 
 class TestStatsPlotterInit:
@@ -415,4 +401,3 @@ class TestPheWASManyCategories:
             len(collection.get_offsets()) for collection in ax.collections
         )
         assert total_points == 15
-        plt.close(fig)

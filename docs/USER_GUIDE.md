@@ -26,7 +26,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [Matplotlib (Static)](#matplotlib-static)
   - [Plotly (Interactive)](#plotly-interactive)
   - [Bokeh (Dashboard)](#bokeh-dashboard)
-- [API Reference](#api-reference)
+- [Plotter Reference](#plotter-reference)
   - [LocusZoomPlotter](#locuszoomplotter)
   - [plot() Method](#plot-method)
   - [plot_stacked() Method](#plot_stacked-method)
@@ -766,7 +766,11 @@ save(fig)
 
 ---
 
-## API Reference
+## Plotter Reference
+
+This guide is curated. It covers the plotter classes and the parameters most
+people reach for, not every public name. For the complete public surface see
+the Public API Surface table in [CODEMAP.md](CODEMAP.md).
 
 ### Specialized Plotter Classes
 

@@ -43,7 +43,7 @@ in `pyproject.toml`).
 6. Verify the setup:
 
    ```bash
-   uv run python -m pytest tests/ -n 3
+   uv run python -m pytest tests/
    ```
 
 ## Build Commands
@@ -54,10 +54,10 @@ The common development commands are:
 | Command | Description |
 |---------|-------------|
 | `uv sync --all-extras` | Install all dependencies (runtime + `dev` + `spark` + `all` extras) into `.venv/`. |
-| `uv run python -m pytest tests/ -n 3` | Run the full test suite in parallel across 3 workers (matches CI). |
-| `uv run python -m pytest tests/ -n 3 --no-cov` | Fast iteration: skip coverage reporting. |
-| `uv run python -m pytest tests/test_plotter.py -v` | Run a single test file. |
-| `uv run python -m pytest tests/ -m "not integration"` | Skip integration tests (default in CI and `pyproject.toml` addopts). |
+| `uv run python -m pytest tests/` | Run the full test suite. Parallelism, the timeout, coverage and marker selection come from `addopts`. |
+| `uv run python -m pytest tests/ --no-cov` | Fast iteration: skip coverage reporting. |
+| `uv run python -m pytest tests/test_plotter.py` | Run a single test file. |
+| `uv run python -m pytest tests/ -m integration` | Run only the integration tests, which `addopts` deselects by default. |
 | `uv tool run ruff check src/ tests/` | Run ruff lint checks (no fixes). |
 | `uv tool run ruff format src/ tests/` | Apply ruff formatting. |
 | `uv tool run ruff format --check src/ tests/` | Verify formatting without changes (matches CI check). |
@@ -119,7 +119,7 @@ For a concrete example, see `prepare_manhattan_data` in
 | `yamllint` 1.37.0 | YAML linting (`.yamllint.yaml`) |
 | `no-planning-files` | Blocks accidental commits of `.planning/` |
 | `no-gitignored-files` | Blocks staging of gitignored files |
-| `pytest-cov` | Runs `uv run python -m pytest -n 3` on every Python change |
+| `pytest-cov` | Runs `uv run python -m pytest` on every Python change |
 
 ## Branch Conventions
 
@@ -139,7 +139,7 @@ For a concrete example, see `prepare_manhattan_data` in
 3. Before opening the PR, run the pre-commit checklist locally:
 
    ```bash
-   uv run python -m pytest tests/ -n 3
+   uv run python -m pytest tests/
    uv tool run ruff check src/ tests/
    uv tool run ruff format --check src/ tests/
    ```
@@ -159,7 +159,7 @@ For a concrete example, see `prepare_manhattan_data` in
    - `lint` — `ruff check` and `ruff format --check` (Python 3.11, pinned ruff 0.15.2).
    - `docs-lint` — markdownlint, mermaid (maid + mmdc), yamllint, lychee link check.
    - `test` — pytest matrix across Python 3.10, 3.11, and 3.12; runs
-     `uv run pytest -v -m "not integration"`.
+     `uv run pytest`, which takes every flag from `addopts`.
    - `build` — `uv build` produces wheel and sdist artifacts.
 8. There is no `.github/PULL_REQUEST_TEMPLATE.md` at time of writing — write a concise
    description covering *what* changed and *why*, and reference any related GitHub

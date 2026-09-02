@@ -37,21 +37,71 @@ def _figure_types() -> dict[str, type]:
 FIGURE_TYPES = _figure_types()
 
 
-@pytest.fixture
-def sample_gwas_df():
-    """Sample GWAS results DataFrame for testing."""
-    rng = np.random.default_rng(42)
-    n_snps = 100
-    positions = np.sort(rng.integers(1000000, 2000000, n_snps))
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures():
+    """Close every pyplot figure a test leaves open.
 
-    return pd.DataFrame(
-        {
-            "rs": [f"rs{i}" for i in range(n_snps)],
-            "chr": [1] * n_snps,
-            "ps": positions,
-            "p_wald": rng.uniform(1e-10, 1, n_snps),
-        }
-    )
+    Plotters build figures through ``plt.subplots``, which pyplot retains until
+    something closes them. Without this the suite warns past 20 open figures and
+    each xdist worker holds every figure it ever drew.
+    """
+    yield
+
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+
+
+@pytest.fixture
+def plink_assoc_file(tmp_path):
+    """Three-SNP PLINK .assoc file on disk."""
+    content = """CHR SNP BP A1 TEST NMISS BETA STAT P
+1 rs123 1000000 A ADD 1000 0.5 2.5 0.01
+1 rs456 1001000 G ADD 1000 0.3 1.5 0.1
+1 rs789 1002000 T ADD 1000 -0.2 -1.0 1e-8
+"""
+    filepath = tmp_path / "test.assoc"
+    filepath.write_text(content)
+    return filepath
+
+
+@pytest.fixture
+def regenie_file(tmp_path):
+    """Three-SNP REGENIE file on disk, p-values as LOG10P."""
+    content = """CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ N TEST BETA SE CHISQ LOG10P EXTRA
+1 1000000 rs123 A G 0.3 1000 ADD 0.5 0.2 6.25 2.0 NA
+1 1001000 rs456 C T 0.2 1000 ADD 0.3 0.15 4.0 1.5 NA
+1 1002000 rs789 G A 0.4 1000 ADD -0.2 0.1 4.0 8.0 NA
+"""
+    filepath = tmp_path / "test.regenie"
+    filepath.write_text(content)
+    return filepath
+
+
+@pytest.fixture
+def susie_file(tmp_path):
+    """Four-variant SuSiE results file on disk, two credible sets."""
+    content = """pos\tpip\tcs\tsnp
+1000000\t0.85\t1\trs123
+1001000\t0.12\t1\trs456
+1002000\t0.02\t0\trs789
+1003000\t0.45\t2\trs101
+"""
+    filepath = tmp_path / "susie.tsv"
+    filepath.write_text(content)
+    return filepath
+
+
+@pytest.fixture
+def bed_file(tmp_path):
+    """Three-gene BED file on disk."""
+    content = """chr1\t1000000\t1020000\tGENE1
+chr1\t1050000\t1080000\tGENE2
+chr1\t1100000\t1150000\tGENE3
+"""
+    filepath = tmp_path / "genes.bed"
+    filepath.write_text(content)
+    return filepath
 
 
 @pytest.fixture
@@ -64,19 +114,6 @@ def sample_genes_df():
             "start": [1100000, 1400000, 1700000],
             "end": [1150000, 1500000, 1800000],
             "strand": ["+", "-", "+"],
-        }
-    )
-
-
-@pytest.fixture
-def sample_exons_df():
-    """Sample exon annotations DataFrame for testing."""
-    return pd.DataFrame(
-        {
-            "gene_name": ["GENE_A", "GENE_A", "GENE_B", "GENE_B", "GENE_C"],
-            "chr": [1, 1, 1, 1, 1],
-            "start": [1100000, 1120000, 1400000, 1450000, 1700000],
-            "end": [1110000, 1130000, 1420000, 1470000, 1750000],
         }
     )
 

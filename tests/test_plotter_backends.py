@@ -1,6 +1,5 @@
 """Tests for regional plots rendered through each backend."""
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 from hypothesis import given
@@ -70,29 +69,26 @@ class TestBackendIntegration:
             end=2000000,
             show_recombination=False,
         )
-        try:
-            ax = fig.axes[0]
+        ax = fig.axes[0]
 
-            # At least one scatter collection (association points)
-            assert len(ax.collections) >= 1, (
-                "expected at least one scatter collection on association axes"
-            )
+        # At least one scatter collection (association points)
+        assert len(ax.collections) >= 1, (
+            "expected at least one scatter collection on association axes"
+        )
 
-            # At least one line (the significance threshold)
-            lines = ax.get_lines()
-            assert len(lines) >= 1, "expected a significance threshold line"
+        # At least one line (the significance threshold)
+        lines = ax.get_lines()
+        assert len(lines) >= 1, "expected a significance threshold line"
 
-            # Y-axis labelled with -log10(p)
-            ylabel = ax.get_ylabel()
-            assert "log" in ylabel.lower() or "-log" in ylabel.lower(), (
-                f"expected -log10(p) y-label, got {ylabel!r}"
-            )
+        # Y-axis labelled with -log10(p)
+        ylabel = ax.get_ylabel()
+        assert "log" in ylabel.lower() or "-log" in ylabel.lower(), (
+            f"expected -log10(p) y-label, got {ylabel!r}"
+        )
 
-            # X-limits cover the requested region
-            xlim = ax.get_xlim()
-            assert xlim[0] <= 1_000_000 and xlim[1] >= 2_000_000
-        finally:
-            plt.close(fig)
+        # X-limits cover the requested region
+        xlim = ax.get_xlim()
+        assert xlim[0] <= 1_000_000 and xlim[1] >= 2_000_000
 
     def test_plot_stacked_renders_two_panels(self, tiny_regional_gwas_df):
         """plot_stacked() with two GWAS inputs produces two association panels."""
@@ -105,15 +101,12 @@ class TestBackendIntegration:
             end=2000000,
             show_recombination=False,
         )
-        try:
-            # Each GWAS gets its own association axes; gene track axes
-            # may also be present but at minimum we need two scatter axes.
-            scatter_axes = [ax for ax in fig.axes if ax.collections]
-            assert len(scatter_axes) >= 2, (
-                f"expected >=2 axes with scatter data, got {len(scatter_axes)}"
-            )
-        finally:
-            plt.close(fig)
+        # Each GWAS gets its own association axes; gene track axes
+        # may also be present but at minimum we need two scatter axes.
+        scatter_axes = [ax for ax in fig.axes if ax.collections]
+        assert len(scatter_axes) >= 2, (
+            f"expected >=2 axes with scatter data, got {len(scatter_axes)}"
+        )
 
 
 class TestBackendEQTLFinemapping:
@@ -169,8 +162,6 @@ class TestBackendEQTLFinemapping:
         )
 
         assert fig is not None
-        if backend == "matplotlib":
-            plt.close(fig)
 
     def test_plot_accepts_eqtl_and_finemapping_panels(
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
@@ -193,7 +184,6 @@ class TestBackendEQTLFinemapping:
         assert len(axes) == 3
         assert axes[1].get_ylabel() == "PIP"
         assert "eQTL" in axes[2].get_ylabel()
-        plt.close(fig)
 
     def test_eqtl_chr_filtering(self, small_regional_gwas_df):
         """Test that eQTL panel filters by chromosome, not just position."""
@@ -222,7 +212,6 @@ class TestBackendEQTLFinemapping:
         )
 
         assert fig is not None
-        plt.close(fig)
 
     def test_eqtl_gene_without_gene_column_raises(self, small_regional_gwas_df):
         """eqtl_gene on a frame with no gene column is an error, not a warning.
@@ -273,7 +262,6 @@ class TestBackendEQTLFinemapping:
         eqtl_ax = fig.get_axes()[1]
         drawn = sum(len(c.get_offsets()) for c in eqtl_ax.collections)
         assert drawn == 2
-        plt.close(fig)
 
 
 class TestPlotterProperties:
@@ -295,5 +283,3 @@ class TestPlotterProperties:
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend])
-        if backend == "matplotlib":
-            plt.close(fig)

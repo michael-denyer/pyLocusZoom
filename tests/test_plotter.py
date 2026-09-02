@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+from matplotlib.figure import Figure
 
 from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom._regional_panels import AssociationPanel
@@ -133,7 +134,6 @@ class TestAutoGenes:
             and abs(rect.get_height() - INTRON_HEIGHT) < 1e-9
         ]
         assert introns, "no intron line drawn, so the gene track has no exons"
-        plt.close(fig)
 
     def test_plot_auto_genes_warns_when_source_fails(
         self, small_regional_gwas_df, tmp_path
@@ -188,7 +188,6 @@ class TestAutoGenes:
 
         mock_fetch.assert_called_once()
         assert len(fig.get_axes()) == 2
-        plt.close(fig)
 
     def test_plot_auto_genes_disabled_by_default(self, small_regional_gwas_df):
         """Test that auto_genes=False by default (backward compatible)."""
@@ -237,7 +236,6 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
         )
         assert isinstance(fig, plt.Figure)
-        plt.close(fig)
 
     def test_plots_with_gene_track(
         self, canine_plotter, regional_gwas_df, sample_genes_df
@@ -252,7 +250,6 @@ class TestLocusZoomPlotterPlot:
         )
         # Should have 2 axes (association + gene track)
         assert len(fig.axes) >= 2
-        plt.close(fig)
 
     def test_highlights_lead_snp(self, canine_plotter, regional_gwas_df):
         """Should highlight lead SNP when lead_pos provided."""
@@ -264,7 +261,7 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             lead_pos=lead_pos,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
         # Test passes if no exception
 
     def test_handles_empty_dataframe(self, canine_plotter):
@@ -298,7 +295,7 @@ class TestLocusZoomPlotterPlot:
             p_col="pvalue",
             rs_col="snp_id",
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_with_precomputed_ld(self, canine_plotter, regional_gwas_df):
         """Should use pre-computed LD column when provided."""
@@ -312,24 +309,20 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             ld_col="R2",
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
-    def test_with_recombination_data(self, canine_plotter, regional_gwas_df):
+    def test_with_recombination_data(
+        self, canine_plotter, regional_gwas_df, sample_recomb_df
+    ):
         """Should plot with recombination overlay when provided."""
-        recomb_df = pd.DataFrame(
-            {
-                "pos": [1000000, 1200000, 1400000, 1600000, 1800000, 2000000],
-                "rate": [0.5, 1.2, 2.5, 1.8, 0.8, 0.3],
-            }
-        )
         fig = canine_plotter.plot(
             regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
-            recomb_df=recomb_df,
+            recomb_df=sample_recomb_df,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_disables_snp_labels(self, canine_plotter, regional_gwas_df):
         """Should not add labels when snp_labels=False."""
@@ -340,7 +333,7 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             snp_labels=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_disables_recombination(self, canine_plotter, regional_gwas_df):
         """Should not show recombination when show_recombination=False."""
@@ -351,7 +344,7 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             show_recombination=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
 
 class TestPlotEdgeCases:
@@ -388,7 +381,6 @@ class TestPlotEdgeCases:
 
         assert fig.get_axes()[0].get_legend() is None
         assert any("rs" in message for message in warning_records)
-        plt.close(fig)
 
 
 class TestPlotStackedEdgeCases:
@@ -499,13 +491,10 @@ class TestPlotterDelegation:
                 finemapping_df=fm_df,
             )
 
-        try:
-            pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
-            assert len(pip_axes) == 1, "fine-mapping data should add one PIP panel"
-            plotted = pip_axes[0].collections[0].get_offsets().tolist()
-            assert plotted == [[1000.0, 0.5], [2000.0, 0.3]]
-        finally:
-            plt.close(fig)
+        pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
+        assert len(pip_axes) == 1, "fine-mapping data should add one PIP panel"
+        plotted = pip_axes[0].collections[0].get_offsets().tolist()
+        assert plotted == [[1000.0, 0.5], [2000.0, 0.3]]
 
 
 def test_plotter_uses_ensure_recomb_maps():
@@ -713,7 +702,6 @@ class TestNaNPvalues:
             show_recombination=False,
         )
         assert fig is not None
-        plt.close(fig)
 
     def test_plot_with_all_nan_pvalues_succeeds(self, regional_plotter):
         """Regional plot with all NaN p-values should render empty.
@@ -737,7 +725,6 @@ class TestNaNPvalues:
             show_recombination=False,
         )
         assert fig is not None
-        plt.close(fig)
 
 
 class TestStackedPlotMismatchedLengths:
@@ -834,7 +821,6 @@ class TestFinemappingManyCredibleSets:
         )
 
         assert fig is not None
-        plt.close(fig)
 
     def test_credible_set_color_cycling(self):
         """Verify get_credible_set_color cycles correctly for cs > 10."""

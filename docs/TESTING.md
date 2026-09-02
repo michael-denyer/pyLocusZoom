@@ -15,7 +15,7 @@ pyLocusZoom uses **pytest** (`>=7.0.0`) along with several plugins configured in
 | `pytest-timeout` | `>=2.0.0` | Per-test timeout of 30s (catches hung tests and accidental network calls) |
 | `hypothesis` | `>=6.0.0` | Property-based testing |
 
-The suite asserts on plotter and renderer call sequences, not on serialised backend output, so a change to a backend or a renderer must also pass `scripts/example_diff.sh`. It regenerates `examples/`, normalises plotly UUIDs and bokeh element ids, and prints `NO REAL DIFFS` or one `REAL DIFF:` line per export whose content changed. Matplotlib PNGs are deterministic, so any PNG diff is a real rendering change.
+`tests/test_rendering_contract.py` drives the plotters through a `RecordingBackend` and asserts on the call sequence it records, because no backend can serialise a figure the same way twice. Every other test asserts on observable output. A change to a backend or a renderer must also pass `scripts/example_diff.sh`. It regenerates `examples/`, normalises plotly UUIDs and bokeh element ids, and prints `NO REAL DIFFS` or one `REAL DIFF:` line per export whose content changed. Matplotlib PNGs are deterministic, so any PNG diff is a real rendering change.
 
 Shared fixtures and Hypothesis profiles (`ci`, `dev`, `debug`) are defined in `tests/conftest.py`. The active Hypothesis profile is controlled by the `HYPOTHESIS_PROFILE` environment variable and defaults to `dev` (20 examples). CI sets `HYPOTHESIS_PROFILE=ci` (100 examples), which costs under a second on the full suite.
 
@@ -38,9 +38,9 @@ so none of those flags belong on a command line or in a CI step.
 | Command | What It Runs |
 |---------|--------------|
 | `uv run python -m pytest tests/` | Full default suite (parallel, with coverage, integration tests skipped) |
-| `uv run python -m pytest tests/ -n 3 --no-cov` | Fast iteration without coverage overhead |
+| `uv run python -m pytest tests/ --no-cov` | Fast iteration without coverage overhead |
 | `uv run python -m pytest tests/test_plotter.py` | Single test file |
-| `uv run python -m pytest tests/test_plotter.py::TestPlotEdgeCases -v` | Single test class |
+| `uv run python -m pytest tests/test_plotter.py::TestPlotEdgeCases` | Single test class |
 | `uv run python -m pytest tests/test_plotter.py::TestPlotEdgeCases::test_name` | Single test function |
 | `uv run python -m pytest -m integration` | Only integration tests (e.g. `tests/test_ensembl_integration.py`, which hits the live Ensembl API) |
 | `uv run python -m pytest -p no:randomly` | Disable randomization to reproduce a specific order |
@@ -72,6 +72,12 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 - `tests/test_recombination.py` — recombination map loading and CanFam4 liftover
 - `tests/test_ucsc.py` — the UCSC gene client and the build-to-source routing (HTTP mocked)
 - `tests/test_fixture_hygiene.py` — fails if one fixture name gains a second schema
+- `tests/test_docs_contract.py` — fails if a documented pytest command repeats an `addopts` flag, or if `__all__` outgrows the CODEMAP table
+- `tests/test_coerce.py`, `tests/test_plotly_layout.py` — the pure helpers the interactive backends share
+- `tests/test_ld_plotting.py` — the policy deciding whether a plot reaches for PLINK
+- `tests/test_loaders.py` — loader dispatch, format detection and file-path validation
+- `tests/test_loaders_gwas.py`, `tests/test_loaders_eqtl.py`, `tests/test_loaders_finemapping.py`, `tests/test_loaders_annotation.py` — one file per loader family
+- `tests/test_schemas.py` — the load-time contract, one class per family
 - `tests/test_gene_track.py`, `tests/test_labels.py`, `tests/test_colors.py`, etc.
 
 Do not name a file after a batch of bugs. A maintainer editing `bokeh_backend.py`
@@ -83,7 +89,10 @@ Test classes use `TestThing` and test functions use `test_behavior_when_conditio
 
 Prefer the shared fixtures in `tests/conftest.py` over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.
 
-One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`ps`/`p_wald` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chrom`/`pos`/`p` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow.
+One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`ps`/`p_wald` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chrom`/`pos`/`p` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow. It reads the column names of every `pd.DataFrame({...})` literal in the fixture body, so a fixture that assembles several frames and returns a list is covered too.
+
+An autouse fixture closes every pyplot figure after each test, so a test that
+builds a figure does not need to close it.
 
 `warning_records` collects `pylocuszoom` warnings. loguru does not feed pytest's `caplog`, so a test that takes `caplog` and asserts on it will pass no matter what the code logs.
 
@@ -119,7 +128,7 @@ Steps:
 2. Install `uv` via `astral-sh/setup-uv`.
 3. `uv python install ${{ matrix.python-version }}`.
 4. `uv sync --extra dev --extra all` to install dev and PySpark dependencies.
-5. `uv run pytest -v -m "not integration"` to run the suite (integration tests are skipped in CI because they hit the live Ensembl API).
+5. `uv run pytest` to run the suite. Every flag comes from `addopts`, including the marker expression that deselects the integration tests, which hit the live Ensembl API.
 
 Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), and package building (`uv build`). A test failure, lint failure, or doc-lint failure will block the PR.
 

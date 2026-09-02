@@ -1,11 +1,11 @@
 """Contract tests for the shared plot-data intake policy."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
+from matplotlib.figure import Figure
 
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
@@ -122,7 +122,7 @@ class TestPValueValidation:
             end=2000000,
             show_recombination=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_plot_stacked_handles_all_nan_pvalues(self, speciesless_plotter):
         """plot_stacked should handle region with all NaN p-values.
@@ -149,7 +149,7 @@ class TestPValueValidation:
             end=2000000,
             show_recombination=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_plot_handles_out_of_range_pvalues(self, speciesless_plotter):
         """Plot should handle p-values outside [0, 1] range."""
@@ -170,7 +170,7 @@ class TestPValueValidation:
             end=2000000,
             show_recombination=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_prepare_pvalue_data_filters_invalid_range(self, speciesless_plotter):
         """prepare_pvalue_data filters out-of-range p-values (< 0 or > 1)."""
@@ -322,7 +322,7 @@ class TestPValueValidation:
             end=2000000,
             show_recombination=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
     def test_plot_stacked_all_invalid_pvalues(self, speciesless_plotter):
         """plot_stacked should handle region with all out-of-range p-values."""
@@ -342,7 +342,7 @@ class TestPValueValidation:
             end=2000000,
             show_recombination=False,
         )
-        plt.close(fig)
+        assert isinstance(fig, Figure)
 
 
 class TestPvalueTransformation:
@@ -392,4 +392,3 @@ class TestPlotStackedProperties:
         )
 
         assert fig is not None
-        plt.close(fig)

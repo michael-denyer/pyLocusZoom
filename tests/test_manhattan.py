@@ -1,6 +1,5 @@
 """Tests for Manhattan plot functionality."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -361,7 +360,6 @@ class TestManhattanProperties:
         fig = plotter.plot_manhattan(df, chrom_col="chr", pos_col="ps", p_col="p_wald")
 
         assert fig is not None
-        plt.close(fig)
 
     @hyp_settings(max_examples=10, deadline=None)
     @given(gwas_dataframes_multichrom(min_snps_per_chrom=10, max_snps_per_chrom=30))
@@ -374,7 +372,6 @@ class TestManhattanProperties:
         )
 
         assert fig is not None
-        plt.close(fig)
 
 
 class TestInvalidPValueFiltering:
@@ -484,7 +481,7 @@ class TestInvalidPValueFiltering:
             prepare_categorical_data(df, category_col="category")
 
 
-class TestCategoricalManhattanIntegerCategories:
+class TestPrepareCategoricalDataIntegerCategories:
     """Tests that categorical Manhattan works with non-string categories."""
 
     def test_integer_categories_produce_points(self):

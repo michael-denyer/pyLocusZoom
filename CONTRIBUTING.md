@@ -18,7 +18,7 @@ git clone https://github.com/michael-denyer/pyLocusZoom.git
 cd pyLocusZoom
 uv sync
 uv tool install prek && prek install   # Rust pre-commit, ~10x faster than pre-commit
-uv run python -m pytest tests/ -n 3
+uv run python -m pytest tests/
 ```
 
 The hook install step is required — without it, you will only discover lint,
@@ -42,9 +42,11 @@ Python 3.10, 3.11, and 3.12 are all supported and tested in CI.
   ```
   If the format check fails, run `uv tool run ruff format src/ tests/` to fix.
 - **Tests:** `pytest` with `pytest-xdist` for parallelism, `pytest-randomly`
-  for order-independence, and `pytest-timeout` for hang detection. Run:
+  for order-independence, and `pytest-timeout` for hang detection. Parallelism,
+  the timeout, coverage and marker selection come from `addopts` in
+  `pyproject.toml`, so the command carries no flags. Run:
   ```bash
-  uv run python -m pytest tests/ -n 3
+  uv run python -m pytest tests/
   ```
 - **Docstrings:** Google-style for all public functions and classes.
 - **Mermaid diagrams:** validated in CI with both `@probelabs/maid` (syntax)
