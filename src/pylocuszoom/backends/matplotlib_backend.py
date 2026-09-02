@@ -692,24 +692,21 @@ class MatplotlibBackend:
         cmap_colors: Optional[List[str]] = None,
         vmin: float = 0.0,
         vmax: float = 1.0,
-        mask_upper: bool = True,
     ) -> Any:
-        """Render heatmap with optional triangular masking.
+        """Render a heatmap of an already-shaped matrix.
 
         Args:
             ax: Matplotlib axes.
-            data: 2D numpy array of values (NaN for missing).
+            data: 2D array of values, masked or NaN where missing.
             x_coords: X coordinates for cells.
             y_coords: Y coordinates for cells.
             cmap_colors: Color gradient endpoints [start, end].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
-            mask_upper: If True, mask upper triangle.
 
         Returns:
             AxesImage object for colorbar attachment.
         """
-        import numpy as np
         from matplotlib.colors import LinearSegmentedColormap
 
         # Default white-to-red gradient
@@ -717,12 +714,6 @@ class MatplotlibBackend:
             cmap_colors = ["#FFFFFF", "#FF0000"]
 
         cmap = LinearSegmentedColormap.from_list("ld_heatmap", cmap_colors, N=256)
-
-        # Mask upper triangle if requested
-        plot_data = data.copy()
-        if mask_upper:
-            mask = np.triu(np.ones_like(data, dtype=bool), k=1)
-            plot_data = np.ma.array(data, mask=mask)
 
         # Compute extent from coordinates if non-trivial (genomic coordinates)
         # This allows heatmap to align with regional plot x-axis
@@ -738,7 +729,7 @@ class MatplotlibBackend:
 
         # Use imshow for heatmap rendering
         im = ax.imshow(
-            plot_data,
+            data,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,

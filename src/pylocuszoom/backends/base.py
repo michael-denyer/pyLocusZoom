@@ -119,24 +119,23 @@ class SupportsHeatmap(Protocol):
         cmap_colors: Optional[List[str]] = None,
         vmin: float = 0.0,
         vmax: float = 1.0,
-        mask_upper: bool = True,
     ) -> Any:
-        """Render a heatmap with optional triangular masking.
+        """Render a heatmap of an already-shaped matrix.
 
-        Used for LD heatmap visualization where data is a symmetric matrix
-        and typically only the lower triangle is displayed. The colour scale
-        is left off; ``add_colorbar`` turns it on.
+        Used for LD heatmap visualization. Masking the upper triangle is the
+        caller's job via ``composition.lower_triangle``, so a backend draws
+        whatever it is handed. The colour scale is left off; ``add_colorbar``
+        turns it on.
 
         Args:
             ax: Axes or panel to plot on.
-            data: 2D numpy array of values (use NaN for missing data).
+            data: 2D array of values, masked or NaN where missing.
             x_coords: X coordinates for cell positions.
             y_coords: Y coordinates for cell positions.
             cmap_colors: Color gradient endpoints [start_color, end_color].
                 Defaults to white-to-red ["#FFFFFF", "#FF0000"].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
-            mask_upper: If True, mask upper triangle for lower-triangular display.
 
         Returns:
             Heatmap object (mappable for colorbar attachment).

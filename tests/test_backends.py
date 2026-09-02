@@ -424,22 +424,19 @@ class TestHeatmapMethods:
         # Should have a colormap
         assert hasattr(mappable, "get_cmap")
 
-    def test_matplotlib_add_heatmap_mask_upper(self, sample_ld_matrix):
-        """Matplotlib add_heatmap with mask_upper should produce masked array."""
+    def test_matplotlib_add_heatmap_lower_triangle(self, sample_ld_matrix):
+        """Matplotlib add_heatmap should accept a lower-triangle matrix."""
+        from pylocuszoom.backends.composition import lower_triangle
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            lower_triangle(sample_ld_matrix),
             x_coords=list(range(5)),
             y_coords=list(range(5)),
-            mask_upper=True,
         )
-        # Image data should be masked array when mask_upper=True
-
-        # The underlying data should be masked
         assert mappable is not None
 
     def test_matplotlib_add_colorbar(self, sample_ld_matrix):
@@ -576,22 +573,21 @@ class TestHeatmapMethods:
         )
         assert mappable is not None
 
-    def test_heatmap_mask_upper_lower_triangle(self, sample_ld_matrix):
-        """Test that mask_upper=True renders only lower triangle."""
+    def test_heatmap_lower_triangle_masks_upper(self, sample_ld_matrix):
+        """A lower_triangle matrix should reach matplotlib still masked."""
         import numpy as np
 
+        from pylocuszoom.backends.composition import lower_triangle
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
 
-        # With mask_upper=True
         mappable = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            lower_triangle(sample_ld_matrix),
             x_coords=list(range(5)),
             y_coords=list(range(5)),
-            mask_upper=True,
         )
 
         # Get the array data - should be masked

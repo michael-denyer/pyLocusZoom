@@ -251,7 +251,7 @@ class TestAddColorbarNoIdentityMap:
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
-        mapper = backend.add_heatmap(ax, data, [0, 1], [0, 1], mask_upper=False)
+        mapper = backend.add_heatmap(ax, data, [0, 1], [0, 1])
         colorbar = backend.add_colorbar(ax, mapper, label="R²", orientation="vertical")
 
         assert colorbar.orientation == "vertical"
@@ -265,7 +265,7 @@ class TestAddColorbarNoIdentityMap:
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
-        mapper = backend.add_heatmap(ax, data, [0, 1], [0, 1], mask_upper=False)
+        mapper = backend.add_heatmap(ax, data, [0, 1], [0, 1])
         colorbar = backend.add_colorbar(
             ax, mapper, label="R²", orientation="horizontal"
         )

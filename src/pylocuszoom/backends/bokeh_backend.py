@@ -31,6 +31,14 @@ from bokeh.plotting import figure
 from matplotlib.colors import LinearSegmentedColormap, to_hex
 
 from . import convert_latex_to_unicode, register_backend
+from ._coerce import (
+    broadcast,
+    marker_colors,
+    marker_diameter,
+    per_point,
+    pixels,
+    split_pixels,
+)
 from .composition import LegendEntry, heatmap_highlight_cells
 from .hover import bokeh_tooltips
 
@@ -101,13 +109,8 @@ class BokehBackend:
         Returns:
             Tuple of (layout, list of figure objects).
         """
-        # Convert inches to pixels
-        width_px = int(figsize[0] * 100)
-        total_height = int(figsize[1] * 100)
-
-        # Calculate individual heights
-        total_ratio = sum(height_ratios)
-        heights = [int(total_height * r / total_ratio) for r in height_ratios]
+        width_px, total_height = pixels(figsize)
+        heights = split_pixels(total_height, height_ratios, len(height_ratios))
 
         figures = []
         x_range = DataRange1d() if sharex else None
@@ -156,22 +159,9 @@ class BokehBackend:
         Returns:
             Tuple of (layout, flattened list of figure objects).
         """
-        width_px = int(figsize[0] * 100)
-        height_px = int(figsize[1] * 100)
-
-        # Calculate widths
-        if width_ratios is not None:
-            total_w = sum(width_ratios)
-            widths = [int(width_px * w / total_w) for w in width_ratios]
-        else:
-            widths = [width_px // n_cols] * n_cols
-
-        # Calculate heights
-        if height_ratios is not None:
-            total_h = sum(height_ratios)
-            heights = [int(height_px * h / total_h) for h in height_ratios]
-        else:
-            heights = [height_px // n_rows] * n_rows
+        width_px, height_px = pixels(figsize)
+        widths = split_pixels(width_px, width_ratios, n_cols)
+        heights = split_pixels(height_px, height_ratios, n_rows)
 
         figures = []
         rows = []
@@ -221,18 +211,8 @@ class BokehBackend:
         # Prepare data source
         data = {"x": x.values, "y": y.values}
 
-        # Handle colors
-        if isinstance(colors, str):
-            data["color"] = [colors] * len(x)
-        else:
-            data["color"] = list(colors) if hasattr(colors, "tolist") else colors
-
-        # Handle sizes (convert from area to diameter)
-        if isinstance(sizes, (int, float)):
-            bokeh_size = max(6, sizes**0.5)
-            data["size"] = [bokeh_size] * len(x)
-        else:
-            data["size"] = [max(6, s**0.5) for s in sizes]
+        data["color"] = per_point(marker_colors(colors), len(x))
+        data["size"] = per_point(marker_diameter(sizes), len(x))
 
         # Add hover data with namespaced keys to avoid collisions
         # with internal keys (x, y, color, size)
@@ -311,8 +291,8 @@ class BokehBackend:
         x_arr = x.values
         return ax.varea(
             x=x_arr,
-            y1=_broadcast(y1, len(x_arr)),
-            y2=_broadcast(y2, len(x_arr)),
+            y1=broadcast(y1, len(x_arr)),
+            y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
         )
@@ -545,8 +525,8 @@ class BokehBackend:
         x_arr = x.values
         return ax.varea(
             x=x_arr,
-            y1=_broadcast(y1, len(x_arr)),
-            y2=_broadcast(y2, len(x_arr)),
+            y1=broadcast(y1, len(x_arr)),
+            y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
             y_range_name=yaxis_name,
@@ -877,19 +857,17 @@ class BokehBackend:
         cmap_colors: Optional[List[str]] = None,
         vmin: float = 0.0,
         vmax: float = 1.0,
-        mask_upper: bool = True,
     ) -> Any:
-        """Render heatmap with optional triangular masking.
+        """Render a heatmap of an already-shaped matrix.
 
         Args:
             ax: Bokeh figure.
-            data: 2D numpy array of values (NaN for missing).
+            data: 2D array of values, masked or NaN where missing.
             x_coords: X coordinates for cells.
             y_coords: Y coordinates for cells.
             cmap_colors: Color gradient endpoints [start, end].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
-            mask_upper: If True, mask upper triangle.
 
         Returns:
             LinearColorMapper for colorbar attachment.
@@ -908,18 +886,14 @@ class BokehBackend:
             nan_color="#808080",  # Grey for missing
         )
 
-        # Build rect data (lower triangle only when mask_upper=True)
-        xs, ys, values = [], [], []
+        # A masked cell is one the caller shaped out, so no rect is emitted for
+        # it. An unmasked NaN is missing data and still draws, in nan_color.
+        masked = np.ma.getmaskarray(np.ma.asarray(data))
         n = data.shape[0]
-        for i in range(n):
-            for j in range(n):
-                # Lower triangle including diagonal
-                if mask_upper and j > i:
-                    continue
-                val = data[i, j]
-                xs.append(x_coords[j])
-                ys.append(y_coords[i])
-                values.append(val if not np.isnan(val) else float("nan"))
+        cells = [(i, j) for i in range(n) for j in range(n) if not masked[i, j]]
+        xs = [x_coords[j] for _, j in cells]
+        ys = [y_coords[i] for i, _ in cells]
+        values = [float(data[i, j]) for i, j in cells]
 
         # Compute per-cell widths and heights based on actual coordinate spacing.
         # Uses midpoints between adjacent coordinates for cell boundaries.
@@ -944,14 +918,8 @@ class BokehBackend:
         x_sizes = _cell_sizes(x_coords)
         y_sizes = _cell_sizes(y_coords)
 
-        # Build per-cell width/height arrays matching the flattened xs/ys
-        widths, heights = [], []
-        for i in range(n):
-            for j in range(n):
-                if mask_upper and j > i:
-                    continue
-                widths.append(x_sizes[j])
-                heights.append(y_sizes[i])
+        widths = [x_sizes[j] for _, j in cells]
+        heights = [y_sizes[i] for i, _ in cells]
 
         source = ColumnDataSource(
             {"x": xs, "y": ys, "value": values, "w": widths, "h": heights}
@@ -995,18 +963,6 @@ class BokehBackend:
         )
         ax.add_layout(color_bar, "right")
         return color_bar
-
-
-def _broadcast(value: Union[float, pd.Series, List[Any]], n: int) -> Any:
-    """Repeat a scalar varea bound across ``n`` items, or pass a sequence through.
-
-    A pandas Series is handed over as its ndarray rather than a list. Bokeh
-    packs an ndarray into the document as base64 and a list as plain JSON, so
-    materializing it would inflate every exported HTML carrying a filled band.
-    """
-    if isinstance(value, (int, float)):
-        return [value] * n
-    return value.values if hasattr(value, "values") else list(value)
 
 
 def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:

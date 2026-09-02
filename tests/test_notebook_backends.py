@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend
+from pylocuszoom.backends.composition import lower_triangle
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
 
@@ -1012,7 +1013,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+        backend.add_heatmap(ax, data, x_coords, y_coords)
 
         fig_obj = ax[0]
         heatmap_trace = [t for t in fig_obj.data if hasattr(t, "z")][0]
@@ -1035,7 +1036,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+        backend.add_heatmap(ax, data, x_coords, y_coords)
 
         # Get the rect glyph data source
         renderers = ax.renderers
@@ -1045,8 +1046,8 @@ class TestHeatmapCoordinates:
         assert xs == [1_000_000.0, 2_000_000.0], f"Expected genomic x-coords, got {xs}"
         assert ys == [1_000_000.0, 2_000_000.0], f"Expected genomic y-coords, got {ys}"
 
-    def test_bokeh_heatmap_mask_upper_uses_actual_coords(self):
-        """Bokeh heatmap with mask_upper=True should still use actual coords."""
+    def test_bokeh_heatmap_lower_triangle_uses_actual_coords(self):
+        """Bokeh heatmap of a lower-triangle matrix should still use actual coords."""
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
@@ -1057,13 +1058,13 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=True)
+        backend.add_heatmap(ax, lower_triangle(data), x_coords, y_coords)
 
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
         xs = list(rect_renderer.data_source.data["x"])
         ys = list(rect_renderer.data_source.data["y"])
-        # mask_upper=True: only lower triangle (j <= i), so 3 cells for 2x2
+        # Lower triangle (j <= i) is 3 cells for a 2x2 matrix.
         assert len(xs) == 3
         assert all(x >= 1_000_000 for x in xs), f"Expected genomic x-coords, got {xs}"
         assert all(y >= 1_000_000 for y in ys), f"Expected genomic y-coords, got {ys}"
@@ -1080,7 +1081,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+        backend.add_heatmap(ax, data, x_coords, y_coords)
 
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
@@ -1112,7 +1113,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0, 4_000_000.0]  # gap doubles
         y_coords = [1_000_000.0, 2_000_000.0, 4_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords, mask_upper=False)
+        backend.add_heatmap(ax, data, x_coords, y_coords)
 
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]

@@ -31,6 +31,7 @@ from ..colors import (
 if TYPE_CHECKING:
     from typing import Protocol
 
+    import numpy as np
     import pandas as pd
 
     from .base import PlotBackend, SupportsSecondaryAxis
@@ -175,6 +176,25 @@ def mb_tick_positions(
         tickvals_mb.append(tick)
         tick += tick_step
     return [v * 1e6 for v in tickvals_mb], [f"{v:.2f}" for v in tickvals_mb]
+
+
+def lower_triangle(matrix: "np.ndarray") -> "np.ndarray":
+    """Mask a symmetric matrix's upper triangle, keeping the diagonal.
+
+    An LD matrix is symmetric, so a heatmap shows one half of it. Masking above
+    the seam means every backend receives data already in the shape it draws,
+    rather than each reimplementing the mask.
+
+    Args:
+        matrix: 2D array of values, typically an LD matrix.
+
+    Returns:
+        A masked copy whose entries above the diagonal are masked out.
+    """
+    import numpy as np
+
+    mask = np.triu(np.ones_like(matrix, dtype=bool), k=1)
+    return np.ma.array(matrix, mask=mask)
 
 
 def heatmap_highlight_cells(snp_idx: int, n_snps: int) -> List[Tuple[int, int]]:

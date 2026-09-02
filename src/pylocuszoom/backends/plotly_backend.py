@@ -10,6 +10,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
+from ._coerce import (
+    broadcast,
+    marker_colors,
+    marker_diameter,
+    normalize_ratios,
+    pixels,
+)
 from .composition import LegendEntry, heatmap_highlight_cells, mb_tick_positions
 from .hover import plotly_hovertemplate
 
@@ -140,13 +147,8 @@ class PlotlyBackend:
         Returns:
             Tuple of (figure, list of row indices for each panel).
         """
-        # Convert inches to pixels (assuming 100 dpi for web)
-        width_px = int(figsize[0] * 100)
-        height_px = int(figsize[1] * 100)
-
-        # Normalize height ratios
-        total = sum(height_ratios)
-        row_heights = [h / total for h in height_ratios]
+        width_px, height_px = pixels(figsize)
+        row_heights = normalize_ratios(height_ratios)
 
         fig = make_subplots(
             rows=n_panels,
@@ -203,21 +205,9 @@ class PlotlyBackend:
         Returns:
             Tuple of (figure, flattened list of (fig, row, col) tuples).
         """
-        width_px = int(figsize[0] * 100)
-        height_px = int(figsize[1] * 100)
-
-        # Normalize ratios
-        if width_ratios is not None:
-            total = sum(width_ratios)
-            column_widths = [w / total for w in width_ratios]
-        else:
-            column_widths = None
-
-        if height_ratios is not None:
-            total = sum(height_ratios)
-            row_heights_norm = [h / total for h in height_ratios]
-        else:
-            row_heights_norm = None
+        width_px, height_px = pixels(figsize)
+        column_widths = normalize_ratios(width_ratios)
+        row_heights_norm = normalize_ratios(height_ratios)
 
         fig = make_subplots(
             rows=n_rows,
@@ -281,11 +271,7 @@ class PlotlyBackend:
         # Convert matplotlib marker to plotly symbol
         symbol = _MARKER_SYMBOLS.get(marker, "circle")
 
-        # Convert size (matplotlib uses area, plotly uses diameter)
-        if isinstance(sizes, (int, float)):
-            size = max(6, sizes**0.5)  # Approximate conversion
-        else:
-            size = [max(6, s**0.5) for s in sizes]
+        size = marker_diameter(sizes)
 
         # Build hover template
         if hover_data is not None:
@@ -295,11 +281,7 @@ class PlotlyBackend:
             customdata = None
             hovertemplate = "x: %{x}<br>y: %{y:.2f}<extra></extra>"
 
-        # Handle color - could be single color or array
-        if isinstance(colors, str):
-            marker_color = colors
-        else:
-            marker_color = list(colors) if hasattr(colors, "tolist") else colors
+        marker_color = marker_colors(colors)
 
         trace = go.Scatter(
             x=x,
@@ -364,9 +346,7 @@ class PlotlyBackend:
         panel = _Panel.of(ax)
         fig, row, col = panel.fig, panel.row, panel.col
 
-        # Convert y1 to series if scalar
-        if isinstance(y1, (int, float)):
-            y1 = pd.Series([y1] * len(x))
+        y1 = pd.Series(broadcast(y1, len(x)))
 
         trace = go.Scatter(
             x=pd.concat([x, x[::-1]]),
@@ -1133,19 +1113,17 @@ class PlotlyBackend:
         cmap_colors: Optional[List[str]] = None,
         vmin: float = 0.0,
         vmax: float = 1.0,
-        mask_upper: bool = True,
     ) -> Any:
-        """Render heatmap with optional triangular masking.
+        """Render a heatmap of an already-shaped matrix.
 
         Args:
             ax: Tuple of (figure, row_number).
-            data: 2D numpy array of values (NaN for missing).
+            data: 2D array of values, masked or NaN where missing.
             x_coords: X coordinates for cells.
             y_coords: Y coordinates for cells.
             cmap_colors: Color gradient endpoints [start, end].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
-            mask_upper: If True, mask upper triangle.
 
         Returns:
             Heatmap trace.
@@ -1158,15 +1136,9 @@ class PlotlyBackend:
         if cmap_colors is None:
             cmap_colors = ["#FFFFFF", "#FF0000"]
 
-        # Mask upper triangle by setting to NaN
-        plot_data = data.copy()
-        if mask_upper:
-            for i in range(data.shape[0]):
-                for j in range(i + 1, data.shape[1]):
-                    plot_data[i, j] = np.nan
-
-        # Replace NaN with None for Plotly
-        z = np.where(np.isnan(plot_data), None, plot_data)
+        # Plotly leaves a cell empty for None, not NaN.
+        filled = np.ma.filled(np.ma.asarray(data).astype(float), np.nan)
+        z = np.where(np.isnan(filled), None, filled)
 
         colorscale = [[0, cmap_colors[0]], [1, cmap_colors[1]]]
 
