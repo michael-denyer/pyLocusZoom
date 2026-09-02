@@ -22,11 +22,11 @@ from bokeh.models import (
     LegendItem,
     LinearAxis,
     LinearColorMapper,
+    Plot,
     Range1d,
     Span,
     Whisker,
 )
-from bokeh.models.layouts import Column
 from bokeh.plotting import figure
 from matplotlib.colors import LinearSegmentedColormap, to_hex
 
@@ -449,14 +449,11 @@ class BokehBackend:
 
         For Bokeh layouts, add title to the first figure in the layout.
         """
-        if isinstance(fig, Column) and len(fig.children) > 0:
-            first_child = fig.children[0]
-            if hasattr(first_child, "title"):
-                first_child.title.text = title
-                first_child.title.text_font_size = f"{fontsize}pt"
-        elif hasattr(fig, "title"):
-            fig.title.text = title
-            fig.title.text_font_size = f"{fontsize}pt"
+        first = fig
+        while not isinstance(first, Plot):
+            first = first.children[0]
+        first.title.text = title
+        first.title.text_font_size = f"{fontsize}pt"
 
     def create_twin_axis(self, ax: figure) -> _SecondaryAxis:
         """Create a secondary y-axis and return its handle."""

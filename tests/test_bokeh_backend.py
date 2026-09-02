@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from bokeh.models import Plot
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
 from pylocuszoom.colors import LD_HEATMAP_COLORS
@@ -393,3 +394,30 @@ class TestBokehSetYticksIgnoresLabels:
         assert "Study A" in override_values or any(
             "Study" in str(v) for v in override_values
         ), f"Expected study names in y-axis, got: {override_values}"
+
+
+def _plot_titles(node):
+    if isinstance(node, Plot):
+        return [node.title.text]
+    return [t for child in node.children for t in _plot_titles(child)]
+
+
+class TestSetSuptitle:
+    """set_suptitle must reach a figure whether the layout is a column or a grid."""
+
+    def test_suptitle_lands_on_manhattan_qq_grid(self, manhattan_gwas_df):
+        from pylocuszoom import ManhattanPlotter
+
+        fig = ManhattanPlotter(species="human", backend="bokeh").plot_manhattan_qq(
+            manhattan_gwas_df, title="Cohort A"
+        )
+
+        assert "Cohort A" in _plot_titles(fig)
+
+    def test_suptitle_lands_on_single_column(self):
+        backend = BokehBackend()
+        fig, _ = backend.create_figure(n_panels=2, height_ratios=[1, 1], figsize=(8, 6))
+
+        backend.set_suptitle(fig, "Cohort B")
+
+        assert "Cohort B" in _plot_titles(fig)
