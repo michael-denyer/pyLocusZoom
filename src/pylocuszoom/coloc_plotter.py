@@ -9,7 +9,7 @@ from typing import Any, Optional, Tuple
 
 import pandas as pd
 
-from ._coloc_renderer import ColocRenderer
+from ._coloc_renderer import ColocRequest, render_coloc
 from ._data import prepare_pvalue_data
 from ._plotter_utils import (
     DEFAULT_EQTL_THRESHOLD,
@@ -228,7 +228,6 @@ class ColocPlotter:
     ):
         """Initialize the colocalization plotter."""
         self._backend = get_backend(backend)
-        self._renderer = ColocRenderer(self._backend)
         self.genomewide_threshold = genomewide_threshold
         self.eqtl_threshold = eqtl_threshold
 
@@ -337,16 +336,14 @@ class ColocPlotter:
         merged.data["color"] = _assign_colors(merged, config)
         lead_idx = _resolve_lead_idx(merged, config)
 
-        return self._renderer.render(
-            merged.data,
-            lead_idx=lead_idx,
-            merged_rs_col=merged.rs_col,
-            ld_col_merged=merged.ld_col,
-            gwas_threshold=config.gwas_threshold,
-            eqtl_threshold=config.eqtl_threshold,
-            show_correlation=config.show_correlation,
-            color_by_effect=config.color_by_effect,
-            h4_posterior=config.h4_posterior,
-            title=title,
-            figsize=config.figsize,
+        return render_coloc(
+            self._backend,
+            ColocRequest(
+                merged=merged.data,
+                config=config,
+                rs_col=merged.rs_col,
+                ld_col=merged.ld_col,
+                lead_idx=lead_idx,
+                title=title,
+            ),
         )

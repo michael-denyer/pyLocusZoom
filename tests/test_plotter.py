@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._gene_source import GeneAnnotations
+from pylocuszoom._regional_panels import AssociationPanel
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.reference_mocks import (
     gene_transcript_exon_payload,
@@ -559,13 +560,14 @@ class TestStackedPlotLeadDetectionCrossChrom:
         # Patch the lead-aware code to capture what got computed.
         captured = {}
         composer = canine_plotter._regional_composer
-        original = composer.render_association_scatter
+        original = composer.render_panel
 
-        def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
-            captured.setdefault("lead_positions", []).append(lead_pos)
-            return original(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs)
+        def spy(panel, *args, **kwargs):
+            if isinstance(panel, AssociationPanel):
+                captured.setdefault("lead_positions", []).append(panel.lead_pos)
+            return original(panel, *args, **kwargs)
 
-        composer.render_association_scatter = spy
+        composer.render_panel = spy
         try:
             canine_plotter.plot_stacked(
                 [gwas_df],
@@ -577,7 +579,7 @@ class TestStackedPlotLeadDetectionCrossChrom:
                 show_recombination=False,
             )
         finally:
-            composer.render_association_scatter = original
+            composer.render_panel = original
 
         assert captured["lead_positions"] == [1_200_000], (
             "Lead must be chr1's strongest hit (1_200_000), not chr2's (1_500_000)"
@@ -587,9 +589,8 @@ class TestStackedPlotLeadDetectionCrossChrom:
 class TestLeadPosBoundary:
     """Pins the lead_pos=1 boundary.
 
-    Smallest valid position (``ge=1`` in config) reaches
-    ``render_association_scatter`` intact, and the public API rejects ``0``
-    (1-based genomic coords).
+    Smallest valid position (``ge=1`` in config) reaches the association
+    panel intact, and the public API rejects ``0`` (1-based genomic coords).
     """
 
     def test_lead_pos_one_reaches_plot_association(self):
@@ -605,13 +606,14 @@ class TestLeadPosBoundary:
 
         captured = {}
         composer = plotter._regional_composer
-        original = composer.render_association_scatter
+        original = composer.render_panel
 
-        def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
-            captured["lead_pos"] = lead_pos
-            return original(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs)
+        def spy(panel, *args, **kwargs):
+            if isinstance(panel, AssociationPanel):
+                captured["lead_pos"] = panel.lead_pos
+            return original(panel, *args, **kwargs)
 
-        composer.render_association_scatter = spy
+        composer.render_panel = spy
         try:
             plotter.plot(
                 gwas_df,
@@ -624,7 +626,7 @@ class TestLeadPosBoundary:
                 show_recombination=False,
             )
         finally:
-            composer.render_association_scatter = original
+            composer.render_panel = original
 
         assert captured["lead_pos"] == 1, (
             "lead_pos=1 must pass through; falsy-check regression would drop it to None"

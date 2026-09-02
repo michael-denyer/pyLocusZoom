@@ -40,7 +40,7 @@ graph TD
 
     subgraph Plotters["Plotter Classes"]
         LZ[LocusZoomPlotter]
-        REGIONAL[_regional.py: RegionalPlotComposer]
+        REGIONAL["_regional.py: RegionalPlotComposer<br/>_regional_panels.py: panels + drawing"]
         FAMILIES[_*_renderer.py: family renderers]
         MP[ManhattanPlotter]
         SP[StatsPlotter]
@@ -169,18 +169,22 @@ stages:
    (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
    `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and hands an ordered
    `RegionalFigurePlan` to `RegionalPlotComposer`. The composer creates the
-   figure and dispatches each panel by type through
-   `render_panel`, a `singledispatchmethod`, owning shared axes, labels,
-   LD legend, SNP-label, and recombination policy, and drawing the
-   significance line through the same `add_significance_line` the Manhattan
-   family uses
+   figure and dispatches each panel by type through `render_panel`, a
+   `singledispatchmethod` whose arms are one call each into the matching
+   `draw_*` function in `_regional_panels.py`. Every panel resolves its mode
+   and its hover contract when it is built, so the drawing never inspects the
+   frame's columns; axes, labels, LD legend, SNP-label, and recombination
+   policy live beside the association panel, and the significance line goes
+   through the same `add_significance_line` the Manhattan family uses
    ([ADR-0006](adr/0006-one-regional-pipeline.md)). Manhattan and QQ
    plotters hand prepared data and
-   figure intent to semantic renderers: `ManhattanQQRenderer`,
-   `MiamiRenderer`, `StatsRenderer`, `ColocRenderer`, and
-   `LDHeatmapRenderer`. These renderers own panel composition, labels, axes,
-   legends, and layout, translating intent through the existing `PlotBackend`
-   primitive contract. Backend implementations translate the primitive calls
+   figure intent to semantic renderers. Manhattan and QQ go through
+   `ManhattanQQRenderer` and PheWAS and forest through `StatsRenderer`; Miami,
+   colocalisation and the standalone LD heatmap each build one frozen request
+   value (`MiamiRequest`, `ColocRequest`, `LDHeatmapRequest`) and pass it to a
+   module-level `render_*` function. Both shapes own panel composition, labels,
+   axes, legends, and layout, translating intent through the existing
+   `PlotBackend` primitive contract. Backend implementations translate the primitive calls
    into matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
 7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
    their respective figure objects. Callers export with the figure's own
@@ -192,8 +196,9 @@ stages:
 | Abstraction | Kind | Location | Purpose |
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
-| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders an ordered `RegionalFigurePlan`, dispatching each panel by type through `render_panel` (`singledispatchmethod`); the panel dataclasses own their own construction from raw input |
-| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families |
+| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders an ordered `RegionalFigurePlan`, dispatching each panel by type through `render_panel` (`singledispatchmethod`) to the panel's `draw_*` function |
+| Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw_*` function that draws it. A panel carries its resolved mode, hover contract and layout, so drawing inspects no columns |
+| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families. Miami, coloc and LD heatmap are a frozen request value plus one `render_*` function; PheWAS and forest stay a class because they share drawing between two entry points |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
@@ -240,6 +245,7 @@ pyLocusZoom/
 │   ├── _data.py               # Shared p-value intake and transformation policy
 │   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
 │   ├── _regional.py           # Shared single/stacked regional composition
+│   ├── _regional_panels.py    # Regional panel value types and the drawing for each
 │   ├── _miami_renderer.py      # Miami figure composition
 │   ├── _stats_renderer.py      # PheWAS and forest figure composition
 │   ├── _coloc_renderer.py      # Colocalization figure composition
@@ -262,7 +268,7 @@ pyLocusZoom/
 │   ├── _ld_plotting.py        # LD intake and merge for the regional plot
 │   ├── recombination.py       # Recomb map loading + CanFam4 liftover
 │   ├── _liftover.py           # pyliftover adapter behind a Lifter protocol
-│   ├── gene_track.py          # Gene/exon rendering with overlap resolution
+│   ├── gene_track.py          # Gene region filter, row layout, strand-arrow geometry
 │   ├── ensembl.py             # Ensembl REST client with caching
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired
 │   ├── reference_genes.py     # Build-to-source routing and the one fetch-and-cache orchestrator
@@ -271,7 +277,7 @@ pyLocusZoom/
 │   ├── _http.py               # Retrying JSON GET and file download
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
-│   ├── finemapping.py         # SuSiE / fine-mapping validation + plot_finemapping()
+│   ├── finemapping.py         # SuSiE / fine-mapping validation, filtering, credible sets
 │   ├── loaders.py             # Format adapters (PLINK, REGENIE, GTEx, SuSiE, GTF, BED, …)
 │   ├── schemas.py             # Every family's column contract, at both tiers
 │   ├── validation.py          # Shared validation primitives
@@ -352,9 +358,11 @@ regional, Manhattan, Miami, colocalisation, and PheWAS plot.
 
 How a caller reacts to a missing capability depends on what is left without it.
 `RegionalPlotComposer.render_panel` skips a `HeatmapPanel` with a debug log,
-because the rest of the regional figure still renders. `LDHeatmapRenderer` and
-`StatsRenderer.render_forest` raise `TypeError` naming the backend class and the
-missing protocol, because there the capability is the whole figure.
+because the rest of the regional figure still renders.
+`_ld_heatmap_renderer.require_heatmap_backend`, which `LDHeatmapPlotter` calls
+when it is constructed, and `StatsRenderer.render_forest` raise `TypeError`
+naming the backend class and the missing protocol, because there the capability
+is the whole figure.
 
 Two pieces of shared drawing knowledge sit above the seam rather than in each
 adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`

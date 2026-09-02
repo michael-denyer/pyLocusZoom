@@ -8,14 +8,15 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
-from pylocuszoom._regional import (
+from pylocuszoom._regional import RegionalPlotComposer
+from pylocuszoom._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
     RegionalFigurePlan,
-    RegionalPlotComposer,
+    hover_for_association,
 )
 from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
 from tests.test_rendering_contract import FullCapabilityBackend, RecordingBackend
@@ -44,6 +45,10 @@ def _association(**overrides):
         recomb_df=None,
     )
     fields.update(overrides)
+    fields.setdefault(
+        "hover",
+        hover_for_association(fields["data"], fields["columns"], fields["ld_col"]),
+    )
     return AssociationPanel(**fields)
 
 
@@ -131,7 +136,8 @@ def test_gene_panel_height_grows_with_stacked_rows(starts, ends, expected_height
     panel = GenePanel.from_genes(genes, REGION, exons_df=None)
 
     assert panel.height == expected_height
-    assert len(panel.data) == len(starts)
+    assert len(panel.genes) == len(starts)
+    assert len(panel.rows) == len(starts)
 
 
 def test_gene_panel_from_genes_drops_other_chromosomes_and_renders():
@@ -146,7 +152,7 @@ def test_gene_panel_from_genes_drops_other_chromosomes_and_renders():
 
     panel = GenePanel.from_genes(genes, REGION, exons_df=None)
 
-    assert list(panel.data["gene_name"]) == ["G1"]
+    assert list(panel.genes["gene_name"]) == ["G1"]
     assert "set_xlim" in _names(_render(panel))
 
 

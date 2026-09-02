@@ -9,7 +9,11 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from ._ld_heatmap_renderer import LDHeatmapRenderer
+from ._ld_heatmap_renderer import (
+    LDHeatmapRequest,
+    render_ld_heatmap,
+    require_heatmap_backend,
+)
 from .backends import BackendType, get_backend
 
 
@@ -38,9 +42,12 @@ class LDHeatmapPlotter:
         self,
         backend: BackendType = "matplotlib",
     ):
-        """Initialize the LD heatmap plotter."""
-        self._backend = get_backend(backend)
-        self._renderer = LDHeatmapRenderer(self._backend)
+        """Initialize the LD heatmap plotter.
+
+        Raises:
+            TypeError: If the backend cannot draw heatmaps.
+        """
+        self._backend = require_heatmap_backend(get_backend(backend))
 
     def plot_ld_heatmap(
         self,
@@ -117,13 +124,16 @@ class LDHeatmapPlotter:
                     raise ValueError(f"highlight_snp '{snp}' not found in snp_ids")
                 highlight_indices.append(snp_ids.index(snp))
 
-        return self._renderer.render(
-            data,
-            snp_ids,
-            lead_idx=lead_idx,
-            highlight_indices=highlight_indices,
-            metric=metric,
-            figsize=figsize,
-            title=title,
-            show_colorbar=show_colorbar,
+        return render_ld_heatmap(
+            self._backend,
+            LDHeatmapRequest(
+                data=data,
+                snp_ids=snp_ids,
+                lead_idx=lead_idx,
+                highlight_indices=highlight_indices,
+                metric=metric,
+                figsize=figsize,
+                title=title,
+                show_colorbar=show_colorbar,
+            ),
         )

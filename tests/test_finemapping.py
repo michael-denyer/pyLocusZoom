@@ -4,17 +4,21 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+from pylocuszoom._regional_panels import FinemappingPanel, draw_finemapping
+from pylocuszoom.backends.hover import HoverConfig
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+from pylocuszoom.config import RegionConfig
 from pylocuszoom.finemapping import (
     FinemappingValidationError,
     filter_by_credible_set,
     filter_finemapping_by_region,
     get_credible_sets,
     get_top_pip_variants,
-    plot_finemapping,
     prepare_finemapping_for_plotting,
     validate_finemapping_df,
 )
+
+DRAW_REGION = RegionConfig(chrom=1, start=1, end=1_000_000)
 
 
 @pytest.fixture
@@ -156,8 +160,8 @@ class TestPrepareFinemappingForPlotting:
         assert len(result) == 2
 
 
-class TestPlotFinemapping:
-    """Tests for plot_finemapping function.
+class TestDrawFinemapping:
+    """Tests for the fine-mapping panel's drawing.
 
     Assertions query the rendered matplotlib axes directly per
     CLAUDE.md's observable-outputs rule.
@@ -176,20 +180,21 @@ class TestPlotFinemapping:
         finally:
             plt.close(fig)
 
-    def test_plot_finemapping_plots_pip_line(self, rendering_axes):
+    def test_pip_line_carries_the_input_values(self, rendering_axes):
         """PIP values are rendered as a single line on the axes."""
         backend, ax = rendering_axes
         df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
-        plot_finemapping(backend, ax, df)
+        draw_finemapping(
+            backend, ax, FinemappingPanel.from_frame(df, DRAW_REGION, None)
+        )
 
         lines = ax.get_lines()
         assert len(lines) >= 1, "expected a PIP line on the axes"
-        # The first line should carry the input PIP values
         y = list(lines[0].get_ydata())
         assert y == [0.1, 0.5, 0.2]
 
-    def test_plot_finemapping_colors_by_credible_set(self, rendering_axes):
+    def test_each_credible_set_gets_its_own_collection(self, rendering_axes):
         """Each credible set contributes its own scatter collection."""
         backend, ax = rendering_axes
         df = pd.DataFrame(
@@ -200,52 +205,53 @@ class TestPlotFinemapping:
             }
         )
 
-        plot_finemapping(backend, ax, df, cs_col="cs")
+        panel = FinemappingPanel.from_frame(df, DRAW_REGION, "cs")
+        assert panel.credible_sets == [1, 2], "cs=0 is not a credible set"
+        draw_finemapping(backend, ax, panel)
 
-        # CS 1 and CS 2 are non-zero credible sets → two scatter collections.
-        # CS 0 is the "no credible set" placeholder and is excluded.
         assert len(ax.collections) >= 2, (
             f"expected >=2 scatter collections for CS 1 and CS 2, "
             f"got {len(ax.collections)}"
         )
 
-    def test_plot_finemapping_handles_missing_cs_col(self, rendering_axes):
+    def test_pip_line_renders_without_a_credible_set_column(self, rendering_axes):
         """PIP line renders even when no credible-set column is provided."""
         backend, ax = rendering_axes
         df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
-        plot_finemapping(backend, ax, df, cs_col=None)
-
-        assert len(ax.get_lines()) >= 1
-
-    def test_plot_finemapping_with_pip_threshold(self, rendering_axes):
-        """pip_threshold filters scatter points to high-PIP variants only."""
-        backend, ax = rendering_axes
-        df = pd.DataFrame(
-            {
-                "pos": [1000, 2000, 3000],
-                "pip": [0.05, 0.5, 0.02],  # Only 0.5 passes 0.1 threshold
-            }
+        draw_finemapping(
+            backend, ax, FinemappingPanel.from_frame(df, DRAW_REGION, None)
         )
 
-        plot_finemapping(backend, ax, df, cs_col=None, pip_threshold=0.1)
-
-        # Line is always drawn
         assert len(ax.get_lines()) >= 1
-        # Exactly one scatter collection (above-threshold points)
+
+    def test_only_points_above_the_pip_threshold_scatter(self, rendering_axes):
+        """The panel scatters the variants that clear PIP_SCATTER_THRESHOLD."""
+        backend, ax = rendering_axes
+        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.005, 0.5, 0.002]})
+
+        draw_finemapping(
+            backend, ax, FinemappingPanel.from_frame(df, DRAW_REGION, None)
+        )
+
+        assert len(ax.get_lines()) >= 1
         assert len(ax.collections) == 1
-        # That collection contains exactly one point (pip=0.5 at pos=2000)
         offsets = ax.collections[0].get_offsets()
         assert len(offsets) == 1
         assert offsets[0][0] == 2000 and offsets[0][1] == pytest.approx(0.5)
 
-    def test_plot_finemapping_empty_dataframe(self, rendering_axes):
-        """Empty DataFrame does not raise; produces an empty line."""
+    def test_empty_frame_draws_nothing(self, rendering_axes):
+        """An empty panel draws no line and no points."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [], "pip": []})
+        panel = FinemappingPanel(
+            data=pd.DataFrame({"pos": [], "pip": []}),
+            height=1.5,
+            cs_col=None,
+            credible_sets=[],
+            hover=HoverConfig(pos_col="pos", extra_cols={"pip": "PIP"}),
+        )
 
-        plot_finemapping(backend, ax, df)
+        draw_finemapping(backend, ax, panel)
 
-        lines = ax.get_lines()
-        assert len(lines) >= 1
-        assert len(lines[0].get_xdata()) == 0
+        assert len(ax.get_lines()) == 0
+        assert len(ax.collections) == 0

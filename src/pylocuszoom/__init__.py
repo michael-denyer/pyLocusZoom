@@ -96,7 +96,6 @@ from .finemapping import (
     filter_finemapping_by_region,
     get_credible_sets,
     get_top_pip_variants,
-    plot_finemapping,
     prepare_finemapping_for_plotting,
     validate_finemapping_df,
 )
@@ -214,7 +213,6 @@ __all__ = [
     "filter_by_credible_set",
     "get_credible_sets",
     "get_top_pip_variants",
-    "plot_finemapping",
     "prepare_finemapping_for_plotting",
     "FinemappingValidationError",
     # Logging

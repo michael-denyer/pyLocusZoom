@@ -6,6 +6,8 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom._regional_panels import GenePanel, RegionalFigurePlan, draw_genes
+from pylocuszoom.config import RegionConfig
 from pylocuszoom.gene_track import (
     STRAND_COLORS,
     assign_gene_positions,
@@ -186,8 +188,18 @@ class TestGetNearestGene:
         assert result == "GENE_C"
 
 
+def _draw(backend, ax, genes_df, chrom, start, end):
+    """Draw a gene track for the region straight from a raw gene frame."""
+    region = RegionConfig(chrom=str(chrom), start=start, end=end)
+    panel = GenePanel.from_genes(genes_df, region, None)
+    plan = RegionalFigurePlan(
+        chrom=chrom, start=start, end=end, panels=[panel], figsize=(8.0, 1.0)
+    )
+    draw_genes(backend, ax, panel, plan)
+
+
 class TestStrandColors:
-    """Strand color constants are used by plot_gene_track_generic."""
+    """Strand color constants are used by draw_genes."""
 
     def test_strand_color_constants(self):
         assert "+" in STRAND_COLORS
@@ -249,13 +261,12 @@ class TestGeneTrackProperties:
 
     @hyp_settings(max_examples=10, deadline=None)
     @given(gene_dataframes(min_genes=1, max_genes=15))
-    def test_plot_gene_track_generic_renders(self, genes_df):
-        """plot_gene_track_generic should render without crashing."""
+    def test_draw_genes_renders(self, genes_df):
+        """draw_genes should render without crashing."""
         if len(genes_df) == 0:
             return
 
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-        from pylocuszoom.gene_track import plot_gene_track_generic
 
         chrom = genes_df["chr"].iloc[0]
         start = int(genes_df["start"].min())
@@ -263,9 +274,7 @@ class TestGeneTrackProperties:
 
         fig, ax = plt.subplots()
         try:
-            plot_gene_track_generic(
-                ax, MatplotlibBackend(), genes_df, chrom, start, end
-            )
+            _draw(MatplotlibBackend(), ax, genes_df, chrom, start, end)
         finally:
             plt.close(fig)
 
@@ -296,16 +305,8 @@ class TestStrandNaNHandling:
         fig, ax = plt.subplots()
         try:
             from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-            from pylocuszoom.gene_track import plot_gene_track_generic
 
-            plot_gene_track_generic(
-                ax,
-                MatplotlibBackend(),
-                genes_df,
-                chrom=1,
-                start=1_000_000,
-                end=2_000_000,
-            )
+            _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
         finally:
             plt.close(fig)
 
@@ -323,15 +324,7 @@ class TestStrandNaNHandling:
         fig, ax = plt.subplots()
         try:
             from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-            from pylocuszoom.gene_track import plot_gene_track_generic
 
-            plot_gene_track_generic(
-                ax,
-                MatplotlibBackend(),
-                genes_df,
-                chrom=1,
-                start=1_000_000,
-                end=2_000_000,
-            )
+            _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
         finally:
             plt.close(fig)

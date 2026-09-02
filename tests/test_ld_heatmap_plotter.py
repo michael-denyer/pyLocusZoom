@@ -348,25 +348,25 @@ class TestLDHeatmapHighlighting:
 
 
 class TestHeatmapCapabilityGate:
-    """LDHeatmapRenderer refuses a backend that cannot draw heatmaps."""
+    """The LD heatmap refuses a backend that cannot draw heatmaps."""
 
     def test_backend_without_heatmap_support_is_rejected(self):
-        from pylocuszoom._ld_heatmap_renderer import LDHeatmapRenderer
+        from pylocuszoom._ld_heatmap_renderer import require_heatmap_backend
 
         class BarelyABackend:
             pass
 
         with pytest.raises(TypeError, match="does not support heatmaps"):
-            LDHeatmapRenderer(BarelyABackend())
+            require_heatmap_backend(BarelyABackend())
 
     def test_error_names_the_backend_and_the_protocol(self):
-        from pylocuszoom._ld_heatmap_renderer import LDHeatmapRenderer
+        from pylocuszoom._ld_heatmap_renderer import require_heatmap_backend
 
         class BarelyABackend:
             pass
 
         with pytest.raises(TypeError) as excinfo:
-            LDHeatmapRenderer(BarelyABackend())
+            require_heatmap_backend(BarelyABackend())
 
         assert "BarelyABackend" in str(excinfo.value)
         assert "SupportsHeatmap" in str(excinfo.value)
