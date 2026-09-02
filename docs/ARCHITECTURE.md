@@ -192,7 +192,9 @@ stages:
 | `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
 | `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, neutral `add_legend`). Heatmap and bar-chart drawing left the contract in 2.1 and are optional protocols (ADR-0005) |
-| `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry` and `render_recombination_overlay` |
+| `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
+| `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
+| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as a value type plus pure functions: `_Panel` owns the linear subplot-index axis naming, alongside `configure_legend`, `panel_y`, and `x_range` |
 | `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsBarCharts` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns panel policy while retaining the primitive backend seam for compatibility |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
@@ -237,8 +239,10 @@ pyLocusZoom/
 │   │   ├── __init__.py        # Backend registry (@register_backend, get_backend)
 │   │   ├── base.py            # PlotBackend protocol + optional capability protocols
 │   │   ├── composition.py     # Legend and recombination-overlay composition above the seam
+│   │   ├── _coerce.py         # Coercions out of matplotlib's vocabulary, shared by plotly and bokeh
 │   │   ├── matplotlib_backend.py
 │   │   ├── plotly_backend.py
+│   │   ├── plotly_layout.py   # Plotly subplot geometry: _Panel plus pure layout helpers
 │   │   ├── bokeh_backend.py
 │   │   └── hover.py           # Hover tooltip helpers for interactive backends
 │   ├── colors.py              # LD bins, eQTL, credible-set, PheWAS palettes

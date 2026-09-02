@@ -86,3 +86,24 @@ Two Plotly defects the `pass` stub concealed are fixed as part of the change:
 `show_colorbar=False` is honoured, and a D' heatmap's scale is titled `D'`
 rather than `R²`. This is a visible behaviour change for Plotly LD heatmaps and
 is recorded in the changelog.
+
+## Addendum: a value type is not a mixin
+
+The rejection of a mixin above rules out one shape of decomposition, not all of
+them. A mixin keeps the extracted code on the backend instance, so a reader
+tracing a protocol method still resolves through the class to find it, and the
+method count on the seam is unchanged. That hop is the cost the rejection names.
+
+Extracting a value type and pure functions has no such hop.
+`backends/plotly_layout.py` holds `_Panel`, which resolves a renderer's panel
+handle and owns Plotly's subplot axis naming, plus `configure_legend`,
+`panel_y`, `x_range`, and `secondary_axis_key`. None of them touch the backend
+instance, so a reader following `set_xlim` reads one call to a named function
+rather than a method that might be overridden further up an inheritance chain.
+`backends/_coerce.py` is the same move for the coercions out of matplotlib's
+vocabulary that Plotly and Bokeh each need.
+
+The rule this leaves: extract along the axis of what the code *is*, not to hit a
+line count. Arithmetic over a figure, coercion between vocabularies, and
+geometry a caller could compute belong outside the adapter. Anything that draws,
+and anything the protocol names, stays on the backend class.

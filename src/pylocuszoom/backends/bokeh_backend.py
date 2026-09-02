@@ -6,12 +6,39 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 import math
 from typing import Any, List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
+from bokeh.models import (
+    BasicTicker,
+    BoxAnnotation,
+    ColorBar,
+    ColumnDataSource,
+    CustomJSTickFormatter,
+    DataRange1d,
+    HoverTool,
+    Label,
+    Legend,
+    LegendItem,
+    LinearAxis,
+    LinearColorMapper,
+    Range1d,
+    Span,
+    Whisker,
+)
+from bokeh.models.layouts import Column
 from bokeh.plotting import figure
+from matplotlib.colors import LinearSegmentedColormap, to_hex
 
 from . import convert_latex_to_unicode, register_backend
+from ._coerce import (
+    broadcast,
+    marker_colors,
+    marker_diameter,
+    per_point,
+    pixels,
+    split_pixels,
+)
 from .composition import LegendEntry, heatmap_highlight_cells
 from .hover import bokeh_tooltips
 
@@ -71,24 +98,9 @@ class BokehBackend:
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Any, List[figure]]:
-        """Create a layout with multiple panels.
-
-        Args:
-            n_panels: Number of vertical panels.
-            height_ratios: Relative heights for each panel.
-            figsize: Figure size as (width, height) in inches.
-            sharex: Whether panels share the x-axis.
-
-        Returns:
-            Tuple of (layout, list of figure objects).
-        """
-        # Convert inches to pixels
-        width_px = int(figsize[0] * 100)
-        total_height = int(figsize[1] * 100)
-
-        # Calculate individual heights
-        total_ratio = sum(height_ratios)
-        heights = [int(total_height * r / total_ratio) for r in height_ratios]
+        """Create a layout with multiple panels."""
+        width_px, total_height = pixels(figsize)
+        heights = split_pixels(total_height, height_ratios, len(height_ratios))
 
         figures = []
         x_range = DataRange1d() if sharex else None
@@ -125,34 +137,10 @@ class BokehBackend:
         height_ratios: Optional[List[float]] = None,
         figsize: Tuple[float, float] = (12.0, 8.0),
     ) -> Tuple[Any, List[figure]]:
-        """Create a layout with a grid of subplots.
-
-        Args:
-            n_rows: Number of rows.
-            n_cols: Number of columns.
-            width_ratios: Relative widths for columns.
-            height_ratios: Relative heights for rows.
-            figsize: Figure size as (width, height).
-
-        Returns:
-            Tuple of (layout, flattened list of figure objects).
-        """
-        width_px = int(figsize[0] * 100)
-        height_px = int(figsize[1] * 100)
-
-        # Calculate widths
-        if width_ratios is not None:
-            total_w = sum(width_ratios)
-            widths = [int(width_px * w / total_w) for w in width_ratios]
-        else:
-            widths = [width_px // n_cols] * n_cols
-
-        # Calculate heights
-        if height_ratios is not None:
-            total_h = sum(height_ratios)
-            heights = [int(height_px * h / total_h) for h in height_ratios]
-        else:
-            heights = [height_px // n_rows] * n_rows
+        """Create a layout with a grid of subplots."""
+        width_px, height_px = pixels(figsize)
+        widths = split_pixels(width_px, width_ratios, n_cols)
+        heights = split_pixels(height_px, height_ratios, n_rows)
 
         figures = []
         rows = []
@@ -202,18 +190,8 @@ class BokehBackend:
         # Prepare data source
         data = {"x": x.values, "y": y.values}
 
-        # Handle colors
-        if isinstance(colors, str):
-            data["color"] = [colors] * len(x)
-        else:
-            data["color"] = list(colors) if hasattr(colors, "tolist") else colors
-
-        # Handle sizes (convert from area to diameter)
-        if isinstance(sizes, (int, float)):
-            bokeh_size = max(6, sizes**0.5)
-            data["size"] = [bokeh_size] * len(x)
-        else:
-            data["size"] = [max(6, s**0.5) for s in sizes]
+        data["color"] = per_point(marker_colors(colors), len(x))
+        data["size"] = per_point(marker_diameter(sizes), len(x))
 
         # Add hover data with namespaced keys to avoid collisions
         # with internal keys (x, y, color, size)
@@ -292,8 +270,8 @@ class BokehBackend:
         x_arr = x.values
         return ax.varea(
             x=x_arr,
-            y1=_broadcast(y1, len(x_arr)),
-            y2=_broadcast(y2, len(x_arr)),
+            y1=broadcast(y1, len(x_arr)),
+            y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
         )
@@ -335,8 +313,6 @@ class BokehBackend:
         color: str = "black",
     ) -> Any:
         """Add text annotation to figure."""
-        from bokeh.models import Label
-
         label = Label(
             x=x,
             y=y,
@@ -363,7 +339,6 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a rectangle to the figure."""
-
         x_center = xy[0] + width / 2
         y_center = xy[1] + height / 2
 
@@ -463,8 +438,6 @@ class BokehBackend:
 
         For Bokeh layouts, add title to the first figure in the layout.
         """
-        from bokeh.models.layouts import Column
-
         if isinstance(fig, Column) and len(fig.children) > 0:
             first_child = fig.children[0]
             if hasattr(first_child, "title"):
@@ -480,8 +453,6 @@ class BokehBackend:
         Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
         primitives.
         """
-        from bokeh.models import LinearAxis, Range1d
-
         # Add a second y-axis without tick marks (cleaner look)
         ax.extra_y_ranges = {"secondary": Range1d(start=0, end=100)}
         secondary_axis = LinearAxis(
@@ -533,8 +504,8 @@ class BokehBackend:
         x_arr = x.values
         return ax.varea(
             x=x_arr,
-            y1=_broadcast(y1, len(x_arr)),
-            y2=_broadcast(y2, len(x_arr)),
+            y1=broadcast(y1, len(x_arr)),
+            y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
             y_range_name=yaxis_name,
@@ -582,8 +553,6 @@ class BokehBackend:
         y_frac: float = 0.95,
     ) -> None:
         """Add label text at fractional position in panel."""
-        from bokeh.models import Label
-
         # Use screen coordinates so the label works regardless of whether
         # the data range has been resolved (DataRange1d starts as None)
         x_px = int(x_frac * ax.width)
@@ -606,8 +575,6 @@ class BokehBackend:
         Creates a separate y-range for legend glyphs so they don't affect
         the main plot's axis scaling.
         """
-        from bokeh.models import Range1d
-
         if "legend_range" not in ax.extra_y_ranges:
             ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
         return ColumnDataSource(data={"x": [0], "y": [0]})
@@ -623,8 +590,6 @@ class BokehBackend:
         edgecolor: str = "black",
     ) -> Any:
         """Create an invisible scatter renderer for a legend entry."""
-        from bokeh.models import LegendItem
-
         renderer = ax.scatter(
             x="x",
             y="y",
@@ -643,8 +608,6 @@ class BokehBackend:
         self, ax: figure, items: List[Any], title: str, loc: str
     ) -> None:
         """Create and add a styled legend to the figure."""
-        from bokeh.models import Legend
-
         legend = Legend(
             items=items,
             location=_LEGEND_LOCATIONS.get(loc, "top_right"),
@@ -693,8 +656,6 @@ class BokehBackend:
 
     def format_xaxis_mb(self, ax: figure) -> None:
         """Format x-axis to show megabase values."""
-        from bokeh.models import CustomJSTickFormatter
-
         ax.xaxis.formatter = CustomJSTickFormatter(
             code="return (tick / 1e6).toFixed(2);"
         )
@@ -768,8 +729,6 @@ class BokehBackend:
         zorder: int = 3,
     ) -> Any:
         """Add horizontal error bars."""
-        from bokeh.models import Whisker
-
         # Calculate bounds
         lower = x - xerr_lower
         upper = x + xerr_upper
@@ -821,8 +780,6 @@ class BokehBackend:
         alpha: float = 0.3,
     ) -> None:
         """Highlight an x-range across multiple Bokeh panels."""
-        from bokeh.models import BoxAnnotation
-
         for ax in axes:
             ax.add_layout(
                 BoxAnnotation(
@@ -846,14 +803,6 @@ class BokehBackend:
 
         Uses batched rect() calls for efficiency instead of one renderer
         per cell.
-
-        Args:
-            ax: Bokeh figure.
-            fig: Layout object (unused, for API compatibility).
-            snp_idx: Index of SNP to highlight.
-            n_snps: Total number of SNPs in matrix.
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
         """
         cells = heatmap_highlight_cells(snp_idx, n_snps)
         source = ColumnDataSource(
@@ -879,26 +828,8 @@ class BokehBackend:
         cmap_colors: Optional[List[str]] = None,
         vmin: float = 0.0,
         vmax: float = 1.0,
-        mask_upper: bool = True,
     ) -> Any:
-        """Render heatmap with optional triangular masking.
-
-        Args:
-            ax: Bokeh figure.
-            data: 2D numpy array of values (NaN for missing).
-            x_coords: X coordinates for cells.
-            y_coords: Y coordinates for cells.
-            cmap_colors: Color gradient endpoints [start, end].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-            mask_upper: If True, mask upper triangle.
-
-        Returns:
-            LinearColorMapper for colorbar attachment.
-        """
-        import numpy as np
-        from bokeh.models import LinearColorMapper
-
+        """Render a heatmap of an already-shaped matrix."""
         if cmap_colors is None:
             cmap_colors = ["#FFFFFF", "#FF0000"]
 
@@ -913,18 +844,14 @@ class BokehBackend:
             nan_color="#808080",  # Grey for missing
         )
 
-        # Build rect data (lower triangle only when mask_upper=True)
-        xs, ys, values = [], [], []
+        # A masked cell is one the caller shaped out, so no rect is emitted for
+        # it. An unmasked NaN is missing data and still draws, in nan_color.
+        masked = np.ma.getmaskarray(np.ma.asarray(data))
         n = data.shape[0]
-        for i in range(n):
-            for j in range(n):
-                # Lower triangle including diagonal
-                if mask_upper and j > i:
-                    continue
-                val = data[i, j]
-                xs.append(x_coords[j])
-                ys.append(y_coords[i])
-                values.append(val if not np.isnan(val) else float("nan"))
+        cells = [(i, j) for i in range(n) for j in range(n) if not masked[i, j]]
+        xs = [x_coords[j] for _, j in cells]
+        ys = [y_coords[i] for i, _ in cells]
+        values = [float(data[i, j]) for i, j in cells]
 
         # Compute per-cell widths and heights based on actual coordinate spacing.
         # Uses midpoints between adjacent coordinates for cell boundaries.
@@ -949,14 +876,8 @@ class BokehBackend:
         x_sizes = _cell_sizes(x_coords)
         y_sizes = _cell_sizes(y_coords)
 
-        # Build per-cell width/height arrays matching the flattened xs/ys
-        widths, heights = [], []
-        for i in range(n):
-            for j in range(n):
-                if mask_upper and j > i:
-                    continue
-                widths.append(x_sizes[j])
-                heights.append(y_sizes[i])
+        widths = [x_sizes[j] for _, j in cells]
+        heights = [y_sizes[i] for i, _ in cells]
 
         source = ColumnDataSource(
             {"x": xs, "y": ys, "value": values, "w": widths, "h": heights}
@@ -980,19 +901,7 @@ class BokehBackend:
         label: str = "R²",
         orientation: str = "vertical",
     ) -> Any:
-        """Add colorbar legend for heatmap.
-
-        Args:
-            ax: Bokeh figure.
-            mappable: LinearColorMapper from add_heatmap.
-            label: Colorbar label.
-            orientation: "vertical" or "horizontal".
-
-        Returns:
-            ColorBar object.
-        """
-        from bokeh.models import BasicTicker, ColorBar
-
+        """Add colorbar legend for heatmap."""
         color_bar = ColorBar(
             color_mapper=mappable,
             ticker=BasicTicker(),
@@ -1002,56 +911,6 @@ class BokehBackend:
         )
         ax.add_layout(color_bar, "right")
         return color_bar
-
-
-def _broadcast(value: Union[float, pd.Series, List[Any]], n: int) -> Any:
-    """Repeat a scalar varea bound across ``n`` items, or pass a sequence through.
-
-    A pandas Series is handed over as its ndarray rather than a list. Bokeh
-    packs an ndarray into the document as base64 and a list as plain JSON, so
-    materializing it would inflate every exported HTML carrying a filled band.
-    """
-    if isinstance(value, (int, float)):
-        return [value] * n
-    return value.values if hasattr(value, "values") else list(value)
-
-
-def _parse_color_to_rgb(color: str) -> Tuple[int, int, int]:
-    """Parse a color string to an (R, G, B) tuple.
-
-    Supports 6-digit hex (#FF0000), 3-digit hex (#F00), and
-    named CSS colors (red, white, etc.) via matplotlib's color converter.
-
-    Args:
-        color: Color string in any supported format.
-
-    Returns:
-        Tuple of (R, G, B) integers in range 0-255.
-    """
-    color = color.strip()
-
-    # 6-digit hex
-    if color.startswith("#") and len(color) == 7:
-        hex_str = color[1:]
-        return tuple(int(hex_str[i : i + 2], 16) for i in (0, 2, 4))
-
-    # 3-digit hex — expand to 6-digit
-    if color.startswith("#") and len(color) == 4:
-        hex_str = color[1:]
-        expanded = "".join(c * 2 for c in hex_str)
-        return tuple(int(expanded[i : i + 2], 16) for i in (0, 2, 4))
-
-    # Named CSS color — use matplotlib's converter
-    try:
-        from matplotlib.colors import to_rgb
-
-        r, g, b = to_rgb(color)
-        return (int(r * 255), int(g * 255), int(b * 255))
-    except (ImportError, ValueError):
-        raise ValueError(
-            f"Cannot parse color {color!r}. Use 6-digit hex (#FF0000), "
-            "3-digit hex (#F00), or a named CSS color (red, blue, etc.)."
-        )
 
 
 def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:
@@ -1065,17 +924,5 @@ def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> Li
     Returns:
         List of hex color strings.
     """
-    start_rgb = _parse_color_to_rgb(start_color)
-    end_rgb = _parse_color_to_rgb(end_color)
-
-    def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
-        return "#{:02x}{:02x}{:02x}".format(*rgb)
-
-    palette = []
-    for i in range(n_colors):
-        t = i / (n_colors - 1) if n_colors > 1 else 0
-        r = int(start_rgb[0] + t * (end_rgb[0] - start_rgb[0]))
-        g = int(start_rgb[1] + t * (end_rgb[1] - start_rgb[1]))
-        b = int(start_rgb[2] + t * (end_rgb[2] - start_rgb[2]))
-        palette.append(rgb_to_hex((r, g, b)))
-    return palette
+    cmap = LinearSegmentedColormap.from_list("ld", [start_color, end_color], N=n_colors)
+    return [to_hex(cmap(i)) for i in range(n_colors)]

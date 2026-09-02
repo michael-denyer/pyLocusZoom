@@ -25,6 +25,7 @@ from .backends.composition import (
     eqtl_legend_entries,
     finemapping_legend_entries,
     ld_legend_entries,
+    lower_triangle,
     render_recombination_overlay,
 )
 from .backends.hover import HoverConfig, HoverDataBuilder
@@ -415,13 +416,12 @@ class RegionalPlotComposer:
             return
         mappable = self._backend.add_heatmap(
             ax,
-            data=panel.matrix.values,
+            data=lower_triangle(panel.matrix.values),
             x_coords=panel.x_positions,
             y_coords=list(range(n_snps)),
             cmap_colors=LD_HEATMAP_COLORS,
             vmin=0.0,
             vmax=1.0,
-            mask_upper=True,
         )
         self._backend.add_colorbar(
             ax, mappable, label="R²" if panel.metric == "r2" else "D'"

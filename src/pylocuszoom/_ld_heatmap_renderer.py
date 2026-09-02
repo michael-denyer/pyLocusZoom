@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from .backends.base import PlotBackend, SupportsHeatmap
+from .backends.composition import lower_triangle
 from .colors import (
     LD_HEATMAP_COLORS,
     LEAD_SNP_HIGHLIGHT_COLOR,
@@ -48,13 +49,12 @@ class LDHeatmapRenderer:
         ax = axes[0]
         mappable = self._backend.add_heatmap(
             ax,
-            data=data,
+            data=lower_triangle(data),
             x_coords=list(range(n_snps)),
             y_coords=list(range(n_snps)),
             cmap_colors=LD_HEATMAP_COLORS,
             vmin=0.0,
             vmax=1.0,
-            mask_upper=True,
         )
         if show_colorbar:
             self._backend.add_colorbar(

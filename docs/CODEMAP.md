@@ -227,6 +227,8 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
 | 4e | hover | `HoverDataBuilder` plus the shared `plotly_hovertemplate` / `bokeh_tooltips` builders | [hover.py](../src/pylocuszoom/backends/hover.py) |
 | 4f | composition | Legend, recombination-overlay, and heatmap-highlight composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
+| 4g | _coerce | Coercions out of matplotlib's vocabulary (figure sizing, marker area, scalar broadcast) shared by the interactive backends | [_coerce.py](../src/pylocuszoom/backends/_coerce.py) |
+| 4h | plotly_layout | Plotly subplot geometry: the `_Panel` value type and pure layout helpers | [plotly_layout.py](../src/pylocuszoom/backends/plotly_layout.py) |
 
 ### Backend Capabilities
 

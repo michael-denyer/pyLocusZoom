@@ -11,6 +11,7 @@ The same rule applies to any geometry a backend would otherwise recompute:
 leaving each adapter to draw them.
 """
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, List, Optional, Sequence, Tuple
 
@@ -30,6 +31,7 @@ from ..colors import (
 if TYPE_CHECKING:
     from typing import Protocol
 
+    import numpy as np
     import pandas as pd
 
     from .base import PlotBackend, SupportsSecondaryAxis
@@ -141,6 +143,58 @@ def render_recombination_overlay(
     backend.set_secondary_ylabel(
         secondary, "Recombination rate (cM/Mb)", color="black", fontsize=9
     )
+
+
+def mb_tick_positions(
+    x_min_bp: float, x_max_bp: float
+) -> Tuple[List[float], List[str]]:
+    """Tick positions and labels for a genomic axis labelled in megabases.
+
+    Tick spacing widens with the span so a region keeps a readable number of
+    ticks, from 0.1 Mb on a sub-megabase region to 5 Mb on a whole chromosome.
+
+    Args:
+        x_min_bp: Left edge of the axis in base pairs.
+        x_max_bp: Right edge of the axis in base pairs.
+
+    Returns:
+        Tuple of (tick positions in base pairs, tick labels in Mb).
+    """
+    x_min_mb, x_max_mb = x_min_bp / 1e6, x_max_bp / 1e6
+    span_mb = x_max_mb - x_min_mb
+    for limit, step in ((0.5, 0.1), (2, 0.25), (5, 0.5), (20, 2)):
+        if span_mb <= limit:
+            tick_step = step
+            break
+    else:
+        tick_step = 5
+
+    first_tick = math.ceil(x_min_mb / tick_step) * tick_step
+    tickvals_mb = []
+    tick = first_tick
+    while tick <= x_max_mb + tick_step / 2:
+        tickvals_mb.append(tick)
+        tick += tick_step
+    return [v * 1e6 for v in tickvals_mb], [f"{v:.2f}" for v in tickvals_mb]
+
+
+def lower_triangle(matrix: "np.ndarray") -> "np.ndarray":
+    """Mask a symmetric matrix's upper triangle, keeping the diagonal.
+
+    An LD matrix is symmetric, so a heatmap shows one half of it. Masking above
+    the seam means every backend receives data already in the shape it draws,
+    rather than each reimplementing the mask.
+
+    Args:
+        matrix: 2D array of values, typically an LD matrix.
+
+    Returns:
+        A masked copy whose entries above the diagonal are masked out.
+    """
+    import numpy as np
+
+    mask = np.triu(np.ones_like(matrix, dtype=bool), k=1)
+    return np.ma.array(matrix, mask=mask)
 
 
 def heatmap_highlight_cells(snp_idx: int, n_snps: int) -> List[Tuple[int, int]]:
