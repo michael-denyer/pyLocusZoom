@@ -165,7 +165,7 @@ def normalize_chrom(chrom: Union[int, str]) -> str:
 def filter_by_region(
     df: pd.DataFrame,
     region: tuple,
-    chrom_col: str = "chrom",
+    chrom_col: str | None = "chrom",
     pos_col: str = "pos",
 ) -> pd.DataFrame:
     """Filter DataFrame to genomic region with inclusive bounds.
@@ -177,8 +177,8 @@ def filter_by_region(
     Args:
         df: DataFrame to filter.
         region: Tuple of (chrom, start, end) defining the region.
-        chrom_col: Column name for chromosome (default: "chrom").
-            If column doesn't exist, filters by position only.
+        chrom_col: Column name for chromosome (default: "chrom"). None, or a
+            name the frame does not carry, filters by position only.
         pos_col: Column name for position (default: "pos").
 
     Returns:
@@ -204,7 +204,7 @@ def filter_by_region(
     mask = (df[pos_col] >= start) & (df[pos_col] <= end)
 
     # Chromosome filtering (if column exists)
-    if chrom_col in df.columns:
+    if chrom_col is not None and chrom_col in df.columns:
         chrom_normalized = normalize_chrom(chrom)
         df_chrom_normalized = (
             df[chrom_col].astype(str).str.replace("chr", "", regex=False)

@@ -2,7 +2,6 @@
 
 import io
 import tarfile
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -14,8 +13,9 @@ from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
     RECOMB_COLOR,
-    RECOMB_SOURCES,
+    _extract_archive,
     _publish_map_generation,
+    _stage_maps,
     download_canine_recombination_maps,
     download_liftover_chain,
     ensure_recomb_header,
@@ -447,6 +447,101 @@ class TestDownloadCanineRecombinationMaps:
             download_canine_recombination_maps(output_dir=str(tmp_path), force=False)
 
 
+class TestExtractArchive:
+    """_extract_archive: tar handling and the path-traversal guard, no network."""
+
+    @staticmethod
+    def _tar(path: Path, members: dict[str, str]) -> None:
+        with tarfile.open(path, "w:gz") as tar:
+            for name, content in members.items():
+                data = content.encode()
+                info = tarfile.TarInfo(name=name)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+
+    def test_extracts_every_safe_member(self, tmp_path):
+        archive = tmp_path / "maps.tar.gz"
+        self._tar(archive, {"chr1.txt": "a", "nested/chr2.txt": "b"})
+        into = tmp_path / "out"
+        into.mkdir()
+
+        result = _extract_archive(archive, into, "http://example/maps.tar.gz")
+
+        assert result == into
+        assert (into / "chr1.txt").read_text() == "a"
+        assert (into / "nested" / "chr2.txt").read_text() == "b"
+
+    def test_a_member_escaping_the_target_is_skipped(self, tmp_path):
+        archive = tmp_path / "maps.tar.gz"
+        self._tar(archive, {"../escaped.txt": "no", "chr1.txt": "yes"})
+        into = tmp_path / "out"
+        into.mkdir()
+
+        _extract_archive(archive, into, "http://example/maps.tar.gz")
+
+        assert not (tmp_path / "escaped.txt").exists()
+        assert (into / "chr1.txt").read_text() == "yes"
+
+    def test_a_file_that_is_not_a_tarball_names_its_source(self, tmp_path):
+        archive = tmp_path / "maps.tar.gz"
+        archive.write_bytes(b"not a gzip archive")
+        into = tmp_path / "out"
+        into.mkdir()
+
+        with pytest.raises(DataDownloadError, match="http://example/maps.tar.gz"):
+            _extract_archive(archive, into, "http://example/maps.tar.gz")
+
+
+class TestStageMaps:
+    """_stage_maps: canonical naming and header repair, no network."""
+
+    def test_names_each_map_after_the_chromosome_in_its_filename(self, tmp_path):
+        source_dir = tmp_path / "src"
+        source_dir.mkdir()
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        body = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        files = []
+        for name in ("chr7_average_canFam3.1.txt", "chrX.txt"):
+            path = source_dir / name
+            path.write_text(body)
+            files.append(path)
+
+        _stage_maps(files, CANINE_SOURCE, staging)
+
+        assert {p.name for p in staging.iterdir()} == {
+            "chr7_recomb.tsv",
+            "chrX_recomb.tsv",
+        }
+
+    def test_a_headerless_map_gains_the_canonical_header(self, tmp_path):
+        source_dir = tmp_path / "src"
+        source_dir.mkdir()
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        map_file = source_dir / "chr1_average_canFam3.1.txt"
+        map_file.write_text("1\t1000\t0.5\t0.1\n")
+
+        _stage_maps([map_file], CANINE_SOURCE, staging)
+
+        staged = (staging / "chr1_recomb.tsv").read_text()
+        assert staged.startswith("chr\tpos\trate\tcM\n")
+
+    def test_a_filename_without_a_chromosome_is_an_error(self, tmp_path):
+        """The old four-stage peel wrote this out silently as chr_recomb.tsv."""
+        source_dir = tmp_path / "src"
+        source_dir.mkdir()
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        notes = source_dir / "chr_notes.txt"
+        notes.write_text("chr\tpos\trate\tcM\n1\t1\t1\t1\n")
+
+        with pytest.raises(DataDownloadError, match="does not name a chromosome"):
+            _stage_maps([notes], CANINE_SOURCE, staging)
+
+        assert list(staging.iterdir()) == []
+
+
 class TestPublishMapGeneration:
     """Atomic publication tests for the recombination map set."""
 
@@ -510,9 +605,10 @@ class TestEnsureRecombMaps:
 
     @staticmethod
     def _patched_download(mock_download):
-        """Swap the canine source for one whose downloader is a mock."""
-        source = replace(CANINE_SOURCE, download=mock_download)
-        return patch.dict(RECOMB_SOURCES, {source.species: source})
+        """Stand in for the network-facing download step."""
+        return patch(
+            "pylocuszoom.recombination.download_recombination_maps", mock_download
+        )
 
     @patch("pylocuszoom.recombination.get_default_data_dir")
     def test_ensure_recomb_maps_downloads_if_missing(self, mock_get_dir, tmp_path):
