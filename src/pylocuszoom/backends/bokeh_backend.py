@@ -632,32 +632,6 @@ class BokehBackend:
         ax.add_layout(span)
         return span
 
-    def hbar(
-        self,
-        ax: figure,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart."""
-        left_arr = per_point(left, len(y))
-        right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
-
-        return ax.hbar(
-            y=y.values,
-            right=right_arr,
-            left=left_arr,
-            height=height,
-            fill_color=color,
-            line_color=edgecolor,
-            line_width=linewidth,
-        )
-
     def errorbar_h(
         self,
         ax: figure,

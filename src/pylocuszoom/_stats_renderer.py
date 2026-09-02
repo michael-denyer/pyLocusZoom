@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .backends.base import PlotBackend, SupportsBarCharts
+from .backends.base import PlotBackend, SupportsErrorBars
 from .colors import get_phewas_category_palette
 
 UNCATEGORISED = "Uncategorised"
@@ -129,15 +129,15 @@ class StatsRenderer:
         """Draw a forest plot of per-study effects and confidence intervals.
 
         Raises:
-            TypeError: If the backend does not implement ``SupportsBarCharts``.
-                The bars are the whole figure here, so there is nothing to
-                degrade to.
+            TypeError: If the backend does not implement ``SupportsErrorBars``.
+                The error bars are the whole figure here, so there is nothing
+                to degrade to.
         """
-        if not isinstance(self._backend, SupportsBarCharts):
+        if not isinstance(self._backend, SupportsErrorBars):
             raise TypeError(
-                f"{type(self._backend).__name__} does not support bar charts. "
-                "A forest plot needs a backend implementing SupportsBarCharts "
-                "(hbar, errorbar_h)."
+                f"{type(self._backend).__name__} does not support error bars. "
+                "A forest plot needs a backend implementing SupportsErrorBars "
+                "(errorbar_h)."
             )
         df = df.copy()
         df["y_pos"] = range(len(df) - 1, -1, -1)

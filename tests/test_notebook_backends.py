@@ -22,17 +22,7 @@ from tests.conftest import FIGURE_TYPES
 
 
 class TestBackendForestPlotMethods:
-    """Tests for forest plot backend methods (hbar, errorbar_h, axvline)."""
-
-    @staticmethod
-    def _draw_hbar(backend, ax):
-        backend.hbar(
-            ax,
-            y=pd.Series([0, 1, 2]),
-            width=pd.Series([0.5, 0.8, 0.3]),
-            height=0.5,
-            color="blue",
-        )
+    """Tests for forest plot backend methods (errorbar_h, axvline)."""
 
     @staticmethod
     def _draw_errorbar_h(backend, ax):
@@ -49,11 +39,9 @@ class TestBackendForestPlotMethods:
         backend.axvline(ax, x=0.5, color="red", linestyle="--")
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
-    @pytest.mark.parametrize(
-        "primitive", ["_draw_hbar", "_draw_errorbar_h", "_draw_axvline"]
-    )
+    @pytest.mark.parametrize("primitive", ["_draw_errorbar_h", "_draw_axvline"])
     def test_forest_primitive_does_not_raise(self, backend_name, primitive):
-        """Every backend accepts the three primitives a forest plot draws."""
+        """Every backend accepts the two primitives a forest plot draws."""
         backend = get_backend(backend_name)
         _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
 

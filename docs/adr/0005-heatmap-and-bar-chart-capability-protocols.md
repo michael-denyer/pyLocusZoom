@@ -129,3 +129,17 @@ adapter. What stays on `SupportsHeatmap` is the pair of calls only a rendering
 library can make. Batching is the cost. Bokeh drew all outline cells in one
 `rect()` call and now draws one renderer per cell, at most `2n - 1` renderers
 for `n` SNPs on the panel.
+
+## Addendum: `hbar` is removed and the protocol is renamed
+
+The decision above kept `hbar` on the grounds that it was a working, tested
+public primitive. That reasoning weighed a hypothetical downstream caller
+against ninety lines and did not count the cost to anyone writing a backend:
+a required member of an opt-in protocol has to be implemented correctly for a
+figure this library never draws. `StatsRenderer.render_forest` draws with
+`errorbar_h`, `scatter` and `axvline`; nothing in the tree ever called `hbar`.
+
+`hbar` leaves the protocol and all three adapters, and `SupportsBarCharts`
+becomes `SupportsErrorBars`, which now declares the one method it has. A
+third-party backend that implements `hbar` keeps working; the method is simply
+no longer part of any contract.

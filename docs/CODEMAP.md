@@ -240,7 +240,7 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 4a | PlotBackend | Protocol defining required methods | [base.py](../src/pylocuszoom/backends/base.py) |
-| 4a | SupportsRegionHighlight, SupportsSNPLabels, SupportsSecondaryAxis, SupportsHeatmap, SupportsBarCharts | Optional `@runtime_checkable` capabilities, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
+| 4a | SupportsRegionHighlight, SupportsSNPLabels, SupportsSecondaryAxis, SupportsHeatmap, SupportsErrorBars | Optional `@runtime_checkable` capabilities, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
 | 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
 | 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
@@ -261,7 +261,7 @@ name.
 | `SupportsRegionHighlight` | ✅ | ✅ | ✅ |
 | `SupportsSecondaryAxis` | ✅ | ✅ | ✅ |
 | `SupportsHeatmap` | ✅ | ✅ | ✅ |
-| `SupportsBarCharts` | ✅ | ✅ | ✅ |
+| `SupportsErrorBars` | ✅ | ✅ | ✅ |
 | `SupportsSNPLabels` | ✅ | ❌ | ❌ |
 
 `SupportsSNPLabels` needs adjustText, which has no plotly or bokeh equivalent.
@@ -376,9 +376,8 @@ classDiagram
         +add_heatmap()
         +add_colorbar()
     }
-    class SupportsBarCharts {
+    class SupportsErrorBars {
         <<Protocol>>
-        +hbar()
         +errorbar_h()
     }
     class composition {
@@ -412,9 +411,9 @@ classDiagram
     SupportsHeatmap <|.. MatplotlibBackend
     SupportsHeatmap <|.. PlotlyBackend
     SupportsHeatmap <|.. BokehBackend
-    SupportsBarCharts <|.. MatplotlibBackend
-    SupportsBarCharts <|.. PlotlyBackend
-    SupportsBarCharts <|.. BokehBackend
+    SupportsErrorBars <|.. MatplotlibBackend
+    SupportsErrorBars <|.. PlotlyBackend
+    SupportsErrorBars <|.. BokehBackend
     composition ..> PlotBackend : drives primitives
     gene_track ..> PlotBackend : drives primitives
     PlotlyBackend ..> hover : uses
@@ -423,7 +422,7 @@ classDiagram
     style PlotBackend fill:#1565c0,stroke:#42a5f5,color:#ffffff
     style SupportsSecondaryAxis fill:#0277bd,stroke:#4fc3f7,color:#ffffff
     style SupportsHeatmap fill:#0277bd,stroke:#4fc3f7,color:#ffffff
-    style SupportsBarCharts fill:#0277bd,stroke:#4fc3f7,color:#ffffff
+    style SupportsErrorBars fill:#0277bd,stroke:#4fc3f7,color:#ffffff
     style MatplotlibBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style PlotlyBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style BokehBackend fill:#ad1457,stroke:#f06292,color:#ffffff

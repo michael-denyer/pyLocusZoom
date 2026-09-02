@@ -588,26 +588,24 @@ class TestCustomBackendCompatibility:
         assert not isinstance(MinimalBackend(), SupportsHeatmap)
         assert isinstance(HeatmapBackend(), SupportsHeatmap)
 
-    def test_backend_missing_bar_methods_lacks_capability(self):
-        """Bar and error-bar drawing is optional in the same way."""
-        from pylocuszoom.backends import SupportsBarCharts
+    def test_backend_missing_error_bar_method_lacks_capability(self):
+        """Error-bar drawing is optional in the same way."""
+        from pylocuszoom.backends import SupportsErrorBars
 
         class MinimalBackend:
             pass
 
-        class BarBackend:
-            def hbar(self, *args, **kwargs): ...
-
+        class ErrorBarBackend:
             def errorbar_h(self, *args, **kwargs): ...
 
-        assert not isinstance(MinimalBackend(), SupportsBarCharts)
-        assert isinstance(BarBackend(), SupportsBarCharts)
+        assert not isinstance(MinimalBackend(), SupportsErrorBars)
+        assert isinstance(ErrorBarBackend(), SupportsErrorBars)
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
     def test_bundled_backends_declare_every_optional_capability(self, backend_name):
-        """The three shipped backends opt into heatmaps and bar charts."""
+        """The three shipped backends opt into heatmaps and error bars."""
         from pylocuszoom.backends import (
-            SupportsBarCharts,
+            SupportsErrorBars,
             SupportsHeatmap,
             get_backend,
         )
@@ -615,7 +613,7 @@ class TestCustomBackendCompatibility:
         backend = get_backend(backend_name)
 
         assert isinstance(backend, SupportsHeatmap)
-        assert isinstance(backend, SupportsBarCharts)
+        assert isinstance(backend, SupportsErrorBars)
 
 
 class TestLegendPlacement:

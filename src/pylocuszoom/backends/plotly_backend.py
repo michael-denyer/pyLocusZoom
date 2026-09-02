@@ -15,7 +15,6 @@ from ._coerce import (
     marker_colors,
     marker_diameter,
     normalize_ratios,
-    per_point,
     pixels,
 )
 from .composition import LegendEntry, mb_tick_positions
@@ -660,36 +659,6 @@ class PlotlyBackend:
             row=row,
             col=col,
         )
-
-    def hbar(
-        self,
-        ax: _Panel,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart."""
-        fig, row, col = ax.fig, ax.row, ax.col
-
-        trace = go.Bar(
-            y=y,
-            x=width,
-            orientation="h",
-            base=per_point(left, len(y)),
-            marker=dict(
-                color=color,
-                line=dict(color=edgecolor, width=linewidth),
-            ),
-            showlegend=False,
-        )
-
-        fig.add_trace(trace, row=row, col=col)
-        return trace
 
     def errorbar_h(
         self,

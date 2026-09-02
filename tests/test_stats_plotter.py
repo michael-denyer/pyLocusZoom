@@ -244,7 +244,7 @@ class TestStatsPlotterInit:
         assert plotter._backend is not None
 
 
-class TestBarChartCapabilityGate:
+class TestErrorBarCapabilityGate:
     """Forest plots need error bars; PheWAS plots do not."""
 
     @staticmethod
@@ -266,7 +266,7 @@ class TestBarChartCapabilityGate:
 
         renderer = StatsRenderer(BarelyABackend())
 
-        with pytest.raises(TypeError, match="does not support bar charts"):
+        with pytest.raises(TypeError, match="does not support error bars"):
             renderer.render_forest(
                 self._forest_df(),
                 variant_id="rs1",
@@ -304,20 +304,18 @@ class TestBarChartCapabilityGate:
             self._render(BarelyABackend())
 
         assert "BarelyABackend" in str(excinfo.value)
-        assert "SupportsBarCharts" in str(excinfo.value)
+        assert "SupportsErrorBars" in str(excinfo.value)
 
-    def test_error_names_both_required_methods(self):
-        """errorbar_h alone does not satisfy the protocol, so say what is missing."""
+    def test_error_names_the_required_method(self):
+        """The message names the one method a forest plot needs."""
 
-        class ErrorBarOnlyBackend:
-            def errorbar_h(self, *args, **kwargs): ...
+        class BarelyABackend:
+            pass
 
         with pytest.raises(TypeError) as excinfo:
-            self._render(ErrorBarOnlyBackend())
+            self._render(BarelyABackend())
 
-        message = str(excinfo.value)
-        assert "hbar" in message
-        assert "errorbar_h" in message
+        assert "errorbar_h" in str(excinfo.value)
 
 
 class TestConstructorThresholdIsTheDefault:

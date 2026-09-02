@@ -208,7 +208,7 @@ stages:
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
 | `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands renderers and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
-| `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsBarCharts` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
+| `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsErrorBars` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and builds the `ManhattanPanelSpec` and `QQPanelSpec` values its panels are drawn from |
 | `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
 | `QQPanelSpec`, `render_qq_panel` | Internal module | `src/pylocuszoom/_qq_panel.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
@@ -349,7 +349,7 @@ Two more clusters left `PlotBackend` in 2.1, following the same rule
 | Protocol | Methods | Used by |
 |----------|---------|---------|
 | `SupportsHeatmap` | `add_heatmap`, `add_colorbar` | LD heatmaps (standalone and the regional heatmap panel) |
-| `SupportsBarCharts` | `hbar`, `errorbar_h` | Forest plots |
+| `SupportsErrorBars` | `errorbar_h` | Forest plots |
 
 Signatures are unchanged, so a 2.0 backend that implements all four of those
 methods needs no edits: it satisfies both new protocols structurally. A backend

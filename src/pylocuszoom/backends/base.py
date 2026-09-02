@@ -142,38 +142,8 @@ class SupportsHeatmap(Protocol):
 
 
 @runtime_checkable
-class SupportsBarCharts(Protocol):
-    """Optional capability: horizontal bars and error bars (forest plots)."""
-
-    def hbar(
-        self,
-        ax: Any,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart.
-
-        Args:
-            ax: Axes or panel.
-            y: Y positions for bars.
-            width: Bar widths (x-extent).
-            height: Bar height.
-            left: Left edge positions.
-            color: Bar colors.
-            edgecolor: Edge color.
-            linewidth: Edge width.
-            zorder: Drawing order.
-
-        Returns:
-            The bar collection object.
-        """
-        ...
+class SupportsErrorBars(Protocol):
+    """Optional capability: horizontal error bars (forest plots)."""
 
     def errorbar_h(
         self,
@@ -221,7 +191,7 @@ class PlotBackend(Protocol):
     ``add_legend``, so no drawing primitive takes a label.
 
     Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
-    SupportsRegionHighlight, SupportsHeatmap, SupportsBarCharts) are separate
+    SupportsRegionHighlight, SupportsHeatmap, SupportsErrorBars) are separate
     runtime_checkable protocols, checked with isinstance rather than a boolean
     flag. A backend that implements none of them still renders every regional,
     Manhattan, Miami, colocalisation, and PheWAS plot.

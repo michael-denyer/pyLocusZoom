@@ -444,30 +444,6 @@ class MatplotlibBackend:
             zorder=zorder,
         )
 
-    def hbar(
-        self,
-        ax: Axes,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart."""
-        return ax.barh(
-            y=y,
-            width=width,
-            height=height,
-            left=left,
-            color=color,
-            edgecolor=edgecolor,
-            linewidth=linewidth,
-            zorder=zorder,
-        )
-
     def errorbar_h(
         self,
         ax: Axes,

@@ -19,7 +19,7 @@ from typing import Literal, get_args
 
 from .base import (
     PlotBackend,
-    SupportsBarCharts,
+    SupportsErrorBars,
     SupportsHeatmap,
     SupportsRegionHighlight,
     SupportsSecondaryAxis,
@@ -138,7 +138,7 @@ def __getattr__(name: str):
 
 __all__ = [
     "PlotBackend",
-    "SupportsBarCharts",
+    "SupportsErrorBars",
     "SupportsHeatmap",
     "SupportsRegionHighlight",
     "SupportsSNPLabels",

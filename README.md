@@ -232,7 +232,7 @@ Optional capabilities are negotiated with `@runtime_checkable` protocols, so a
 custom backend opts in by implementing the methods and opts out by omitting
 them: `SupportsRegionHighlight` (Miami region spans), `SupportsSNPLabels`
 (matplotlib-style repositioned labels), `SupportsSecondaryAxis` (recombination
-overlay), `SupportsHeatmap` (LD heatmaps), and `SupportsBarCharts` (forest
+overlay), `SupportsHeatmap` (LD heatmaps), and `SupportsErrorBars` (forest
 plots). A backend implementing none of them still renders every regional,
 Manhattan, Miami, colocalisation, and PheWAS plot.
 

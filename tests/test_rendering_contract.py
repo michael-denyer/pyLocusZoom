@@ -115,9 +115,6 @@ class FullCapabilityBackend(RecordingBackend):
     def add_colorbar(self, *args, **kwargs):
         return self._record("add_colorbar", *args, **kwargs)
 
-    def hbar(self, *args, **kwargs):
-        return self._record("hbar", *args, **kwargs)
-
     def errorbar_h(self, *args, **kwargs):
         return self._record("errorbar_h", *args, **kwargs)
 
