@@ -342,7 +342,10 @@ class LocusZoomPlotter:
                 (``lead_positions``, ``panel_labels``,
                 ``ld_reference_files``) has a different length.
         """
+        if not gwas_dfs:
+            raise ValueError("At least one GWAS DataFrame required")
         config = StackedPlotConfig.from_kwargs(
+            n_panels=len(gwas_dfs),
             chrom=chrom,
             start=start,
             end=end,
@@ -371,40 +374,13 @@ class LocusZoomPlotter:
             ld_heatmap_height=ld_heatmap_height,
             ld_heatmap_metric=ld_heatmap_metric,
         )
-        n_gwas = len(gwas_dfs)
-        if n_gwas == 0:
-            raise ValueError("At least one GWAS DataFrame required")
-
-        if config.lead_positions is not None and len(config.lead_positions) != n_gwas:
-            raise ValueError(
-                f"lead_positions length ({len(config.lead_positions)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-        if config.panel_labels is not None and len(config.panel_labels) != n_gwas:
-            raise ValueError(
-                f"panel_labels length ({len(config.panel_labels)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-        if (
-            config.ld_reference_files is not None
-            and len(config.ld_reference_files) != n_gwas
-        ):
-            raise ValueError(
-                "ld_reference_files length "
-                f"({len(config.ld_reference_files)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-
-        leads = (
-            list(config.lead_positions)
-            if config.lead_positions is not None
-            else _auto_lead_positions(gwas_dfs, config.region, config.columns)
+        files = (
+            config.ld_reference_files or [config.ld.ld_reference_file] * config.n_panels
         )
-        files = config.ld_reference_files or [config.ld.ld_reference_file] * n_gwas
         return self._render_regional(
             config,
             gwas_dfs,
-            leads=leads,
+            leads=config.lead_positions,
             reference_files=files,
             panel_labels=config.panel_labels,
             association_height=2.5,
@@ -417,7 +393,7 @@ class LocusZoomPlotter:
         config: PlotConfig,
         gwas_dfs: List[pd.DataFrame],
         *,
-        leads: List[Optional[int]],
+        leads: Optional[List[Optional[int]]],
         reference_files: List[Optional[str]],
         panel_labels: Optional[List[str]],
         association_height: float,
@@ -433,7 +409,8 @@ class LocusZoomPlotter:
         Args:
             config: Validated region, column, display, LD, and panel settings.
             gwas_dfs: One frame per association panel.
-            leads: Lead position per panel, parallel to ``gwas_dfs``.
+            leads: Lead position per panel, parallel to ``gwas_dfs``, or
+                None to take each panel's strongest in-region signal.
             reference_files: PLINK fileset per panel, parallel to ``gwas_dfs``.
             panel_labels: Label per panel, or None for none.
             association_height: Height-ratio units for each association panel.
@@ -504,11 +481,17 @@ class LocusZoomPlotter:
             )
 
         association: List[AssociationPanel] = []
-        for index, (gwas_df, lead_pos, reference_file) in enumerate(
-            zip(gwas_dfs, leads, reference_files)
+        for index, (gwas_df, reference_file) in enumerate(
+            zip(gwas_dfs, reference_files)
         ):
+            prepared = prepare_pvalue_data(gwas_df, columns.p_col)
+            lead_pos = (
+                leads[index]
+                if leads is not None
+                else _strongest_position(prepared, region, columns)
+            )
             df, ld_col = enrich_with_ld(
-                prepare_pvalue_data(gwas_df, columns.p_col),
+                prepared,
                 reference_file=reference_file,
                 lead_pos=lead_pos,
                 ld_col=config.ld.ld_col,
@@ -570,32 +553,24 @@ class LocusZoomPlotter:
         )
 
 
-def _auto_lead_positions(
-    gwas_dfs: List[pd.DataFrame], region: RegionConfig, columns: ColumnConfig
-) -> List[Optional[int]]:
-    """Pick each panel's lead as its strongest valid in-region p-value.
+def _strongest_position(
+    df: pd.DataFrame, region: RegionConfig, columns: ColumnConfig
+) -> Optional[int]:
+    """Return the position of the strongest in-region signal in a prepared frame.
 
-    Filters on a ``chrom`` or ``chr`` column when one exists, so a
-    whole-genome frame cannot anchor the lead to another chromosome.
-    Returns None for a panel with no valid in-region p-value.
+    ``df`` has been through ``prepare_pvalue_data``, so the p-value domain rule
+    has already been applied and ``neglog10p`` is finite. Filters on a ``chrom``
+    or ``chr`` column when one exists, so a whole-genome frame cannot anchor the
+    lead to another chromosome.
     """
-    leads: List[Optional[int]] = []
-    for df in gwas_dfs:
-        chrom_col = next((c for c in ("chrom", "chr") if c in df.columns), "chrom")
-        region_df = filter_by_region(
-            df,
-            region=(region.chrom, region.start, region.end),
-            chrom_col=chrom_col,
-            pos_col=columns.pos_col,
-        )
-        if region_df.empty:
-            leads.append(None)
-            continue
-        valid_p = region_df[columns.p_col].dropna()
-        valid_p = valid_p[(valid_p >= 0) & (valid_p <= 1)]
-        if valid_p.empty:
-            logger.warning("No valid p-values in region, cannot determine lead SNP")
-            leads.append(None)
-        else:
-            leads.append(int(region_df.loc[valid_p.idxmin(), columns.pos_col]))
-    return leads
+    chrom_col = next((c for c in ("chrom", "chr") if c in df.columns), "chrom")
+    region_df = filter_by_region(
+        df,
+        region=(region.chrom, region.start, region.end),
+        chrom_col=chrom_col,
+        pos_col=columns.pos_col,
+    )
+    if region_df.empty:
+        logger.warning("No valid p-values in region, cannot determine lead SNP")
+        return None
+    return int(region_df.loc[region_df["neglog10p"].idxmax(), columns.pos_col])

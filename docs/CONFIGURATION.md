@@ -93,7 +93,8 @@ Cross-field rules:
 
 - `ld_col` and `ld_reference_file` are mutually exclusive.
 - If `ld_reference_file` is set, `lead_pos` is required (enforced on
-  `PlotConfig`).
+  `PlotConfig`). On `StackedPlotConfig` a `lead_positions` list satisfies it
+  instead.
 
 ### `PanelInputs` — optional panels beneath the association track
 
@@ -121,9 +122,10 @@ Cross-field rules:
 - `PlotConfig` composes `RegionConfig`, `ColumnConfig`, `DisplayConfig`,
   `LDConfig`, and `PanelInputs`. Use `PlotConfig.from_kwargs(...)` to
   construct one from the same flat kwargs that `plot()` accepts.
-- `StackedPlotConfig` extends the pattern with list-valued
+- `StackedPlotConfig` extends the pattern with `n_panels` and the list-valued
   `lead_positions`, `panel_labels`, and `ld_reference_files` fields for
-  multi-panel plots.
+  multi-panel plots. Each list, when set, must hold exactly `n_panels`
+  entries.
 - `ColocConfig` covers colocalisation-specific options.
 
 All config models are `frozen=True` — construct a new instance rather than

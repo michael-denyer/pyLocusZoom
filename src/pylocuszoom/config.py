@@ -13,7 +13,7 @@ Example:
     >>> config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
 """
 
-from typing import Annotated, Any, List, Optional, Tuple, Union
+from typing import Annotated, Any, ClassVar, List, Optional, Tuple, Union
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -219,11 +219,19 @@ class PlotConfig(BaseModel):
     ld: LDConfig = Field(default_factory=LDConfig)
     panels: PanelInputs = Field(default_factory=PanelInputs)
 
+    _lead_required_error: ClassVar[str] = (
+        "lead_pos is required when ld_reference_file is provided"
+    )
+
+    def _lead_is_set(self) -> bool:
+        """Report whether a lead position is available to compute LD against."""
+        return self.ld.lead_pos is not None
+
     @model_validator(mode="after")
-    def validate_ld_requires_lead_pos(self) -> "PlotConfig":
-        """Validate that LD reference file has lead_pos for single plots."""
-        if self.ld.ld_reference_file is not None and self.ld.lead_pos is None:
-            raise ValueError("lead_pos is required when ld_reference_file is provided")
+    def validate_ld_requires_lead(self) -> "PlotConfig":
+        """Validate that computing LD from a fileset has a lead to compute against."""
+        if self.ld.ld_reference_file is not None and not self._lead_is_set():
+            raise ValueError(self._lead_required_error)
         return self
 
     @classmethod
@@ -259,18 +267,20 @@ class StackedPlotConfig(PlotConfig):
     Supports multiple lead positions, panel labels, and LD reference files.
 
     Attributes:
+        n_panels: Number of association panels, one per GWAS frame.
         lead_positions: List of lead SNP positions (one per panel).
         panel_labels: List of panel labels (one per panel).
         ld_reference_files: List of PLINK filesets (one per panel).
 
     Example:
         >>> config = StackedPlotConfig.from_kwargs(
-        ...     chrom=1, start=1000000, end=2000000,
+        ...     chrom=1, start=1000000, end=2000000, n_panels=2,
         ...     lead_positions=[1500000, 1600000],
         ...     panel_labels=["Study A", "Study B"],
         ... )
     """
 
+    n_panels: int = Field(..., ge=1, description="Number of association panels")
     lead_positions: Optional[List[int]] = Field(
         default=None, description="Lead SNP positions (one per panel)"
     )
@@ -281,22 +291,25 @@ class StackedPlotConfig(PlotConfig):
         default=None, description="PLINK filesets (one per panel)"
     )
 
-    @model_validator(mode="after")
-    def validate_ld_requires_lead_pos(self) -> "StackedPlotConfig":
-        """Validate broadcast LD configuration for stacked plots.
+    _lead_required_error: ClassVar[str] = (
+        "lead_positions is required when ld_reference_file is provided "
+        "for broadcast (one lead position per panel)"
+    )
 
-        When ld_reference_file is provided for broadcast, lead_positions must
-        be provided to specify the reference SNP for each panel.
-        """
-        if (
-            self.ld.ld_reference_file is not None
-            and self.ld.lead_pos is None
-            and self.lead_positions is None
-        ):
-            raise ValueError(
-                "lead_positions is required when ld_reference_file is provided "
-                "for broadcast (one lead position per panel)"
-            )
+    def _lead_is_set(self) -> bool:
+        """A stacked figure may take one lead per panel instead of one overall."""
+        return self.ld.lead_pos is not None or self.lead_positions is not None
+
+    @model_validator(mode="after")
+    def validate_per_panel_lists(self) -> "StackedPlotConfig":
+        """Validate that each per-panel list has one entry per panel."""
+        for name in ("lead_positions", "panel_labels", "ld_reference_files"):
+            value = getattr(self, name)
+            if value is not None and len(value) != self.n_panels:
+                raise ValueError(
+                    f"{name} length ({len(value)}) must match "
+                    f"number of GWAS DataFrames ({self.n_panels})"
+                )
         return self
 
 

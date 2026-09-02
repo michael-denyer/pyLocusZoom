@@ -454,6 +454,7 @@ class TestStackedPlotConfig:
 
         config = StackedPlotConfig(
             region=RegionConfig(chrom=1, start=1000, end=2000),
+            n_panels=2,
             lead_positions=[1500, 1600],
             panel_labels=["Study A", "Study B"],
         )
@@ -466,6 +467,7 @@ class TestStackedPlotConfig:
 
         config = StackedPlotConfig(
             region=RegionConfig(chrom=1, start=1000, end=2000),
+            n_panels=2,
             ld_reference_files=["/path/to/file1", "/path/to/file2"],
         )
         assert config.ld_reference_files == ["/path/to/file1", "/path/to/file2"]
@@ -482,6 +484,7 @@ class TestStackedPlotConfig:
         # This is because LD calculation needs a reference SNP
         config = StackedPlotConfig(
             region=RegionConfig(chrom=1, start=1000, end=2000),
+            n_panels=2,
             ld=LDConfig(ld_reference_file="/shared/file", lead_pos=1500),
         )
         assert config.ld.ld_reference_file == "/shared/file"
@@ -491,7 +494,9 @@ class TestStackedPlotConfig:
         """StackedPlotConfig should be immutable."""
         from pylocuszoom.config import RegionConfig, StackedPlotConfig
 
-        config = StackedPlotConfig(region=RegionConfig(chrom=1, start=1000, end=2000))
+        config = StackedPlotConfig(
+            region=RegionConfig(chrom=1, start=1000, end=2000), n_panels=1
+        )
         with pytest.raises(ValidationError):
             config.lead_positions = [1500]
 
@@ -499,7 +504,9 @@ class TestStackedPlotConfig:
         """from_kwargs should work with just region parameters."""
         from pylocuszoom.config import StackedPlotConfig
 
-        config = StackedPlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
+        config = StackedPlotConfig.from_kwargs(
+            n_panels=1, chrom=1, start=1000000, end=2000000
+        )
         assert config.region.chrom == 1
         assert config.lead_positions is None
         assert config.panel_labels is None
@@ -509,6 +516,7 @@ class TestStackedPlotConfig:
         from pylocuszoom.config import StackedPlotConfig
 
         config = StackedPlotConfig.from_kwargs(
+            n_panels=2,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -525,13 +533,14 @@ class TestStackedPlotConfig:
         from pylocuszoom.config import StackedPlotConfig
 
         with pytest.raises(ValidationError, match="start.*must be.*end"):
-            StackedPlotConfig.from_kwargs(chrom=1, start=2000, end=1000)
+            StackedPlotConfig.from_kwargs(n_panels=1, chrom=1, start=2000, end=1000)
 
     def test_stacked_config_from_kwargs_inherits_plot_config_params(self):
         """from_kwargs should accept all PlotConfig parameters too."""
         from pylocuszoom.config import StackedPlotConfig
 
         config = StackedPlotConfig.from_kwargs(
+            n_panels=2,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -549,7 +558,9 @@ class TestStackedPlotConfig:
         """List parameters should default to None, not empty lists."""
         from pylocuszoom.config import StackedPlotConfig
 
-        config = StackedPlotConfig.from_kwargs(chrom=1, start=1000, end=2000)
+        config = StackedPlotConfig.from_kwargs(
+            n_panels=1, chrom=1, start=1000, end=2000
+        )
         assert config.lead_positions is None
         assert config.panel_labels is None
         assert config.ld_reference_files is None
@@ -565,6 +576,7 @@ class TestStackedPlotConfig:
 
         # This should NOT raise - LD calculation will use lead_positions per panel
         config = StackedPlotConfig.from_kwargs(
+            n_panels=2,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -587,6 +599,7 @@ class TestStackedPlotConfig:
 
         with pytest.raises(ValidationError, match="lead_pos.*required|lead_positions"):
             StackedPlotConfig.from_kwargs(
+                n_panels=2,
                 chrom=1,
                 start=1000000,
                 end=2000000,
