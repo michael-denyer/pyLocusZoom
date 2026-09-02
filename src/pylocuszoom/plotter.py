@@ -135,10 +135,9 @@ class LocusZoomPlotter:
     ) -> Optional[pd.DataFrame]:
         """Get recombination rate data for a region, with caching.
 
-        Returns None through one skip path, warning as ``ensure_recomb_maps``
-        does, whenever the overlay is unavailable. A missing dependency that is
-        not pyliftover is a broken environment, not a missing overlay, and
-        propagates.
+        The pyliftover check reads the message because
+        ``get_recombination_rate_for_region`` raises a bare ``ImportError``
+        for it; any other one is a broken environment, not a missing overlay.
         """
         cache_key = (chrom, start, end, self.genome_build)
         if cache_key in self._recomb_cache:

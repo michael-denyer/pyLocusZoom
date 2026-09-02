@@ -172,14 +172,9 @@ class HeatmapPanel:
     ) -> "HeatmapPanel":
         """Map heatmap SNP ids to positions through the source panel's frame.
 
-        The lead SNP id is resolved from ``source.lead_pos`` and stays None
-        when that position is absent.
-
         Raises:
             ValueError: If the source frame has no SNP id column, or no
-                heatmap SNP falls inside the region. Both are faults in what
-                the caller supplied, like an ``ld_heatmap_df`` with no
-                ``ld_heatmap_snp_ids``.
+                heatmap SNP falls inside the region.
         """
         df = source.data
         rs_col, pos_col = source.columns.rs_col, source.columns.pos_col

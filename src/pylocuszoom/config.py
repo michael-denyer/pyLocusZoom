@@ -135,11 +135,7 @@ class LDConfig(BaseModel):
 
 
 class PanelInputs(BaseModel):
-    """Caller-supplied data for the optional panels beneath the association track.
-
-    Every field is documented once, on :meth:`LocusZoomPlotter.plot`, which is
-    the public surface that accepts them as keyword arguments.
-    """
+    """Caller-supplied data for the optional panels beneath the association track."""
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 

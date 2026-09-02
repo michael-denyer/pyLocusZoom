@@ -39,8 +39,7 @@ class ColumnSpec:
     """Declarative validation contract for one DataFrame family.
 
     Each field names the columns a rule applies to. :func:`check` runs the
-    rules in a fixed order (non-empty, columns, numeric, not-null, ranges,
-    p-value, ordering) and raises ``error_class`` if any rule fails.
+    rules in a fixed order and raises ``error_class`` if any fails.
 
     Args:
         name: Dataset name used in error messages (e.g. "GWAS").
@@ -49,12 +48,8 @@ class ColumnSpec:
         not_null: Columns that must contain no nulls.
         ranges: Numeric-range constraints applied in order.
         pvalue: Column checked against the canonical ``(0, 1]`` p-value
-            domain. This is the single owner of the strict p-value range;
-            plot-time intake in ``_data.prepare_pvalue_data`` shares the same
-            ``P_VALUE_MAX`` upper bound and relaxes only the lower bound,
-            under ``allow_zero``, for the Manhattan convention that an exact
-            zero is a clipped p-value. Null policy is left to the spec's
-            ``not_null``: load-time and plot-time deliberately differ on it.
+            domain, the single owner of that range; ``_data.P_VALUE_MAX`` is
+            the shared upper bound. Null policy is left to ``not_null``.
         ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
         non_empty: Reject a frame with no rows, before any column rule runs.
         error_class: Exception raised on failure.
@@ -76,9 +71,8 @@ def _range_errors(
 ) -> List[str]:
     """Report the range faults in one column, skipping what cannot be compared.
 
-    A missing column is reported by the required-columns rule, and a column
-    already flagged non-numeric would raise ``TypeError`` against numeric
-    bounds and mask the structured error.
+    pandas raises ``TypeError`` comparing a non-numeric column to a numeric
+    bound, which would mask the structured error.
     """
     if rule.column not in df.columns or rule.column in non_numeric:
         return []

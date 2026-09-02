@@ -70,8 +70,7 @@ def add_significance_line(
         backend: Plot backend instance.
         ax: Axes object from backend.
         threshold: P-value threshold (e.g., 5e-8). None to skip.
-        alpha: Opacity of the line. Regional panels draw it faintly so it
-            does not compete with the points.
+        alpha: Opacity of the line.
     """
     if threshold is None:
         return

@@ -1,15 +1,9 @@
 """The column contract for every DataFrame family, at both validation tiers.
 
-Each family is validated twice with different strictness. ``Tier.LOAD`` is the
-strict tier a loader applies to a file it just parsed: dtypes, nulls, ranges,
-and the ``(0, 1]`` p-value domain, reported as ``LoaderValidationError``.
+``Tier.LOAD`` is the strict tier a loader applies to a file it just parsed.
 ``Tier.PLOT`` is the permissive tier a plotter applies to a frame the caller
-assembled, and checks little more than that the columns it will read are
-there. The split is deliberate: tightening the plot tier would reject input
-that plots correctly today.
-
-:func:`spec` is the lookup. The ``validate_*`` functions below are the callers
-that only need one family, and each is one :func:`check` against one lookup.
+assembled. The split is deliberate: tightening the plot tier would reject
+input that plots correctly today.
 """
 
 from enum import Enum
@@ -254,8 +248,7 @@ def validate_phewas_df(
         df: PheWAS results DataFrame.
         phenotype_col: Column name for phenotype names.
         p_col: Column name for p-values.
-        category_col: Column name for phenotype categories, which carries no
-            rule and is accepted so callers can pass their whole column map.
+        category_col: Column name for phenotype categories.
 
     Raises:
         PheWASValidationError: If required columns are missing or have invalid types.

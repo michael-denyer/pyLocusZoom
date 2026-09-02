@@ -158,8 +158,6 @@ from .recombination import (
 
 # Gene source routing over the Ensembl and UCSC clients
 from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
-
-# PheWAS and forest plot validation
 from .schemas import validate_forest_df, validate_phewas_df
 
 # Statistical visualizations (PheWAS, forest plots)

@@ -580,11 +580,9 @@ class TestRangeValidationProperties:
         df = pd.DataFrame({"p": [p]})
         check(df, ColumnSpec(name="test", pvalue="p"))
 
-    @given(pvalues_invalid())
+    @given(pvalues_invalid().filter(lambda p: not np.isnan(p)))
     def test_invalid_pvalue_detected(self, p):
         """Invalid p-values should fail range validation."""
-        if np.isnan(p):
-            return  # NaN handled separately by the not_null rule
         df = pd.DataFrame({"p": [p]})
         with pytest.raises(ValidationError):
             check(df, ColumnSpec(name="test", pvalue="p"))
