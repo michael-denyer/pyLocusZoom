@@ -518,9 +518,7 @@ def _glyph_values(renderer, prop):
     return [spec] * len(data[renderer.glyph.x])
 
 
-class TestRegionalHeatmapHighlight:
-    """The lead-SNP outline lands on the heatmap panel in genomic coordinates."""
-
+class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
     START = 999000
     END = 1003000
 

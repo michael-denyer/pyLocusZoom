@@ -247,9 +247,7 @@ class TestPlotlySetTitleOverwriting:
         assert has_qq, f"QQ title not found in annotations: {all_text}"
 
 
-class TestPlotlyMegabaseTicks:
-    """format_xaxis_mb reads the panel it is given, not the whole figure."""
-
+class TestPlotlyMegabaseTicksReadOnePanel:
     def test_ticks_come_from_the_panels_own_traces(self):
         import pandas as pd
 

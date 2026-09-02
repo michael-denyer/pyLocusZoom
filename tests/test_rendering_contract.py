@@ -8,6 +8,7 @@ import pytest
 from pylocuszoom._miami_renderer import MiamiRenderer
 from pylocuszoom._rendering import ManhattanQQRenderer
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
+from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.manhattan import prepare_manhattan_data
 from pylocuszoom.qq import prepare_qq_data
 
@@ -284,8 +285,10 @@ def test_ld_heatmap_renderer_owns_panel_policy():
     assert names[0] == "create_figure"
     assert names[-1] == "finalize_layout"
     assert names.count("add_heatmap") == 1
-    # Three outline rectangles for the lead SNP, three for the extra SNP.
-    assert names.count("add_rectangle") == 6
+    outlines = [kwargs for name, _, kwargs in backend.calls if name == "add_rectangle"]
+    assert [outline["edgecolor"] for outline in outlines] == (
+        [LEAD_SNP_HIGHLIGHT_COLOR] * 3 + [SECONDARY_HIGHLIGHT_COLOR] * 3
+    )
     assert "set_xticks" in names and "set_yticks" in names
     assert "set_title" in names
 

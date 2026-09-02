@@ -42,7 +42,6 @@ _DASH_MAP = {
     ":": "dot",
     "-.": "dashdot",
 }
-# Every panel of every figure gets the clean LocusZoom axis look.
 _AXIS_STYLE = dict(
     showgrid=False,
     showline=True,
@@ -210,6 +209,8 @@ class PlotlyBackend:
     ) -> Any:
         """Create a line plot on the given panel or secondary axis."""
         dash = _DASH_MAP.get(linestyle, "solid")
+        # A secondary trace decorates the panel's data, so it skips the hover.
+        hoverinfo = "skip" if isinstance(ax, _SecondaryAxis) else None
 
         trace = go.Scatter(
             x=x,
@@ -221,9 +222,7 @@ class PlotlyBackend:
             showlegend=False,
             xaxis=ax.xref,
             yaxis=ax.yref,
-            # A secondary trace is a decoration over the panel's own data, so
-            # it does not answer the hover.
-            hoverinfo="skip" if isinstance(ax, _SecondaryAxis) else None,
+            hoverinfo=hoverinfo,
         )
 
         ax.fig.add_trace(trace)

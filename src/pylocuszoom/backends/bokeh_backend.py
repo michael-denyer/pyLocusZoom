@@ -76,17 +76,12 @@ _BASELINE_MAP = {"center": "middle", "baseline": "alphabetic"}
 # Namespaces hover columns in a ColumnDataSource so a hover column named "x"
 # or "size" cannot shadow the keys scatter() sets for geometry and styling.
 _HOVER_KEY_PREFIX = "hover_"
-# Names of the y-ranges a glyph can be drawn against.
 _DEFAULT_RANGE = "default"
 _SECONDARY_RANGE = "secondary"
 
 
 class _SecondaryAxis(NamedTuple):
-    """A figure's secondary y-axis, as returned by ``create_twin_axis``.
-
-    Carries the axis and the range ``create_twin_axis`` added, so labelling and
-    scaling reach them directly instead of searching the figure for them.
-    """
+    """A figure's secondary y-axis, as returned by ``create_twin_axis``."""
 
     figure: figure
     axis: LinearAxis

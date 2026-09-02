@@ -225,9 +225,7 @@ def cell_edges(coords: Sequence[float]) -> List[Tuple[float, float]]:
     """Left and right boundary of each heatmap cell, at midpoints between centres.
 
     A heatmap places one cell per coordinate, so a cell reaches halfway to each
-    neighbour. The outer cells mirror the gap on their populated side. Owning
-    this above the seam keeps cell geometry identical whether the coordinates
-    are matrix indices or genomic positions.
+    neighbour. The outer cells mirror the gap on their populated side.
 
     Args:
         coords: Cell centres along one axis, in ascending order.
