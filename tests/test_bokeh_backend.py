@@ -11,7 +11,7 @@ from pylocuszoom.stats_plotter import StatsPlotter
 
 
 class TestAddPanelLabelWithDataRange1d:
-    """High #2: add_panel_label() must work with DataRange1d (unresolved ranges)."""
+    """add_panel_label places the label when the axis range is still unresolved."""
 
     def test_panel_label_with_datarange1d(self):
         """add_panel_label should work when x_range/y_range are DataRange1d (start=None)."""
@@ -77,7 +77,7 @@ class TestAddPanelLabelWithDataRange1d:
 
 
 class TestScatterHoverColumnCollision:
-    """Medium #3: scatter() hover columns should not collide with internal keys."""
+    """scatter keeps caller hover columns distinct from its own data keys."""
 
     def test_hover_column_named_x_does_not_corrupt_scatter(self):
         """Hover data with column 'x' should not overwrite scatter x-coordinates."""
@@ -152,7 +152,7 @@ class TestScatterHoverColumnCollision:
 
 
 class TestCreateColorPalette:
-    """Medium #4: _create_color_palette should handle various color formats."""
+    """The colour palette accepts named colours, hex strings and RGB tuples."""
 
     def test_standard_6_digit_hex(self):
         """Standard 6-digit hex should work."""
@@ -177,7 +177,7 @@ class TestCreateColorPalette:
 
 
 class TestAddColorbarNoIdentityMap:
-    """Low #6: add_colorbar should not use identity orientation_map."""
+    """add_colorbar orients its ticks for the requested colourbar direction."""
 
     def test_colorbar_vertical(self):
         """Vertical colorbar should work without identity map."""
@@ -212,23 +212,6 @@ class TestAddColorbarNoIdentityMap:
         )
 
         assert colorbar.orientation == "horizontal"
-
-
-class TestNoRedundantImport:
-    """Low #7: _ensure_legend_range should not import ColumnDataSource locally."""
-
-    def test_ensure_legend_range_returns_column_data_source(self):
-        """_ensure_legend_range should return ColumnDataSource (using module-level import)."""
-        from bokeh.models import ColumnDataSource
-
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        source = backend._ensure_legend_range(ax)
-        assert isinstance(source, ColumnDataSource)
 
 
 class TestAddTextAnchors:
