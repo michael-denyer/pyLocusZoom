@@ -1,6 +1,5 @@
 """Tests for LD calculation module."""
 
-import os
 import subprocess
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -404,15 +403,15 @@ class TestCalculateLd:
                         working_dir=str(tmp_path),
                     )
 
-    def test_cleans_up_temp_directory(self, mock_plink_files):
-        """Should clean up temp directory even when PlinkError is raised."""
+    def test_cleans_up_temp_directory(self, tmp_path, monkeypatch, mock_plink_files):
+        """A failed run leaves nothing behind in the directory it created."""
+        temp_base = tmp_path / "tmpbase"
+        temp_base.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(temp_base))
+
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
-
-                # Get initial temp dir count
-                temp_base = tempfile.gettempdir()
-                initial_dirs = set(os.listdir(temp_base))
 
                 with pytest.raises(PlinkError):
                     calculate_ld(
@@ -421,13 +420,7 @@ class TestCalculateLd:
                         working_dir=None,
                     )
 
-                # Check no new dirs remain (finally block should clean up)
-                final_dirs = set(os.listdir(temp_base))
-                new_dirs = final_dirs - initial_dirs
-                pylocuszoom_dirs = [
-                    d for d in new_dirs if d.startswith("pylocuszoom_ld_")
-                ]
-                assert len(pylocuszoom_dirs) == 0
+        assert list(temp_base.iterdir()) == []
 
     def test_raises_validation_error_for_missing_plink_files(self, tmp_path):
         """Bug: calculate_ld() raises ValidationError for missing PLINK files.
@@ -801,14 +794,15 @@ class TestCalculatePairwiseLd:
                         working_dir=str(tmp_path),
                     )
 
-    def test_cleans_up_temp_directory(self, mock_plink_files):
-        """Should clean up temp directory even when PlinkError is raised."""
+    def test_cleans_up_temp_directory(self, tmp_path, monkeypatch, mock_plink_files):
+        """A failed run leaves nothing behind in the directory it created."""
+        temp_base = tmp_path / "tmpbase"
+        temp_base.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(temp_base))
+
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="error")
-
-                temp_base = tempfile.gettempdir()
-                initial_dirs = set(os.listdir(temp_base))
 
                 with pytest.raises(PlinkError):
                     calculate_pairwise_ld(
@@ -817,13 +811,7 @@ class TestCalculatePairwiseLd:
                         working_dir=None,
                     )
 
-                # finally block should still clean up
-                final_dirs = set(os.listdir(temp_base))
-                new_dirs = final_dirs - initial_dirs
-                pairwise_dirs = [
-                    d for d in new_dirs if d.startswith("pylocuszoom_pairwise_ld_")
-                ]
-                assert len(pairwise_dirs) == 0
+        assert list(temp_base.iterdir()) == []
 
     def test_returns_matrix_and_snp_ids_on_success(self, tmp_path, mock_plink_files):
         """Should return (matrix, snp_ids) tuple on successful computation."""
