@@ -57,6 +57,7 @@ import pandas as pd
 
 from .logging import logger
 from .schemas import Family, Tier, spec
+from .utils import normalize_chrom_series
 from .validation import ColumnSpec, check
 
 # =============================================================================
@@ -186,7 +187,7 @@ def _load_tabular(
         df = _filter_gene(df, gene, spec.gene_filter)
 
     if spec.clean_chrom and "chr" in df.columns:
-        df["chr"] = df["chr"].astype(str).str.replace("chr", "", regex=False)
+        df["chr"] = normalize_chrom_series(df["chr"])
 
     logger.debug(spec.log_fmt.format(n=len(df)))
     _validate(df, spec, out_cols)
@@ -693,7 +694,7 @@ def load_gtf(
     df["gene_name"] = df["attributes"].apply(extract_gene_name)
 
     # Clean chromosome names
-    df["chr"] = df["chr"].astype(str).str.replace("chr", "", regex=False)
+    df["chr"] = normalize_chrom_series(df["chr"])
 
     # Select and return relevant columns
     result = df[["chr", "start", "end", "gene_name", "strand"]].copy()

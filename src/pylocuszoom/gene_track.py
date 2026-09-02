@@ -9,7 +9,7 @@ from typing import List, Optional, Union
 
 import pandas as pd
 
-from .utils import normalize_chrom
+from .utils import normalize_chrom, normalize_chrom_series
 
 # Strand-specific colors (distinct from LD palette)
 STRAND_COLORS: dict[Optional[str], str] = {
@@ -90,24 +90,12 @@ def get_nearest_gene(
         >>> gene
         'BRCA1'
     """
-    chrom_str = normalize_chrom(chrom)
-    chrom_genes = genes_df[
-        genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str
-    ]
-
-    if chrom_genes.empty:
-        return None
-
-    # Find genes that overlap or are within window
-    nearby = chrom_genes[
-        (chrom_genes["start"] - window <= pos) & (chrom_genes["end"] + window >= pos)
-    ]
+    nearby = filter_genes_by_region(genes_df, chrom, pos - window, pos + window)
 
     if nearby.empty:
         return None
 
     # Return the closest gene (by midpoint distance)
-    nearby = nearby.copy()
     nearby["dist"] = abs((nearby["start"] + nearby["end"]) / 2 - pos)
     return nearby.loc[nearby["dist"].idxmin(), "gene_name"]
 
@@ -115,10 +103,9 @@ def get_nearest_gene(
 def filter_genes_by_region(
     df: pd.DataFrame, chrom: Union[int, str], start: int, end: int
 ) -> pd.DataFrame:
-    """Filter a DataFrame to genes/exons within a genomic region."""
-    chrom_str = normalize_chrom(chrom)
+    """Filter a DataFrame to genes/exons overlapping a genomic region."""
     return df[
-        (df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
+        (normalize_chrom_series(df["chr"]) == normalize_chrom(chrom))
         & (df["end"] >= start)
         & (df["start"] <= end)
     ].copy()

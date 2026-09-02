@@ -11,6 +11,7 @@ from pylocuszoom.utils import (
     filter_by_region,
     is_spark_dataframe,
     normalize_chrom,
+    normalize_chrom_series,
     to_pandas,
 )
 
@@ -255,6 +256,28 @@ class TestNormalizeChrom:
         """String with chr prefix has it removed."""
         assert normalize_chrom("chr1") == "1"
         assert normalize_chrom("chrX") == "X"
+
+
+class TestNormalizeChromSeries:
+    """Tests for the frame-level normalize_chrom_series."""
+
+    def test_mixed_dtypes_and_prefixes(self):
+        """Integers, bare strings and chr-prefixed strings all normalise."""
+        result = normalize_chrom_series(pd.Series([1, "2", "chr3", "chrX"]))
+
+        assert result.tolist() == ["1", "2", "3", "X"]
+
+    def test_matches_the_scalar_form(self):
+        """The Series form agrees with normalize_chrom element by element."""
+        values = [1, 22, "X", "chr1", "chrMT"]
+
+        assert normalize_chrom_series(pd.Series(values)).tolist() == [
+            normalize_chrom(v) for v in values
+        ]
+
+    def test_empty_series_stays_empty(self):
+        """An empty column normalises without raising."""
+        assert normalize_chrom_series(pd.Series([], dtype=object)).empty
 
 
 class TestPlatformCacheBase:

@@ -162,6 +162,25 @@ def normalize_chrom(chrom: Union[int, str]) -> str:
     return str(chrom).replace("chr", "")
 
 
+def normalize_chrom_series(chroms: pd.Series) -> pd.Series:
+    """Normalize a column of chromosome identifiers by removing the 'chr' prefix.
+
+    The frame-level companion to :func:`normalize_chrom`, so a column of mixed
+    integer and ``"chr1"`` spellings compares equal to a normalized scalar.
+
+    Args:
+        chroms: Column of chromosome identifiers, of any dtype.
+
+    Returns:
+        A string Series without 'chr' prefixes.
+
+    Example:
+        >>> normalize_chrom_series(pd.Series([1, "chr2", "chrX"])).tolist()
+        ['1', '2', 'X']
+    """
+    return chroms.astype(str).str.replace("chr", "", regex=False)
+
+
 def filter_by_region(
     df: pd.DataFrame,
     region: tuple,
@@ -205,10 +224,6 @@ def filter_by_region(
 
     # Chromosome filtering (if column exists)
     if chrom_col is not None and chrom_col in df.columns:
-        chrom_normalized = normalize_chrom(chrom)
-        df_chrom_normalized = (
-            df[chrom_col].astype(str).str.replace("chr", "", regex=False)
-        )
-        mask = mask & (df_chrom_normalized == chrom_normalized)
+        mask = mask & (normalize_chrom_series(df[chrom_col]) == normalize_chrom(chrom))
 
     return df[mask].copy()
