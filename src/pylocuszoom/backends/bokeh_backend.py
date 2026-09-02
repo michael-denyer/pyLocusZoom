@@ -6,10 +6,29 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 import math
 from typing import Any, List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, DataRange1d, HoverTool, Span
+from bokeh.models import (
+    BasicTicker,
+    BoxAnnotation,
+    ColorBar,
+    ColumnDataSource,
+    CustomJSTickFormatter,
+    DataRange1d,
+    HoverTool,
+    Label,
+    Legend,
+    LegendItem,
+    LinearAxis,
+    LinearColorMapper,
+    Range1d,
+    Span,
+    Whisker,
+)
+from bokeh.models.layouts import Column
 from bokeh.plotting import figure
+from matplotlib.colors import LinearSegmentedColormap, to_hex
 
 from . import convert_latex_to_unicode, register_backend
 from .composition import LegendEntry, heatmap_highlight_cells
@@ -335,8 +354,6 @@ class BokehBackend:
         color: str = "black",
     ) -> Any:
         """Add text annotation to figure."""
-        from bokeh.models import Label
-
         label = Label(
             x=x,
             y=y,
@@ -363,7 +380,6 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a rectangle to the figure."""
-
         x_center = xy[0] + width / 2
         y_center = xy[1] + height / 2
 
@@ -463,8 +479,6 @@ class BokehBackend:
 
         For Bokeh layouts, add title to the first figure in the layout.
         """
-        from bokeh.models.layouts import Column
-
         if isinstance(fig, Column) and len(fig.children) > 0:
             first_child = fig.children[0]
             if hasattr(first_child, "title"):
@@ -480,8 +494,6 @@ class BokehBackend:
         Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
         primitives.
         """
-        from bokeh.models import LinearAxis, Range1d
-
         # Add a second y-axis without tick marks (cleaner look)
         ax.extra_y_ranges = {"secondary": Range1d(start=0, end=100)}
         secondary_axis = LinearAxis(
@@ -582,8 +594,6 @@ class BokehBackend:
         y_frac: float = 0.95,
     ) -> None:
         """Add label text at fractional position in panel."""
-        from bokeh.models import Label
-
         # Use screen coordinates so the label works regardless of whether
         # the data range has been resolved (DataRange1d starts as None)
         x_px = int(x_frac * ax.width)
@@ -606,8 +616,6 @@ class BokehBackend:
         Creates a separate y-range for legend glyphs so they don't affect
         the main plot's axis scaling.
         """
-        from bokeh.models import Range1d
-
         if "legend_range" not in ax.extra_y_ranges:
             ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
         return ColumnDataSource(data={"x": [0], "y": [0]})
@@ -623,8 +631,6 @@ class BokehBackend:
         edgecolor: str = "black",
     ) -> Any:
         """Create an invisible scatter renderer for a legend entry."""
-        from bokeh.models import LegendItem
-
         renderer = ax.scatter(
             x="x",
             y="y",
@@ -643,8 +649,6 @@ class BokehBackend:
         self, ax: figure, items: List[Any], title: str, loc: str
     ) -> None:
         """Create and add a styled legend to the figure."""
-        from bokeh.models import Legend
-
         legend = Legend(
             items=items,
             location=_LEGEND_LOCATIONS.get(loc, "top_right"),
@@ -693,8 +697,6 @@ class BokehBackend:
 
     def format_xaxis_mb(self, ax: figure) -> None:
         """Format x-axis to show megabase values."""
-        from bokeh.models import CustomJSTickFormatter
-
         ax.xaxis.formatter = CustomJSTickFormatter(
             code="return (tick / 1e6).toFixed(2);"
         )
@@ -768,8 +770,6 @@ class BokehBackend:
         zorder: int = 3,
     ) -> Any:
         """Add horizontal error bars."""
-        from bokeh.models import Whisker
-
         # Calculate bounds
         lower = x - xerr_lower
         upper = x + xerr_upper
@@ -821,8 +821,6 @@ class BokehBackend:
         alpha: float = 0.3,
     ) -> None:
         """Highlight an x-range across multiple Bokeh panels."""
-        from bokeh.models import BoxAnnotation
-
         for ax in axes:
             ax.add_layout(
                 BoxAnnotation(
@@ -896,9 +894,6 @@ class BokehBackend:
         Returns:
             LinearColorMapper for colorbar attachment.
         """
-        import numpy as np
-        from bokeh.models import LinearColorMapper
-
         if cmap_colors is None:
             cmap_colors = ["#FFFFFF", "#FF0000"]
 
@@ -991,8 +986,6 @@ class BokehBackend:
         Returns:
             ColorBar object.
         """
-        from bokeh.models import BasicTicker, ColorBar
-
         color_bar = ColorBar(
             color_mapper=mappable,
             ticker=BasicTicker(),
@@ -1016,44 +1009,6 @@ def _broadcast(value: Union[float, pd.Series, List[Any]], n: int) -> Any:
     return value.values if hasattr(value, "values") else list(value)
 
 
-def _parse_color_to_rgb(color: str) -> Tuple[int, int, int]:
-    """Parse a color string to an (R, G, B) tuple.
-
-    Supports 6-digit hex (#FF0000), 3-digit hex (#F00), and
-    named CSS colors (red, white, etc.) via matplotlib's color converter.
-
-    Args:
-        color: Color string in any supported format.
-
-    Returns:
-        Tuple of (R, G, B) integers in range 0-255.
-    """
-    color = color.strip()
-
-    # 6-digit hex
-    if color.startswith("#") and len(color) == 7:
-        hex_str = color[1:]
-        return tuple(int(hex_str[i : i + 2], 16) for i in (0, 2, 4))
-
-    # 3-digit hex — expand to 6-digit
-    if color.startswith("#") and len(color) == 4:
-        hex_str = color[1:]
-        expanded = "".join(c * 2 for c in hex_str)
-        return tuple(int(expanded[i : i + 2], 16) for i in (0, 2, 4))
-
-    # Named CSS color — use matplotlib's converter
-    try:
-        from matplotlib.colors import to_rgb
-
-        r, g, b = to_rgb(color)
-        return (int(r * 255), int(g * 255), int(b * 255))
-    except (ImportError, ValueError):
-        raise ValueError(
-            f"Cannot parse color {color!r}. Use 6-digit hex (#FF0000), "
-            "3-digit hex (#F00), or a named CSS color (red, blue, etc.)."
-        )
-
-
 def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:
     """Create a linear color palette between two colors.
 
@@ -1065,17 +1020,5 @@ def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> Li
     Returns:
         List of hex color strings.
     """
-    start_rgb = _parse_color_to_rgb(start_color)
-    end_rgb = _parse_color_to_rgb(end_color)
-
-    def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
-        return "#{:02x}{:02x}{:02x}".format(*rgb)
-
-    palette = []
-    for i in range(n_colors):
-        t = i / (n_colors - 1) if n_colors > 1 else 0
-        r = int(start_rgb[0] + t * (end_rgb[0] - start_rgb[0]))
-        g = int(start_rgb[1] + t * (end_rgb[1] - start_rgb[1]))
-        b = int(start_rgb[2] + t * (end_rgb[2] - start_rgb[2]))
-        palette.append(rgb_to_hex((r, g, b)))
-    return palette
+    cmap = LinearSegmentedColormap.from_list("ld", [start_color, end_color], N=n_colors)
+    return [to_hex(cmap(i)) for i in range(n_colors)]
