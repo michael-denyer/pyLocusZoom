@@ -209,8 +209,10 @@ class LocusZoomPlotter:
             chrom: Chromosome of the region.
             start: Region start position (bp, inclusive).
             end: Region end position (bp, inclusive).
-            lead_pos: Genomic position of the lead SNP (``>= 1``). Required
-                when ``ld_reference_file`` is supplied and ``ld_col`` is not.
+            lead_pos: Genomic position of the lead SNP (``>= 1``), marked
+                with a diamond. Auto-detected as the strongest in-region
+                p-value when omitted. Required when ``ld_reference_file`` is
+                supplied and ``ld_col`` is not.
             genes_df: Gene annotations; adds a gene track. ``exons_df`` draws
                 exon structure within it. Both are filtered to the region.
             recomb_df: Recombination rates to overlay on the first
@@ -272,7 +274,7 @@ class LocusZoomPlotter:
         return self._render_regional(
             config,
             [gwas_df],
-            leads=[config.ld.lead_pos],
+            leads=None if config.ld.lead_pos is None else [config.ld.lead_pos],
             reference_files=[config.ld.ld_reference_file],
             panel_labels=None,
             association_height=config.display.figsize[1] * 0.6,
@@ -383,7 +385,7 @@ class LocusZoomPlotter:
         config: PlotConfig,
         gwas_dfs: List[pd.DataFrame],
         *,
-        leads: Optional[List[Optional[int]]],
+        leads: Optional[List[int]],
         reference_files: List[Optional[str]],
         panel_labels: Optional[List[str]],
         association_height: float,

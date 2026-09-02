@@ -575,6 +575,47 @@ class TestStackedPlotLeadDetectionCrossChrom:
         )
 
 
+class TestLeadAutoDetectionAgreesAcrossEntryPoints:
+    """With no lead given, plot() and plot_stacked([df]) pick the same lead:
+    the strongest in-region p-value."""
+
+    @staticmethod
+    def _captured_leads(plotter, call):
+        captured = []
+        composer = plotter._regional_composer
+        original = composer.render_panel
+
+        def spy(panel, *args, **kwargs):
+            if isinstance(panel, AssociationPanel):
+                captured.append(panel.lead_pos)
+            return original(panel, *args, **kwargs)
+
+        composer.render_panel = spy
+        try:
+            call()
+        finally:
+            composer.render_panel = original
+        return captured
+
+    def test_plot_auto_detects_the_strongest_hit(self, canine_plotter):
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "chr": [1, 1, 1],
+                "ps": [1_200_000, 1_500_000, 1_800_000],
+                "p_wald": [1e-3, 1e-9, 1e-5],
+            }
+        )
+        kwargs = dict(chrom=1, start=1_000_000, end=2_000_000, show_recombination=False)
+        single = self._captured_leads(
+            canine_plotter, lambda: canine_plotter.plot(gwas_df, **kwargs)
+        )
+        stacked = self._captured_leads(
+            canine_plotter, lambda: canine_plotter.plot_stacked([gwas_df], **kwargs)
+        )
+        assert single == stacked == [1_500_000]
+
+
 class TestLeadPosBoundary:
     """Pins the lead_pos=1 boundary.
 
