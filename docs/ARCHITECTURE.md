@@ -197,9 +197,9 @@ stages:
    and `miami_plan` turns it into two `MiamiPanel`s (a mirrored
    `ManhattanPanelSpec` each, plus SNP annotations) and the highlights that
    span both. `StatsPlotter` builds a `PhewasPanel` or a `ForestPanel`
-   through its `from_frame`; colocalisation and the standalone LD heatmap
-   each build one frozen request value (`ColocRequest`, `LDHeatmapRequest`)
-   and pass it to a module-level `render_*` function.
+   through its `from_frame`, and `ColocPlotter` a `ColocPanel`; the
+   standalone LD heatmap builds one frozen request value
+   (`LDHeatmapRequest`) and passes it to a module-level `render_*` function.
    Panels own their drawing, labels, axes and legends; `render_figure` owns
    the figure, translating intent through the existing `PlotBackend`
    primitive contract. Backend implementations translate the primitive calls
@@ -218,7 +218,8 @@ stages:
 | Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw` method that draws it. A panel carries its resolved mode, region, hover contract and layout, so drawing inspects no columns |
 | `MiamiRequest`, `MiamiPanel`, `miami_plan` | Internal module | `src/pylocuszoom/_miami_panels.py` | The Miami figure: a request the plotter resolves, a panel that draws one mirrored Manhattan half with its SNP annotations, and the builder that lays two of them on a `FigurePlan` with the cross-panel highlights |
 | `PhewasPanel`, `ForestPanel` | Internal module | `src/pylocuszoom/_stats_panels.py` | The PheWAS and forest panels, each built through `from_frame` and drawing itself. Every family is a panel value with `draw` on a `FigurePlan`; no family holds a renderer class |
-| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | The colocalization and LD heatmap families: a frozen request value plus one `render_*` function |
+| `ColocPanel` | Internal module | `src/pylocuszoom/_coloc_panel.py` | The colocalization scatter: the merged frame, its resolved column names and lead index, drawing itself with both threshold lines through `add_significance_line` |
+| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | The LD heatmap family: a frozen request value plus one `render_*` function |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
@@ -267,7 +268,7 @@ pyLocusZoom/
 │   ├── _regional_panels.py    # Regional panel value types, each drawing itself
 │   ├── _miami_panels.py        # Miami request, panel, and plan builder
 │   ├── _stats_panels.py        # PheWAS and forest panels
-│   ├── _coloc_renderer.py      # Colocalization figure composition
+│   ├── _coloc_panel.py         # Colocalization panel
 │   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition
 │   ├── _manhattan_panel.py    # ManhattanPanelSpec and the one function that draws it
 │   ├── _qq_panel.py           # QQPanelSpec and the one function that draws it

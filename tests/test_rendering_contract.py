@@ -402,9 +402,9 @@ def test_forest_panel_owns_its_policy():
     assert xlim[1:] == pytest.approx((-0.06, 0.66))
 
 
-def test_coloc_renderer_owns_panel_policy():
+def test_coloc_panel_owns_its_policy():
     """Colocalisation axes, thresholds, legend, and layout live above the seam."""
-    from pylocuszoom._coloc_renderer import ColocRequest, render_coloc
+    from pylocuszoom._coloc_panel import ColocPanel
     from pylocuszoom.config import ColocConfig
 
     backend = RecordingBackend()
@@ -417,24 +417,22 @@ def test_coloc_renderer_owns_panel_policy():
         }
     )
 
-    render_coloc(
-        backend,
-        ColocRequest(
-            merged=merged,
-            config=ColocConfig(
-                gwas_threshold=5e-8,
-                eqtl_threshold=1e-5,
-                show_correlation=True,
-                color_by_effect=False,
-                h4_posterior=0.92,
-                figsize=(8.0, 8.0),
-            ),
-            rs_col="rs",
-            ld_col=None,
-            lead_idx=0,
-            title="Contract Coloc",
+    panel = ColocPanel(
+        merged=merged,
+        config=ColocConfig(
+            gwas_threshold=5e-8,
+            eqtl_threshold=1e-5,
+            show_correlation=True,
+            color_by_effect=False,
+            h4_posterior=0.92,
+            figsize=(8.0, 8.0),
         ),
+        rs_col="rs",
+        ld_col=None,
+        lead_idx=0,
+        title="Contract Coloc",
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
