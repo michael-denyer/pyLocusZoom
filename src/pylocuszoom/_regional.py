@@ -24,6 +24,7 @@ from .backends.composition import (
     LegendEntry,
     eqtl_legend_entries,
     finemapping_legend_entries,
+    heatmap_highlight_rects,
     ld_legend_entries,
     lower_triangle,
     render_recombination_overlay,
@@ -427,14 +428,22 @@ class RegionalPlotComposer:
             ax, mappable, label="R²" if panel.metric == "r2" else "D'"
         )
         if panel.lead_snp_id is not None and panel.lead_snp_id in panel.snp_ids:
-            self._backend.highlight_heatmap_snp(
-                ax,
-                fig,
+            rects = heatmap_highlight_rects(
                 panel.snp_ids.index(panel.lead_snp_id),
-                n_snps,
-                color=LEAD_SNP_HIGHLIGHT_COLOR,
-                linewidth=2,
+                panel.x_positions,
+                list(range(n_snps)),
             )
+            for x0, y0, width, height in rects:
+                self._backend.add_rectangle(
+                    ax,
+                    (x0, y0),
+                    width,
+                    height,
+                    facecolor=None,
+                    edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
+                    linewidth=2,
+                    zorder=10,
+                )
         self._backend.set_xlim(ax, plan.start, plan.end)
         self._backend.hide_yaxis(ax)
 

@@ -16,6 +16,7 @@ from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.composition import lower_triangle
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
+from pylocuszoom.colors import LD_HEATMAP_COLORS
 from pylocuszoom.plotter import LocusZoomPlotter
 
 
@@ -866,7 +867,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords)
+        backend.add_heatmap(ax, data, x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS)
 
         fig_obj = ax[0]
         heatmap_trace = [t for t in fig_obj.data if hasattr(t, "z")][0]
@@ -889,7 +890,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords)
+        backend.add_heatmap(ax, data, x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS)
 
         # Get the rect glyph data source
         renderers = ax.renderers
@@ -911,7 +912,9 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, lower_triangle(data), x_coords, y_coords)
+        backend.add_heatmap(
+            ax, lower_triangle(data), x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS
+        )
 
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
@@ -934,7 +937,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0]
         y_coords = [1_000_000.0, 2_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords)
+        backend.add_heatmap(ax, data, x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS)
 
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
@@ -966,7 +969,7 @@ class TestHeatmapCoordinates:
         x_coords = [1_000_000.0, 2_000_000.0, 4_000_000.0]  # gap doubles
         y_coords = [1_000_000.0, 2_000_000.0, 4_000_000.0]
 
-        backend.add_heatmap(ax, data, x_coords, y_coords)
+        backend.add_heatmap(ax, data, x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS)
 
         renderers = ax.renderers
         rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]

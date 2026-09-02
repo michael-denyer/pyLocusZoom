@@ -95,8 +95,8 @@ tracing a protocol method still resolves through the class to find it, and the
 method count on the seam is unchanged. That hop is the cost the rejection names.
 
 Extracting a value type and pure functions has no such hop.
-`backends/plotly_layout.py` holds `_Panel`, which resolves a renderer's panel
-handle and owns Plotly's subplot axis naming, plus `configure_legend`,
+`backends/plotly_layout.py` holds `_Panel`, the panel handle itself, which
+owns Plotly's subplot axis naming, plus `configure_legend`,
 `panel_y`, `x_range`, and `secondary_axis_key`. None of them touch the backend
 instance, so a reader following `set_xlim` reads one call to a named function
 rather than a method that might be overridden further up an inheritance chain.
@@ -107,3 +107,24 @@ The rule this leaves: extract along the axis of what the code *is*, not to hit a
 line count. Arithmetic over a figure, coercion between vocabularies, and
 geometry a caller could compute belong outside the adapter. Anything that draws,
 and anything the protocol names, stays on the backend class.
+
+## Addendum: geometry a caller can compute does not belong on the protocol
+
+`SupportsHeatmap` shipped with three methods. `add_heatmap` took `x_coords` and
+`y_coords`; `highlight_heatmap_snp` took a SNP index and a SNP count. One grid,
+two calls, and only one of them knew where the cells were. Each adapter closed
+the gap its own way, so the lead-SNP outline drew at matrix indices on an axis
+of base pairs whenever the regional composer supplied genomic coordinates, and
+Plotly's shapes carried no axis reference and bound to the first subplot.
+
+The method is removed. `composition.heatmap_highlight_rects(snp_idx, x_coords,
+y_coords)` returns outline rectangles in data coordinates, and both renderers
+draw them through the `add_rectangle` primitive every backend already
+implements. `add_rectangle` gains `facecolor=None` for an unfilled outline.
+
+This is the addendum rule above applied to a protocol method rather than to a
+file: geometry a caller can compute is not drawing, so it moves out of the
+adapter. What stays on `SupportsHeatmap` is the pair of calls only a rendering
+library can make. Batching is the cost. Bokeh drew all outline cells in one
+`rect()` call and now draws one renderer per cell, at most `2n - 1` renderers
+for `n` SNPs on the panel.

@@ -4,7 +4,7 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 """
 
 import math
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -39,7 +39,7 @@ from ._coerce import (
     pixels,
     split_pixels,
 )
-from .composition import LegendEntry, heatmap_highlight_cells
+from .composition import LegendEntry
 from .hover import bokeh_tooltips
 
 # Style mappings (matplotlib -> Bokeh)
@@ -76,6 +76,34 @@ _BASELINE_MAP = {"center": "middle", "baseline": "alphabetic"}
 # Namespaces hover columns in a ColumnDataSource so a hover column named "x"
 # or "size" cannot shadow the keys scatter() sets for geometry and styling.
 _HOVER_KEY_PREFIX = "hover_"
+_DEFAULT_RANGE = "default"
+_SECONDARY_RANGE = "secondary"
+
+
+class _SecondaryAxis(NamedTuple):
+    """A figure's secondary y-axis, as returned by ``create_twin_axis``."""
+
+    figure: figure
+    axis: LinearAxis
+    y_range: Range1d
+    name: str = _SECONDARY_RANGE
+
+
+def _style_panel(p: figure) -> None:
+    """Give a panel the clean LocusZoom look: no grid, black axes, no minor ticks."""
+    p.grid.visible = False
+    p.outline_line_color = None
+    p.xaxis.axis_line_color = "black"
+    p.yaxis.axis_line_color = "black"
+    p.xaxis.minor_tick_line_color = None
+    p.yaxis.minor_tick_line_color = None
+
+
+def _draw_target(ax: Union[figure, _SecondaryAxis]) -> Tuple[figure, str]:
+    """The figure to draw on and the y-range to draw against."""
+    if isinstance(ax, _SecondaryAxis):
+        return ax.figure, ax.name
+    return ax, _DEFAULT_RANGE
 
 
 @register_backend("bokeh")
@@ -113,14 +141,7 @@ class BokehBackend:
                 tools="pan,wheel_zoom,box_zoom,reset,save",
                 toolbar_location="above" if i == 0 else None,
             )
-
-            # Style - no grid lines, black axes for clean LocusZoom appearance
-            p.grid.visible = False
-            p.outline_line_color = None
-            p.xaxis.axis_line_color = "black"
-            p.yaxis.axis_line_color = "black"
-            p.xaxis.minor_tick_line_color = None
-            p.yaxis.minor_tick_line_color = None
+            _style_panel(p)
 
             figures.append(p)
 
@@ -154,14 +175,7 @@ class BokehBackend:
                     tools="pan,wheel_zoom,box_zoom,reset,save",
                     toolbar_location="above" if i == 0 and j == 0 else None,
                 )
-
-                # Style
-                p.grid.visible = False
-                p.outline_line_color = None
-                p.xaxis.axis_line_color = "black"
-                p.yaxis.axis_line_color = "black"
-                p.xaxis.minor_tick_line_color = None
-                p.yaxis.minor_tick_line_color = None
+                _style_panel(p)
 
                 row_figures.append(p)
                 figures.append(p)
@@ -184,7 +198,6 @@ class BokehBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given figure."""
         # Prepare data source
@@ -206,18 +219,16 @@ class BokehBackend:
         marker_type = _MARKER_MAP.get(marker, "circle")
 
         # Create scatter using scatter() method (Bokeh 3.4+ preferred API)
-        scatter_kwargs = {
-            "source": source,
-            "marker": marker_type,
-            "size": "size",
-            "fill_color": "color",
-            "line_color": edgecolor,
-            "line_width": linewidth,
-        }
-        if label:
-            scatter_kwargs["legend_label"] = label
-
-        renderer = ax.scatter("x", "y", **scatter_kwargs)
+        renderer = ax.scatter(
+            "x",
+            "y",
+            source=source,
+            marker=marker_type,
+            size="size",
+            fill_color="color",
+            line_color=edgecolor,
+            line_width=linewidth,
+        )
 
         # Add hover tool if we have hover data
         if tooltips:
@@ -232,7 +243,7 @@ class BokehBackend:
 
     def line(
         self,
-        ax: figure,
+        ax: Union[figure, _SecondaryAxis],
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -240,25 +251,23 @@ class BokehBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
-        """Create a line plot on the given figure."""
-        line_dash = _DASH_MAP.get(linestyle, "solid")
+        """Create a line plot on the given figure or secondary axis."""
+        target, y_range_name = _draw_target(ax)
 
-        line_kwargs = {
-            "line_color": color,
-            "line_width": linewidth,
-            "line_alpha": alpha,
-            "line_dash": line_dash,
-        }
-        if label:
-            line_kwargs["legend_label"] = label
-
-        return ax.line(x.values, y.values, **line_kwargs)
+        return target.line(
+            x.values,
+            y.values,
+            line_color=color,
+            line_width=linewidth,
+            line_alpha=alpha,
+            line_dash=_DASH_MAP.get(linestyle, "solid"),
+            y_range_name=y_range_name,
+        )
 
     def fill_between(
         self,
-        ax: figure,
+        ax: Union[figure, _SecondaryAxis],
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
@@ -267,13 +276,15 @@ class BokehBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
+        target, y_range_name = _draw_target(ax)
         x_arr = x.values
-        return ax.varea(
+        return target.varea(
             x=x_arr,
             y1=broadcast(y1, len(x_arr)),
             y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
+            y_range_name=y_range_name,
         )
 
     def axhline(
@@ -333,7 +344,7 @@ class BokehBackend:
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -444,103 +455,43 @@ class BokehBackend:
         first.title.text = title
         first.title.text_font_size = f"{fontsize}pt"
 
-    def create_twin_axis(self, ax: figure) -> Any:
-        """Create a secondary y-axis.
-
-        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
-        primitives.
-        """
+    def create_twin_axis(self, ax: figure) -> _SecondaryAxis:
+        """Create a secondary y-axis and return its handle."""
         # Add a second y-axis without tick marks (cleaner look)
-        ax.extra_y_ranges = {"secondary": Range1d(start=0, end=100)}
+        y_range = Range1d(start=0, end=100)
+        ax.extra_y_ranges = {_SECONDARY_RANGE: y_range}
         secondary_axis = LinearAxis(
-            y_range_name="secondary",
+            y_range_name=_SECONDARY_RANGE,
             major_tick_line_color=None,  # Hide major ticks
             minor_tick_line_color=None,  # Hide minor ticks
             major_label_text_font_size="0pt",  # Hide tick labels
         )
         ax.add_layout(secondary_axis, "right")
 
-        return (ax, "secondary")
-
-    def line_secondary(
-        self,
-        secondary: Any,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Create a line plot on secondary y-axis."""
-        ax, yaxis_name = secondary
-        line_dash = _DASH_MAP.get(linestyle, "solid")
-
-        return ax.line(
-            x.values,
-            y.values,
-            line_color=color,
-            line_width=linewidth,
-            line_alpha=alpha,
-            line_dash=line_dash,
-            y_range_name=yaxis_name,
-        )
-
-    def fill_between_secondary(
-        self,
-        secondary: Any,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill area between two y-values on secondary y-axis."""
-        ax, yaxis_name = secondary
-        x_arr = x.values
-        return ax.varea(
-            x=x_arr,
-            y1=broadcast(y1, len(x_arr)),
-            y2=broadcast(y2, len(x_arr)),
-            fill_color=color,
-            fill_alpha=alpha,
-            y_range_name=yaxis_name,
-        )
+        return _SecondaryAxis(ax, secondary_axis, y_range)
 
     def set_secondary_ylim(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         bottom: float,
         top: float,
     ) -> None:
         """Set secondary y-axis limits."""
-        ax, yaxis_name = secondary
-        if yaxis_name in ax.extra_y_ranges:
-            ax.extra_y_ranges[yaxis_name].start = bottom
-            ax.extra_y_ranges[yaxis_name].end = top
+        secondary.y_range.start = bottom
+        secondary.y_range.end = top
 
     def set_secondary_ylabel(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         label: str,
         color: str = "black",
         fontsize: int = 10,
     ) -> None:
         """Set secondary y-axis label."""
-        ax, yaxis_name = secondary
-        label = convert_latex_to_unicode(label)
-        # Find the secondary axis and update its label
-        for renderer in ax.right:
-            if (
-                hasattr(renderer, "y_range_name")
-                and renderer.y_range_name == yaxis_name
-            ):
-                renderer.axis_label = label
-                renderer.axis_label_text_font_size = f"{fontsize}pt"
-                renderer.axis_label_text_color = color
-                renderer.major_label_text_color = color
-                break
+        secondary.axis.axis_label = convert_latex_to_unicode(label)
+        secondary.axis.axis_label_text_font_size = f"{fontsize}pt"
+        secondary.axis.axis_label_text_color = color
+        secondary.axis.major_label_text_color = color
 
     def add_panel_label(
         self,
@@ -694,13 +645,7 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Create horizontal bar chart."""
-        # Convert left to array if scalar
-        if isinstance(left, (int, float)):
-            left_arr = [left] * len(y)
-        else:
-            left_arr = list(left) if hasattr(left, "tolist") else left
-
-        # Calculate right edge
+        left_arr = per_point(left, len(y))
         right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
 
         return ax.hbar(
@@ -787,49 +732,17 @@ class BokehBackend:
                 )
             )
 
-    def highlight_heatmap_snp(
-        self,
-        ax: figure,
-        fig: Any,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in the heatmap.
-
-        Uses batched rect() calls for efficiency instead of one renderer
-        per cell.
-        """
-        cells = heatmap_highlight_cells(snp_idx, n_snps)
-        source = ColumnDataSource(
-            data={"x": [x for x, _ in cells], "y": [y for _, y in cells]}
-        )
-        ax.rect(
-            x="x",
-            y="y",
-            width=1,
-            height=1,
-            fill_alpha=0,
-            line_color=color,
-            line_width=linewidth,
-            source=source,
-        )
-
     def add_heatmap(
         self,
         ax: figure,
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
         """Render a heatmap of an already-shaped matrix."""
-        if cmap_colors is None:
-            cmap_colors = ["#FFFFFF", "#FF0000"]
-
         # Create custom palette from start to end color
         # For a simple 2-color gradient, create a palette of intermediate colors
         palette = _create_color_palette(cmap_colors[0], cmap_colors[1], 256)

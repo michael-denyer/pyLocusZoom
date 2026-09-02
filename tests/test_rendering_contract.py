@@ -8,6 +8,7 @@ import pytest
 from pylocuszoom._miami_renderer import MiamiRenderer
 from pylocuszoom._rendering import ManhattanQQRenderer
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
+from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.manhattan import prepare_manhattan_data
 from pylocuszoom.qq import prepare_qq_data
 
@@ -110,9 +111,6 @@ class FullCapabilityBackend(RecordingBackend):
 
     def add_colorbar(self, *args, **kwargs):
         return self._record("add_colorbar", *args, **kwargs)
-
-    def highlight_heatmap_snp(self, *args, **kwargs):
-        self._record("highlight_heatmap_snp", *args, **kwargs)
 
     def hbar(self, *args, **kwargs):
         return self._record("hbar", *args, **kwargs)
@@ -287,8 +285,10 @@ def test_ld_heatmap_renderer_owns_panel_policy():
     assert names[0] == "create_figure"
     assert names[-1] == "finalize_layout"
     assert names.count("add_heatmap") == 1
-    # One highlight for the lead, one for each extra SNP.
-    assert names.count("highlight_heatmap_snp") == 2
+    outlines = [kwargs for name, _, kwargs in backend.calls if name == "add_rectangle"]
+    assert [outline["edgecolor"] for outline in outlines] == (
+        [LEAD_SNP_HIGHLIGHT_COLOR] * 3 + [SECONDARY_HIGHLIGHT_COLOR] * 3
+    )
     assert "set_xticks" in names and "set_yticks" in names
     assert "set_title" in names
 
@@ -319,7 +319,7 @@ def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
     names = [name for name, _, _ in backend.calls]
     assert "add_heatmap" in names
     assert "add_colorbar" not in names
-    assert "highlight_heatmap_snp" not in names
+    assert "add_rectangle" not in names
     assert "set_title" not in names
 
 

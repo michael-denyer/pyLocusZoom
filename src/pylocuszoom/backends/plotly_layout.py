@@ -42,24 +42,6 @@ class _Panel(NamedTuple):
     col: int = 1
     n_cols: int = 1
 
-    @classmethod
-    def of(cls, ax: Any) -> "_Panel":
-        """Build a panel from a ``(fig, row)`` or ``(fig, row, col, n_cols)`` handle.
-
-        Args:
-            ax: Panel handle as returned by ``create_figure`` or
-                ``create_figure_grid``.
-
-        Returns:
-            The resolved panel.
-
-        Raises:
-            ValueError: If the handle has an unexpected length.
-        """
-        if len(ax) == 2 or len(ax) == 4:
-            return cls(*ax)
-        raise ValueError(f"Expected ax tuple of length 2 or 4, got {len(ax)}")
-
     @property
     def subplot_idx(self) -> int:
         """Plotly's linear index for this subplot, 1-based."""
@@ -100,6 +82,37 @@ class _Panel(NamedTuple):
         """
         idx = self.subplot_idx
         return f"{kind}{idx}" if idx > 1 else kind
+
+    @property
+    def xref(self) -> str:
+        """Trace-level reference for this subplot's x-axis."""
+        return self.ref("x")
+
+    @property
+    def yref(self) -> str:
+        """Trace-level reference for this subplot's y-axis."""
+        return self.ref("y")
+
+
+class _SecondaryAxis(NamedTuple):
+    """A panel's secondary y-axis, as returned by ``create_twin_axis``.
+
+    Carries the panel it overlays, so a drawing primitive reaches the figure
+    and the panel's x-axis through the handle it is given.
+    """
+
+    panel: _Panel
+    yref: str
+
+    @property
+    def fig(self) -> go.Figure:
+        """The figure the panel belongs to."""
+        return self.panel.fig
+
+    @property
+    def xref(self) -> str:
+        """Trace-level reference for the panel's x-axis, which is shared."""
+        return self.panel.xref
 
 
 def secondary_axis_key(secondary_ref: str) -> str:
@@ -166,20 +179,23 @@ def configure_legend(
 
 
 def x_range(panel: _Panel, xaxis_name: str) -> Optional[Tuple[float, float]]:
-    """Resolve a panel's x-range, falling back to the extent of trace data.
+    """A panel's x-range, falling back to the extent of its own traces.
 
     Args:
         panel: The panel whose range is wanted.
         xaxis_name: Layout key for the panel's x-axis.
 
     Returns:
-        The (min, max) range, or None when the figure carries no x data.
+        The (min, max) range, or None when the panel carries no x data.
     """
     xaxis = getattr(panel.fig.layout, xaxis_name, None)
     if xaxis and xaxis.range:
         return xaxis.range
+    ref = panel.xref
     x_vals: List[Any] = []
     for trace in panel.fig.data:
+        if (getattr(trace, "xaxis", None) or "x") != ref:
+            continue
         if getattr(trace, "x", None) is not None:
             x_vals.extend([v for v in trace.x if v is not None])
     return (min(x_vals), max(x_vals)) if x_vals else None

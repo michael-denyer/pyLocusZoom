@@ -194,7 +194,7 @@ stages:
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, neutral `add_legend`). Heatmap and bar-chart drawing left the contract in 2.1 and are optional protocols (ADR-0005) |
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
-| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as a value type plus pure functions: `_Panel` owns the linear subplot-index axis naming, alongside `configure_legend`, `panel_y`, and `x_range` |
+| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands renderers and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
 | `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsBarCharts` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and QQ panel policy, and builds `ManhattanPanelSpec` values for the Manhattan panels |
 | `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
@@ -244,7 +244,7 @@ pyLocusZoom/
 │   │   ├── _coerce.py         # Coercions out of matplotlib's vocabulary, shared by plotly and bokeh
 │   │   ├── matplotlib_backend.py
 │   │   ├── plotly_backend.py
-│   │   ├── plotly_layout.py   # Plotly subplot geometry: _Panel plus pure layout helpers
+│   │   ├── plotly_layout.py   # Plotly subplot geometry: _Panel, _SecondaryAxis, pure helpers
 │   │   ├── bokeh_backend.py
 │   │   └── hover.py           # Hover tooltip helpers for interactive backends
 │   ├── colors.py              # LD bins, eQTL, credible-set, PheWAS palettes
@@ -304,14 +304,15 @@ def add_legend(self, ax, entries: list[LegendEntry], loc="upper left", title=Non
 ```
 
 Backends must honour `loc` (matplotlib's vocabulary) and each entry's
-`edgecolor`, falling back to black when it is `None`.
+`edgecolor`, falling back to black when it is `None`. No drawing primitive
+takes a label, so `add_legend` is the only route to legend content.
 
 **2. `add_recombination_overlay` is gone.** The overlay is composed from
 primitives by `composition.render_recombination_overlay()`. A backend that wants
 the overlay implements `SupportsSecondaryAxis`: `create_twin_axis(ax)` returns
-an opaque per-backend handle, and `line_secondary`, `fill_between_secondary`,
-`set_secondary_ylim`, and `set_secondary_ylabel` each take that handle as their
-first argument.
+a per-backend handle, `set_secondary_ylim` and `set_secondary_ylabel` take that
+handle, and `line` and `fill_between` accept it in place of a panel to draw
+against the secondary scale.
 
 **3. Capabilities are protocols, not booleans.** The `supports_snp_labels` and
 `supports_secondary_axis` properties are removed. Optional capabilities are
@@ -332,12 +333,12 @@ Two more clusters left `PlotBackend` in 2.1, following the same rule
 
 | Protocol | Methods | Used by |
 |----------|---------|---------|
-| `SupportsHeatmap` | `add_heatmap`, `add_colorbar`, `highlight_heatmap_snp` | LD heatmaps (standalone and the regional heatmap panel) |
+| `SupportsHeatmap` | `add_heatmap`, `add_colorbar` | LD heatmaps (standalone and the regional heatmap panel) |
 | `SupportsBarCharts` | `hbar`, `errorbar_h` | Forest plots |
 
-Signatures are unchanged, so a 2.0 backend that implements all five of those
+Signatures are unchanged, so a 2.0 backend that implements all four of those
 methods needs no edits: it satisfies both new protocols structurally. A backend
-that implements none of the five optional protocols still renders every
+that implements none of the optional protocols still renders every
 regional, Manhattan, Miami, colocalisation, and PheWAS plot.
 
 How a caller reacts to a missing capability depends on what is left without it.
@@ -347,8 +348,9 @@ because the rest of the regional figure still renders. `LDHeatmapRenderer` and
 missing protocol, because there the capability is the whole figure.
 
 Two pieces of shared drawing knowledge sit above the seam rather than in each
-adapter. `composition.heatmap_highlight_cells(snp_idx, n_snps)` returns the
-matrix cells a SNP highlight covers, so a backend implementing
-`highlight_heatmap_snp` supplies only the drawing call. `hover.plotly_hovertemplate`
+adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`
+returns the outline rectangles marking a SNP, in the same data coordinates the
+heatmap was drawn in, and the renderer draws them through `add_rectangle`, so no
+adapter derives cell geometry. `hover.plotly_hovertemplate`
 and `hover.bokeh_tooltips` build the tooltip spec from a hover DataFrame, so the
 column-name-to-number-format heuristic has one owner.
