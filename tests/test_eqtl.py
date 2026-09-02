@@ -201,8 +201,8 @@ class TestCalculateColocalizationOverlap:
         """Sample GWAS data."""
         return pd.DataFrame(
             {
-                "ps": [1000000, 1001000, 1002000, 1003000],
-                "p_wald": [1e-6, 0.01, 1e-8, 0.05],
+                "pos": [1000000, 1001000, 1002000, 1003000],
+                "p_value": [1e-6, 0.01, 1e-8, 0.05],
             }
         )
 
@@ -225,8 +225,8 @@ class TestCalculateColocalizationOverlap:
         )
         # Only 1000000 and 1002000 are significant in both
         assert len(result) == 2
-        assert 1000000 in result["ps"].values
-        assert 1002000 in result["ps"].values
+        assert 1000000 in result["pos"].values
+        assert 1002000 in result["pos"].values
 
     def test_no_overlap_returns_empty(self, coloc_overlap_gwas_df):
         """No overlapping positions returns empty DataFrame."""

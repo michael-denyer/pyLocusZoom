@@ -7,10 +7,13 @@ import pandas as pd
 
 from ._plotter_utils import add_significance_line
 from .backends.base import PlotBackend
-from .colors import get_phewas_category_palette
+from .colors import (
+    FOREST_MARKER_COLOR,
+    UNCATEGORISED_COLOR,
+    get_phewas_category_palette,
+)
 
 UNCATEGORISED = "Uncategorised"
-UNCATEGORISED_COLOR = "#4169E1"
 
 
 def _phewas_groups(
@@ -199,7 +202,7 @@ class ForestPanel:
             ax,
             df[self.effect_col],
             df["y_pos"],
-            colors="#4169E1",
+            colors=FOREST_MARKER_COLOR,
             sizes=self.sizes,
             marker="s",
             edgecolor="black",

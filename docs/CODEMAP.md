@@ -170,6 +170,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2a | ColumnSpec | Frozen per-family validation contract (required, numeric, not-null, ranges, p-value, ordering) | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | RangeRule | One numeric-range constraint inside a `ColumnSpec` | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | check | Runs a `ColumnSpec` against a DataFrame in fixed rule order | [validation.py](../src/pylocuszoom/validation.py) |
+| 2b | Canonical | The column names every loader emits and every plotter defaults to | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | Family, Tier | The DataFrame family and the validation tier a contract is looked up by | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | spec | Returns the `ColumnSpec` for one family at one tier | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_gwas_df, validate_genes_df | Plot-time GWAS and gene-annotation checks | [schemas.py](../src/pylocuszoom/schemas.py) |
@@ -189,6 +190,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | find_plink | Locate PLINK executable | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | Species, resolve_species | The one record a species resolves to, and the boundary parser every entry point calls | [species.py](../src/pylocuszoom/species.py) |
+| 3b | colors.py | The one owner of the palette: LD, eQTL, credible-set, PheWAS, gene-track, recombination, QQ and heatmap colours. No module outside `backends/` holds a hex literal, and `test_colors.py` fails if one appears | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_ld_color | Map R² → hex colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
@@ -227,13 +229,13 @@ Data transformation between validated input and backend-ready primitives.
 
 ```python
 # from src/pylocuszoom/colors.py
-LD_BINS = [
+LD_BINS = (
     (0.8, "0.8 - 1.0", "#FF0000"),
     (0.6, "0.6 - 0.8", "#FFA500"),
     (0.4, "0.4 - 0.6", "#00CD00"),
     (0.2, "0.2 - 0.4", "#00EEEE"),
     (0.0, "0.0 - 0.2", "#4169E1"),
-]
+)
 LEAD_SNP_COLOR = "#7D26CD"
 ```
 
@@ -283,8 +285,9 @@ implementing the methods and out by omitting them; see
 |----|-----------|-------------|-----------|
 | 5a | PyLocusZoomError | Exception hierarchy root | [exceptions.py](../src/pylocuszoom/exceptions.py) |
 | 5b | enable_logging | Loguru/stdlib logging facade | [logging.py](../src/pylocuszoom/logging.py) |
-| 5c | to_pandas | PySpark → pandas bridge | [utils.py](../src/pylocuszoom/utils.py) |
+| 5c | to_pandas | PySpark → pandas bridge, called by every public plot method on the frames it is given | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
+| 5c | normalize_chrom_series | Column-level chromosome normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 | 5d | download_file | The one HTTP download path: retries, atomic writes, progress | [_http.py](../src/pylocuszoom/_http.py) |
 
 ### Exception Hierarchy [5a]
@@ -495,6 +498,7 @@ complete reference; this table is the complete one.
 
 | Name | Purpose |
 |------|---------|
+| `Canonical` | The column names every loader emits and every plotter defaults to: `chr`, `pos`, `p_value`, `rs`. |
 | `validate_forest_df` | Validate forest plot DataFrame has required columns and types. |
 | `validate_phewas_df` | Validate PheWAS DataFrame has required columns and types. |
 

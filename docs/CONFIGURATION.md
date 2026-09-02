@@ -68,8 +68,8 @@ options and their defaults.
 
 | Field     | Type  | Default   | Description           |
 | --------- | ----- | --------- | --------------------- |
-| `pos_col` | `str` | `"ps"`    | Position column name  |
-| `p_col`   | `str` | `"p_wald"`| P-value column name   |
+| `pos_col` | `str` | `"pos"`     | Position column name  |
+| `p_col`   | `str` | `"p_value"` | P-value column name   |
 | `rs_col`  | `str` | `"rs"`    | SNP identifier column |
 
 ### `DisplayConfig` — visual options
@@ -140,7 +140,7 @@ Because configuration is passed at call time, "required" here means
 | Setting                  | Required?                              | Notes                                                      |
 | ------------------------ | -------------------------------------- | ---------------------------------------------------------- |
 | `chrom`, `start`, `end`  | Required                               | Validation error if missing or if `start >= end`.          |
-| `pos_col`, `p_col`, `rs_col` | Optional                           | Default to `"ps"`, `"p_wald"`, `"rs"`.                     |
+| `pos_col`, `p_col`, `rs_col` | Optional                           | Default to the canonical `"pos"`, `"p_value"`, `"rs"`.     |
 | `lead_pos`               | Required *if* `ld_reference_file` set  | Otherwise optional.                                        |
 | `ld_reference_file`      | Optional                               | Mutually exclusive with `ld_col`.                          |
 | `ld_col`                 | Optional                               | Mutually exclusive with `ld_reference_file`.               |
@@ -154,8 +154,8 @@ Defaults defined in source (see
 [`config.py`](../src/pylocuszoom/config.py)):
 
 ```text
-pos_col            = "ps"
-p_col              = "p_wald"
+pos_col            = "pos"
+p_col              = "p_value"
 rs_col             = "rs"
 snp_labels         = True
 label_top_n        = 5

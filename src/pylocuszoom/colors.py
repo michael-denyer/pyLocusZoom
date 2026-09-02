@@ -1,12 +1,17 @@
-"""LD color schemes for regional association plots.
+"""Every colour this library draws with.
 
 Implements LocusZoom-style coloring based on R² linkage disequilibrium values.
 Colors match the locuszoomr R package color scheme.
 
+This module owns the palette: no other module in ``src/pylocuszoom`` outside
+``backends/`` holds a hex literal, and ``tests/test_colors.py`` fails if one
+appears. A theme change is an edit here rather than a grep across the package.
 """
 
 import math
-from typing import List, NamedTuple, Optional
+from typing import List, NamedTuple, Optional, Sequence, TypeVar
+
+_Bin = TypeVar("_Bin")
 
 
 def _is_missing(value: Optional[float]) -> bool:
@@ -40,15 +45,17 @@ class LDBin(NamedTuple):
     color: str
 
 
-LD_BINS: list[LDBin] = [
+LD_BINS: tuple[LDBin, ...] = (
     LDBin(0.8, "0.8 - 1.0", "#FF0000"),  # red
     LDBin(0.6, "0.6 - 0.8", "#FFA500"),  # orange
     LDBin(0.4, "0.4 - 0.6", "#00CD00"),  # green3
     LDBin(0.2, "0.2 - 0.4", "#00EEEE"),  # cyan2
     LDBin(0.0, "0.0 - 0.2", "#4169E1"),  # royalblue
-]
+)
 
-LD_NA_COLOR = "#BEBEBE"  # grey - SNPs lacking LD information
+# One neutral grey for "this point carries no value", whatever the value was.
+NO_DATA_COLOR = "#BEBEBE"
+LD_NA_COLOR = NO_DATA_COLOR  # the LD-specific name for the same grey
 LD_NA_LABEL = "NA"
 
 # Lead SNP color (purple diamond)
@@ -105,6 +112,20 @@ EQTL_NEGATIVE_BINS: tuple[EQTLBin, ...] = (
 )
 
 
+def _first_at_or_above(value: float, bins: Sequence[_Bin], lower: str) -> _Bin:
+    """Return the first bin whose lower bound ``value`` reaches, else the last.
+
+    The bins are ordered outermost first, so a value beyond the outermost
+    boundary lands in the outermost bin rather than raising.
+
+    Args:
+        value: The number to bin.
+        bins: Bins ordered by descending lower bound.
+        lower: Field on each bin holding its inclusive lower bound.
+    """
+    return next((b for b in bins if getattr(b, lower) <= value), bins[-1])
+
+
 def _find_eqtl_bin(effect: float) -> EQTLBin:
     """Find the eQTL bin for a given effect size.
 
@@ -112,11 +133,12 @@ def _find_eqtl_bin(effect: float) -> EQTLBin:
         effect: Effect size (beta coefficient). Must not be None/NaN.
 
     Returns:
-        The first bin the effect reaches, so an effect beyond the outermost
-        boundary lands in the outermost bin.
+        The bin the effect falls in. The positive bins are half-open upwards
+        and the negative ones downwards, mirroring around zero, so the two
+        branches compare against their lower bound differently.
     """
     if effect >= 0:
-        return next(b for b in EQTL_POSITIVE_BINS if b.min_val <= effect)
+        return _first_at_or_above(effect, EQTL_POSITIVE_BINS, "min_val")
     return next(
         (b for b in EQTL_NEGATIVE_BINS if effect > b.min_val), EQTL_NEGATIVE_BINS[-1]
     )
@@ -145,10 +167,7 @@ def _find_ld_bin(r2: float) -> LDBin:
     Returns:
         Matching LDBin.
     """
-    for ld_bin in LD_BINS:
-        if r2 >= ld_bin.threshold:
-            return ld_bin
-    return LD_BINS[-1]
+    return _first_at_or_above(r2, LD_BINS, "threshold")
 
 
 def get_ld_color(r2: Optional[float]) -> str:
@@ -295,3 +314,47 @@ SECONDARY_HIGHLIGHT_COLOR = "#0000FF"  # blue for other highlighted SNPs
 # Colors for effect direction agreement in colocalization plots
 EFFECT_CONGRUENT_COLOR = "#4DAF4A"  # green - same direction
 EFFECT_INCONGRUENT_COLOR = "#E41A1C"  # red - opposite direction
+
+# =============================================================================
+# Gene Track
+# =============================================================================
+
+# Strand-specific gene body colors (distinct from the LD palette)
+STRAND_COLORS: dict[Optional[str], str] = {
+    "+": "#DAA520",  # goldenrod for forward strand
+    "-": "#6BB3FF",  # light blue for reverse strand
+    None: "#999999",  # light grey if no strand info
+}
+
+# Strand arrows drawn over the gene body, one shade apart so both read on
+# their own body colour.
+STRAND_ARROW_COLORS: dict[str, str] = {"+": "#000000", "-": "#333333"}
+
+# Gene name drawn above the gene body
+GENE_LABEL_COLOR = "#000000"
+
+# =============================================================================
+# Regional Panel Overlays
+# =============================================================================
+
+# Recombination rate overlay on the secondary axis
+RECOMB_COLOR = "#7FCDFF"  # light blue
+
+# SNP labels drawn over the association panel
+SNP_LABEL_COLOR = "#333333"
+
+# eQTL markers when no effect sizes are available to bin
+EQTL_MARKER_COLOR = "#FF6B6B"
+
+# =============================================================================
+# QQ and Statistical Panels
+# =============================================================================
+
+QQ_POINT_COLOR = "#1f77b4"
+QQ_CI_COLOR = "#CCCCCC"
+
+# PheWAS points whose category column is blank
+UNCATEGORISED_COLOR = "#4169E1"
+
+# Forest plot effect markers
+FOREST_MARKER_COLOR = "#4169E1"

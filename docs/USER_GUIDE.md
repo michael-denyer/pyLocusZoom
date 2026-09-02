@@ -82,8 +82,8 @@ from pylocuszoom import LDConfig, LocusZoomPlotter
 
 # Sample GWAS data
 gwas_df = pd.DataFrame({
-    "ps": [1000000, 1000500, 1001000, 1001500, 1002000],
-    "p_wald": [0.05, 1e-4, 1e-8, 1e-6, 0.01],
+    "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
+    "p_value": [0.05, 1e-4, 1e-8, 1e-6, 0.01],
     "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
 })
 
@@ -485,7 +485,7 @@ Miami plots (mirrored Manhattan plots) compare two GWAS datasets side-by-side wi
 ```python
 import pandas as pd
 
-from pylocuszoom import GenomeWideConfig, MiamiPlotter
+from pylocuszoom import MiamiPlotter
 
 # Two GWAS datasets to compare
 gwas1 = pd.read_csv("gwas_study1.csv")
@@ -498,7 +498,6 @@ fig = plotter.plot_miami(
     top_label="Study 1",
     bottom_label="Study 2",
     figsize=(14, 8),
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("miami.png", dpi=150)
 ```
@@ -516,12 +515,9 @@ fig.savefig("miami.png", dpi=150)
 **Customization options:**
 
 ```python
-from pylocuszoom import GenomeWideConfig
-
 fig = plotter.plot_miami(
     top_df=gwas1,
     bottom_df=gwas2,
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
     # Per-panel thresholds
     top_threshold=5e-8,
     bottom_threshold=1e-5,
@@ -602,14 +598,13 @@ Genome-wide Manhattan plots showing associations across all chromosomes.
 ![Manhattan plot](../examples/matplotlib/manhattan_plot.png)
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan(
     gwas_df,
     significance_threshold=5e-8,
     figsize=(12, 5),
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan.png", dpi=150)
 ```
@@ -628,7 +623,7 @@ Quantile-quantile plots for assessing p-value distribution and detecting systema
 ![QQ plot](../examples/matplotlib/qq_plot.png)
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_qq(
@@ -636,7 +631,6 @@ fig = plotter.plot_qq(
     show_confidence_band=True,
     show_lambda=True,
     figsize=(6, 6),
-    config=GenomeWideConfig(p_col="p"),
 )
 fig.savefig("qq_plot.png", dpi=150)
 ```
@@ -655,7 +649,7 @@ Compare multiple GWAS studies in vertically stacked Manhattan plots with shared 
 ![Stacked Manhattan plot](../examples/matplotlib/manhattan_stacked.png)
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_stacked(
@@ -664,7 +658,6 @@ fig = plotter.plot_manhattan_stacked(
     significance_threshold=5e-8,
     figsize=(12, 8),
     title="Multi-study GWAS Comparison",
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
@@ -684,7 +677,7 @@ Combined Manhattan and QQ plots in a single figure for comprehensive GWAS summar
 ![Manhattan and QQ side-by-side](../examples/matplotlib/manhattan_qq_sidebyside.png)
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_qq(
@@ -694,7 +687,6 @@ fig = plotter.plot_manhattan_qq(
     show_lambda=True,
     figsize=(14, 5),
     title="GWAS Results",
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
@@ -878,9 +870,21 @@ fig = plotter.plot(
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `pos_col` | str | `"ps"` | Position column name in gwas_df. |
-| `p_col` | str | `"p_wald"` | P-value column name in gwas_df. |
+| `pos_col` | str | `"pos"` | Position column name in gwas_df. |
+| `p_col` | str | `"p_value"` | P-value column name in gwas_df. |
 | `rs_col` | str | `"rs"` | SNP ID column name in gwas_df. |
+
+#### GenomeWideConfig
+
+The column contract for the genome-wide families (`plot_manhattan`, `plot_qq`,
+their stacked and side-by-side variants, and `plot_miami`).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `chrom_col` | str | `"chr"` | Chromosome column name. |
+| `pos_col` | str | `"pos"` | Position column name. |
+| `p_col` | str | `"p_value"` | P-value column name. |
+| `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. |
 
 #### DisplayConfig
 
@@ -1083,14 +1087,22 @@ fig = plotter.plot(
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
-| `ps` | int | Yes | Genomic position (bp, 1-based). |
-| `p_wald` | float | Yes | P-value (0 < p ≤ 1). |
+| `chr` | str or int | For genome-wide plots | Chromosome. |
+| `pos` | int | Yes | Genomic position (bp, 1-based). |
+| `p_value` | float | Yes | P-value (0 < p ≤ 1). |
 | `rs` | str | For LD/labels | SNP identifier. |
+
+These are the canonical column names: every `load_*` function emits them and
+every plotter defaults to them, so a loaded frame plots without renaming. A
+frame still carrying the pre-4.0 `ps` and `p_wald` names is accepted with a
+`DeprecationWarning` until 5.0.0. Other names are supported through
+`ColumnConfig` and `GenomeWideConfig`.
 
 ```python
 gwas_df = pd.DataFrame({
-    "ps": [1000000, 1000500, 1001000],
-    "p_wald": [1e-8, 1e-6, 0.05],
+    "chr": [1, 1, 1],
+    "pos": [1000000, 1000500, 1001000],
+    "p_value": [1e-8, 1e-6, 0.05],
     "rs": ["rs123", "rs456", "rs789"],
 })
 ```

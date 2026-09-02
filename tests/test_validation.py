@@ -556,15 +556,15 @@ class TestValidationProperties:
             df,
             ColumnSpec(
                 name="gwas_df",
-                required=("rs", "chr", "ps", "p_wald"),
-                numeric=("ps", "p_wald"),
+                required=("rs", "chr", "pos", "p_value"),
+                numeric=("pos", "p_value"),
             ),
         )
 
     @given(gwas_dataframes(min_snps=1, max_snps=50))
     def test_dropping_required_column_fails(self, df):
         """Dropping any required column should fail validation."""
-        required = ("rs", "chr", "ps", "p_wald")
+        required = ("rs", "chr", "pos", "p_value")
         for col in required:
             invalid_df = df.drop(columns=[col])
             with pytest.raises(ValidationError):
@@ -593,7 +593,7 @@ class TestValidateGwasDf:
 
     def test_valid_gwas_passes(self):
         """Valid GWAS DataFrame passes."""
-        df = pd.DataFrame({"ps": [1000], "p_wald": [0.01]})
+        df = pd.DataFrame({"pos": [1000], "p_value": [0.01]})
         validate_gwas_df(df)  # Should not raise
 
     def test_custom_column_names(self):
@@ -603,19 +603,19 @@ class TestValidateGwasDf:
 
     def test_missing_position_raises(self):
         """Missing position column raises error."""
-        df = pd.DataFrame({"p_wald": [0.01]})
+        df = pd.DataFrame({"p_value": [0.01]})
 
         with pytest.raises(ValidationError):
             validate_gwas_df(df)
 
     def test_with_rs_col(self):
         """Including rs_col validates that column too."""
-        df = pd.DataFrame({"ps": [1000], "p_wald": [0.01], "rs": ["rs123"]})
+        df = pd.DataFrame({"pos": [1000], "p_value": [0.01], "rs": ["rs123"]})
         validate_gwas_df(df, rs_col="rs")  # Should not raise
 
     def test_missing_rs_col_when_required(self):
         """Missing rs_col when specified raises error."""
-        df = pd.DataFrame({"ps": [1000], "p_wald": [0.01]})
+        df = pd.DataFrame({"pos": [1000], "p_value": [0.01]})
 
         with pytest.raises(ValidationError):
             validate_gwas_df(df, rs_col="rs")

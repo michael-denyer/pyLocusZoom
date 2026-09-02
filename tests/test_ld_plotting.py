@@ -10,7 +10,7 @@ import pandas as pd
 from pylocuszoom._ld_plotting import enrich_with_ld
 
 ARGS = {
-    "pos_col": "ps",
+    "pos_col": "pos",
     "rs_col": "rs",
     "start": 1_000_000,
     "end": 2_000_000,

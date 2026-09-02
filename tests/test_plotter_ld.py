@@ -120,8 +120,8 @@ class TestLDHeatmapIntegration:
             {
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
                 "chr": [1, 1, 1, 1, 1],
-                "ps": [1000000, 1000500, 1001000, 1001500, 1002000],
-                "p_wald": [1e-8, 1e-6, 1e-4, 1e-3, 0.05],
+                "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
+                "p_value": [1e-8, 1e-6, 1e-4, 1e-3, 0.05],
             }
         )
 
@@ -446,8 +446,8 @@ class TestLDHeatmapIntegration:
                     {
                         "rs": ["rs_extra"],
                         "chr": [1],
-                        "ps": [1000100],  # Different position
-                        "p_wald": [1e-10],  # Most significant
+                        "pos": [1000100],  # Different position
+                        "p_value": [1e-10],  # Most significant
                     }
                 ),
             ],
@@ -504,8 +504,8 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
             {
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
                 "chr": [1, 1, 1, 1, 1],
-                "ps": [1000000, 1000500, 1001000, 1001500, 1002000],
-                "p_wald": [1e-8, 1e-6, 1e-4, 1e-3, 0.05],
+                "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
+                "p_value": [1e-8, 1e-6, 1e-4, 1e-3, 0.05],
             }
         )
 

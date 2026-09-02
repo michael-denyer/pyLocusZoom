@@ -146,11 +146,18 @@ stages:
    record, so an alias cannot mean one species to one subsystem and another to
    the next. An unknown name raises `ValidationError` here rather than
    degrading silently three layers down.
-2. **Validation and intake.** The input DataFrame is normalized through
-   `utils.to_pandas()` (supports PySpark input) and validated against expected
-   columns. `schemas.spec(family, tier)` names the contract and
-   `validation.check` runs it, strictly at `Tier.LOAD` for a frame a loader
-   just parsed and permissively at `Tier.PLOT` for one the caller assembled.
+2. **Validation and intake.** Every public plot method opens by collecting the
+   frames it was given through `utils.to_pandas()`, so a PySpark DataFrame is
+   accepted anywhere a pandas one is and nothing below the entry point sees
+   anything but pandas. The frame is then validated against expected columns.
+   `schemas.spec(family, tier)` names the contract and `validation.check` runs
+   it, strictly at `Tier.LOAD` for a frame a loader just parsed and
+   permissively at `Tier.PLOT` for one the caller assembled.
+   `schemas.Canonical` names the columns both halves of the package agree on
+   (`chr`, `pos`, `p_value`, `rs`): every loader emits them and every column
+   model defaults to them, so loader output plots without renaming. A frame
+   carrying the pre-4.0 `ps` or `p_wald` spelling is accepted through
+   `config.resolve_deprecated_columns` with a `DeprecationWarning` until 5.0.0.
    P-value-bearing plot paths
    then share `_data.prepare_pvalue_data()` for null/range filtering and finite
    `-log10` transformation.

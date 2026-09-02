@@ -9,14 +9,8 @@ from typing import List, Optional, Union
 
 import pandas as pd
 
-from .utils import normalize_chrom
-
-# Strand-specific colors (distinct from LD palette)
-STRAND_COLORS: dict[Optional[str], str] = {
-    "+": "#DAA520",  # Goldenrod for forward strand
-    "-": "#6BB3FF",  # Light blue for reverse strand
-    None: "#999999",  # Light grey if no strand info
-}
+from .colors import STRAND_ARROW_COLORS
+from .utils import normalize_chrom, normalize_chrom_series
 
 # Layout constants
 ROW_HEIGHT = 0.35  # Total height per row (reduced for tighter spacing)
@@ -90,24 +84,12 @@ def get_nearest_gene(
         >>> gene
         'BRCA1'
     """
-    chrom_str = normalize_chrom(chrom)
-    chrom_genes = genes_df[
-        genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str
-    ]
-
-    if chrom_genes.empty:
-        return None
-
-    # Find genes that overlap or are within window
-    nearby = chrom_genes[
-        (chrom_genes["start"] - window <= pos) & (chrom_genes["end"] + window >= pos)
-    ]
+    nearby = filter_genes_by_region(genes_df, chrom, pos - window, pos + window)
 
     if nearby.empty:
         return None
 
     # Return the closest gene (by midpoint distance)
-    nearby = nearby.copy()
     nearby["dist"] = abs((nearby["start"] + nearby["end"]) / 2 - pos)
     return nearby.loc[nearby["dist"].idxmin(), "gene_name"]
 
@@ -115,10 +97,9 @@ def get_nearest_gene(
 def filter_genes_by_region(
     df: pd.DataFrame, chrom: Union[int, str], start: int, end: int
 ) -> pd.DataFrame:
-    """Filter a DataFrame to genes/exons within a genomic region."""
-    chrom_str = normalize_chrom(chrom)
+    """Filter a DataFrame to genes/exons overlapping a genomic region."""
     return df[
-        (df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
+        (normalize_chrom_series(df["chr"]) == normalize_chrom(chrom))
         & (df["end"] >= start)
         & (df["start"] <= end)
     ].copy()
@@ -145,13 +126,13 @@ def compute_arrow_geometry(
             gene_center + tri_width / 2,
             gene_end - tip_offset,
         ]
-        arrow_color = "#000000"
+        arrow_color = STRAND_ARROW_COLORS["+"]
     else:
         arrow_tip_positions = [
             gene_end - tail_offset,
             gene_center - tri_width / 2,
             gene_start + tip_offset,
         ]
-        arrow_color = "#333333"
+        arrow_color = STRAND_ARROW_COLORS["-"]
 
     return arrow_tip_positions, tri_height, tri_width, arrow_color

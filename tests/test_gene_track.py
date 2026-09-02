@@ -7,10 +7,11 @@ from hypothesis import given
 from hypothesis import settings as hyp_settings
 
 from pylocuszoom._regional_panels import GenePanel
+from pylocuszoom.colors import STRAND_COLORS
 from pylocuszoom.config import RegionConfig
 from pylocuszoom.gene_track import (
-    STRAND_COLORS,
     assign_gene_positions,
+    filter_genes_by_region,
     get_nearest_gene,
 )
 from tests.strategies import gene_dataframes
@@ -186,6 +187,16 @@ class TestGetNearestGene:
         # With 100kb window, 350000 should find GENE_C (starts 500000)
         result = get_nearest_gene(genes_df, chrom=1, pos=410000, window=100000)
         assert result == "GENE_C"
+
+    def test_window_search_is_the_region_filter(self, genes_df):
+        """The candidate set is the region filter centred on the position."""
+        pos, window = 175000, 50000
+        candidates = filter_genes_by_region(genes_df, 1, pos - window, pos + window)
+
+        assert set(candidates["gene_name"]) == {"GENE_A", "GENE_B"}
+        assert get_nearest_gene(genes_df, chrom=1, pos=pos, window=window) in set(
+            candidates["gene_name"]
+        )
 
 
 def _draw(backend, ax, genes_df, chrom, start, end):

@@ -1,10 +1,14 @@
 """Tests for LD color utilities."""
 
+import ast
 import math
+import re
+from pathlib import Path
 
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
+import pylocuszoom
 from pylocuszoom.colors import (
     CREDIBLE_SET_COLORS,
     EQTL_NEGATIVE_BINS,
@@ -25,6 +29,8 @@ from pylocuszoom.colors import (
     get_ld_color_palette,
 )
 from tests.strategies import ld_values
+
+HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}")
 
 
 class TestGetLdColor:
@@ -470,3 +476,31 @@ class TestFindEqtlBinConsistency:
     def test_color_always_comes_from_the_found_bin(self, effect):
         """For any valid effect, the colour comes from the bin it lands in."""
         assert get_eqtl_color(effect) == _find_eqtl_bin(effect).color
+
+
+class TestPaletteOwnership:
+    """colors.py is the one place a colour is written down."""
+
+    def test_no_hex_literal_outside_colors(self):
+        """A hex colour anywhere else makes a theme change a grep, not an edit.
+
+        ``backends/`` is out of scope: it is the layer below ``colors.py`` and
+        reaches up to it only through ``composition.py``, so its one remaining
+        grey (the bokeh heatmap's ``nan_color``) is left where it is.
+        """
+        source_dir = Path(pylocuszoom.__file__).parent
+        offenders = []
+        for path in sorted(source_dir.glob("*.py")):
+            if path.name == "colors.py":
+                continue
+            for node in ast.walk(ast.parse(path.read_text())):
+                if (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and HEX_COLOR.fullmatch(node.value)
+                ):
+                    offenders.append(f"{path.name}:{node.lineno} {node.value}")
+
+        assert not offenders, (
+            "Move these colours into colors.py and import them: " + ", ".join(offenders)
+        )

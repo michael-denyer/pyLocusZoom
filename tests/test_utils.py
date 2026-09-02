@@ -11,6 +11,7 @@ from pylocuszoom.utils import (
     filter_by_region,
     is_spark_dataframe,
     normalize_chrom,
+    normalize_chrom_series,
     to_pandas,
 )
 
@@ -53,7 +54,7 @@ class TestFilterByRegion:
         """When chrom_col exists, filter by both chromosome and position."""
         df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2],
+                "chr": [1, 1, 2, 2],
                 "pos": [1000, 2000, 1000, 2000],
                 "value": [1, 2, 3, 4],
             }
@@ -62,43 +63,41 @@ class TestFilterByRegion:
 
         # Should only return chromosome 1 rows
         assert len(result) == 2
-        assert list(result["chrom"]) == [1, 1]
+        assert list(result["chr"]) == [1, 1]
 
     # Chromosome type coercion (int vs str, chr prefix)
 
     def test_chromosome_type_coercion_int_to_str(self):
         """Region chrom=1 (int) matches df['chrom']='1' (str)."""
-        df = pd.DataFrame({"chrom": ["1", "1", "2"], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": ["1", "1", "2"], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=(1, 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_type_coercion_str_to_int(self):
         """Region chrom='1' (str) matches df['chrom']=1 (int)."""
-        df = pd.DataFrame({"chrom": [1, 1, 2], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": [1, 1, 2], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=("1", 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_chr_prefix_in_region(self):
         """Region chrom='chr1' matches df['chrom']='1' or df['chrom']=1."""
-        df = pd.DataFrame({"chrom": [1, 1, 2], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": [1, 1, 2], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=("chr1", 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_chr_prefix_in_dataframe(self):
         """Region chrom=1 matches df['chrom']='chr1'."""
-        df = pd.DataFrame(
-            {"chrom": ["chr1", "chr1", "chr2"], "pos": [1000, 2000, 1000]}
-        )
+        df = pd.DataFrame({"chr": ["chr1", "chr1", "chr2"], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=(1, 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_x_matching(self):
         """Chromosome X matching works across type variations."""
-        df = pd.DataFrame({"chrom": ["X", "X", "1"], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": ["X", "X", "1"], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=("chrX", 500, 2500), pos_col="pos")
 
         assert len(result) == 2
@@ -116,7 +115,7 @@ class TestFilterByRegion:
 
     def test_empty_result_wrong_chromosome(self):
         """Wrong chromosome returns empty DataFrame."""
-        df = pd.DataFrame({"chrom": [1, 1, 1], "pos": [1000, 2000, 3000]})
+        df = pd.DataFrame({"chr": [1, 1, 1], "pos": [1000, 2000, 3000]})
         result = filter_by_region(df, region=(2, 500, 3500), pos_col="pos")
 
         assert len(result) == 0
@@ -210,18 +209,15 @@ class TestToPandas:
         with pytest.raises(TypeError, match="Unsupported DataFrame type"):
             to_pandas([1, 2, 3])
 
-    def test_object_with_to_pandas_method(self):
-        """Object with to_pandas() method uses that method."""
-        expected = pd.DataFrame({"a": [1, 2, 3]})
+    def test_object_with_only_to_pandas_is_rejected(self):
+        """The contract is pandas or Spark, so a bare to_pandas() is not enough."""
         mock_obj = MagicMock()
-        mock_obj.to_pandas.return_value = expected
-        # Make sure it's not detected as Spark
+        del mock_obj.toPandas
         mock_obj.__class__.__name__ = "CustomDataFrame"
         mock_obj.__class__.__module__ = "custom"
 
-        result = to_pandas(mock_obj)
-        assert result.equals(expected)
-        mock_obj.to_pandas.assert_called_once()
+        with pytest.raises(TypeError, match="Unsupported DataFrame type"):
+            to_pandas(mock_obj)
 
     def test_object_with_toPandas_method(self):
         """Object with toPandas() method (Spark-style) uses that method."""
@@ -255,6 +251,28 @@ class TestNormalizeChrom:
         """String with chr prefix has it removed."""
         assert normalize_chrom("chr1") == "1"
         assert normalize_chrom("chrX") == "X"
+
+
+class TestNormalizeChromSeries:
+    """Tests for the frame-level normalize_chrom_series."""
+
+    def test_mixed_dtypes_and_prefixes(self):
+        """Integers, bare strings and chr-prefixed strings all normalise."""
+        result = normalize_chrom_series(pd.Series([1, "2", "chr3", "chrX"]))
+
+        assert result.tolist() == ["1", "2", "3", "X"]
+
+    def test_matches_the_scalar_form(self):
+        """The Series form agrees with normalize_chrom element by element."""
+        values = [1, 22, "X", "chr1", "chrMT"]
+
+        assert normalize_chrom_series(pd.Series(values)).tolist() == [
+            normalize_chrom(v) for v in values
+        ]
+
+    def test_empty_series_stays_empty(self):
+        """An empty column normalises without raising."""
+        assert normalize_chrom_series(pd.Series([], dtype=object)).empty
 
 
 class TestPlatformCacheBase:

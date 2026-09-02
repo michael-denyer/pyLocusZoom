@@ -7,6 +7,7 @@ import pandas as pd
 from scipy import stats
 
 from ._data import prepare_pvalue_data
+from .schemas import Canonical
 
 
 def calculate_lambda_gc(p_values: np.ndarray) -> float:
@@ -85,7 +86,7 @@ class PreparedQQ:
 
 def prepare_qq_data(
     df: pd.DataFrame,
-    p_col: str = "p",
+    p_col: str = Canonical.P,
 ) -> PreparedQQ:
     """Prepare DataFrame for QQ plot rendering.
 

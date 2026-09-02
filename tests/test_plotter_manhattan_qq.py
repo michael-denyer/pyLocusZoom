@@ -101,7 +101,7 @@ class TestPlotManhattan:
 
     def test_plot_manhattan_handles_empty_df(self, manhattan_plotter):
         """plot_manhattan should raise on empty DataFrame."""
-        df = pd.DataFrame({"chrom": [], "pos": [], "p": []})
+        df = pd.DataFrame({"chr": [], "pos": [], "p_value": []})
         # Empty DF causes axis limits to be NaN/Inf
         with pytest.raises((ValueError, Exception)):
             manhattan_plotter.plot_manhattan(df)
@@ -123,7 +123,7 @@ class TestPlotQQ:
     def sample_pvalues_df(self):
         """Sample DataFrame with p-values for QQ plot."""
         rng = np.random.default_rng(42)
-        return pd.DataFrame({"p": rng.uniform(0, 1, 1000)})
+        return pd.DataFrame({"p_value": rng.uniform(0, 1, 1000)})
 
     @pytest.fixture
     def default_manhattan_plotter(self):
@@ -197,7 +197,7 @@ class TestPlotQQ:
 
     def test_plot_qq_handles_all_nan(self, default_manhattan_plotter):
         """plot_qq should raise on all NaN p-values."""
-        df = pd.DataFrame({"p": [np.nan, np.nan, np.nan]})
+        df = pd.DataFrame({"p_value": [np.nan, np.nan, np.nan]})
         with pytest.raises(ValueError, match="No valid"):
             default_manhattan_plotter.plot_qq(df)
 
@@ -221,7 +221,7 @@ class TestPlotManhattanCategorical:
             {
                 "category": ["cardio", "cardio", "neuro", "neuro", "immuno"],
                 "phenotype": ["BP", "HR", "AD", "PD", "RA"],
-                "p": [1e-10, 0.01, 1e-6, 0.5, 1e-4],
+                "p_value": [1e-10, 0.01, 1e-6, 0.5, 1e-4],
             }
         )
 
@@ -237,7 +237,6 @@ class TestPlotManhattanCategorical:
         fig = default_manhattan_plotter.plot_manhattan(
             sample_phewas_df,
             category_col="category",
-            config=GenomeWideConfig(p_col="p"),
         )
         assert isinstance(fig, plt.Figure)
 
@@ -249,7 +248,6 @@ class TestPlotManhattanCategorical:
             sample_phewas_df,
             category_col="category",
             category_order=["neuro", "cardio", "immuno"],
-            config=GenomeWideConfig(p_col="p"),
         )
         assert isinstance(fig, plt.Figure)
 
@@ -267,14 +265,14 @@ class TestPlotManhattanStacked:
             dfs.append(
                 pd.DataFrame(
                     {
-                        "chrom": np.repeat([1, 2], [25, 25]),
+                        "chr": np.repeat([1, 2], [25, 25]),
                         "pos": np.concatenate(
                             [
                                 np.sort(rng.integers(int(1e6), int(1e8), 25)),
                                 np.sort(rng.integers(int(1e6), int(1e8), 25)),
                             ]
                         ),
-                        "p": rng.uniform(1e-10, 1, n_variants),
+                        "p_value": rng.uniform(1e-10, 1, n_variants),
                     }
                 )
             )
@@ -422,7 +420,7 @@ class TestPlotManhattanQQStacked:
                 pvalues[:3] = [1e-10, 1e-8, 1e-6]
                 for i in range(n):
                     data.append(
-                        {"chrom": str(chrom), "pos": positions[i], "p": pvalues[i]}
+                        {"chr": str(chrom), "pos": positions[i], "p_value": pvalues[i]}
                     )
             dfs.append(pd.DataFrame(data))
         return dfs
@@ -475,9 +473,9 @@ class TestPlotManhattanQQStacked:
         dfs = []
         for _ in range(3):
             data = [
-                {"chrom": "1", "pos": 1e6, "p": 1e-8},
-                {"chrom": "1", "pos": 2e6, "p": 0.01},
-                {"chrom": "2", "pos": 1e6, "p": 0.5},
+                {"chr": "1", "pos": 1e6, "p_value": 1e-8},
+                {"chr": "1", "pos": 2e6, "p_value": 0.01},
+                {"chr": "2", "pos": 1e6, "p_value": 0.5},
             ]
             dfs.append(pd.DataFrame(data))
         fig = manhattan_plotter.plot_manhattan_qq_stacked(dfs)
@@ -511,9 +509,9 @@ class TestYlimClamp:
     def _flat_df():
         return pd.DataFrame(
             {
-                "chrom": np.repeat([1, 2, 3], 10),
+                "chr": np.repeat([1, 2, 3], 10),
                 "pos": np.tile(np.arange(int(1e6), int(1e6) + 10) * 1000, 3),
-                "p": [1.0] * 30,
+                "p_value": [1.0] * 30,
             }
         )
 
@@ -531,7 +529,7 @@ class TestYlimClamp:
     def test_plot_manhattan_qq_ylim_floor(self, manhattan_plotter):
         df = self._flat_df()
         # Keep one real p so the QQ half doesn't trip its own all-NaN guard.
-        df.loc[0, "p"] = 0.5
+        df.loc[0, "p_value"] = 0.5
         fig = manhattan_plotter.plot_manhattan_qq(df)
         # Manhattan axis is the wider one; QQ is roughly square.
         manhattan_ax = max(fig.get_axes(), key=lambda a: a.get_position().width)
@@ -541,7 +539,7 @@ class TestYlimClamp:
         dfs = []
         for _ in range(2):
             df = self._flat_df()
-            df.loc[0, "p"] = 0.5
+            df.loc[0, "p_value"] = 0.5
             dfs.append(df)
         fig = manhattan_plotter.plot_manhattan_qq_stacked(dfs)
         # Pick the widest axis per panel row; those are Manhattan panels.

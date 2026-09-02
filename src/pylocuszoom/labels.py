@@ -11,15 +11,17 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.text import Annotation
 
+from pylocuszoom.colors import SNP_LABEL_COLOR
 from pylocuszoom.logging import logger
+from pylocuszoom.schemas import Canonical
 
 
 def add_snp_labels(
     ax: Axes,
     df: pd.DataFrame,
-    pos_col: str = "ps",
+    pos_col: str = Canonical.POS,
     neglog10p_col: str = "neglog10p",
-    rs_col: str = "rs",
+    rs_col: str = Canonical.RS,
     label_top_n: int = 5,
     max_label_length: int = 15,
     adjust: bool = True,
@@ -112,7 +114,7 @@ def add_snp_labels(
             textcoords="offset points",
             fontsize=6,
             fontweight="bold",
-            color="#333333",
+            color=SNP_LABEL_COLOR,
             ha="center",
             va="bottom",
             zorder=15,

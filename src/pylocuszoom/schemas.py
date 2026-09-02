@@ -21,6 +21,33 @@ from .exceptions import (
 from .validation import ColumnSpec, RangeRule, check
 
 
+class Canonical:
+    """The column names every loader emits and every plotter defaults to.
+
+    One vocabulary across the package: the GWAS, gene-annotation,
+    fine-mapping and eQTL families all name their chromosome ``chr`` and
+    their position ``pos``, and every family carrying a single p-value names
+    it ``p_value``. A colocalization frame is the one exception, because it
+    merges two p-value columns and cannot spell both of them the same way.
+    """
+
+    CHROM = "chr"
+    POS = "pos"
+    P = "p_value"
+    RS = "rs"
+
+
+# The pre-4.0 GEMMA spellings, keyed by the canonical name that replaced them.
+# Read by the loaders (which no longer emit them) and by the plotters (which
+# still accept a frame carrying them). Removed in DEPRECATED_ALIAS_REMOVED_IN.
+DEPRECATED_COLUMN_ALIASES: Dict[str, str] = {
+    Canonical.POS: "ps",
+    Canonical.P: "p_wald",
+}
+
+DEPRECATED_ALIAS_REMOVED_IN = "5.0.0"
+
+
 class Family(Enum):
     """A DataFrame family with a validation contract."""
 
@@ -41,7 +68,9 @@ class Tier(Enum):
 
 
 def _gwas_load(
-    pos_col: str = "ps", p_col: str = "p_wald", rs_col: Optional[str] = None
+    pos_col: str = Canonical.POS,
+    p_col: str = Canonical.P,
+    rs_col: Optional[str] = None,
 ) -> ColumnSpec:
     return ColumnSpec(
         name="GWAS",
@@ -55,8 +84,8 @@ def _gwas_load(
 
 
 def _gwas_plot(
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
+    pos_col: str = Canonical.POS,
+    p_col: str = Canonical.P,
     rs_col: Optional[str] = None,
     chrom_col: Optional[str] = None,
 ) -> ColumnSpec:
@@ -71,7 +100,7 @@ def _gwas_plot(
 def _genes_load() -> ColumnSpec:
     return ColumnSpec(
         name="Gene annotation",
-        required=("chr", "start", "end", "gene_name"),
+        required=(Canonical.CHROM, "start", "end", "gene_name"),
         numeric=("start", "end"),
         not_null=("start", "end"),
         ranges=(RangeRule("start", min_val=0),),
@@ -81,22 +110,24 @@ def _genes_load() -> ColumnSpec:
 
 
 def _genes_plot() -> ColumnSpec:
-    return ColumnSpec(name="genes_df", required=("chr", "start", "end", "gene_name"))
+    return ColumnSpec(
+        name="genes_df", required=(Canonical.CHROM, "start", "end", "gene_name")
+    )
 
 
 def _eqtl_load() -> ColumnSpec:
     return ColumnSpec(
         name="eQTL",
-        required=("pos", "p_value", "gene"),
-        numeric=("pos", "p_value"),
-        not_null=("pos", "p_value"),
-        ranges=(RangeRule("pos", min_val=0, exclusive_min=True),),
-        pvalue="p_value",
+        required=(Canonical.POS, Canonical.P, "gene"),
+        numeric=(Canonical.POS, Canonical.P),
+        not_null=(Canonical.POS, Canonical.P),
+        ranges=(RangeRule(Canonical.POS, min_val=0, exclusive_min=True),),
+        pvalue=Canonical.P,
         error_class=LoaderValidationError,
     )
 
 
-def _eqtl_plot(pos_col: str = "pos", p_col: str = "p_value") -> ColumnSpec:
+def _eqtl_plot(pos_col: str = Canonical.POS, p_col: str = Canonical.P) -> ColumnSpec:
     return ColumnSpec(
         name="eQTL DataFrame",
         required=(pos_col, p_col),
@@ -108,18 +139,18 @@ def _eqtl_plot(pos_col: str = "pos", p_col: str = "p_value") -> ColumnSpec:
 def _finemapping_load() -> ColumnSpec:
     return ColumnSpec(
         name="Fine-mapping",
-        required=("pos", "pip"),
-        numeric=("pos", "pip"),
-        not_null=("pos", "pip"),
+        required=(Canonical.POS, "pip"),
+        numeric=(Canonical.POS, "pip"),
+        not_null=(Canonical.POS, "pip"),
         ranges=(
-            RangeRule("pos", min_val=0, exclusive_min=True),
+            RangeRule(Canonical.POS, min_val=0, exclusive_min=True),
             RangeRule("pip", min_val=0, max_val=1),
         ),
         error_class=LoaderValidationError,
     )
 
 
-def _finemapping_plot(pos_col: str = "pos", pip_col: str = "pip") -> ColumnSpec:
+def _finemapping_plot(pos_col: str = Canonical.POS, pip_col: str = "pip") -> ColumnSpec:
     return ColumnSpec(
         name="Fine-mapping DataFrame",
         required=(pos_col, pip_col),
@@ -130,7 +161,7 @@ def _finemapping_plot(pos_col: str = "pos", pip_col: str = "pip") -> ColumnSpec:
 
 
 def _phewas_plot(
-    phenotype_col: str = "phenotype", p_col: str = "p_value"
+    phenotype_col: str = "phenotype", p_col: str = Canonical.P
 ) -> ColumnSpec:
     return ColumnSpec(
         name="PheWAS DataFrame",
@@ -210,8 +241,8 @@ def spec(family: Family, tier: Tier, **columns: Any) -> ColumnSpec:
 
 def validate_gwas_df(
     df: pd.DataFrame,
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
+    pos_col: str = Canonical.POS,
+    p_col: str = Canonical.P,
     rs_col: Optional[str] = None,
     chrom_col: Optional[str] = None,
 ) -> None:
@@ -256,7 +287,7 @@ def validate_genes_df(df: pd.DataFrame) -> None:
 def validate_phewas_df(
     df: pd.DataFrame,
     phenotype_col: str = "phenotype",
-    p_col: str = "p_value",
+    p_col: str = Canonical.P,
 ) -> None:
     """Validate PheWAS DataFrame has required columns and types.
 

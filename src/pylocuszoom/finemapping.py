@@ -10,14 +10,14 @@ import pandas as pd
 
 from .exceptions import FinemappingValidationError
 from .logging import logger
-from .schemas import Family, Tier, spec
+from .schemas import Canonical, Family, Tier, spec
 from .utils import filter_by_region
 from .validation import check
 
 
 def validate_finemapping_df(
     df: pd.DataFrame,
-    pos_col: str = "pos",
+    pos_col: str = Canonical.POS,
     pip_col: str = "pip",
 ) -> None:
     """Validate fine-mapping DataFrame has required columns.
@@ -38,8 +38,8 @@ def filter_finemapping_by_region(
     chrom: int,
     start: int,
     end: int,
-    pos_col: str = "pos",
-    chrom_col: Optional[str] = "chr",
+    pos_col: str = Canonical.POS,
+    chrom_col: Optional[str] = Canonical.CHROM,
 ) -> pd.DataFrame:
     """Filter fine-mapping data to a genomic region.
 
@@ -113,7 +113,7 @@ def filter_by_credible_set(
 
 def prepare_finemapping_for_plotting(
     df: pd.DataFrame,
-    pos_col: str = "pos",
+    pos_col: str = Canonical.POS,
     pip_col: str = "pip",
     chrom: Optional[int] = None,
     start: Optional[int] = None,

@@ -17,7 +17,7 @@ class TestGWASValidation:
 
     def test_valid_gwas_passes(self):
         """A minimal GWAS frame with an rs column satisfies the contract."""
-        df = pd.DataFrame({"ps": [100], "p_wald": [0.5], "rs": ["rs1"]})
+        df = pd.DataFrame({"pos": [100], "p_value": [0.5], "rs": ["rs1"]})
         check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_custom_column_names_validated(self):
@@ -27,57 +27,57 @@ class TestGWASValidation:
 
     def test_custom_column_names_missing_raises(self):
         """Missing custom column names raise LoaderValidationError."""
-        df = pd.DataFrame({"ps": [100], "p_wald": [0.5]})
-        with pytest.raises(LoaderValidationError, match=r"Missing columns.*'pos'"):
-            check(df, spec(Family.GWAS, Tier.LOAD, pos_col="pos", p_col="p_wald"))
+        df = pd.DataFrame({"pos": [100], "p_value": [0.5]})
+        with pytest.raises(LoaderValidationError, match=r"Missing columns.*'position'"):
+            check(df, spec(Family.GWAS, Tier.LOAD, pos_col="position", p_col="p_value"))
 
     def test_both_columns_missing_reports_both(self):
         """Error message mentions both missing columns when both are absent."""
         df = pd.DataFrame({"chr": [1], "rs": ["rs1"]})
-        with pytest.raises(LoaderValidationError, match="ps") as exc_info:
+        with pytest.raises(LoaderValidationError, match="pos") as exc_info:
             check(df, spec(Family.GWAS, Tier.LOAD))
-        assert "p_wald" in str(exc_info.value)
+        assert "p_value" in str(exc_info.value)
 
     def test_zero_position_fails(self):
         """Position of exactly zero is rejected (non-positive)."""
-        df = pd.DataFrame({"ps": [0], "p_wald": [0.5]})
-        with pytest.raises(LoaderValidationError, match=r"'ps': 1 values <= 0"):
+        df = pd.DataFrame({"pos": [0], "p_value": [0.5]})
+        with pytest.raises(LoaderValidationError, match=r"'pos': 1 values <= 0"):
             check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_pvalue_exactly_one_passes(self):
         """P-value of exactly 1.0 is valid (range is (0, 1])."""
-        df = pd.DataFrame({"ps": [100], "p_wald": [1.0]})
+        df = pd.DataFrame({"pos": [100], "p_value": [1.0]})
         check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_nan_pvalue_fails(self):
         """NaN p-values are caught."""
-        df = pd.DataFrame({"ps": [100, 200], "p_wald": [0.05, float("nan")]})
-        with pytest.raises(LoaderValidationError, match=r"'p_wald' has 1 null values"):
+        df = pd.DataFrame({"pos": [100, 200], "p_value": [0.05, float("nan")]})
+        with pytest.raises(LoaderValidationError, match=r"'p_value' has 1 null values"):
             check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_multiple_numeric_errors_reported(self):
         """Multiple validation errors accumulated and reported at once."""
         df = pd.DataFrame(
             {
-                "ps": ["chr1:100"],
-                "p_wald": ["not_a_number"],
+                "pos": ["chr1:100"],
+                "p_value": ["not_a_number"],
             }  # non-numeric  # non-numeric
         )
         with pytest.raises(LoaderValidationError, match="must be numeric") as exc_info:
             check(df, spec(Family.GWAS, Tier.LOAD))
         msg = str(exc_info.value)
-        assert "ps" in msg
-        assert "p_wald" in msg
+        assert "pos" in msg
+        assert "p_value" in msg
 
     def test_single_row_valid(self):
         """Single-row DataFrame passes validation."""
-        df = pd.DataFrame({"ps": [42], "p_wald": [1e-10]})
+        df = pd.DataFrame({"pos": [42], "p_value": [1e-10]})
         check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_extra_columns_ignored(self):
         """Extra columns beyond required ones don't cause failures."""
         df = pd.DataFrame(
-            {"ps": [100], "p_wald": [0.5], "rs": ["rs1"], "beta": [0.3], "se": [0.1]}
+            {"pos": [100], "p_value": [0.5], "rs": ["rs1"], "beta": [0.3], "se": [0.1]}
         )
         check(df, spec(Family.GWAS, Tier.LOAD))
 
@@ -85,8 +85,8 @@ class TestGWASValidation:
         """A multi-row GWAS frame satisfies the contract."""
         df = pd.DataFrame(
             {
-                "ps": [1000000, 1001000, 1002000],
-                "p_wald": [0.01, 0.001, 1e-8],
+                "pos": [1000000, 1001000, 1002000],
+                "p_value": [0.01, 0.001, 1e-8],
                 "rs": ["rs1", "rs2", "rs3"],
             }
         )
@@ -97,7 +97,7 @@ class TestGWASValidation:
         """A frame without the position column is rejected."""
         df = pd.DataFrame(
             {
-                "p_wald": [0.01, 0.001],
+                "p_value": [0.01, 0.001],
                 "rs": ["rs1", "rs2"],
             }
         )
@@ -109,7 +109,7 @@ class TestGWASValidation:
         """A frame without the p-value column is rejected."""
         df = pd.DataFrame(
             {
-                "ps": [1000000, 1001000],
+                "pos": [1000000, 1001000],
                 "rs": ["rs1", "rs2"],
             }
         )
@@ -121,8 +121,8 @@ class TestGWASValidation:
         """Negative positions are rejected."""
         df = pd.DataFrame(
             {
-                "ps": [-1000, 1001000],
-                "p_wald": [0.01, 0.001],
+                "pos": [-1000, 1001000],
+                "p_value": [0.01, 0.001],
             }
         )
 
@@ -133,8 +133,8 @@ class TestGWASValidation:
         """P-values above 1 are rejected."""
         df = pd.DataFrame(
             {
-                "ps": [1000000, 1001000],
-                "p_wald": [0.01, 1.5],  # 1.5 is out of range
+                "pos": [1000000, 1001000],
+                "p_value": [0.01, 1.5],  # 1.5 is out of range
             }
         )
 
@@ -145,8 +145,8 @@ class TestGWASValidation:
         """A p-value of 0 is rejected."""
         df = pd.DataFrame(
             {
-                "ps": [1000000, 1001000],
-                "p_wald": [0.0, 0.001],
+                "pos": [1000000, 1001000],
+                "p_value": [0.0, 0.001],
             }
         )
 
@@ -157,8 +157,8 @@ class TestGWASValidation:
         """NaN positions are rejected."""
         df = pd.DataFrame(
             {
-                "ps": [1000000, None],
-                "p_wald": [0.01, 0.001],
+                "pos": [1000000, None],
+                "p_value": [0.01, 0.001],
             }
         )
 
@@ -169,8 +169,8 @@ class TestGWASValidation:
         """Non-numeric p-values are rejected."""
         df = pd.DataFrame(
             {
-                "ps": [1000000, 1001000],
-                "p_wald": ["0.01", "significant"],  # Strings, not numbers
+                "pos": [1000000, 1001000],
+                "p_value": ["0.01", "significant"],  # Strings, not numbers
             }
         )
 
@@ -181,8 +181,8 @@ class TestGWASValidation:
         """Non-numeric positions are rejected."""
         df = pd.DataFrame(
             {
-                "ps": ["chr1:1000", "chr1:2000"],  # Strings, not numbers
-                "p_wald": [0.01, 0.001],
+                "pos": ["chr1:1000", "chr1:2000"],  # Strings, not numbers
+                "p_value": [0.01, 0.001],
             }
         )
 

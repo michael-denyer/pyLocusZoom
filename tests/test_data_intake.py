@@ -18,10 +18,10 @@ from tests.strategies import gwas_dataframes
 BAD_PVALUES = [1e-6, None, 0.0, -0.1, 1.5, 1e-320]
 
 
-def _bad_pvalue_frame(p_col: str = "p") -> pd.DataFrame:
+def _bad_pvalue_frame(p_col: str = "p_value") -> pd.DataFrame:
     return pd.DataFrame(
         {
-            "chrom": ["1"] * 6,
+            "chr": ["1"] * 6,
             "category": ["a"] * 6,
             "pos": [1, 2, 3, 4, 5, 6],
             p_col: BAD_PVALUES,
@@ -52,7 +52,7 @@ def test_eqtl_preparation_uses_the_shared_policy():
 def test_entry_points_keep_the_same_survivors(entry_point, allow_zero):
     """Every DataFrame-returning entry point drops the same bad rows."""
     raw = _bad_pvalue_frame()
-    expected = prepare_pvalue_data(raw, "p", allow_zero=allow_zero)
+    expected = prepare_pvalue_data(raw, "p_value", allow_zero=allow_zero)
 
     result = entry_point(raw)
 
@@ -62,9 +62,9 @@ def test_entry_points_keep_the_same_survivors(entry_point, allow_zero):
 def test_qq_excludes_exact_zero_pvalues():
     """QQ is the one entry point on the strict ``(0, 1]`` domain."""
     raw = _bad_pvalue_frame()
-    expected = prepare_pvalue_data(raw, "p", allow_zero=False)
+    expected = prepare_pvalue_data(raw, "p_value", allow_zero=False)
 
-    result = prepare_qq_data(raw, p_col="p")
+    result = prepare_qq_data(raw)
 
     assert result.n_variants == len(expected)
 
@@ -80,14 +80,19 @@ def test_qq_excludes_exact_zero_pvalues():
             lambda df: prepare_categorical_data(df, "category"),
             "All rows have invalid p-values",
         ),
-        (lambda df: prepare_qq_data(df, p_col="p"), "No valid p-values"),
+        (lambda df: prepare_qq_data(df), "No valid p-values"),
     ],
     ids=["manhattan", "categorical", "qq"],
 )
 def test_entry_points_raise_when_nothing_survives(entry_point, message):
     """Manhattan-family and QQ raise rather than returning an empty frame."""
     raw = pd.DataFrame(
-        {"chrom": ["1", "1"], "category": ["a", "a"], "pos": [1, 2], "p": [2.0, -1.0]}
+        {
+            "chr": ["1", "1"],
+            "category": ["a", "a"],
+            "pos": [1, 2],
+            "p_value": [2.0, -1.0],
+        }
     )
 
     with pytest.raises(ValueError, match=message):
@@ -110,8 +115,8 @@ class TestPValueValidation:
             {
                 "rs": ["rs1", "rs2", "rs3"],
                 "chr": [1, 1, 1],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, np.nan, 0.01],  # One NaN p-value
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [1e-8, np.nan, 0.01],  # One NaN p-value
             }
         )
 
@@ -137,8 +142,8 @@ class TestPValueValidation:
             {
                 "rs": ["rs1", "rs2", "rs3"],
                 "chr": [1, 1, 1],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [np.nan, np.nan, np.nan],  # All NaN
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [np.nan, np.nan, np.nan],  # All NaN
             }
         )
 
@@ -158,8 +163,8 @@ class TestPValueValidation:
             {
                 "rs": ["rs1", "rs2", "rs3"],
                 "chr": [1, 1, 1],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [-0.1, 1.5, 0.05],  # Out of range values
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [-0.1, 1.5, 0.05],  # Out of range values
             }
         )
 
@@ -181,8 +186,8 @@ class TestPValueValidation:
 
         df = pd.DataFrame(
             {
-                "ps": [1100000, 1500000, 1700000, 1900000],
-                "p_wald": [0.001, 0.5, -0.1, 1.5],
+                "pos": [1100000, 1500000, 1700000, 1900000],
+                "p_value": [0.001, 0.5, -0.1, 1.5],
             }
         )
 
@@ -196,7 +201,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = prepare_pvalue_data(df.copy(), "p_wald")
+            result = prepare_pvalue_data(df.copy(), "p_value")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -218,8 +223,8 @@ class TestPValueValidation:
 
         df = pd.DataFrame(
             {
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [0.001, np.nan, 0.5],
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [0.001, np.nan, 0.5],
             }
         )
 
@@ -232,13 +237,13 @@ class TestPValueValidation:
         )
 
         try:
-            result = prepare_pvalue_data(df.copy(), "p_wald")
+            result = prepare_pvalue_data(df.copy(), "p_value")
         finally:
             loguru_logger.remove(handler_id)
 
         # NaN row filtered out
         assert len(result) == 2
-        assert not result["p_wald"].isna().any()
+        assert not result["p_value"].isna().any()
 
         # Warning logged
         log_output = log_capture.getvalue()
@@ -252,8 +257,8 @@ class TestPValueValidation:
 
         df = pd.DataFrame(
             {
-                "ps": [1100000],
-                "p_wald": [1e-310],  # Smaller than 1e-300
+                "pos": [1100000],
+                "p_value": [1e-310],  # Smaller than 1e-300
             }
         )
 
@@ -266,7 +271,7 @@ class TestPValueValidation:
         )
 
         try:
-            result = prepare_pvalue_data(df.copy(), "p_wald")
+            result = prepare_pvalue_data(df.copy(), "p_value")
         finally:
             loguru_logger.remove(handler_id)
 
@@ -283,12 +288,12 @@ class TestPValueValidation:
         """prepare_pvalue_data passes through all-valid data unchanged."""
         df = pd.DataFrame(
             {
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [0.001, 0.5, 1e-8],
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [0.001, 0.5, 1e-8],
             }
         )
 
-        result = prepare_pvalue_data(df.copy(), "p_wald")
+        result = prepare_pvalue_data(df.copy(), "p_value")
 
         assert len(result) == 3
         assert result["neglog10p"].iloc[0] == pytest.approx(3.0)
@@ -308,10 +313,10 @@ class TestPValueValidation:
             {
                 "rs": ["rs1", "rs2", "rs3"],
                 "chr": [1, 1, 1],
-                "ps": [1100000, 1500000, 1900000],
+                "pos": [1100000, 1500000, 1900000],
                 # rs1 has smallest absolute value but is invalid (negative)
                 # rs3 should be selected as lead (smallest valid p-value)
-                "p_wald": [-0.1, 0.5, 0.001],
+                "p_value": [-0.1, 0.5, 0.001],
             }
         )
 
@@ -331,8 +336,8 @@ class TestPValueValidation:
             {
                 "rs": ["rs1", "rs2"],
                 "chr": [1, 1],
-                "ps": [1100000, 1500000],
-                "p_wald": [-0.1, 1.5],  # All invalid
+                "pos": [1100000, 1500000],
+                "p_value": [-0.1, 1.5],  # All invalid
             }
         )
 
@@ -381,8 +386,8 @@ class TestPlotStackedProperties:
         """plot_stacked() should handle multiple identical DataFrames."""
         plotter = LocusZoomPlotter(species="canine")
         chrom = df["chr"].iloc[0]
-        start = int(df["ps"].min())
-        end = int(df["ps"].max())
+        start = int(df["pos"].min())
+        end = int(df["pos"].max())
 
         fig = plotter.plot_stacked(
             [df, df.copy()],

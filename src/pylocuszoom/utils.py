@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import pandas as pd
 
 from .exceptions import ValidationError
+from .schemas import Canonical
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame as SparkDataFrame
@@ -65,6 +66,9 @@ def to_pandas(
 ) -> pd.DataFrame:
     """Convert DataFrame-like object to pandas DataFrame.
 
+    Every public plot method calls this on the frames it is given, so the
+    library's own boundary is the only place a Spark frame is collected.
+
     Supports pandas DataFrames (returned as-is) and PySpark DataFrames
     (converted to pandas). For large PySpark DataFrames, use sample_size
     to limit the data transferred.
@@ -90,18 +94,16 @@ def to_pandas(
     if isinstance(df, pd.DataFrame):
         return df
 
-    if is_spark_dataframe(df):
-        if sample_size is not None:
-            # Sample to limit data transfer
-            total = df.count()
-            if total > sample_size:
-                fraction = sample_size / total
-                df = df.sample(fraction=fraction, seed=42)
-        return df.toPandas()
+    if is_spark_dataframe(df) and sample_size is not None:
+        # Sample to limit data transfer
+        total = df.count()
+        if total > sample_size:
+            fraction = sample_size / total
+            df = df.sample(fraction=fraction, seed=42)
 
-    # Try pandas conversion as fallback
-    if hasattr(df, "to_pandas"):
-        return df.to_pandas()
+    # toPandas() is the Spark contract, and the only one this function needs:
+    # Databricks Connect and other wrappers satisfy it without being importable
+    # as pyspark, so is_spark_dataframe alone would turn them away.
     if hasattr(df, "toPandas"):
         return df.toPandas()
 
@@ -162,11 +164,30 @@ def normalize_chrom(chrom: Union[int, str]) -> str:
     return str(chrom).replace("chr", "")
 
 
+def normalize_chrom_series(chroms: pd.Series) -> pd.Series:
+    """Normalize a column of chromosome identifiers by removing the 'chr' prefix.
+
+    The frame-level companion to :func:`normalize_chrom`, so a column of mixed
+    integer and ``"chr1"`` spellings compares equal to a normalized scalar.
+
+    Args:
+        chroms: Column of chromosome identifiers, of any dtype.
+
+    Returns:
+        A string Series without 'chr' prefixes.
+
+    Example:
+        >>> normalize_chrom_series(pd.Series([1, "chr2", "chrX"])).tolist()
+        ['1', '2', 'X']
+    """
+    return chroms.astype(str).str.replace("chr", "", regex=False)
+
+
 def filter_by_region(
     df: pd.DataFrame,
     region: tuple,
-    chrom_col: str | None = "chrom",
-    pos_col: str = "pos",
+    chrom_col: str | None = Canonical.CHROM,
+    pos_col: str = Canonical.POS,
 ) -> pd.DataFrame:
     """Filter DataFrame to genomic region with inclusive bounds.
 
@@ -177,7 +198,7 @@ def filter_by_region(
     Args:
         df: DataFrame to filter.
         region: Tuple of (chrom, start, end) defining the region.
-        chrom_col: Column name for chromosome (default: "chrom"). None, or a
+        chrom_col: Column name for chromosome (default: "chr"). None, or a
             name the frame does not carry, filters by position only.
         pos_col: Column name for position (default: "pos").
 
@@ -205,10 +226,6 @@ def filter_by_region(
 
     # Chromosome filtering (if column exists)
     if chrom_col is not None and chrom_col in df.columns:
-        chrom_normalized = normalize_chrom(chrom)
-        df_chrom_normalized = (
-            df[chrom_col].astype(str).str.replace("chr", "", regex=False)
-        )
-        mask = mask & (df_chrom_normalized == chrom_normalized)
+        mask = mask & (normalize_chrom_series(df[chrom_col]) == normalize_chrom(chrom))
 
     return df[mask].copy()

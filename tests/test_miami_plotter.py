@@ -31,17 +31,17 @@ class TestMiamiPlotter:
         """
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000, 2000],
-                "p": [0.01, 0.001, 0.0001, 0.05, 1e-8, 0.1],
+                "p_value": [0.01, 0.001, 0.0001, 0.05, 1e-8, 0.1],
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5", "rs6"],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000, 2000],
-                "p": [0.05, 0.002, 0.001, 0.1, 5e-7, 0.01],
+                "p_value": [0.05, 0.002, 0.001, 0.1, 5e-7, 0.01],
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5", "rs6"],
             }
         )
@@ -87,16 +87,16 @@ class TestMiamiPlotter:
         plotter = MiamiPlotter(species="human")
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2],
+                "chr": [1, 1, 2],
                 "pos": [1000, 9_000_000, 5000],
-                "p": [0.01, 0.001, 1e-6],
+                "p_value": [0.01, 0.001, 1e-6],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2],
+                "chr": [1, 1, 2],
                 "pos": [1000, 2_000_000, 5000],
-                "p": [0.02, 0.003, 1e-5],
+                "p_value": [0.02, 0.003, 1e-5],
             }
         )
 
@@ -107,7 +107,7 @@ class TestMiamiPlotter:
 
     def test_species_without_chromosome_order_raises(self):
         """A species with no built-in chromosome order cannot lay out the axis."""
-        panel_df = pd.DataFrame({"chrom": ["1"], "pos": [1000], "p": [0.01]})
+        panel_df = pd.DataFrame({"chr": ["1"], "pos": [1000], "p_value": [0.01]})
         with pytest.raises(ValueError, match="No built-in chromosome order"):
             MiamiPlotter(species="nonsense").plot_miami(panel_df, panel_df)
 
@@ -116,9 +116,9 @@ class TestMiamiPlotter:
         plotter = MiamiPlotter(species="feline")
         panel_df = pd.DataFrame(
             {
-                "chrom": ["A1", "MT", "X", "Y"],
+                "chr": ["A1", "MT", "X", "Y"],
                 "pos": [1000, 1000, 1000, 1000],
-                "p": [0.01, 0.001, 0.02, 0.03],
+                "p_value": [0.01, 0.001, 0.02, 0.03],
             }
         )
 
@@ -130,8 +130,8 @@ class TestMiamiPlotter:
 
     def test_empty_dataframe_raises(self, miami_plotter):
         """Test that empty DataFrame raises appropriate error."""
-        empty_df = pd.DataFrame(columns=["chrom", "pos", "p"])
-        valid_df = pd.DataFrame({"chrom": [1], "pos": [1000], "p": [0.01]})
+        empty_df = pd.DataFrame(columns=["chr", "pos", "p_value"])
+        valid_df = pd.DataFrame({"chr": [1], "pos": [1000], "p_value": [0.01]})
 
         # Empty top_df should raise
         with pytest.raises((ValueError, KeyError)):
@@ -144,14 +144,14 @@ class TestMiamiPlotter:
     def test_missing_columns_raises(self, miami_plotter):
         """Test that missing required columns raises ValidationError or ValueError."""
         # DataFrame missing 'p' column
-        missing_p_df = pd.DataFrame({"chrom": [1], "pos": [1000]})
-        valid_df = pd.DataFrame({"chrom": [1], "pos": [1000], "p": [0.01]})
+        missing_p_df = pd.DataFrame({"chr": [1], "pos": [1000]})
+        valid_df = pd.DataFrame({"chr": [1], "pos": [1000], "p_value": [0.01]})
 
         with pytest.raises((ValueError, KeyError)):
             miami_plotter.plot_miami(missing_p_df, valid_df)
 
         # DataFrame missing 'chrom' column
-        missing_chrom_df = pd.DataFrame({"pos": [1000], "p": [0.01]})
+        missing_chrom_df = pd.DataFrame({"pos": [1000], "p_value": [0.01]})
         with pytest.raises((ValueError, KeyError)):
             miami_plotter.plot_miami(valid_df, missing_chrom_df)
 
@@ -189,16 +189,16 @@ class TestMiamiPlotterOptions:
         """Create sample GWAS data."""
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 2, 3],
+                "chr": [1, 2, 3],
                 "pos": [1000, 1000, 1000],
-                "p": [0.01, 0.0001, 1e-8],
+                "p_value": [0.01, 0.0001, 1e-8],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 2, 3],
+                "chr": [1, 2, 3],
                 "pos": [1000, 1000, 1000],
-                "p": [0.05, 0.001, 5e-7],
+                "p_value": [0.05, 0.001, 5e-7],
             }
         )
         return top_df, bottom_df
@@ -247,18 +247,18 @@ class TestMiamiPlotterOptions:
         # Top has chr 1, 2, 3
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 2, 3],
+                "chr": [1, 2, 3],
                 "pos": [1000, 1000, 1000],
-                "p": [0.01, 0.001, 0.0001],
+                "p_value": [0.01, 0.001, 0.0001],
             }
         )
 
         # Bottom has chr 1, 2, X (no chr 3, has X instead)
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 2, "X"],
+                "chr": [1, 2, "X"],
                 "pos": [1000, 1000, 1000],
-                "p": [0.05, 0.01, 0.001],
+                "p_value": [0.05, 0.01, 0.001],
             }
         )
 
@@ -275,17 +275,17 @@ class TestMiamiPlotterHoverData:
         """Create GWAS data with RS IDs for hover tooltips."""
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 2, 3],
+                "chr": [1, 2, 3],
                 "pos": [1000, 2000, 3000],
-                "p": [0.01, 0.001, 0.0001],
+                "p_value": [0.01, 0.001, 0.0001],
                 "rs": ["rs123", "rs456", "rs789"],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 2, 3],
+                "chr": [1, 2, 3],
                 "pos": [1000, 2000, 3000],
-                "p": [0.05, 0.01, 0.001],
+                "p_value": [0.05, 0.01, 0.001],
                 "rs": ["rs123", "rs456", "rs789"],
             }
         )
@@ -318,16 +318,16 @@ class TestMiamiSignificance:
 
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000, 2000],
-                "p": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1],
+                "p_value": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000, 2000],
-                "p": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01],
+                "p_value": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01],
             }
         )
         return top_df, bottom_df
@@ -424,17 +424,17 @@ class TestMiamiLabels:
         """Create GWAS data with RS IDs for annotation testing."""
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000, 2000],
-                "p": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1],
+                "p_value": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1],
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5", "rs6"],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000, 2000],
-                "p": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01],
+                "p_value": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01],
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5", "rs6"],
             }
         )
@@ -536,16 +536,16 @@ class TestMiamiHighlight:
         """Create GWAS data spanning multiple chromosomes."""
         top_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 3000, 1000, 2000, 1000, 2000],
-                "p": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1, 0.02],
+                "p_value": [0.01, 0.001, 1e-9, 0.05, 1e-8, 0.1, 0.02],
             }
         )
         bottom_df = pd.DataFrame(
             {
-                "chrom": [1, 1, 1, 2, 2, 3, 3],
+                "chr": [1, 1, 1, 2, 2, 3, 3],
                 "pos": [1000, 2000, 3000, 1000, 2000, 1000, 2000],
-                "p": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01, 0.03],
+                "p_value": [0.05, 0.002, 1e-7, 0.1, 5e-7, 0.01, 0.03],
             }
         )
         return top_df, bottom_df
@@ -669,9 +669,9 @@ class TestConstructorThresholdIsTheDefault:
     def _gwas():
         return pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2],
+                "chr": [1, 1, 2, 2],
                 "pos": [1_000_000, 2_000_000, 1_000_000, 2_000_000],
-                "p": [1e-9, 0.01, 1e-6, 0.5],
+                "p_value": [1e-9, 0.01, 1e-6, 0.5],
             }
         )
 

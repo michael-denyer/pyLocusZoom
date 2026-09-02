@@ -7,8 +7,6 @@ Provides variant-centric visualizations:
 
 from typing import Any, Optional, Tuple
 
-import pandas as pd
-
 from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
@@ -19,7 +17,8 @@ from ._plotter_utils import (
 )
 from ._stats_panels import ForestPanel, PhewasPanel
 from .backends import BackendType, get_backend
-from .schemas import validate_forest_df, validate_phewas_df
+from .schemas import Canonical, validate_forest_df, validate_phewas_df
+from .utils import DataFrameLike, to_pandas
 
 
 class StatsPlotter:
@@ -49,10 +48,10 @@ class StatsPlotter:
 
     def plot_phewas(
         self,
-        phewas_df: pd.DataFrame,
+        phewas_df: DataFrameLike,
         variant_id: str,
         phenotype_col: str = "phenotype",
-        p_col: str = "p_value",
+        p_col: str = Canonical.P,
         category_col: str = "category",
         effect_col: Optional[str] = None,
         significance_threshold: ThresholdArg = UNSET,
@@ -85,6 +84,7 @@ class StatsPlotter:
             ...     category_col="category",
             ... )
         """
+        phewas_df = to_pandas(phewas_df)
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )
@@ -103,7 +103,7 @@ class StatsPlotter:
 
     def plot_forest(
         self,
-        forest_df: pd.DataFrame,
+        forest_df: DataFrameLike,
         variant_id: str,
         study_col: str = "study",
         effect_col: str = "effect",
@@ -139,6 +139,7 @@ class StatsPlotter:
             ...     null_value=1.0,
             ... )
         """
+        forest_df = to_pandas(forest_df)
         validate_forest_df(forest_df, study_col, effect_col, ci_lower_col, ci_upper_col)
 
         panel = ForestPanel.from_frame(

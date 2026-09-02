@@ -18,12 +18,18 @@ Example:
     ... )
 """
 
-from typing import Annotated, ClassVar, List, Optional, Tuple, Union
+import warnings
+from typing import Annotated, ClassVar, List, Optional, Tuple, TypeVar, Union
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
+from .schemas import (
+    DEPRECATED_ALIAS_REMOVED_IN,
+    DEPRECATED_COLUMN_ALIASES,
+    Canonical,
+)
 
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
 
@@ -64,6 +70,9 @@ class RegionConfig(BaseModel):
 class ColumnConfig(BaseModel):
     """DataFrame column name mappings for GWAS data.
 
+    The defaults are the canonical names every loader emits, so a loaded
+    frame needs no config at all.
+
     Attributes:
         pos_col: Column name for genomic position.
         p_col: Column name for p-value.
@@ -72,9 +81,9 @@ class ColumnConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    pos_col: str = Field(default="ps", description="Position column name")
-    p_col: str = Field(default="p_wald", description="P-value column name")
-    rs_col: str = Field(default="rs", description="SNP ID column name")
+    pos_col: str = Field(default=Canonical.POS, description="Position column name")
+    p_col: str = Field(default=Canonical.P, description="P-value column name")
+    rs_col: str = Field(default=Canonical.RS, description="SNP ID column name")
 
 
 class DisplayConfig(BaseModel):
@@ -312,9 +321,11 @@ class GenomeWideConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    chrom_col: str = Field(default="chrom", description="Chromosome column name")
-    pos_col: str = Field(default="pos", description="Position column name")
-    p_col: str = Field(default="p", description="P-value column name")
+    chrom_col: str = Field(
+        default=Canonical.CHROM, description="Chromosome column name"
+    )
+    pos_col: str = Field(default=Canonical.POS, description="Position column name")
+    p_col: str = Field(default=Canonical.P, description="P-value column name")
     custom_chrom_order: Optional[List[str]] = Field(
         default=None, description="Chromosome order overriding the species"
     )
@@ -344,8 +355,8 @@ class ColocConfig(BaseModel):
 
     gwas_p_col: str = Field(default="p_gwas", description="GWAS p-value column")
     eqtl_p_col: str = Field(default="p_eqtl", description="eQTL p-value column")
-    pos_col: str = Field(default="pos", description="Position column")
-    rs_col: Optional[str] = Field(default="rs", description="SNP ID column")
+    pos_col: str = Field(default=Canonical.POS, description="Position column")
+    rs_col: Optional[str] = Field(default=Canonical.RS, description="SNP ID column")
     ld_col: Optional[str] = Field(default=None, description="Pre-computed LD column")
     lead_snp: Optional[str] = Field(default=None, description="Lead SNP ID")
     gwas_threshold: Optional[PValueThreshold] = Field(
@@ -380,6 +391,44 @@ class ColocConfig(BaseModel):
         return self
 
 
+Columns = TypeVar("Columns", ColumnConfig, GenomeWideConfig)
+
+
+def resolve_deprecated_columns(df: pd.DataFrame, columns: Columns) -> Columns:
+    """Fall back to a frame's pre-4.0 column names, with a deprecation warning.
+
+    A GWAS frame written by a 3.x loader carries ``ps`` and ``p_wald`` where a
+    4.0 one carries the canonical ``pos`` and ``p_value``. Where the canonical
+    column is absent and the old spelling is present, the old spelling is used
+    and a ``DeprecationWarning`` names its replacement. A caller who asked for
+    a column name of their own is left alone, because only the canonical names
+    have aliases.
+
+    Args:
+        df: The frame about to be plotted.
+        columns: The column model the plot method was given.
+
+    Returns:
+        ``columns`` unchanged, or a copy naming the frame's old columns.
+    """
+    updates = {}
+    for field in ("pos_col", "p_col"):
+        name = getattr(columns, field)
+        alias = DEPRECATED_COLUMN_ALIASES.get(name)
+        if alias is None or name in df.columns or alias not in df.columns:
+            continue
+        warnings.warn(
+            f"Column '{alias}' is the pre-4.0 name for '{name}'. pyLocusZoom "
+            f"loaders now emit '{name}'; rename the column, or pass the name "
+            f"you want. The fallback is removed in "
+            f"{DEPRECATED_ALIAS_REMOVED_IN}.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        updates[field] = alias
+    return columns.model_copy(update=updates) if updates else columns
+
+
 __all__ = [
     "RegionConfig",
     "ColumnConfig",
@@ -390,4 +439,5 @@ __all__ = [
     "StackedPlotConfig",
     "GenomeWideConfig",
     "ColocConfig",
+    "resolve_deprecated_columns",
 ]

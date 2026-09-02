@@ -8,7 +8,7 @@ This package provides LocusZoom-style regional association plots with:
 - Multiple backends: matplotlib (static), plotly (interactive), bokeh (dashboards)
 - eQTL overlay support
 - Fine-mapping/SuSiE visualization (PIP line with credible set coloring)
-- PySpark DataFrame support for large-scale data
+- PySpark DataFrames accepted by every plot method, collected through to_pandas()
 
 Example:
     >>> from pylocuszoom import LocusZoomPlotter
@@ -168,7 +168,7 @@ from .recombination import (
 
 # Gene source routing over the Ensembl and UCSC clients
 from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
-from .schemas import validate_forest_df, validate_phewas_df
+from .schemas import Canonical, validate_forest_df, validate_phewas_df
 
 # One record per species, resolved once at the API boundary
 from .species import Species, resolve_species
@@ -257,6 +257,7 @@ __all__ = [
     "to_pandas",
     # PheWAS
     "validate_phewas_df",
+    "Canonical",
     # Forest plot
     "validate_forest_df",
     # GWAS loaders

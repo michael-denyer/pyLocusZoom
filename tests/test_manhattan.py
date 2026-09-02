@@ -130,9 +130,9 @@ class TestPrepareManhattanData:
         """Five variants across three chromosomes, with SNP IDs."""
         return pd.DataFrame(
             {
-                "chrom": ["1", "1", "2", "2", "X"],
+                "chr": ["1", "1", "2", "2", "X"],
                 "pos": [1000, 2000, 1500, 3000, 500],
-                "p": [0.05, 1e-8, 0.01, 1e-10, 0.001],
+                "p_value": [0.05, 1e-8, 0.01, 1e-10, 0.001],
                 "snp": ["rs1", "rs2", "rs3", "rs4", "rs5"],
             }
         )
@@ -180,10 +180,18 @@ class TestPrepareManhattanData:
         from pylocuszoom.manhattan import prepare_manhattan_frames
 
         first = pd.DataFrame(
-            {"chrom": [1, 1, 2], "pos": [1000, 9_000_000, 5000], "p": [0.1, 0.2, 0.3]}
+            {
+                "chr": [1, 1, 2],
+                "pos": [1000, 9_000_000, 5000],
+                "p_value": [0.1, 0.2, 0.3],
+            }
         )
         second = pd.DataFrame(
-            {"chrom": [1, 1, 2], "pos": [1000, 2_000_000, 5000], "p": [0.4, 0.5, 0.6]}
+            {
+                "chr": [1, 1, 2],
+                "pos": [1000, 2_000_000, 5000],
+                "p_value": [0.4, 0.5, 0.6],
+            }
         )
 
         prepared_first, prepared_second = prepare_manhattan_frames(
@@ -213,9 +221,9 @@ class TestPrepareManhattanData:
 
         df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2],  # ints, not strings
+                "chr": [1, 1, 2],  # ints, not strings
                 "pos": [1000, 2000, 1500],
-                "p": [0.05, 0.01, 0.001],
+                "p_value": [0.05, 0.01, 0.001],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -227,9 +235,9 @@ class TestPrepareManhattanData:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "UNKNOWN"],
+                "chr": ["1", "UNKNOWN"],
                 "pos": [1000, 500],
-                "p": [0.05, 0.01],
+                "p_value": [0.05, 0.01],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -250,9 +258,9 @@ class TestCumulativePositionVectorization:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "1", "2", "2"],
+                "chr": ["1", "1", "2", "2"],
                 "pos": [1000, 5000, 2000, 3000],
-                "p": [0.05, 0.01, 0.001, 1e-8],
+                "p_value": [0.05, 0.01, 0.001, 1e-8],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -274,9 +282,9 @@ class TestCumulativePositionVectorization:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "2", "3", "X"],
+                "chr": ["1", "2", "3", "X"],
                 "pos": [1000, 2000, 3000, 4000],
-                "p": [0.05, 0.01, 0.001, 1e-8],
+                "p_value": [0.05, 0.01, 0.001, 1e-8],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -294,7 +302,7 @@ class TestPrepareCategoricalData:
         return pd.DataFrame(
             {
                 "phenotype": ["Height", "Weight", "BMI", "Height"],
-                "p": [0.05, 1e-8, 0.01, 1e-10],
+                "p_value": [0.05, 1e-8, 0.01, 1e-10],
             }
         )
 
@@ -329,7 +337,7 @@ class TestPrepareCategoricalData:
         """Should raise on missing category column."""
         from pylocuszoom.manhattan import prepare_categorical_data
 
-        df = pd.DataFrame({"p": [0.05]})
+        df = pd.DataFrame({"p_value": [0.05]})
         with pytest.raises(ValueError, match="not found"):
             prepare_categorical_data(df, category_col="missing")
 
@@ -360,7 +368,7 @@ class TestManhattanProperties:
         plotter = ManhattanPlotter(species="canine")
 
         fig = plotter.plot_manhattan(
-            df, config=GenomeWideConfig(chrom_col="chr", pos_col="ps", p_col="p_wald")
+            df, config=GenomeWideConfig(chrom_col="chr", pos_col="pos", p_col="p_value")
         )
 
         assert fig is not None
@@ -372,7 +380,7 @@ class TestManhattanProperties:
         plotter = ManhattanPlotter(species="canine")
 
         fig = plotter.plot_manhattan_qq(
-            df, config=GenomeWideConfig(chrom_col="chr", pos_col="ps", p_col="p_wald")
+            df, config=GenomeWideConfig(chrom_col="chr", pos_col="pos", p_col="p_value")
         )
 
         assert fig is not None
@@ -387,9 +395,9 @@ class TestInvalidPValueFiltering:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "1", "1"],
+                "chr": ["1", "1", "1"],
                 "pos": [100, 200, 300],
-                "p": [0.5, -0.1, 0.01],
+                "p_value": [0.5, -0.1, 0.01],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -403,9 +411,9 @@ class TestInvalidPValueFiltering:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "1", "1"],
+                "chr": ["1", "1", "1"],
                 "pos": [100, 200, 300],
-                "p": [0.5, float("nan"), 0.01],
+                "p_value": [0.5, float("nan"), 0.01],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -418,9 +426,9 @@ class TestInvalidPValueFiltering:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "1", "1"],
+                "chr": ["1", "1", "1"],
                 "pos": [100, 200, 300],
-                "p": [0.5, 1.5, 0.01],
+                "p_value": [0.5, 1.5, 0.01],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -434,12 +442,12 @@ class TestInvalidPValueFiltering:
         df = pd.DataFrame(
             {
                 "category": ["A", "A", "B"],
-                "p": [0.5, -0.1, 0.01],
+                "p_value": [0.5, -0.1, 0.01],
             }
         )
         result = prepare_categorical_data(df, category_col="category").frame
         assert len(result) == 2
-        assert set(result["p"].tolist()) == {0.5, 0.01}
+        assert set(result["p_value"].tolist()) == {0.5, 0.01}
 
     def test_zero_p_value_not_dropped(self):
         """P-value of exactly 0 should not be dropped by the validity filter."""
@@ -447,9 +455,9 @@ class TestInvalidPValueFiltering:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1"],
+                "chr": ["1"],
                 "pos": [100],
-                "p": [0.0],
+                "p_value": [0.0],
             }
         )
         result = prepare_manhattan_frames([df], species="human")[0].frame
@@ -463,9 +471,9 @@ class TestInvalidPValueFiltering:
 
         df = pd.DataFrame(
             {
-                "chrom": ["1", "1", "1"],
+                "chr": ["1", "1", "1"],
                 "pos": [100, 200, 300],
-                "p": [float("nan"), -0.1, 1.5],
+                "p_value": [float("nan"), -0.1, 1.5],
             }
         )
         with pytest.raises(ValueError, match="All rows have invalid p-values"):
@@ -478,7 +486,7 @@ class TestInvalidPValueFiltering:
         df = pd.DataFrame(
             {
                 "category": ["A", "B"],
-                "p": [float("nan"), -0.5],
+                "p_value": [float("nan"), -0.5],
             }
         )
         with pytest.raises(ValueError, match="All rows have invalid p-values"):
@@ -495,7 +503,7 @@ class TestPrepareCategoricalDataIntegerCategories:
         df = pd.DataFrame(
             {
                 "cat": [1, 1, 2, 2, 3],
-                "p": [0.01, 0.05, 0.1, 0.001, 0.5],
+                "p_value": [0.01, 0.05, 0.1, 0.001, 0.5],
             }
         )
         result = prepare_categorical_data(df, category_col="cat").frame
@@ -515,7 +523,7 @@ class TestCategoricalManhattanNaNHandling:
         df = pd.DataFrame(
             {
                 "phenotype": ["A", "B", None, "C", np.nan],
-                "p": [0.001, 0.01, 0.1, 0.05, 0.02],
+                "p_value": [0.001, 0.01, 0.1, 0.05, 0.02],
             }
         )
 
@@ -526,7 +534,7 @@ class TestCategoricalManhattanNaNHandling:
         # This should not raise
         try:
             result = prepare_categorical_data(
-                df, category_col="phenotype", p_col="p"
+                df, category_col="phenotype", p_col="p_value"
             ).frame
         except TypeError as e:
             pytest.fail(f"prepare_categorical_data raised TypeError on NaN values: {e}")
@@ -540,13 +548,13 @@ class TestCategoricalManhattanNaNHandling:
         df = pd.DataFrame(
             {
                 "category": ["A", 1, "B", 2, "C"],  # Mixed str and int
-                "p": [0.001, 0.01, 0.1, 0.05, 0.02],
+                "p_value": [0.001, 0.01, 0.1, 0.05, 0.02],
             }
         )
 
         # Bug: sorted() fails on mixed types
         try:
-            prepare_categorical_data(df, category_col="category", p_col="p")
+            prepare_categorical_data(df, category_col="category", p_col="p_value")
         except TypeError as e:
             pytest.fail(
                 f"prepare_categorical_data raised TypeError on mixed types: {e}"

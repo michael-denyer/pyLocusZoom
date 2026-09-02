@@ -9,10 +9,10 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
+from pylocuszoom.colors import RECOMB_COLOR
 from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
-    RECOMB_COLOR,
     RecombStatus,
     _extract_archive,
     _publish_map_generation,
@@ -876,7 +876,7 @@ class TestDownloadCanineRecombHeaderDetection:
             species="canine", recomb_data_dir=str(tmp_path / "out"), log_level=None
         )
         gwas = pd.DataFrame(
-            {"ps": [1_000_000, 1_050_000], "p_wald": [0.5, 1e-6], "rs": ["a", "b"]}
+            {"pos": [1_000_000, 1_050_000], "p_value": [0.5, 1e-6], "rs": ["a", "b"]}
         )
 
         with pytest.warns(UserWarning, match="Unrecognised first token"):

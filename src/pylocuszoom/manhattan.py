@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
-from .config import GenomeWideConfig
+from .config import GenomeWideConfig, resolve_deprecated_columns
 from .exceptions import ValidationError
-from .schemas import validate_gwas_df
+from .schemas import Canonical, validate_gwas_df
 from .species import Species, resolve_species
 
 CHROMOSOME_GAP = 1_000_000
@@ -224,7 +224,8 @@ def prepare_genomewide_frames(
 
     The boundary for the genome-wide families: every frame is checked for
     the chromosome, position and p-value columns the config names (and
-    ``rs_col`` when given) before any of them is laid out.
+    ``rs_col`` when given) before any of them is laid out. A frame still
+    carrying the pre-4.0 column names is accepted with a deprecation warning.
 
     Args:
         dfs: GWAS results DataFrames, in panel order.
@@ -236,6 +237,7 @@ def prepare_genomewide_frames(
     Raises:
         ValidationError: If a frame is empty or lacks a named column.
     """
+    config = resolve_deprecated_columns(dfs[0], config) if dfs else config
     for df in dfs:
         validate_gwas_df(
             df,
@@ -257,9 +259,9 @@ def prepare_genomewide_frames(
 def prepare_manhattan_frames(
     dfs: Sequence[pd.DataFrame],
     *,
-    chrom_col: str = "chrom",
-    pos_col: str = "pos",
-    p_col: str = "p",
+    chrom_col: str = Canonical.CHROM,
+    pos_col: str = Canonical.POS,
+    p_col: str = Canonical.P,
     species: str | Species | None = None,
     custom_order: list[str] | None = None,
 ) -> list[PreparedManhattan]:
@@ -287,7 +289,11 @@ def prepare_manhattan_frames(
             custom_order names a chromosome order.
     """
     for df in dfs:
-        for col, name in [(chrom_col, "chrom"), (pos_col, "pos"), (p_col, "p")]:
+        for col, name in [
+            (chrom_col, "chromosome"),
+            (pos_col, "position"),
+            (p_col, "p-value"),
+        ]:
             if col not in df.columns:
                 raise ValueError(f"Column '{col}' not found in DataFrame (for {name})")
 
@@ -330,7 +336,7 @@ def _apply_genome_layout(
 def prepare_categorical_data(
     df: pd.DataFrame,
     category_col: str,
-    p_col: str = "p",
+    p_col: str = Canonical.P,
     category_order: list[str] | None = None,
 ) -> PreparedManhattan:
     """Prepare DataFrame for categorical Manhattan plot (PheWAS-style).

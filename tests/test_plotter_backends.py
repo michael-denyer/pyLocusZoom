@@ -278,8 +278,8 @@ class TestPlotterProperties:
         fig = plotter.plot(
             df,
             chrom=df["chr"].iloc[0],
-            start=int(df["ps"].min()),
-            end=int(df["ps"].max()),
+            start=int(df["pos"].min()),
+            end=int(df["pos"].max()),
             display=DisplayConfig(show_recombination=False),
         )
 

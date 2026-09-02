@@ -31,12 +31,16 @@ format:
 
 Args:
     filepath: Path to the results file.
-    pos_col: Output column name for position. Default "ps".
-    p_col: Output column name for p-value. Default "p_wald".
-    rs_col: Output column name for SNP ID. Default "rs".
+    pos_col: Deprecated output column name for position; None emits the
+        canonical "pos".
+    p_col: Deprecated output column name for p-value; None emits the
+        canonical "p_value".
+    rs_col: Deprecated output column name for SNP ID; None emits the
+        canonical "rs".
 
 Returns:
-    DataFrame with standardized column names.
+    DataFrame in the canonical column vocabulary: chr, pos, p_value, rs.
+    Naming any of the three columns explicitly is deprecated and warns.
 
 Raises:
     LoaderValidationError: If the format's columns cannot be mapped or the
@@ -48,6 +52,7 @@ fine-mapping loaders take ``filepath`` plus ``cs_col`` (output column name for
 the credible set, default "cs") and return columns pos, pip, cs.
 """
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -56,7 +61,8 @@ from typing import Any, Optional, Union
 import pandas as pd
 
 from .logging import logger
-from .schemas import Family, Tier, spec
+from .schemas import DEPRECATED_ALIAS_REMOVED_IN, Canonical, Family, Tier, spec
+from .utils import normalize_chrom_series
 from .validation import ColumnSpec, check
 
 # =============================================================================
@@ -156,14 +162,42 @@ def _validate(df: pd.DataFrame, spec: LoaderSpec, out_cols: dict[str, str]) -> N
     check(df, _relax(spec.schema(out_cols), absent))
 
 
+# The canonical name each output-column token resolves to when the caller
+# names none. Overriding one is deprecated: a loader's job is to produce the
+# package's vocabulary, and a caller who wants another name can rename.
+_CANONICAL_OUT_COLS = {
+    "pos_col": Canonical.POS,
+    "p_col": Canonical.P,
+    "rs_col": Canonical.RS,
+}
+
+
+def _canonical_out_cols(out_cols: dict[str, Optional[str]]) -> dict[str, str]:
+    """Resolve the output-column tokens onto ``Canonical``, warning on overrides."""
+    overridden = sorted(
+        k for k, v in out_cols.items() if v is not None and k in _CANONICAL_OUT_COLS
+    )
+    if overridden:
+        warnings.warn(
+            f"{', '.join(overridden)} on the GWAS loaders is deprecated. Loaders "
+            f"emit the canonical columns '{Canonical.CHROM}', '{Canonical.POS}', "
+            f"'{Canonical.P}' and '{Canonical.RS}'; rename after loading instead. "
+            f"The parameters are removed in {DEPRECATED_ALIAS_REMOVED_IN}.",
+            DeprecationWarning,
+            stacklevel=4,
+        )
+    return {k: _CANONICAL_OUT_COLS[k] if v is None else v for k, v in out_cols.items()}
+
+
 def _load_tabular(
     filepath: Union[str, Path],
     spec: LoaderSpec,
     *,
     gene: Optional[str] = None,
-    **out_cols: str,
+    **requested: Optional[str],
 ) -> pd.DataFrame:
     """Load a tabular file per ``spec``: read, map, rename, transform, validate."""
+    out_cols = _canonical_out_cols(requested)
     df = pd.read_csv(filepath, **spec.read)
 
     col_map = {src: _resolve(dst, out_cols) for src, dst in spec.col_map.items()}
@@ -186,7 +220,7 @@ def _load_tabular(
         df = _filter_gene(df, gene, spec.gene_filter)
 
     if spec.clean_chrom and "chr" in df.columns:
-        df["chr"] = df["chr"].astype(str).str.replace("chr", "", regex=False)
+        df["chr"] = normalize_chrom_series(df["chr"])
 
     logger.debug(spec.log_fmt.format(n=len(df)))
     _validate(df, spec, out_cols)
@@ -223,9 +257,9 @@ _PLINK_SPEC = LoaderSpec(
 
 def load_plink_assoc(
     filepath: Union[str, Path],
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load PLINK association results (.assoc, .assoc.linear, .assoc.logistic, .qassoc).
 
@@ -262,9 +296,9 @@ _REGENIE_SPEC = LoaderSpec(
 
 def load_regenie(
     filepath: Union[str, Path],
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load REGENIE association results (.regenie).
 
@@ -290,9 +324,9 @@ _BOLT_LMM_SPEC = LoaderSpec(
 
 def load_bolt_lmm(
     filepath: Union[str, Path],
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load BOLT-LMM association results (.stats).
 
@@ -317,9 +351,9 @@ _GEMMA_SPEC = LoaderSpec(
 
 def load_gemma(
     filepath: Union[str, Path],
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load GEMMA association results (.assoc.txt).
 
@@ -344,9 +378,9 @@ _SAIGE_SPEC = LoaderSpec(
 
 def load_saige(
     filepath: Union[str, Path],
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load SAIGE association results.
 
@@ -375,9 +409,9 @@ _GWAS_CATALOG_SPEC = LoaderSpec(
 
 def load_gwas_catalog(
     filepath: Union[str, Path],
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load GWAS Catalog summary statistics format.
 
@@ -693,7 +727,7 @@ def load_gtf(
     df["gene_name"] = df["attributes"].apply(extract_gene_name)
 
     # Clean chromosome names
-    df["chr"] = df["chr"].astype(str).str.replace("chr", "", regex=False)
+    df["chr"] = normalize_chrom_series(df["chr"])
 
     # Select and return relevant columns
     result = df[["chr", "start", "end", "gene_name", "strand"]].copy()
@@ -853,9 +887,9 @@ def _detect_format(filepath: Path) -> str:
 def load_gwas(
     filepath: Union[str, Path],
     format: Optional[str] = None,
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: str = "rs",
+    pos_col: Optional[str] = None,
+    p_col: Optional[str] = None,
+    rs_col: Optional[str] = None,
     **kwargs,
 ) -> pd.DataFrame:
     """Load GWAS results with automatic format detection.
@@ -864,13 +898,13 @@ def load_gwas(
         filepath: Path to GWAS results file.
         format: File format. If None, auto-detects from extension.
             Options: "plink", "regenie", "bolt", "gemma", "saige", "catalog".
-        pos_col: Output column name for position. Default "ps".
-        p_col: Output column name for p-value. Default "p_wald".
-        rs_col: Output column name for SNP ID. Default "rs".
+        pos_col: Deprecated output column name for position.
+        p_col: Deprecated output column name for p-value.
+        rs_col: Deprecated output column name for SNP ID.
         **kwargs: Additional arguments passed to format-specific loader.
 
     Returns:
-        DataFrame with standardized column names.
+        DataFrame in the canonical column vocabulary: chr, pos, p_value, rs.
 
     Raises:
         ValueError: If ``format`` names an unknown format.

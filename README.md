@@ -101,8 +101,8 @@ fig = plotter.plot(
     start=1000000,
     end=2000000,
     columns=ColumnConfig(
-        pos_col="ps",                   # Column name for position
-        p_col="p_wald",                 # Column name for p-value
+        pos_col="pos",                  # Column name for position
+        p_col="p_value",                # Column name for p-value
         rs_col="rs",                    # Column name for SNP ID
     ),
     display=DisplayConfig(
@@ -486,7 +486,7 @@ fig = stats_plotter.plot_forest(
 Compare two GWAS datasets with mirrored Manhattan plots (top panel ascending, bottom panel inverted):
 
 ```python
-from pylocuszoom import GenomeWideConfig, MiamiPlotter
+from pylocuszoom import MiamiPlotter
 
 plotter = MiamiPlotter(species="human")
 
@@ -498,7 +498,6 @@ fig = plotter.plot_miami(
     top_threshold=5e-8,
     bottom_threshold=1e-6,
     highlight_regions=[("6", 30_000_000, 35_000_000)],
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("miami.png", dpi=150)
 ```
@@ -527,7 +526,7 @@ save(fig)
 Create genome-wide Manhattan plots showing associations across all chromosomes:
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter(species="human")
 
@@ -535,7 +534,6 @@ fig = plotter.plot_manhattan(
     gwas_df,
     significance_threshold=5e-8,
     figsize=(12, 5),
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan.png", dpi=150)
 ```
@@ -560,7 +558,7 @@ fig = plotter.plot_manhattan(
 Create quantile-quantile plots to assess p-value distribution:
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 
@@ -569,7 +567,6 @@ fig = plotter.plot_qq(
     show_confidence_band=True,
     show_lambda=True,
     figsize=(6, 6),
-    config=GenomeWideConfig(p_col="p"),
 )
 fig.savefig("qq_plot.png", dpi=150)
 ```
@@ -582,7 +579,7 @@ fig.savefig("qq_plot.png", dpi=150)
 Compare multiple GWAS results in vertically stacked Manhattan plots:
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 
@@ -592,7 +589,6 @@ fig = plotter.plot_manhattan_stacked(
     significance_threshold=5e-8,
     figsize=(12, 8),
     title="Multi-study GWAS Comparison",
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
@@ -605,7 +601,7 @@ fig.savefig("manhattan_stacked.png", dpi=150)
 Create combined Manhattan and QQ plots in a single figure:
 
 ```python
-from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+from pylocuszoom import ManhattanPlotter
 
 plotter = ManhattanPlotter()
 
@@ -616,7 +612,6 @@ fig = plotter.plot_manhattan_qq(
     show_lambda=True,
     figsize=(14, 5),
     title="GWAS Results",
-    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
@@ -626,12 +621,17 @@ fig.savefig("manhattan_qq.png", dpi=150)
 
 ## PySpark Support
 
-For large-scale genomics data, convert PySpark DataFrames with `to_pandas()` before plotting:
+Every plot method collects a PySpark DataFrame through `to_pandas()` before it
+reads a single column, so a Spark frame can be passed straight in. Call
+`to_pandas()` yourself when you want to sample a very large frame first:
 
 ```python
 from pylocuszoom import LocusZoomPlotter, to_pandas
 
-# Convert PySpark DataFrame (optionally sampled for very large data)
+# Passed straight in: the plot method collects it
+fig = plotter.plot(spark_gwas_df, chrom=1, start=1000000, end=2000000)
+
+# Sampled first, for a frame too large to collect whole
 pandas_df = to_pandas(spark_gwas_df, sample_size=100000)
 fig = plotter.plot(pandas_df, chrom=1, start=1000000, end=2000000)
 ```
@@ -683,19 +683,26 @@ fm_df = load_susie("susie_output.tsv")
 
 ### GWAS Results DataFrame
 
+These are the canonical column names: every `load_*` function emits them and every
+plotter defaults to them, so a loaded frame plots without renaming. A frame still
+carrying the pre-4.0 `ps` and `p_wald` names is accepted with a `DeprecationWarning`
+until 5.0.0. Other names are supported through `ColumnConfig`.
+
 Required columns (names configurable through `ColumnConfig`):
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
-| `ps` | int | Yes | Genomic position in base pairs (1-based). Must match coordinate system of genes/recombination data. |
-| `p_wald` | float | Yes | Association p-value (0 < p ≤ 1). Values are -log10 transformed for plotting. |
+| `chr` | str or int | No | Chromosome. Filters a whole-genome frame to the plotted region. |
+| `pos` | int | Yes | Genomic position in base pairs (1-based). Must match coordinate system of genes/recombination data. |
+| `p_value` | float | Yes | Association p-value (0 < p ≤ 1). Values are -log10 transformed for plotting. |
 | `rs` | str | No | SNP identifier (e.g., "rs12345" or "chr1:12345"). Used for labeling top SNPs if `snp_labels=True`. |
 
 Example:
 ```python
 gwas_df = pd.DataFrame({
-    "ps": [1000000, 1000500, 1001000],
-    "p_wald": [1e-8, 1e-6, 0.05],
+    "chr": [1, 1, 1],
+    "pos": [1000000, 1000500, 1001000],
+    "p_value": [1e-8, 1e-6, 0.05],
     "rs": ["rs123", "rs456", "rs789"],
 })
 ```

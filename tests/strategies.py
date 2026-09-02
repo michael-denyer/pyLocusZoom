@@ -132,8 +132,8 @@ def gwas_dataframes(
         {
             "rs": [f"rs{i}" for i in range(n_snps)],
             "chr": [chrom] * n_snps,
-            "ps": pos_list,
-            "p_wald": p_vals,
+            "pos": pos_list,
+            "p_value": p_vals,
         }
     )
 

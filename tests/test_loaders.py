@@ -23,13 +23,13 @@ class TestAutoFormatDetection:
     def test_load_gwas_detects_plink(self, plink_assoc_file):
         """Test that load_gwas auto-detects PLINK format."""
         df = load_gwas(plink_assoc_file)
-        assert "ps" in df.columns
+        assert "pos" in df.columns
         assert len(df) == 3
 
     def test_load_gwas_detects_regenie(self, regenie_file):
         """Test that load_gwas auto-detects REGENIE format."""
         df = load_gwas(regenie_file)
-        assert "ps" in df.columns
+        assert "pos" in df.columns
         assert len(df) == 3
 
     def test_load_gwas_detects_bolt_from_stats_ext(self, tmp_path):
@@ -40,7 +40,7 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         filepath = tmp_path / "result.stats"
         filepath.write_text(content)
         df = load_gwas(filepath)
-        assert "ps" in df.columns
+        assert "pos" in df.columns
         assert len(df) == 1
 
     def test_load_gwas_unknown_format_warns_and_defaults_plink(self, tmp_path):
@@ -60,7 +60,7 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         finally:
             enable_logging("INFO")
 
-        assert "ps" in df.columns
+        assert "pos" in df.columns
         assert len(df) == 1
         message = log_capture.getvalue()
         assert "results.unknown_ext" in message
@@ -76,7 +76,7 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         filepath.write_text(content)
         # Force plink format despite .stats extension
         df = load_gwas(filepath, format="plink")
-        assert "ps" in df.columns
+        assert "pos" in df.columns
 
     def test_load_gwas_invalid_format_raises(self):
         """Invalid format name raises ValueError."""
@@ -91,7 +91,7 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         filepath = tmp_path / "result.assoc.linear"
         filepath.write_text(content)
         df = load_gwas(filepath)
-        assert "ps" in df.columns
+        assert "pos" in df.columns
 
     def test_load_gwas_detects_qassoc(self, tmp_path):
         """Test .qassoc extension is detected as plink."""
@@ -101,7 +101,7 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         filepath = tmp_path / "result.qassoc"
         filepath.write_text(content)
         df = load_gwas(filepath)
-        assert "ps" in df.columns
+        assert "pos" in df.columns
 
     def test_load_gwas_detects_gemma_from_assoc_txt(self, tmp_path):
         """A GEMMA .assoc.txt file must not be claimed by the shorter .assoc hint."""
@@ -113,7 +113,7 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
 
         assert _detect_format(filepath) == "gemma"
         assert _detect_format(tmp_path / "result.assoc") == "plink"
-        df = load_gwas(filepath, pos_col="pos")
+        df = load_gwas(filepath)
         assert "pos" in df.columns
         assert len(df) == 1
 
@@ -153,13 +153,13 @@ class TestLoaderIntegration:
         df = load_plink_assoc(plink_assoc_file)
 
         # Should have required columns with correct types
-        assert df["ps"].dtype in ["int64", "int32", "float64"]
-        assert df["p_wald"].dtype == "float64"
+        assert df["pos"].dtype in ["int64", "int32", "float64"]
+        assert df["p_value"].dtype == "float64"
 
         # Values should be in valid ranges
-        assert (df["ps"] > 0).all()
-        assert (df["p_wald"] > 0).all()
-        assert (df["p_wald"] <= 1).all()
+        assert (df["pos"] > 0).all()
+        assert (df["p_value"] > 0).all()
+        assert (df["p_value"] <= 1).all()
 
     def test_loaded_finemapping_ready_for_plotting(self, susie_file):
         """Test that loaded fine-mapping data is ready for plotting."""
