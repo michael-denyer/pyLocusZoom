@@ -1,5 +1,7 @@
 """Shared plot-data intake policy."""
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -12,15 +14,33 @@ P_VALUE_MAX = 1.0
 
 
 def prepare_pvalue_data(
-    df: pd.DataFrame, p_col: str, *, allow_zero: bool = True
+    df: pd.DataFrame,
+    p_col: str,
+    *,
+    allow_zero: bool = True,
+    out_col: str = "neglog10p",
+    on_empty: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Return a copy with valid p-values and a finite ``neglog10p`` column.
+    """Return a copy with valid p-values and a finite ``-log10(p)`` column.
 
     Null, non-numeric, out-of-range p-values are filtered consistently for
-    every plot family. ``allow_zero`` preserves the Manhattan convention that
-    an exact zero is a valid, clipped p-value; strict callers such as eQTL can
-    opt into the mathematical ``(0, 1]`` domain. Tiny valid values are clipped
-    before taking ``-log10``.
+    every plot family. Tiny valid values are clipped before taking ``-log10``.
+
+    Args:
+        df: Frame holding the p-value column.
+        p_col: Name of the p-value column.
+        allow_zero: Keep an exact zero as a valid, clipped p-value, the
+            Manhattan convention. Strict callers such as eQTL and QQ opt into
+            the mathematical ``(0, 1]`` domain by passing False.
+        out_col: Name of the transformed column to write.
+        on_empty: Message to raise when no row survives filtering. None
+            returns the empty frame instead, which the regional path relies on.
+
+    Returns:
+        A filtered copy carrying ``out_col``.
+
+    Raises:
+        ValueError: If nothing survives and ``on_empty`` names a message.
     """
     result = df.copy()
     initial_count = len(result)
@@ -44,7 +64,9 @@ def prepare_pvalue_data(
     clipped = int((valid_values < P_VALUE_FLOOR).sum())
     if clipped:
         logger.debug("Clipping {} p-values below {}", clipped, P_VALUE_FLOOR)
-    result["neglog10p"] = -np.log10(valid_values.clip(lower=P_VALUE_FLOOR))
+    result[out_col] = -np.log10(valid_values.clip(lower=P_VALUE_FLOOR))
     if dropped:
         logger.debug("P-value filtering removed {} of {} rows", dropped, initial_count)
+    if result.empty and on_empty is not None:
+        raise ValueError(on_empty)
     return result
