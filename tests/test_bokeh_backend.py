@@ -96,10 +96,10 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        renderer = backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=hover_data)
 
         # The scatter coordinates must still be [1, 2, 3], not overwritten
-        source = renderer.data_source
+        source = ax.renderers[-1].data_source
         np.testing.assert_array_equal(source.data["x"], [1.0, 2.0, 3.0])
 
     def test_hover_column_named_color_does_not_corrupt_scatter(self):
@@ -119,10 +119,10 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        renderer = backend.scatter(ax, x, y, colors="red", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="red", hover_data=hover_data)
 
         # The color data must still be the scatter colors, not overwritten
-        source = renderer.data_source
+        source = ax.renderers[-1].data_source
         assert list(source.data["color"]) == ["red", "red", "red"]
 
     def test_hover_column_named_size_does_not_corrupt_scatter(self):
@@ -142,11 +142,9 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        renderer = backend.scatter(
-            ax, x, y, colors="red", sizes=60, hover_data=hover_data
-        )
+        backend.scatter(ax, x, y, colors="red", sizes=60, hover_data=hover_data)
 
-        source = renderer.data_source
+        source = ax.renderers[-1].data_source
         expected_size = max(6, 60**0.5)
         assert list(source.data["size"]) == [expected_size, expected_size]
 
@@ -191,9 +189,9 @@ class TestAddColorbarNoIdentityMap:
         mapper = backend.add_heatmap(
             ax, data, [0, 1], [0, 1], cmap_colors=LD_HEATMAP_COLORS
         )
-        colorbar = backend.add_colorbar(ax, mapper, label="R²", orientation="vertical")
+        backend.add_colorbar(ax, mapper, label="R²", orientation="vertical")
 
-        assert colorbar.orientation == "vertical"
+        assert ax.right[-1].orientation == "vertical"
 
     def test_colorbar_horizontal(self):
         """Horizontal colorbar should work."""
@@ -207,11 +205,9 @@ class TestAddColorbarNoIdentityMap:
         mapper = backend.add_heatmap(
             ax, data, [0, 1], [0, 1], cmap_colors=LD_HEATMAP_COLORS
         )
-        colorbar = backend.add_colorbar(
-            ax, mapper, label="R²", orientation="horizontal"
-        )
+        backend.add_colorbar(ax, mapper, label="R²", orientation="horizontal")
 
-        assert colorbar.orientation == "horizontal"
+        assert ax.right[-1].orientation == "horizontal"
 
 
 class TestAddTextAnchors:

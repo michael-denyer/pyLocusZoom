@@ -399,7 +399,7 @@ class TestHeatmapMethods:
         assert mappable is not None
 
     def test_matplotlib_add_colorbar(self, ld_matrix_array):
-        """Matplotlib add_colorbar should not raise."""
+        """Matplotlib add_colorbar attaches a labelled scale to the figure."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
@@ -411,8 +411,9 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        cbar = backend.add_colorbar(axes[0], mappable, label="R²")
-        assert cbar is not None
+        backend.add_colorbar(axes[0], mappable, label="R²")
+
+        assert [a.get_ylabel() for a in fig.axes if a is not axes[0]] == ["R²"]
 
     def test_plotly_add_heatmap_returns_trace(self, ld_matrix_array):
         """Plotly add_heatmap should return Heatmap trace."""
@@ -447,9 +448,8 @@ class TestHeatmapMethods:
         )
         assert trace.showscale is False
 
-        result = backend.add_colorbar(axes[0], trace, label="D'")
+        backend.add_colorbar(axes[0], trace, label="D'")
 
-        assert result is trace
         assert trace.showscale is True
         assert trace.colorbar.title.text == "D'"
 
@@ -503,11 +503,9 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        cbar = backend.add_colorbar(axes[0], mapper, label="R²")
-        assert cbar is not None
-        assert isinstance(cbar, ColorBar)
-        # Should be added to right layout
-        assert cbar in axes[0].right
+        backend.add_colorbar(axes[0], mapper, label="R²")
+
+        assert [type(m) for m in axes[0].right] == [ColorBar]
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
     def test_every_backend_supports_heatmaps(self, backend_name):
@@ -636,7 +634,8 @@ class TestLegendPlacement:
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure(1, [1.0], (6, 4))
-        legend = backend.add_legend(axes[0], self._entries(), loc="lower left")
+        backend.add_legend(axes[0], self._entries(), loc="lower left")
+        legend = axes[0].get_legend()
         assert legend._get_loc() == Legend.codes["lower left"]
 
     def test_matplotlib_honours_edgecolor(self):
@@ -647,8 +646,8 @@ class TestLegendPlacement:
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure(1, [1.0], (6, 4))
-        legend = backend.add_legend(axes[0], self._entries(), loc="upper right")
-        marker_handle = legend.legend_handles[0]
+        backend.add_legend(axes[0], self._entries(), loc="upper right")
+        marker_handle = axes[0].get_legend().legend_handles[0]
         assert to_hex(marker_handle.get_markeredgecolor()) == "#00ff00"
 
     def test_plotly_honours_loc(self):
@@ -727,10 +726,10 @@ class TestLegendTitleMathtext:
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure(1, [1.0], (6, 4))
-        legend = backend.add_legend(
+        backend.add_legend(
             axes[0], ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
         )
-        assert legend.get_title().get_text() == r"$r^2$"
+        assert axes[0].get_legend().get_title().get_text() == r"$r^2$"
 
     def test_interactive_backends_show_unicode(self):
         """Plotly and Bokeh convert the mathtext to a plain unicode r²."""

@@ -19,6 +19,13 @@ import pandas as pd
 if TYPE_CHECKING:
     from .composition import LegendEntry
 
+Mappable = Any
+"""Opaque handle produced by ``add_heatmap`` and consumed by ``add_colorbar``.
+
+The only backend return value that crosses the seam. Every drawing primitive
+returns ``None``: a caller draws, it does not collect handles.
+"""
+
 
 @runtime_checkable
 class SupportsRegionHighlight(Protocol):
@@ -98,7 +105,7 @@ class SupportsHeatmap(Protocol):
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Any:
+    ) -> Mappable:
         """Render a heatmap of an already-shaped matrix.
 
         Used for LD heatmap visualization. Masking the upper triangle is the
@@ -123,10 +130,10 @@ class SupportsHeatmap(Protocol):
     def add_colorbar(
         self,
         ax: Any,
-        mappable: Any,
+        mappable: Mappable,
         label: str = "R²",
         orientation: str = "vertical",
-    ) -> Any:
+    ) -> None:
         """Show the colour scale for a heatmap.
 
         Args:
@@ -134,9 +141,6 @@ class SupportsHeatmap(Protocol):
             mappable: Heatmap object returned by add_heatmap.
             label: Colorbar label (e.g., "R²" or "D'").
             orientation: "vertical" or "horizontal".
-
-        Returns:
-            Colorbar object.
         """
         ...
 
@@ -156,7 +160,7 @@ class SupportsErrorBars(Protocol):
         linewidth: float = 1.5,
         capsize: float = 3,
         zorder: int = 3,
-    ) -> Any:
+    ) -> None:
         """Add horizontal error bars (for forest plots).
 
         Args:
@@ -169,9 +173,6 @@ class SupportsErrorBars(Protocol):
             linewidth: Line width.
             capsize: Cap size in points.
             zorder: Drawing order.
-
-        Returns:
-            The errorbar object.
         """
         ...
 
@@ -189,6 +190,11 @@ class PlotBackend(Protocol):
     accept it and draw in call order, because neither library orders glyphs by
     a depth key. Legend content is composed above the seam and rendered by
     ``add_legend``, so no drawing primitive takes a label.
+
+    Every drawing primitive returns ``None``. A caller draws onto a panel and
+    reads the panel back from the figure; it does not collect artist handles.
+    ``add_heatmap`` is the one exception, returning a ``Mappable`` that only
+    ``add_colorbar`` consumes.
 
     Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
     SupportsRegionHighlight, SupportsHeatmap, SupportsErrorBars) are separate
@@ -296,7 +302,7 @@ class PlotBackend(Protocol):
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-    ) -> Any:
+    ) -> None:
         """Create a scatter plot on the given axes.
 
         Args:
@@ -310,9 +316,6 @@ class PlotBackend(Protocol):
             linewidth: Marker edge width.
             zorder: Drawing order.
             hover_data: DataFrame with columns for hover tooltips.
-
-        Returns:
-            The scatter plot object.
         """
         ...
 
@@ -326,7 +329,7 @@ class PlotBackend(Protocol):
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Create a line plot on the given axes.
 
         Args:
@@ -338,9 +341,6 @@ class PlotBackend(Protocol):
             alpha: Transparency.
             linestyle: Line style ('-', '--', ':', '-.').
             zorder: Drawing order.
-
-        Returns:
-            The line plot object.
         """
         ...
 
@@ -353,7 +353,7 @@ class PlotBackend(Protocol):
         color: str = "blue",
         alpha: float = 0.3,
         zorder: int = 0,
-    ) -> Any:
+    ) -> None:
         """Fill area between two y-values.
 
         Args:
@@ -364,9 +364,6 @@ class PlotBackend(Protocol):
             color: Fill color.
             alpha: Transparency.
             zorder: Drawing order.
-
-        Returns:
-            The fill object.
         """
         ...
 
@@ -379,7 +376,7 @@ class PlotBackend(Protocol):
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a horizontal line across the axes.
 
         Args:
@@ -390,9 +387,6 @@ class PlotBackend(Protocol):
             linewidth: Line width.
             alpha: Line transparency (0-1).
             zorder: Drawing order.
-
-        Returns:
-            The line object.
         """
         ...
 
@@ -405,7 +399,7 @@ class PlotBackend(Protocol):
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a vertical line across the axes.
 
         Args:
@@ -416,9 +410,6 @@ class PlotBackend(Protocol):
             linewidth: Line width.
             alpha: Line transparency (0-1).
             zorder: Drawing order.
-
-        Returns:
-            The line object.
         """
         ...
 
@@ -437,7 +428,7 @@ class PlotBackend(Protocol):
         va: str = "bottom",
         rotation: float = 0,
         color: str = "black",
-    ) -> Any:
+    ) -> None:
         """Add text annotation to axes.
 
         Args:
@@ -450,9 +441,6 @@ class PlotBackend(Protocol):
             va: Vertical alignment.
             rotation: Text rotation in degrees.
             color: Text color.
-
-        Returns:
-            The text object.
         """
         ...
 
@@ -489,7 +477,7 @@ class PlotBackend(Protocol):
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a rectangle patch to axes.
 
         Args:
@@ -501,9 +489,6 @@ class PlotBackend(Protocol):
             edgecolor: Edge color.
             linewidth: Edge width.
             zorder: Drawing order.
-
-        Returns:
-            The rectangle object.
         """
         ...
 
@@ -515,7 +500,7 @@ class PlotBackend(Protocol):
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add polygon patch to axes.
 
         Used for gene track directional arrows.
@@ -527,9 +512,6 @@ class PlotBackend(Protocol):
             edgecolor: Edge color.
             linewidth: Edge width.
             zorder: Drawing order.
-
-        Returns:
-            The polygon object.
         """
         ...
 
@@ -664,7 +646,7 @@ class PlotBackend(Protocol):
         entries: "List[LegendEntry]",
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
+    ) -> None:
         """Add a legend rendering the given backend-neutral entries.
 
         Args:
@@ -672,8 +654,5 @@ class PlotBackend(Protocol):
             entries: Backend-neutral ``LegendEntry`` specs to render.
             loc: Legend location.
             title: Legend title.
-
-        Returns:
-            The legend object, if the backend produces one.
         """
         ...

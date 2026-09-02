@@ -17,6 +17,7 @@ from ._coerce import (
     normalize_ratios,
     pixels,
 )
+from .base import Mappable
 from .composition import LegendEntry, mb_tick_positions
 from .hover import plotly_hovertemplate
 from .plotly_layout import (
@@ -157,7 +158,7 @@ class PlotlyBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-    ) -> Any:
+    ) -> None:
         """Create a scatter plot on the given panel."""
         fig, row, col = ax.fig, ax.row, ax.col
 
@@ -193,7 +194,6 @@ class PlotlyBackend:
         )
 
         fig.add_trace(trace, row=row, col=col)
-        return trace
 
     def line(
         self,
@@ -205,7 +205,7 @@ class PlotlyBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Create a line plot on the given panel or secondary axis."""
         dash = _DASH_MAP.get(linestyle, "solid")
         # A secondary trace decorates the panel's data, so it skips the hover.
@@ -225,7 +225,6 @@ class PlotlyBackend:
         )
 
         ax.fig.add_trace(trace)
-        return trace
 
     def fill_between(
         self,
@@ -236,7 +235,7 @@ class PlotlyBackend:
         color: str = "blue",
         alpha: float = 0.3,
         zorder: int = 0,
-    ) -> Any:
+    ) -> None:
         """Fill area between two y-values."""
         y1 = pd.Series(broadcast(y1, len(x)))
 
@@ -254,7 +253,6 @@ class PlotlyBackend:
         )
 
         ax.fig.add_trace(trace)
-        return trace
 
     def axhline(
         self,
@@ -265,7 +263,7 @@ class PlotlyBackend:
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a horizontal line across the panel."""
         fig, row, col = ax.fig, ax.row, ax.col
         dash = _DASH_MAP.get(linestyle, "dash")
@@ -291,7 +289,7 @@ class PlotlyBackend:
         va: str = "bottom",
         rotation: float = 0,
         color: str = "black",
-    ) -> Any:
+    ) -> None:
         """Add text annotation to panel."""
         fig, row, col = ax.fig, ax.row, ax.col
 
@@ -322,7 +320,7 @@ class PlotlyBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a rectangle to the panel."""
         fig, row, col = ax.fig, ax.row, ax.col
 
@@ -349,7 +347,7 @@ class PlotlyBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a polygon (e.g., triangle for strand arrows) to the panel."""
         fig, row, col = ax.fig, ax.row, ax.col
 
@@ -645,7 +643,7 @@ class PlotlyBackend:
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a vertical line across the panel."""
         fig, row, col = ax.fig, ax.row, ax.col
         dash = _DASH_MAP.get(linestyle, "dash")
@@ -671,7 +669,7 @@ class PlotlyBackend:
         linewidth: float = 1.5,
         capsize: float = 3,
         zorder: int = 3,
-    ) -> Any:
+    ) -> None:
         """Add horizontal error bars."""
         fig, row, col = ax.fig, ax.row, ax.col
 
@@ -693,7 +691,6 @@ class PlotlyBackend:
         )
 
         fig.add_trace(trace, row=row, col=col)
-        return trace
 
     def finalize_layout(
         self,
@@ -745,7 +742,7 @@ class PlotlyBackend:
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Any:
+    ) -> Mappable:
         """Render a heatmap of an already-shaped matrix."""
         import numpy as np
 
@@ -777,10 +774,10 @@ class PlotlyBackend:
     def add_colorbar(
         self,
         ax: _Panel,
-        mappable: Any,
+        mappable: Mappable,
         label: str = "R²",
         orientation: str = "vertical",
-    ) -> Any:
+    ) -> None:
         """Add colorbar legend for heatmap.
 
         Plotly draws the scale as part of the heatmap trace rather than as a
@@ -795,4 +792,3 @@ class PlotlyBackend:
                 orientation="h" if orientation == "horizontal" else "v",
             ),
         )
-        return mappable

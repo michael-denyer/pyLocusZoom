@@ -13,6 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
+from .base import Mappable
 from .composition import LegendEntry
 
 
@@ -110,12 +111,12 @@ class MatplotlibBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-    ) -> Any:
+    ) -> None:
         """Create a scatter plot on the given axes.
 
         Note: hover_data is ignored for matplotlib (static plots).
         """
-        return ax.scatter(
+        ax.scatter(
             x,
             y,
             c=colors,
@@ -136,9 +137,9 @@ class MatplotlibBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Create a line plot on the given axes."""
-        (line,) = ax.plot(
+        ax.plot(
             x,
             y,
             color=color,
@@ -147,7 +148,6 @@ class MatplotlibBackend:
             linestyle=linestyle,
             zorder=zorder,
         )
-        return line
 
     def fill_between(
         self,
@@ -158,9 +158,9 @@ class MatplotlibBackend:
         color: str = "blue",
         alpha: float = 0.3,
         zorder: int = 0,
-    ) -> Any:
+    ) -> None:
         """Fill area between two y-values."""
-        return ax.fill_between(x, y1, y2, color=color, alpha=alpha, zorder=zorder)
+        ax.fill_between(x, y1, y2, color=color, alpha=alpha, zorder=zorder)
 
     def axhline(
         self,
@@ -171,9 +171,9 @@ class MatplotlibBackend:
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a horizontal line across the axes."""
-        return ax.axhline(
+        ax.axhline(
             y=y,
             color=color,
             linestyle=linestyle,
@@ -193,9 +193,9 @@ class MatplotlibBackend:
         va: str = "bottom",
         rotation: float = 0,
         color: str = "black",
-    ) -> Any:
+    ) -> None:
         """Add text annotation to axes."""
-        return ax.text(
+        ax.text(
             x, y, text, fontsize=fontsize, ha=ha, va=va, rotation=rotation, color=color
         )
 
@@ -254,7 +254,7 @@ class MatplotlibBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a rectangle patch to axes."""
         rect = Rectangle(
             xy,
@@ -267,7 +267,6 @@ class MatplotlibBackend:
             zorder=zorder,
         )
         ax.add_patch(rect)
-        return rect
 
     def add_polygon(
         self,
@@ -277,7 +276,7 @@ class MatplotlibBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a polygon patch to axes."""
         polygon = Polygon(
             points,
@@ -288,7 +287,6 @@ class MatplotlibBackend:
             zorder=zorder,
         )
         ax.add_patch(polygon)
-        return polygon
 
     def set_xlim(self, ax: Axes, left: float, right: float) -> None:
         """Set x-axis limits."""
@@ -376,7 +374,7 @@ class MatplotlibBackend:
         entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
+    ) -> None:
         """Render backend-neutral legend entries as matplotlib handles."""
         from matplotlib.lines import Line2D
         from matplotlib.patches import Patch
@@ -401,7 +399,7 @@ class MatplotlibBackend:
                         label=entry.label,
                     )
                 )
-        return ax.legend(
+        ax.legend(
             handles=handles,
             loc=loc,
             title=title,
@@ -433,9 +431,9 @@ class MatplotlibBackend:
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a vertical line across the axes."""
-        return ax.axvline(
+        ax.axvline(
             x=x,
             color=color,
             linestyle=linestyle,
@@ -455,10 +453,10 @@ class MatplotlibBackend:
         linewidth: float = 1.5,
         capsize: float = 3,
         zorder: int = 3,
-    ) -> Any:
+    ) -> None:
         """Add horizontal error bars."""
         xerr = [xerr_lower.values, xerr_upper.values]
-        return ax.errorbar(
+        ax.errorbar(
             x=x,
             y=y,
             xerr=xerr,
@@ -505,7 +503,7 @@ class MatplotlibBackend:
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Any:
+    ) -> Mappable:
         """Render a heatmap of an already-shaped matrix."""
         from matplotlib.colors import LinearSegmentedColormap
 
@@ -538,11 +536,10 @@ class MatplotlibBackend:
     def add_colorbar(
         self,
         ax: Axes,
-        mappable: Any,
+        mappable: Mappable,
         label: str = "R²",
         orientation: str = "vertical",
-    ) -> Any:
+    ) -> None:
         """Add colorbar legend for heatmap."""
         cbar = plt.colorbar(mappable, ax=ax, orientation=orientation)
         cbar.set_label(label)
-        return cbar
