@@ -11,7 +11,7 @@ class TestAddSnpLabels:
     """Tests for add_snp_labels function."""
 
     @pytest.fixture
-    def sample_gwas_df(self):
+    def ranked_labelled_gwas_df(self):
         """Sample GWAS results with neglog10p calculated."""
         return pd.DataFrame(
             {
@@ -44,42 +44,42 @@ class TestAddSnpLabels:
             }
         )
 
-    def test_adds_labels_to_plot(self, sample_gwas_df):
+    def test_adds_labels_to_plot(self, ranked_labelled_gwas_df):
         """Should add text labels to the plot."""
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(ranked_labelled_gwas_df["ps"], ranked_labelled_gwas_df["neglog10p"])
 
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=3)
+        texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=3)
 
         assert len(texts) == 3
         plt.close(fig)
 
-    def test_labels_top_n_snps(self, sample_gwas_df):
+    def test_labels_top_n_snps(self, ranked_labelled_gwas_df):
         """Should label only the top N most significant SNPs."""
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(ranked_labelled_gwas_df["ps"], ranked_labelled_gwas_df["neglog10p"])
 
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=5)
+        texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=5)
 
         assert len(texts) == 5
         # Top 5 by neglog10p should be: rs9 (10), rs5 (9), rs1 (8), rs7 (7), rs4 (6)
         plt.close(fig)
 
-    def test_uses_snp_id_by_default(self, sample_gwas_df):
+    def test_uses_snp_id_by_default(self, ranked_labelled_gwas_df):
         """Should use SNP ID (rs number) as default label."""
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(ranked_labelled_gwas_df["ps"], ranked_labelled_gwas_df["neglog10p"])
 
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=1)
+        texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=1)
 
         # Top SNP is rs9 with neglog10p=10
         assert "rs9" in texts[0].get_text()
         plt.close(fig)
 
-    def test_truncates_long_labels(self, sample_gwas_df):
+    def test_truncates_long_labels(self, ranked_labelled_gwas_df):
         """Should truncate labels longer than max_label_length."""
         # Create SNP with very long name
-        df = sample_gwas_df.copy()
+        df = ranked_labelled_gwas_df.copy()
         df.loc[df["neglog10p"] == 10, "rs"] = "rs_very_long_identifier_name"
 
         fig, ax = plt.subplots()
@@ -92,9 +92,9 @@ class TestAddSnpLabels:
         assert label_text.endswith("...")
         plt.close(fig)
 
-    def test_raises_without_neglog10p_column(self, sample_gwas_df):
+    def test_raises_without_neglog10p_column(self, ranked_labelled_gwas_df):
         """Should raise error if neglog10p column is missing."""
-        df = sample_gwas_df.drop(columns=["neglog10p"])
+        df = ranked_labelled_gwas_df.drop(columns=["neglog10p"])
 
         fig, ax = plt.subplots()
 
@@ -130,11 +130,11 @@ class TestAddSnpLabels:
         assert "var2" in texts[0].get_text()
         plt.close(fig)
 
-    def test_returns_empty_list_for_zero_labels(self, sample_gwas_df):
+    def test_returns_empty_list_for_zero_labels(self, ranked_labelled_gwas_df):
         """Should return empty list when label_top_n=0."""
         fig, ax = plt.subplots()
 
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=0)
+        texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=0)
 
         assert len(texts) == 0
         plt.close(fig)
@@ -248,7 +248,7 @@ class TestAddSnpLabels:
         assert len(texts) == 3
         plt.close(fig)
 
-    def test_warns_when_lead_pos_without_region_span(self, caplog):
+    def test_warns_when_lead_pos_without_region_span(self, warning_records):
         """Warning logged when lead_pos set but region_span missing."""
         df = pd.DataFrame(
             {
@@ -260,13 +260,12 @@ class TestAddSnpLabels:
         fig, ax = plt.subplots()
         ax.scatter(df["ps"], df["neglog10p"])
 
-        with caplog.at_level("WARNING"):
-            texts = add_snp_labels(
-                ax, df, label_top_n=2, lead_pos=1500000, region_span=None
-            )
+        texts = add_snp_labels(
+            ax, df, label_top_n=2, lead_pos=1500000, region_span=None
+        )
 
-        # All labels kept (filtering disabled)
         assert len(texts) == 2
+        assert any("region_span" in message for message in warning_records)
         plt.close(fig)
 
     def test_custom_min_label_distance(self):
@@ -325,18 +324,7 @@ class TestAddSnpLabels:
 class TestAdjustTextWarning:
     """Test warning is logged when adjustText is unavailable."""
 
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results with neglog10p calculated."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-                "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
-                "neglog10p": [8, 5, 3, 6, 9],
-            }
-        )
-
-    def test_warning_logged_when_adjusttext_unavailable(self, sample_gwas_df):
+    def test_warning_logged_when_adjusttext_unavailable(self, labelled_gwas_df):
         """Verify warning is logged when adjustText import fails."""
         import builtins
         import io
@@ -347,7 +335,7 @@ class TestAdjustTextWarning:
         from pylocuszoom.logging import logger
 
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
 
         # Capture log output with a custom sink
         log_capture = io.StringIO()
@@ -373,7 +361,7 @@ class TestAdjustTextWarning:
                 # Need multiple labels to trigger the adjustText code path
                 texts = add_snp_labels(
                     ax=ax,
-                    df=sample_gwas_df,
+                    df=labelled_gwas_df,
                     label_top_n=3,
                 )
         finally:
@@ -393,34 +381,23 @@ class TestAdjustTextWarning:
 class TestDeferredAdjustment:
     """Test deferred label adjustment for proper axis limits handling."""
 
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results with neglog10p calculated."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-                "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
-                "neglog10p": [8, 5, 3, 6, 9],
-            }
-        )
-
-    def test_adjust_false_skips_adjustment(self, sample_gwas_df):
+    def test_adjust_false_skips_adjustment(self, labelled_gwas_df):
         """When adjust=False, labels are added but not adjusted."""
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
 
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=3, adjust=False)
+        texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=3, adjust=False)
 
         assert len(texts) == 3
         plt.close(fig)
 
-    def test_adjust_snp_labels_can_be_called_separately(self, sample_gwas_df):
+    def test_adjust_snp_labels_can_be_called_separately(self, labelled_gwas_df):
         """adjust_snp_labels can be called after setting axis limits."""
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
 
         # Add labels without adjustment
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=3, adjust=False)
+        texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=3, adjust=False)
 
         # Set axis limits
         ax.set_xlim(1000000, 1600000)
@@ -441,12 +418,12 @@ class TestDeferredAdjustment:
 
         plt.close(fig)
 
-    def test_adjust_snp_labels_handles_single_label(self, sample_gwas_df):
+    def test_adjust_snp_labels_handles_single_label(self, labelled_gwas_df):
         """adjust_snp_labels handles single label (skips adjustText)."""
         fig, ax = plt.subplots()
-        ax.scatter(sample_gwas_df["ps"], sample_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
 
-        texts = add_snp_labels(ax, sample_gwas_df, label_top_n=1, adjust=False)
+        texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=1, adjust=False)
 
         # Should not raise - adjustText is skipped for single label
         adjust_snp_labels(ax, texts)

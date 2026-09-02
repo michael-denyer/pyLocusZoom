@@ -11,12 +11,12 @@ class TestManhattanPlotter:
     """Tests for the ManhattanPlotter class."""
 
     @pytest.fixture
-    def plotter(self):
+    def canine_manhattan_plotter(self):
         """Create a ManhattanPlotter instance."""
         return ManhattanPlotter(species="canine")
 
     @pytest.fixture
-    def gwas_data(self):
+    def manhattan_chrom_df(self):
         """Create sample GWAS data."""
         return pd.DataFrame(
             {
@@ -26,24 +26,32 @@ class TestManhattanPlotter:
             }
         )
 
-    def test_plot_manhattan_returns_figure(self, plotter, gwas_data):
+    def test_plot_manhattan_returns_figure(
+        self, canine_manhattan_plotter, manhattan_chrom_df
+    ):
         """Test that plot_manhattan returns a figure object."""
-        fig = plotter.plot_manhattan(gwas_data)
+        fig = canine_manhattan_plotter.plot_manhattan(manhattan_chrom_df)
         assert fig is not None
 
-    def test_plot_qq_returns_figure(self, plotter, gwas_data):
+    def test_plot_qq_returns_figure(self, canine_manhattan_plotter, manhattan_chrom_df):
         """Test that plot_qq returns a figure object."""
-        fig = plotter.plot_qq(gwas_data)
+        fig = canine_manhattan_plotter.plot_qq(manhattan_chrom_df)
         assert fig is not None
 
-    def test_plot_manhattan_qq_returns_figure(self, plotter, gwas_data):
+    def test_plot_manhattan_qq_returns_figure(
+        self, canine_manhattan_plotter, manhattan_chrom_df
+    ):
         """Test that plot_manhattan_qq returns a figure object."""
-        fig = plotter.plot_manhattan_qq(gwas_data)
+        fig = canine_manhattan_plotter.plot_manhattan_qq(manhattan_chrom_df)
         assert fig is not None
 
-    def test_plot_manhattan_stacked_returns_figure(self, plotter, gwas_data):
+    def test_plot_manhattan_stacked_returns_figure(
+        self, canine_manhattan_plotter, manhattan_chrom_df
+    ):
         """Test that plot_manhattan_stacked returns a figure object."""
-        fig = plotter.plot_manhattan_stacked([gwas_data, gwas_data])
+        fig = canine_manhattan_plotter.plot_manhattan_stacked(
+            [manhattan_chrom_df, manhattan_chrom_df]
+        )
         assert fig is not None
 
 
@@ -51,7 +59,7 @@ class TestManhattanPlotterBackends:
     """Tests for ManhattanPlotter backend support."""
 
     @pytest.fixture
-    def gwas_data(self):
+    def manhattan_chrom_df(self):
         """Create sample GWAS data."""
         return pd.DataFrame(
             {
@@ -61,16 +69,16 @@ class TestManhattanPlotterBackends:
             }
         )
 
-    def test_matplotlib_backend(self, gwas_data):
+    def test_matplotlib_backend(self, manhattan_chrom_df):
         """Test ManhattanPlotter with matplotlib backend."""
         plotter = ManhattanPlotter(species="canine", backend="matplotlib")
-        fig = plotter.plot_manhattan(gwas_data)
+        fig = plotter.plot_manhattan(manhattan_chrom_df)
         assert fig is not None
 
-    def test_plotly_backend(self, gwas_data):
+    def test_plotly_backend(self, manhattan_chrom_df):
         """Test ManhattanPlotter with plotly backend."""
         plotter = ManhattanPlotter(species="canine", backend="plotly")
-        fig = plotter.plot_manhattan(gwas_data)
+        fig = plotter.plot_manhattan(manhattan_chrom_df)
         assert fig is not None
 
 

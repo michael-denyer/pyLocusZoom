@@ -20,17 +20,6 @@ from tests.strategies import gwas_dataframes
 class TestBackendIntegration:
     """Tests for backend protocol integration."""
 
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results DataFrame."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
     def test_default_backend_is_matplotlib(self):
         """Default backend should be matplotlib."""
         plotter = LocusZoomPlotter()
@@ -46,7 +35,7 @@ class TestBackendIntegration:
         plotter = LocusZoomPlotter(backend="plotly")
         assert isinstance(plotter._backend, PlotlyBackend)
 
-    def test_plotly_backend_creates_figure(self, sample_gwas_df):
+    def test_plotly_backend_creates_figure(self, tiny_regional_gwas_df):
         """plot() with backend='plotly' produces a plotly Figure.
 
         This also implicitly confirms plot() routes through the backend
@@ -59,7 +48,7 @@ class TestBackendIntegration:
         plotter = LocusZoomPlotter(species="canine", backend="plotly")
 
         fig = plotter.plot(
-            sample_gwas_df,
+            tiny_regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -68,7 +57,7 @@ class TestBackendIntegration:
 
         assert isinstance(fig, go.Figure)
 
-    def test_matplotlib_plot_renders_expected_artists(self, sample_gwas_df):
+    def test_matplotlib_plot_renders_expected_artists(self, tiny_regional_gwas_df):
         """plot() renders scatter points, a significance line, and axis labels.
 
         Assertions query the rendered axes directly (scatter collections,
@@ -78,7 +67,7 @@ class TestBackendIntegration:
         plotter = LocusZoomPlotter(species="canine")
 
         fig = plotter.plot(
-            sample_gwas_df,
+            tiny_regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -108,12 +97,12 @@ class TestBackendIntegration:
         finally:
             plt.close(fig)
 
-    def test_plot_stacked_renders_two_panels(self, sample_gwas_df):
+    def test_plot_stacked_renders_two_panels(self, tiny_regional_gwas_df):
         """plot_stacked() with two GWAS inputs produces two association panels."""
         plotter = LocusZoomPlotter(species="canine")
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
+            [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -168,18 +157,7 @@ class TestAutoGenes:
     """Tests for automatic gene fetching from Ensembl."""
 
     @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS DataFrame for testing."""
-        return pd.DataFrame(
-            {
-                "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
-                "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
-                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-            }
-        )
-
-    @pytest.fixture
-    def sample_genes_df(self):
+    def two_gene_track_df(self):
         """Sample gene DataFrame for testing."""
         return pd.DataFrame(
             {
@@ -191,7 +169,7 @@ class TestAutoGenes:
             }
         )
 
-    def test_plot_with_auto_genes_enabled(self, sample_gwas_df):
+    def test_plot_with_auto_genes_enabled(self, small_regional_gwas_df):
         """Test that auto_genes=True fetches genes from the reference source."""
         # Mock the Ensembl API response
         mock_genes = pd.DataFrame(
@@ -208,7 +186,7 @@ class TestAutoGenes:
 
         with patch("pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes):
             fig = plotter.plot(
-                sample_gwas_df,
+                small_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
@@ -216,7 +194,9 @@ class TestAutoGenes:
 
         assert fig is not None
 
-    def test_plot_auto_genes_warns_when_source_fails(self, sample_gwas_df, tmp_path):
+    def test_plot_auto_genes_warns_when_source_fails(
+        self, small_regional_gwas_df, tmp_path
+    ):
         """A gene-source outage warns instead of passing as an empty region."""
         plotter = LocusZoomPlotter(species="canine", log_level=None, auto_genes=True)
         unavailable = Mock(ok=False, status_code=503, text="Service Unavailable")
@@ -228,7 +208,7 @@ class TestAutoGenes:
             pytest.warns(UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"),
         ):
             fig = plotter.plot(
-                sample_gwas_df,
+                small_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
@@ -237,7 +217,9 @@ class TestAutoGenes:
 
         assert fig is not None
 
-    def test_plot_stacked_auto_genes_overrides_constructor(self, sample_gwas_df):
+    def test_plot_stacked_auto_genes_overrides_constructor(
+        self, small_regional_gwas_df
+    ):
         """plot_stacked(auto_genes=True) fetches genes on a plotter built without it."""
         mock_genes = pd.DataFrame(
             {
@@ -254,7 +236,7 @@ class TestAutoGenes:
             "pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes
         ) as mock_fetch:
             fig = plotter.plot_stacked(
-                [sample_gwas_df],
+                [small_regional_gwas_df],
                 chrom=1,
                 start=1000000,
                 end=2000000,
@@ -266,13 +248,13 @@ class TestAutoGenes:
         assert len(fig.get_axes()) == 2
         plt.close(fig)
 
-    def test_plot_auto_genes_disabled_by_default(self, sample_gwas_df):
+    def test_plot_auto_genes_disabled_by_default(self, small_regional_gwas_df):
         """Test that auto_genes=False by default (backward compatible)."""
         plotter = LocusZoomPlotter(species="canine", log_level=None)
 
         # Should work without genes_df and without calling Ensembl
         fig = plotter.plot(
-            sample_gwas_df,
+            small_regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -281,18 +263,18 @@ class TestAutoGenes:
         assert fig is not None
 
     def test_plot_auto_genes_respects_explicit_genes_df(
-        self, sample_gwas_df, sample_genes_df
+        self, small_regional_gwas_df, two_gene_track_df
     ):
         """Test that explicit genes_df is used even when auto_genes=True."""
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
         with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
             fig = plotter.plot(
-                sample_gwas_df,
+                small_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                genes_df=sample_genes_df,
+                genes_df=two_gene_track_df,
             )
 
             # Ensembl should NOT be called when genes_df is provided
@@ -304,43 +286,10 @@ class TestAutoGenes:
 class TestLocusZoomPlotterPlot:
     """Tests for LocusZoomPlotter.plot() method."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance."""
-        return LocusZoomPlotter(species="canine")
-
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results DataFrame."""
-        rng = np.random.default_rng(42)
-        n_snps = 50
-        positions = np.sort(rng.integers(1000000, 2000000, n_snps))
-        return pd.DataFrame(
-            {
-                "rs": [f"rs{i}" for i in range(n_snps)],
-                "chr": [1] * n_snps,
-                "ps": positions,
-                "p_wald": rng.uniform(1e-10, 1, n_snps),
-            }
-        )
-
-    @pytest.fixture
-    def sample_genes_df(self):
-        """Sample gene annotations."""
-        return pd.DataFrame(
-            {
-                "chr": [1, 1, 1],
-                "start": [1100000, 1400000, 1700000],
-                "end": [1150000, 1500000, 1800000],
-                "gene_name": ["GENE_A", "GENE_B", "GENE_C"],
-                "strand": ["+", "-", "+"],
-            }
-        )
-
-    def test_creates_figure(self, plotter, sample_gwas_df):
+    def test_creates_figure(self, canine_plotter, regional_gwas_df):
         """Should create a matplotlib figure."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        fig = canine_plotter.plot(
+            regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -348,10 +297,12 @@ class TestLocusZoomPlotterPlot:
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
-    def test_plots_with_gene_track(self, plotter, sample_gwas_df, sample_genes_df):
+    def test_plots_with_gene_track(
+        self, canine_plotter, regional_gwas_df, sample_genes_df
+    ):
         """Should create plot with gene track when genes_df provided."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        fig = canine_plotter.plot(
+            regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -361,11 +312,11 @@ class TestLocusZoomPlotterPlot:
         assert len(fig.axes) >= 2
         plt.close(fig)
 
-    def test_highlights_lead_snp(self, plotter, sample_gwas_df):
+    def test_highlights_lead_snp(self, canine_plotter, regional_gwas_df):
         """Should highlight lead SNP when lead_pos provided."""
-        lead_pos = sample_gwas_df["ps"].iloc[0]
-        fig = plotter.plot(
-            sample_gwas_df,
+        lead_pos = regional_gwas_df["ps"].iloc[0]
+        fig = canine_plotter.plot(
+            regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -374,20 +325,20 @@ class TestLocusZoomPlotterPlot:
         plt.close(fig)
         # Test passes if no exception
 
-    def test_handles_empty_dataframe(self, plotter):
+    def test_handles_empty_dataframe(self, canine_plotter):
         """Empty GWAS DataFrame should raise ValidationError."""
         from pylocuszoom.exceptions import ValidationError
 
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
         with pytest.raises(ValidationError, match="empty"):
-            plotter.plot(
+            canine_plotter.plot(
                 empty_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
             )
 
-    def test_custom_column_names(self, plotter):
+    def test_custom_column_names(self, canine_plotter):
         """Should work with custom column names."""
         df = pd.DataFrame(
             {
@@ -396,7 +347,7 @@ class TestLocusZoomPlotterPlot:
                 "pvalue": [1e-8, 1e-5, 1e-3],
             }
         )
-        fig = plotter.plot(
+        fig = canine_plotter.plot(
             df,
             chrom=1,
             start=1000000,
@@ -407,12 +358,12 @@ class TestLocusZoomPlotterPlot:
         )
         plt.close(fig)
 
-    def test_with_precomputed_ld(self, plotter, sample_gwas_df):
+    def test_with_precomputed_ld(self, canine_plotter, regional_gwas_df):
         """Should use pre-computed LD column when provided."""
-        df = sample_gwas_df.copy()
+        df = regional_gwas_df.copy()
         df["R2"] = np.random.default_rng(0).uniform(0, 1, len(df))
 
-        fig = plotter.plot(
+        fig = canine_plotter.plot(
             df,
             chrom=1,
             start=1000000,
@@ -421,7 +372,7 @@ class TestLocusZoomPlotterPlot:
         )
         plt.close(fig)
 
-    def test_with_recombination_data(self, plotter, sample_gwas_df):
+    def test_with_recombination_data(self, canine_plotter, regional_gwas_df):
         """Should plot with recombination overlay when provided."""
         recomb_df = pd.DataFrame(
             {
@@ -429,8 +380,8 @@ class TestLocusZoomPlotterPlot:
                 "rate": [0.5, 1.2, 2.5, 1.8, 0.8, 0.3],
             }
         )
-        fig = plotter.plot(
-            sample_gwas_df,
+        fig = canine_plotter.plot(
+            regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -438,10 +389,10 @@ class TestLocusZoomPlotterPlot:
         )
         plt.close(fig)
 
-    def test_disables_snp_labels(self, plotter, sample_gwas_df):
+    def test_disables_snp_labels(self, canine_plotter, regional_gwas_df):
         """Should not add labels when snp_labels=False."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        fig = canine_plotter.plot(
+            regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -449,10 +400,10 @@ class TestLocusZoomPlotterPlot:
         )
         plt.close(fig)
 
-    def test_disables_recombination(self, plotter, sample_gwas_df):
+    def test_disables_recombination(self, canine_plotter, regional_gwas_df):
         """Should not show recombination when show_recombination=False."""
-        fig = plotter.plot(
-            sample_gwas_df,
+        fig = canine_plotter.plot(
+            regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -465,11 +416,11 @@ class TestLocusZoomPlotterLdCalculation:
     """Tests for LD calculation integration."""
 
     @pytest.fixture
-    def plotter(self):
+    def mock_plink_plotter(self):
         """Create plotter with mocked PLINK."""
         return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
 
-    def test_calculates_ld_when_reference_provided(self, plotter):
+    def test_calculates_ld_when_reference_provided(self, mock_plink_plotter):
         """Should attempt LD calculation when ld_reference_file provided."""
         df = pd.DataFrame(
             {
@@ -487,7 +438,7 @@ class TestLocusZoomPlotterLdCalculation:
                 }
             )
 
-            fig = plotter.plot(
+            fig = mock_plink_plotter.plot(
                 df,
                 chrom=1,
                 start=1000000,
@@ -500,11 +451,13 @@ class TestLocusZoomPlotterLdCalculation:
             mock_ld.assert_called_once()
             plt.close(fig)
 
-    def test_empty_ld_output_is_downgraded_to_warning(self, plotter, caplog):
+    def test_empty_ld_output_is_downgraded_to_warning(
+        self, mock_plink_plotter, warning_records
+    ):
         """An empty-output PlinkError (singleton lead SNP) should not abort.
 
         Singleton lead SNPs with no LD neighbours in the window are a real
-        scenario; plotter.plot() catches only this specific PlinkError and
+        scenario; mock_plink_plotter.plot() catches only this specific PlinkError and
         continues without LD colouring, leaving a warning in the log.
         """
         from pylocuszoom.exceptions import EmptyLDOutputError
@@ -521,7 +474,7 @@ class TestLocusZoomPlotterLdCalculation:
             mock_ld.side_effect = EmptyLDOutputError(
                 "PLINK produced an empty LD output for lead SNP 'rs1'."
             )
-            fig = plotter.plot(
+            fig = mock_plink_plotter.plot(
                 df,
                 chrom=1,
                 start=1000000,
@@ -531,9 +484,10 @@ class TestLocusZoomPlotterLdCalculation:
                 show_recombination=False,
             )
         assert fig is not None
+        assert any("LD calculation skipped" in message for message in warning_records)
         plt.close(fig)
 
-    def test_stacked_plot_downgrades_empty_ld_output(self, plotter):
+    def test_stacked_plot_downgrades_empty_ld_output(self, mock_plink_plotter):
         """Single and stacked plots share the recoverable LD policy."""
         from pylocuszoom.exceptions import EmptyLDOutputError
 
@@ -547,7 +501,7 @@ class TestLocusZoomPlotterLdCalculation:
 
         with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
             mock_ld.side_effect = EmptyLDOutputError("no LD neighbours")
-            fig = plotter.plot_stacked(
+            fig = mock_plink_plotter.plot_stacked(
                 [df],
                 chrom=1,
                 start=1000000,
@@ -560,10 +514,10 @@ class TestLocusZoomPlotterLdCalculation:
         assert fig is not None
         plt.close(fig)
 
-    def test_plink_misconfiguration_propagates_through_plot(self, plotter):
+    def test_plink_misconfiguration_propagates_through_plot(self, mock_plink_plotter):
         """A non-empty-output PlinkError must surface — it means PLINK is broken.
 
-        Regression boundary: the catch in plotter.plot() is narrow on purpose.
+        Regression boundary: the catch in mock_plink_plotter.plot() is narrow on purpose.
         Timeout, non-zero exit, and "output file missing after success" all
         indicate real misconfiguration and should reach the caller.
         """
@@ -582,7 +536,7 @@ class TestLocusZoomPlotterLdCalculation:
                 "PLINK LD calculation failed (exit code 2): bad bfile"
             )
             with pytest.raises(PlinkError, match="exit code"):
-                plotter.plot(
+                mock_plink_plotter.plot(
                     df,
                     chrom=1,
                     start=1000000,
@@ -677,11 +631,13 @@ class TestPlotEdgeCases:
     """Tests for plot() edge cases and error handling."""
 
     @pytest.fixture
-    def plotter(self):
+    def mock_plink_plotter(self):
         """Create plotter instance."""
         return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
 
-    def test_plot_raises_keyerror_when_rs_col_missing_with_ld_reference(self, plotter):
+    def test_plot_raises_keyerror_when_rs_col_missing_with_ld_reference(
+        self, mock_plink_plotter
+    ):
         """Bug: plot() should handle missing rs_col when ld_reference_file provided.
 
         Currently raises KeyError at line 264 when rs_col column doesn't exist
@@ -702,7 +658,7 @@ class TestPlotEdgeCases:
 
             # This should NOT raise KeyError - should handle gracefully
             # Currently fails with: KeyError: 'rs'
-            fig = plotter.plot(
+            fig = mock_plink_plotter.plot(
                 df,
                 chrom=1,
                 start=1000000,
@@ -716,23 +672,9 @@ class TestPlotEdgeCases:
 class TestPlotStackedEdgeCases:
     """Tests for plot_stacked() edge cases and error handling."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance."""
-        return LocusZoomPlotter(species="canine", log_level=None)
-
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results DataFrame."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
-    def test_plot_stacked_validates_eqtl_columns(self, plotter, sample_gwas_df):
+    def test_plot_stacked_validates_eqtl_columns(
+        self, canine_plotter, tiny_regional_gwas_df
+    ):
         """Bug: plot_stacked() should validate eQTL DataFrame has required columns.
 
         Currently bypasses validate_eqtl_df() and directly accesses 'pos' and
@@ -752,8 +694,8 @@ class TestPlotStackedEdgeCases:
         # Should raise EQTLValidationError with helpful message
         # Currently raises KeyError: 'pos'
         with pytest.raises(EQTLValidationError):
-            plotter.plot_stacked(
-                [sample_gwas_df],
+            canine_plotter.plot_stacked(
+                [tiny_regional_gwas_df],
                 chrom=1,
                 start=1000000,
                 end=2000000,
@@ -761,20 +703,26 @@ class TestPlotStackedEdgeCases:
                 eqtl_df=bad_eqtl_df,
             )
 
-    def test_plot_stacked_validates_list_lengths(self, plotter, sample_gwas_df):
+    def test_plot_stacked_validates_list_lengths(
+        self, canine_plotter, tiny_regional_gwas_df
+    ):
         """Bug: plot_stacked() should error when list lengths don't match.
 
         Currently uses zip() which silently truncates the longer list.
         If user provides 3 GWAS DataFrames but only 2 lead_positions,
         the third GWAS is plotted without a lead SNP - confusing behavior.
         """
-        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy(), sample_gwas_df.copy()]
+        gwas_dfs = [
+            tiny_regional_gwas_df,
+            tiny_regional_gwas_df.copy(),
+            tiny_regional_gwas_df.copy(),
+        ]
         lead_positions = [1500000, 1500000]  # Only 2, but 3 gwas_dfs
 
         # Should raise ValueError about mismatched lengths
         # Currently silently truncates - third GWAS has no lead SNP
         with pytest.raises(ValueError, match="lead_positions"):
-            plotter.plot_stacked(
+            canine_plotter.plot_stacked(
                 gwas_dfs,
                 chrom=1,
                 start=1000000,
@@ -783,15 +731,17 @@ class TestPlotStackedEdgeCases:
                 show_recombination=False,
             )
 
-    def test_plot_stacked_validates_panel_labels_length(self, plotter, sample_gwas_df):
+    def test_plot_stacked_validates_panel_labels_length(
+        self, canine_plotter, tiny_regional_gwas_df
+    ):
         """Bug: panel_labels length should match gwas_dfs length."""
-        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy()]
+        gwas_dfs = [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()]
         panel_labels = ["Only One"]  # Should have 2 labels
 
         # Should raise ValueError about mismatched lengths
         # Currently silently ignores - second panel has no label
         with pytest.raises(ValueError, match="panel_labels"):
-            plotter.plot_stacked(
+            canine_plotter.plot_stacked(
                 gwas_dfs,
                 chrom=1,
                 start=1000000,
@@ -805,11 +755,11 @@ class TestPValueValidation:
     """Tests for p-value validation and NaN handling."""
 
     @pytest.fixture
-    def plotter(self):
+    def speciesless_plotter(self):
         """Create plotter instance."""
         return LocusZoomPlotter(species=None)
 
-    def test_plot_handles_nan_pvalues_with_warning(self, plotter):
+    def test_plot_handles_nan_pvalues_with_warning(self, speciesless_plotter):
         """Plot should handle NaN p-values and log a warning."""
         import numpy as np
 
@@ -823,7 +773,7 @@ class TestPValueValidation:
         )
 
         # Should not raise, but should warn (captured by logging)
-        fig = plotter.plot(
+        fig = speciesless_plotter.plot(
             gwas_df,
             chrom=1,
             start=1000000,
@@ -832,7 +782,7 @@ class TestPValueValidation:
         )
         plt.close(fig)
 
-    def test_plot_stacked_handles_all_nan_pvalues(self, plotter):
+    def test_plot_stacked_handles_all_nan_pvalues(self, speciesless_plotter):
         """plot_stacked should handle region with all NaN p-values.
 
         Regression test: idxmin() on all-NaN series returns NaN,
@@ -850,7 +800,7 @@ class TestPValueValidation:
         )
 
         # Should not raise - should handle gracefully
-        fig = plotter.plot_stacked(
+        fig = speciesless_plotter.plot_stacked(
             [gwas_df],
             chrom=1,
             start=1000000,
@@ -859,7 +809,7 @@ class TestPValueValidation:
         )
         plt.close(fig)
 
-    def test_plot_handles_out_of_range_pvalues(self, plotter):
+    def test_plot_handles_out_of_range_pvalues(self, speciesless_plotter):
         """Plot should handle p-values outside [0, 1] range."""
         gwas_df = pd.DataFrame(
             {
@@ -871,7 +821,7 @@ class TestPValueValidation:
         )
 
         # Should not raise, but should warn
-        fig = plotter.plot(
+        fig = speciesless_plotter.plot(
             gwas_df,
             chrom=1,
             start=1000000,
@@ -880,7 +830,7 @@ class TestPValueValidation:
         )
         plt.close(fig)
 
-    def test_prepare_pvalue_data_filters_invalid_range(self, plotter):
+    def test_prepare_pvalue_data_filters_invalid_range(self, speciesless_plotter):
         """prepare_pvalue_data filters out-of-range p-values (< 0 or > 1)."""
         import io
 
@@ -917,7 +867,7 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "2 p-values outside [0, 1]" in log_output
 
-    def test_prepare_pvalue_data_filters_nan(self, plotter):
+    def test_prepare_pvalue_data_filters_nan(self, speciesless_plotter):
         """prepare_pvalue_data filters NaN p-values."""
         import io
 
@@ -951,7 +901,7 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "1 NaN p-values" in log_output
 
-    def test_prepare_pvalue_data_clips_very_small(self, plotter):
+    def test_prepare_pvalue_data_clips_very_small(self, speciesless_plotter):
         """prepare_pvalue_data clips very small p-values to 1e-300."""
         import io
 
@@ -986,7 +936,7 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "Clipping" in log_output
 
-    def test_prepare_pvalue_data_preserves_valid_data(self, plotter):
+    def test_prepare_pvalue_data_preserves_valid_data(self, speciesless_plotter):
         """prepare_pvalue_data passes through all-valid data unchanged."""
         df = pd.DataFrame(
             {
@@ -1002,7 +952,9 @@ class TestPValueValidation:
         assert result["neglog10p"].iloc[1] == pytest.approx(-np.log10(0.5))
         assert result["neglog10p"].iloc[2] == pytest.approx(8.0)
 
-    def test_plot_stacked_lead_detection_excludes_out_of_range(self, plotter):
+    def test_plot_stacked_lead_detection_excludes_out_of_range(
+        self, speciesless_plotter
+    ):
         """Lead SNP auto-detection should exclude out-of-range p-values.
 
         Regression test: lead detection only filtered NaN but not out-of-range
@@ -1021,7 +973,7 @@ class TestPValueValidation:
         )
 
         # Should not raise — lead detection should skip the invalid p-value
-        fig = plotter.plot_stacked(
+        fig = speciesless_plotter.plot_stacked(
             [gwas_df],
             chrom=1,
             start=1000000,
@@ -1030,7 +982,7 @@ class TestPValueValidation:
         )
         plt.close(fig)
 
-    def test_plot_stacked_all_invalid_pvalues(self, plotter):
+    def test_plot_stacked_all_invalid_pvalues(self, speciesless_plotter):
         """plot_stacked should handle region with all out-of-range p-values."""
         gwas_df = pd.DataFrame(
             {
@@ -1041,7 +993,7 @@ class TestPValueValidation:
             }
         )
 
-        fig = plotter.plot_stacked(
+        fig = speciesless_plotter.plot_stacked(
             [gwas_df],
             chrom=1,
             start=1000000,
@@ -1055,29 +1007,6 @@ class TestBackendEQTLFinemapping:
     """Tests for eQTL and fine-mapping support across all backends."""
 
     @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results DataFrame."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-                "ps": [1100000, 1300000, 1500000, 1700000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3, 0.01, 0.1],
-            }
-        )
-
-    @pytest.fixture
-    def sample_eqtl_df(self):
-        """Sample eQTL DataFrame with effect sizes."""
-        return pd.DataFrame(
-            {
-                "pos": [1200000, 1400000, 1600000],
-                "p_value": [1e-6, 1e-4, 0.01],
-                "gene": ["GENE1", "GENE1", "GENE1"],
-                "effect_size": [0.5, -0.3, 0.8],
-            }
-        )
-
-    @pytest.fixture
     def sample_eqtl_df_no_effect(self):
         """Sample eQTL DataFrame without effect sizes."""
         return pd.DataFrame(
@@ -1088,23 +1017,12 @@ class TestBackendEQTLFinemapping:
             }
         )
 
-    @pytest.fixture
-    def sample_finemapping_df(self):
-        """Sample fine-mapping DataFrame with credible sets."""
-        return pd.DataFrame(
-            {
-                "pos": [1100000, 1300000, 1500000, 1700000, 1900000],
-                "pip": [0.85, 0.12, 0.02, 0.45, 0.01],
-                "cs": [1, 1, 0, 2, 0],
-            }
-        )
-
-    def test_matplotlib_eqtl_with_effects(self, sample_gwas_df, sample_eqtl_df):
+    def test_matplotlib_eqtl_with_effects(self, small_regional_gwas_df, sample_eqtl_df):
         """Matplotlib backend should handle eQTL panel with effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1117,13 +1035,13 @@ class TestBackendEQTLFinemapping:
         plt.close(fig)
 
     def test_matplotlib_eqtl_without_effects(
-        self, sample_gwas_df, sample_eqtl_df_no_effect
+        self, small_regional_gwas_df, sample_eqtl_df_no_effect
     ):
         """Matplotlib backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1135,12 +1053,14 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
         plt.close(fig)
 
-    def test_matplotlib_finemapping(self, sample_gwas_df, sample_finemapping_df):
+    def test_matplotlib_finemapping(
+        self, small_regional_gwas_df, sample_finemapping_df
+    ):
         """Matplotlib backend should handle fine-mapping panel."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1152,13 +1072,13 @@ class TestBackendEQTLFinemapping:
         plt.close(fig)
 
     def test_plot_accepts_eqtl_and_finemapping_panels(
-        self, sample_gwas_df, sample_eqtl_df, sample_finemapping_df
+        self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
     ):
         """plot() carries the same optional panels as plot_stacked()."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         fig = plotter.plot(
-            sample_gwas_df,
+            small_regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1174,12 +1094,12 @@ class TestBackendEQTLFinemapping:
         assert "eQTL" in axes[2].get_ylabel()
         plt.close(fig)
 
-    def test_plotly_eqtl_with_effects(self, sample_gwas_df, sample_eqtl_df):
+    def test_plotly_eqtl_with_effects(self, small_regional_gwas_df, sample_eqtl_df):
         """Plotly backend should handle eQTL panel with effect sizes without error."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1192,13 +1112,13 @@ class TestBackendEQTLFinemapping:
         # Plotly figures are go.Figure objects
 
     def test_plotly_eqtl_without_effects(
-        self, sample_gwas_df, sample_eqtl_df_no_effect
+        self, small_regional_gwas_df, sample_eqtl_df_no_effect
     ):
         """Plotly backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1209,12 +1129,12 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
-    def test_plotly_finemapping(self, sample_gwas_df, sample_finemapping_df):
+    def test_plotly_finemapping(self, small_regional_gwas_df, sample_finemapping_df):
         """Plotly backend should handle fine-mapping panel without error."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1224,12 +1144,12 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
-    def test_bokeh_eqtl_with_effects(self, sample_gwas_df, sample_eqtl_df):
+    def test_bokeh_eqtl_with_effects(self, small_regional_gwas_df, sample_eqtl_df):
         """Bokeh backend should handle eQTL panel with effect sizes without error."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1240,12 +1160,14 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
-    def test_bokeh_eqtl_without_effects(self, sample_gwas_df, sample_eqtl_df_no_effect):
+    def test_bokeh_eqtl_without_effects(
+        self, small_regional_gwas_df, sample_eqtl_df_no_effect
+    ):
         """Bokeh backend should handle eQTL panel without effect sizes."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1256,12 +1178,12 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
-    def test_bokeh_finemapping(self, sample_gwas_df, sample_finemapping_df):
+    def test_bokeh_finemapping(self, small_regional_gwas_df, sample_finemapping_df):
         """Bokeh backend should handle fine-mapping panel without error."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1272,13 +1194,13 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
 
     def test_plotly_combined_eqtl_finemapping(
-        self, sample_gwas_df, sample_eqtl_df, sample_finemapping_df
+        self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
     ):
         """Plotly backend should handle both eQTL and fine-mapping panels together."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1291,13 +1213,13 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
 
     def test_bokeh_combined_eqtl_finemapping(
-        self, sample_gwas_df, sample_eqtl_df, sample_finemapping_df
+        self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
     ):
         """Bokeh backend should handle both eQTL and fine-mapping panels together."""
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1309,7 +1231,7 @@ class TestBackendEQTLFinemapping:
 
         assert fig is not None
 
-    def test_eqtl_chr_filtering(self, sample_gwas_df):
+    def test_eqtl_chr_filtering(self, small_regional_gwas_df):
         """Test that eQTL panel filters by chromosome, not just position."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
@@ -1326,7 +1248,7 @@ class TestBackendEQTLFinemapping:
 
         # Plot for chr 1 - should only include 2 eQTLs (not the chr2 one)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1338,7 +1260,7 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
         plt.close(fig)
 
-    def test_eqtl_gene_without_gene_column_raises(self, sample_gwas_df):
+    def test_eqtl_gene_without_gene_column_raises(self, small_regional_gwas_df):
         """eqtl_gene on a frame with no gene column is an error, not a warning.
 
         Drawing every eQTL unfiltered after the caller asked for one gene is
@@ -1356,7 +1278,7 @@ class TestBackendEQTLFinemapping:
 
         with pytest.raises(EQTLValidationError, match="gene"):
             plotter.plot_stacked(
-                [sample_gwas_df],
+                [small_regional_gwas_df],
                 chrom=1,
                 start=1000000,
                 end=2000000,
@@ -1365,7 +1287,7 @@ class TestBackendEQTLFinemapping:
                 eqtl_gene="GENE1",
             )
 
-    def test_eqtl_zero_pvalue_is_dropped(self, sample_gwas_df):
+    def test_eqtl_zero_pvalue_is_dropped(self, small_regional_gwas_df):
         """A zero eQTL p-value is outside the strict (0, 1] domain and not drawn."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
         eqtl_df = pd.DataFrame(
@@ -1376,7 +1298,7 @@ class TestBackendEQTLFinemapping:
         )
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [small_regional_gwas_df],
             chrom=1,
             start=1000000,
             end=2000000,
@@ -1402,20 +1324,20 @@ class TestRecombinationDownloadErrors:
     """
 
     @pytest.fixture
-    def plotter(self):
+    def debug_canine_plotter(self):
         """Create a plotter instance for testing download errors."""
         return LocusZoomPlotter(species="canine", log_level="DEBUG")
 
-    def test_ensure_recomb_maps_returns_none_propagates(self, plotter):
-        """When ensure_recomb_maps returns None, plotter._ensure_recomb_maps returns None."""
+    def test_ensure_recomb_maps_returns_none_propagates(self, debug_canine_plotter):
+        """When ensure_recomb_maps returns None, the plotter returns None."""
         with patch(
             "pylocuszoom.plotter.ensure_recomb_maps", return_value=None
         ) as mock_ensure:
-            result = plotter._ensure_recomb_maps()
+            result = debug_canine_plotter._ensure_recomb_maps()
             assert result is None
             mock_ensure.assert_called_once_with(species="canine", data_dir=None)
 
-    def test_plotting_continues_without_recomb_maps(self, plotter):
+    def test_plotting_continues_without_recomb_maps(self, debug_canine_plotter):
         """Plotting should succeed even when recombination maps are unavailable."""
         gwas_df = pd.DataFrame(
             {
@@ -1427,7 +1349,7 @@ class TestRecombinationDownloadErrors:
 
         with patch("pylocuszoom.plotter.ensure_recomb_maps", return_value=None):
             # Should not raise, just skip recombination overlay
-            fig = plotter.plot(
+            fig = debug_canine_plotter.plot(
                 gwas_df,
                 chrom=1,
                 start=1000000,
@@ -1637,7 +1559,7 @@ class TestLDHeatmapIntegration:
     """Tests for LD heatmap integration in LocusZoomPlotter."""
 
     @pytest.fixture
-    def sample_gwas_df(self):
+    def ld_heatmap_gwas_df(self):
         """Sample GWAS DataFrame with positions matching LD heatmap SNPs."""
         return pd.DataFrame(
             {
@@ -1672,7 +1594,7 @@ class TestLDHeatmapIntegration:
         return ld_matrix, snp_ids
 
     @pytest.fixture
-    def sample_genes_df(self):
+    def heatmap_genes_df(self):
         """Sample genes for testing stacked plots with gene track."""
         return pd.DataFrame(
             {
@@ -1685,14 +1607,14 @@ class TestLDHeatmapIntegration:
         )
 
     def test_plot_with_ld_heatmap_renders_two_panels(
-        self, sample_gwas_df, sample_ld_heatmap_data
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
         """When ld_heatmap_df and ld_heatmap_snp_ids provided, figure has heatmap panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1706,14 +1628,14 @@ class TestLDHeatmapIntegration:
         plt.close(fig)
 
     def test_plot_with_ld_heatmap_aligns_x_coordinates(
-        self, sample_gwas_df, sample_ld_heatmap_data
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
         """Heatmap SNPs render at their genomic positions from GWAS data."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1735,19 +1657,19 @@ class TestLDHeatmapIntegration:
         plt.close(fig)
 
     def test_plot_stacked_with_ld_heatmap_at_bottom(
-        self, sample_gwas_df, sample_ld_heatmap_data, sample_genes_df
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data, heatmap_genes_df
     ):
         """In stacked plots, heatmap appears below gene track (at very bottom)."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [ld_heatmap_gwas_df],
             chrom=1,
             start=999000,
             end=1003000,
             show_recombination=False,
-            genes_df=sample_genes_df,
+            genes_df=heatmap_genes_df,
             ld_heatmap_df=ld_matrix,
             ld_heatmap_snp_ids=snp_ids,
         )
@@ -1757,7 +1679,9 @@ class TestLDHeatmapIntegration:
         assert len(axes) >= 3
         plt.close(fig)
 
-    def test_ld_heatmap_filters_to_region(self, sample_gwas_df, sample_ld_heatmap_data):
+    def test_ld_heatmap_filters_to_region(
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
+    ):
         """SNPs outside [start, end] are filtered from heatmap."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
@@ -1766,7 +1690,7 @@ class TestLDHeatmapIntegration:
         # rs1 at 1000000, rs2 at 1000500 - both in [1000000, 1001000)
         # rs3 at 1001000 - at boundary
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=1000000,
             end=1001000,  # Only includes rs1, rs2, rs3
@@ -1780,7 +1704,7 @@ class TestLDHeatmapIntegration:
         plt.close(fig)
 
     def test_ld_heatmap_empty_overlap_logs_warning(
-        self, sample_gwas_df, sample_ld_heatmap_data, capfd
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data, capfd
     ):
         """When no SNPs in heatmap overlap with region, warning logged and no heatmap panel added."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
@@ -1788,7 +1712,7 @@ class TestLDHeatmapIntegration:
 
         # Region that doesn't overlap with any GWAS SNP positions
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=5000000,  # Far outside GWAS positions
             end=6000000,
@@ -1801,14 +1725,16 @@ class TestLDHeatmapIntegration:
         assert fig is not None
         plt.close(fig)
 
-    def test_ld_heatmap_height_parameter(self, sample_gwas_df, sample_ld_heatmap_data):
+    def test_ld_heatmap_height_parameter(
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
+    ):
         """ld_heatmap_height parameter controls panel height ratio."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
         # Test with different height values
         fig1 = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1819,7 +1745,7 @@ class TestLDHeatmapIntegration:
         )
 
         fig2 = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1836,7 +1762,7 @@ class TestLDHeatmapIntegration:
         plt.close(fig2)
 
     def test_ld_heatmap_lead_snp_highlight(
-        self, sample_gwas_df, sample_ld_heatmap_data
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
         """Lead SNP is highlighted in heatmap when lead_pos specified and SNP found."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
@@ -1844,7 +1770,7 @@ class TestLDHeatmapIntegration:
 
         # rs1 is at position 1000000
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1861,14 +1787,14 @@ class TestLDHeatmapIntegration:
     # Backend-specific tests
 
     def test_ld_heatmap_matplotlib_backend(
-        self, sample_gwas_df, sample_ld_heatmap_data
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
         """Verify matplotlib figure has correct panel count and axes."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1883,7 +1809,9 @@ class TestLDHeatmapIntegration:
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
-    def test_ld_heatmap_plotly_backend(self, sample_gwas_df, sample_ld_heatmap_data):
+    def test_ld_heatmap_plotly_backend(
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
+    ):
         """Verify plotly figure has heatmap trace at correct row."""
         import plotly.graph_objects as go
 
@@ -1891,7 +1819,7 @@ class TestLDHeatmapIntegration:
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
 
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1904,7 +1832,7 @@ class TestLDHeatmapIntegration:
         # Check that figure has data traces
         assert len(fig.data) > 0
 
-    def test_ld_heatmap_bokeh_backend(self, sample_gwas_df, sample_ld_heatmap_data):
+    def test_ld_heatmap_bokeh_backend(self, ld_heatmap_gwas_df, sample_ld_heatmap_data):
         """Verify bokeh layout contains heatmap."""
         from bokeh.models.layouts import Column
 
@@ -1912,7 +1840,7 @@ class TestLDHeatmapIntegration:
         plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
 
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999000,
             end=1003000,
@@ -1928,7 +1856,7 @@ class TestLDHeatmapIntegration:
 
     # Edge case tests
 
-    def test_ld_heatmap_single_snp_in_region(self, sample_gwas_df):
+    def test_ld_heatmap_single_snp_in_region(self, ld_heatmap_gwas_df):
         """Test with single SNP in filtered region (graceful handling)."""
         # Create a matrix with 5 SNPs but only 1 will be in region
         ld_matrix = pd.DataFrame(
@@ -1950,7 +1878,7 @@ class TestLDHeatmapIntegration:
 
         # Very narrow region that only includes rs1 (at position 1000000)
         fig = plotter.plot(
-            sample_gwas_df,
+            ld_heatmap_gwas_df,
             chrom=1,
             start=999999,
             end=1000001,  # Only rs1 at 1000000
@@ -1964,14 +1892,14 @@ class TestLDHeatmapIntegration:
         plt.close(fig)
 
     def test_ld_heatmap_lead_snp_not_in_heatmap(
-        self, sample_gwas_df, sample_ld_heatmap_data
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
         """Test lead SNP not in heatmap SNPs (no highlighting, no error)."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
         # Create GWAS with a lead SNP not in the heatmap
-        gwas_with_extra = sample_gwas_df.copy()
+        gwas_with_extra = ld_heatmap_gwas_df.copy()
         gwas_with_extra = pd.concat(
             [
                 gwas_with_extra,
@@ -2003,7 +1931,7 @@ class TestLDHeatmapIntegration:
         plt.close(fig)
 
     def test_ld_heatmap_missing_snp_ids_raises_error(
-        self, sample_gwas_df, sample_ld_heatmap_data
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
         """Test that providing ld_heatmap_df without ld_heatmap_snp_ids raises error."""
         ld_matrix, _ = sample_ld_heatmap_data
@@ -2011,7 +1939,7 @@ class TestLDHeatmapIntegration:
 
         with pytest.raises(ValueError, match="ld_heatmap_snp_ids is required"):
             plotter.plot(
-                sample_gwas_df,
+                ld_heatmap_gwas_df,
                 chrom=1,
                 start=999000,
                 end=1003000,
@@ -2094,11 +2022,7 @@ class TestStackedPlotLeadDetectionCrossChrom:
     plotted region, anchoring the diamond marker to the wrong locus.
     """
 
-    @pytest.fixture
-    def plotter(self):
-        return LocusZoomPlotter(species="canine", log_level=None)
-
-    def test_lead_autodetect_filters_by_chrom(self, plotter):
+    def test_lead_autodetect_filters_by_chrom(self, canine_plotter):
         """Lead position must come from the requested chromosome."""
         # Two chromosomes share a position range. The strongest p-value
         # is on chr2 at position 1_500_000, but we are plotting chr1.
@@ -2114,7 +2038,7 @@ class TestStackedPlotLeadDetectionCrossChrom:
 
         # Patch the lead-aware code to capture what got computed.
         captured = {}
-        composer = plotter._regional_composer
+        composer = canine_plotter._regional_composer
         original = composer.render_association_scatter
 
         def spy(ax, df, pos_col, ld_col, lead_pos, *args, **kwargs):
@@ -2123,7 +2047,7 @@ class TestStackedPlotLeadDetectionCrossChrom:
 
         composer.render_association_scatter = spy
         try:
-            plotter.plot_stacked(
+            canine_plotter.plot_stacked(
                 [gwas_df],
                 chrom=1,
                 start=1_000_000,

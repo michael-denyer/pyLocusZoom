@@ -10,8 +10,6 @@ import pandas as pd
 import pytest
 
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
-from pylocuszoom.plotter import LocusZoomPlotter
-from pylocuszoom.stats_plotter import StatsPlotter
 
 
 class TestEmptyDataFrames:
@@ -24,21 +22,16 @@ class TestEmptyDataFrames:
     """
 
     @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
-
-    @pytest.fixture
     def empty_gwas_df(self):
         """Empty DataFrame with correct columns."""
         return pd.DataFrame(columns=["chrom", "ps", "p_wald", "rs"])
 
-    def test_plot_with_empty_df_raises(self, plotter, empty_gwas_df):
+    def test_plot_with_empty_df_raises(self, regional_plotter, empty_gwas_df):
         """Regional plot with empty DataFrame raises ValidationError."""
         from pylocuszoom.exceptions import ValidationError
 
         with pytest.raises(ValidationError, match="empty"):
-            plotter.plot(
+            regional_plotter.plot(
                 empty_gwas_df,
                 chrom=1,
                 start=1000000,
@@ -81,12 +74,7 @@ class TestEmptyDataFrames:
 class TestNaNPvalues:
     """Test handling of NaN p-values in plots."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
-
-    def test_plot_with_some_nan_pvalues_succeeds(self, plotter):
+    def test_plot_with_some_nan_pvalues_succeeds(self, regional_plotter):
         """Regional plot with partial NaN p-values should work.
 
         Rows with NaN p-values are excluded from plotting but do not
@@ -100,7 +88,7 @@ class TestNaNPvalues:
             }
         )
 
-        fig = plotter.plot(
+        fig = regional_plotter.plot(
             gwas_df,
             chrom=1,
             start=1000000,
@@ -110,7 +98,7 @@ class TestNaNPvalues:
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_with_all_nan_pvalues_succeeds(self, plotter):
+    def test_plot_with_all_nan_pvalues_succeeds(self, regional_plotter):
         """Regional plot with all NaN p-values should render empty.
 
         The plot renders without error but contains no data points.
@@ -124,7 +112,7 @@ class TestNaNPvalues:
             }
         )
 
-        fig = plotter.plot(
+        fig = regional_plotter.plot(
             gwas_df,
             chrom=1,
             start=1000000,
@@ -138,29 +126,19 @@ class TestNaNPvalues:
 class TestStackedPlotMismatchedLengths:
     """Test mismatched list lengths in stacked plots raise ValidationError."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
-
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results DataFrame."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
-    def test_stacked_mismatched_lead_positions_raises(self, plotter, sample_gwas_df):
+    def test_stacked_mismatched_lead_positions_raises(
+        self, regional_plotter, tiny_regional_gwas_df
+    ):
         """Mismatched lead_positions length raises ValueError."""
-        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy(), sample_gwas_df.copy()]
+        gwas_dfs = [
+            tiny_regional_gwas_df,
+            tiny_regional_gwas_df.copy(),
+            tiny_regional_gwas_df.copy(),
+        ]
         lead_positions = [1500000, 1500000]  # Only 2, but 3 gwas_dfs
 
         with pytest.raises(ValueError, match="lead_positions"):
-            plotter.plot_stacked(
+            regional_plotter.plot_stacked(
                 gwas_dfs,
                 chrom=1,
                 start=1000000,
@@ -169,13 +147,15 @@ class TestStackedPlotMismatchedLengths:
                 show_recombination=False,
             )
 
-    def test_stacked_mismatched_panel_labels_raises(self, plotter, sample_gwas_df):
+    def test_stacked_mismatched_panel_labels_raises(
+        self, regional_plotter, tiny_regional_gwas_df
+    ):
         """Mismatched panel_labels length raises ValueError."""
-        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy()]
+        gwas_dfs = [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()]
         panel_labels = ["Only One"]  # Should have 2 labels
 
         with pytest.raises(ValueError, match="panel_labels"):
-            plotter.plot_stacked(
+            regional_plotter.plot_stacked(
                 gwas_dfs,
                 chrom=1,
                 start=1000000,
@@ -185,14 +165,14 @@ class TestStackedPlotMismatchedLengths:
             )
 
     def test_stacked_mismatched_ld_reference_files_raises(
-        self, plotter, sample_gwas_df
+        self, regional_plotter, tiny_regional_gwas_df
     ):
         """Mismatched ld_reference_files length raises ValueError."""
-        gwas_dfs = [sample_gwas_df, sample_gwas_df.copy()]
+        gwas_dfs = [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()]
         ld_reference_files = ["/path/to/file1"]  # Only 1, but 2 gwas_dfs
 
         with pytest.raises(ValueError, match="ld_reference_files"):
-            plotter.plot_stacked(
+            regional_plotter.plot_stacked(
                 gwas_dfs,
                 chrom=1,
                 start=1000000,
@@ -205,12 +185,7 @@ class TestStackedPlotMismatchedLengths:
 class TestManhattanSingleChromosome:
     """Test Manhattan plot with single chromosome data."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return ManhattanPlotter(species="human")
-
-    def test_manhattan_single_chromosome_succeeds(self, plotter):
+    def test_manhattan_single_chromosome_succeeds(self, manhattan_plotter):
         """Manhattan plot with only one chromosome should work."""
         df = pd.DataFrame(
             {
@@ -220,7 +195,7 @@ class TestManhattanSingleChromosome:
             }
         )
 
-        fig = plotter.plot_manhattan(
+        fig = manhattan_plotter.plot_manhattan(
             df,
             chrom_col="chrom",
             pos_col="pos",
@@ -238,12 +213,7 @@ class TestManhattanSingleChromosome:
 class TestPheWASManyCategories:
     """Test PheWAS plot with many categories cycles colors correctly."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return StatsPlotter()
-
-    def test_phewas_15_categories_succeeds(self, plotter):
+    def test_phewas_15_categories_succeeds(self, stats_plotter):
         """PheWAS with >12 categories should cycle colors without error.
 
         The PHEWAS_CATEGORY_COLORS palette has 12 colors, so 15 categories
@@ -261,7 +231,7 @@ class TestPheWASManyCategories:
             }
         )
 
-        fig = plotter.plot_phewas(
+        fig = stats_plotter.plot_phewas(
             phewas_df,
             variant_id="rs12345",
             phenotype_col="phenotype",
@@ -282,23 +252,9 @@ class TestPheWASManyCategories:
 class TestFinemappingManyCredibleSets:
     """Test fine-mapping plot with many credible sets cycles colors correctly."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
-
-    @pytest.fixture
-    def sample_gwas_df(self):
-        """Sample GWAS results DataFrame."""
-        return pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-                "ps": [1100000, 1300000, 1500000, 1700000, 1900000],
-                "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
-            }
-        )
-
-    def test_finemapping_12_credible_sets_succeeds(self, plotter, sample_gwas_df):
+    def test_finemapping_12_credible_sets_succeeds(
+        self, regional_plotter, small_regional_gwas_df
+    ):
         """Fine-mapping with >10 credible sets should cycle colors without error.
 
         The CREDIBLE_SET_COLORS palette has 10 colors, so 12 credible sets
@@ -317,8 +273,8 @@ class TestFinemappingManyCredibleSets:
             }
         )
 
-        fig = plotter.plot_stacked(
-            [sample_gwas_df],
+        fig = regional_plotter.plot_stacked(
+            [small_regional_gwas_df],
             chrom=1,
             start=900000,
             end=1700000,
@@ -348,11 +304,6 @@ class TestManhattanStackedValidation:
     """Test validation in stacked Manhattan plots."""
 
     @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return ManhattanPlotter(species="human")
-
-    @pytest.fixture
     def sample_df(self):
         """Sample GWAS DataFrame."""
         return pd.DataFrame(
@@ -363,18 +314,20 @@ class TestManhattanStackedValidation:
             }
         )
 
-    def test_manhattan_stacked_empty_list_raises(self, plotter):
+    def test_manhattan_stacked_empty_list_raises(self, manhattan_plotter):
         """Empty list of GWAS DataFrames should raise ValueError."""
         with pytest.raises(ValueError, match="At least one GWAS DataFrame"):
-            plotter.plot_manhattan_stacked([])
+            manhattan_plotter.plot_manhattan_stacked([])
 
-    def test_manhattan_stacked_mismatched_panel_labels_raises(self, plotter, sample_df):
+    def test_manhattan_stacked_mismatched_panel_labels_raises(
+        self, manhattan_plotter, sample_df
+    ):
         """Mismatched panel_labels length should raise ValueError."""
         gwas_dfs = [sample_df, sample_df.copy()]
         panel_labels = ["Only One"]
 
         with pytest.raises(ValueError, match="panel_labels"):
-            plotter.plot_manhattan_stacked(
+            manhattan_plotter.plot_manhattan_stacked(
                 gwas_dfs,
                 panel_labels=panel_labels,
             )
@@ -383,31 +336,26 @@ class TestManhattanStackedValidation:
 class TestManhattanQQStackedValidation:
     """Test validation in stacked Manhattan+QQ plots."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return ManhattanPlotter(species="human")
-
-    def test_manhattan_qq_stacked_empty_list_raises(self, plotter):
+    def test_manhattan_qq_stacked_empty_list_raises(self, manhattan_plotter):
         """Empty list of GWAS DataFrames should raise ValueError."""
         with pytest.raises(ValueError, match="At least one GWAS DataFrame"):
-            plotter.plot_manhattan_qq_stacked([])
+            manhattan_plotter.plot_manhattan_qq_stacked([])
 
 
 class TestQQWithVariousPvalueDistributions:
     """Test QQ plot with various p-value distributions."""
 
     @pytest.fixture
-    def plotter(self):
+    def default_manhattan_plotter(self):
         """Create plotter instance for testing."""
         return ManhattanPlotter()
 
-    def test_qq_uniform_pvalues(self, plotter):
+    def test_qq_uniform_pvalues(self, default_manhattan_plotter):
         """QQ plot with uniform p-values should show lambda ~ 1."""
         rng = np.random.default_rng(42)
         df = pd.DataFrame({"p": rng.uniform(0, 1, 1000)})
 
-        fig = plotter.plot_qq(df, p_col="p", show_lambda=True)
+        fig = default_manhattan_plotter.plot_qq(df, p_col="p", show_lambda=True)
         assert fig is not None
 
         # Check title contains lambda close to 1
@@ -416,7 +364,7 @@ class TestQQWithVariousPvalueDistributions:
         assert "λ" in title
         plt.close(fig)
 
-    def test_qq_extreme_pvalues(self, plotter):
+    def test_qq_extreme_pvalues(self, default_manhattan_plotter):
         """QQ plot with very small p-values should not produce inf."""
         df = pd.DataFrame(
             {
@@ -424,7 +372,7 @@ class TestQQWithVariousPvalueDistributions:
             }
         )
 
-        fig = plotter.plot_qq(df, p_col="p")
+        fig = default_manhattan_plotter.plot_qq(df, p_col="p")
         assert fig is not None
         plt.close(fig)
 
@@ -432,12 +380,7 @@ class TestQQWithVariousPvalueDistributions:
 class TestRegionalPlotColumnValidation:
     """Test column validation in regional plots."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create plotter instance for testing."""
-        return LocusZoomPlotter(species=None, log_level=None)
-
-    def test_plot_missing_pos_col_raises(self, plotter):
+    def test_plot_missing_pos_col_raises(self, regional_plotter):
         """Plot with missing position column should raise ValidationError."""
         from pylocuszoom.exceptions import ValidationError
 
@@ -450,14 +393,14 @@ class TestRegionalPlotColumnValidation:
         )
 
         with pytest.raises(ValidationError, match="ps"):
-            plotter.plot(
+            regional_plotter.plot(
                 df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
             )
 
-    def test_plot_missing_p_col_raises(self, plotter):
+    def test_plot_missing_p_col_raises(self, regional_plotter):
         """Plot with missing p-value column should raise ValidationError."""
         from pylocuszoom.exceptions import ValidationError
 
@@ -470,7 +413,7 @@ class TestRegionalPlotColumnValidation:
         )
 
         with pytest.raises(ValidationError, match="p_wald"):
-            plotter.plot(
+            regional_plotter.plot(
                 df,
                 chrom=1,
                 start=1000000,

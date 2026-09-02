@@ -18,36 +18,6 @@ from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
 
 
-@pytest.fixture
-def sample_gwas_df():
-    """Sample GWAS results DataFrame."""
-    rng = np.random.default_rng(42)
-    n_snps = 50
-    positions = np.sort(rng.integers(1_000_000, 2_000_000, n_snps))
-    return pd.DataFrame(
-        {
-            "rs": [f"rs{i}" for i in range(n_snps)],
-            "chr": [1] * n_snps,
-            "ps": positions,
-            "p_wald": rng.uniform(1e-10, 1, n_snps),
-        }
-    )
-
-
-@pytest.fixture
-def sample_genes_df():
-    """Sample gene annotations."""
-    return pd.DataFrame(
-        {
-            "chr": [1, 1, 1],
-            "start": [1_100_000, 1_400_000, 1_700_000],
-            "end": [1_150_000, 1_500_000, 1_800_000],
-            "gene_name": ["GENE_A", "GENE_B", "GENE_C"],
-            "strand": ["+", "-", "+"],
-        }
-    )
-
-
 class TestBackendForestPlotMethods:
     """Tests for forest plot backend methods (hbar, errorbar_h, axvline)."""
 
@@ -184,11 +154,11 @@ class TestBackendForestPlotMethods:
 class TestPlotlyNotebookCompatibility:
     """Tests for Plotly backend notebook compatibility."""
 
-    def test_plotly_figure_has_repr_html(self, sample_gwas_df):
+    def test_plotly_figure_has_repr_html(self, regional_gwas_df):
         """Plotly figures must have _repr_html_() for notebook display."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -205,11 +175,11 @@ class TestPlotlyNotebookCompatibility:
         assert len(html) > 0
         assert "plotly" in html.lower() or "div" in html.lower()
 
-    def test_plotly_figure_to_json(self, sample_gwas_df):
+    def test_plotly_figure_to_json(self, regional_gwas_df):
         """Plotly figures must be JSON-serializable for Databricks."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -225,11 +195,11 @@ class TestPlotlyNotebookCompatibility:
         assert "data" in parsed
         assert "layout" in parsed
 
-    def test_plotly_figure_to_html(self, sample_gwas_df):
+    def test_plotly_figure_to_html(self, regional_gwas_df):
         """Plotly figures must save to HTML for notebook export."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -243,11 +213,11 @@ class TestPlotlyNotebookCompatibility:
         assert len(html_content) > 0
         assert "<html" in html_content or "<!DOCTYPE" in html_content
 
-    def test_plotly_figure_has_data(self, sample_gwas_df):
+    def test_plotly_figure_has_data(self, regional_gwas_df):
         """Plotly figures must contain scatter data."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -260,11 +230,11 @@ class TestPlotlyNotebookCompatibility:
         # First trace should be scatter
         assert fig.data[0].type == "scatter"
 
-    def test_plotly_hover_data(self, sample_gwas_df):
+    def test_plotly_hover_data(self, regional_gwas_df):
         """Plotly figures should have hover text for interactive exploration."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -280,11 +250,11 @@ class TestPlotlyNotebookCompatibility:
         )
         assert has_hover, "No traces have hovertemplate"
 
-    def test_plotly_stacked_figure(self, sample_gwas_df):
+    def test_plotly_stacked_figure(self, regional_gwas_df):
         """Plotly backend should work with plot_stacked()."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
+            [regional_gwas_df, regional_gwas_df.copy()],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -303,13 +273,13 @@ class TestPlotlyNotebookCompatibility:
 class TestBokehNotebookCompatibility:
     """Tests for Bokeh backend notebook compatibility."""
 
-    def test_bokeh_figure_creation_no_errors(self, sample_gwas_df):
+    def test_bokeh_figure_creation_no_errors(self, regional_gwas_df):
         """Bokeh figure creation should not raise errors."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
 
         # Should complete without errors
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -318,13 +288,13 @@ class TestBokehNotebookCompatibility:
 
         assert fig is not None
 
-    def test_bokeh_figure_saves_to_html(self, sample_gwas_df):
+    def test_bokeh_figure_saves_to_html(self, regional_gwas_df):
         """Bokeh figures must save to HTML for notebook export."""
         from bokeh.io import output_file, save
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -340,13 +310,13 @@ class TestBokehNotebookCompatibility:
         assert "<html" in html_content or "<!DOCTYPE" in html_content
         assert "bokeh" in html_content.lower()
 
-    def test_bokeh_figure_json_serialization(self, sample_gwas_df):
+    def test_bokeh_figure_json_serialization(self, regional_gwas_df):
         """Bokeh figures must be JSON-serializable for notebook display."""
         from bokeh.embed import json_item
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -358,7 +328,7 @@ class TestBokehNotebookCompatibility:
         assert isinstance(json_data, dict)
         assert "doc" in json_data or "root_id" in json_data
 
-    def test_bokeh_uses_scatter_not_deprecated_circle(self, sample_gwas_df):
+    def test_bokeh_uses_scatter_not_deprecated_circle(self, regional_gwas_df):
         """Bokeh backend must use scatter() not deprecated circle() method."""
         backend = BokehBackend()
 
@@ -370,8 +340,8 @@ class TestBokehNotebookCompatibility:
         )
 
         ax = figures[0]
-        x = sample_gwas_df["ps"]
-        y = -np.log10(sample_gwas_df["p_wald"])
+        x = regional_gwas_df["ps"]
+        y = -np.log10(regional_gwas_df["p_wald"])
 
         # scatter() should work without deprecation warning
         backend.scatter(
@@ -385,7 +355,7 @@ class TestBokehNotebookCompatibility:
         # Should have renderers
         assert len(ax.renderers) > 0
 
-    def test_bokeh_uses_customjs_tick_formatter(self, sample_gwas_df):
+    def test_bokeh_uses_customjs_tick_formatter(self, regional_gwas_df):
         """Bokeh backend must use CustomJSTickFormatter not deprecated FuncTickFormatter."""
         from bokeh.models import CustomJSTickFormatter
 
@@ -402,7 +372,7 @@ class TestBokehNotebookCompatibility:
         # Should use CustomJSTickFormatter
         assert isinstance(ax.xaxis.formatter, CustomJSTickFormatter)
 
-    def test_bokeh_column_layout_no_sizing_mode_warning(self, sample_gwas_df):
+    def test_bokeh_column_layout_no_sizing_mode_warning(self, regional_gwas_df):
         """Bokeh column layout should not trigger FIXED_SIZING_MODE warning."""
         backend = BokehBackend()
 
@@ -418,13 +388,13 @@ class TestBokehNotebookCompatibility:
         assert layout is not None
         assert len(figures) == 2
 
-    def test_bokeh_stacked_figure(self, sample_gwas_df):
+    def test_bokeh_stacked_figure(self, regional_gwas_df):
         """Bokeh backend should work with plot_stacked()."""
         from bokeh.io import output_file, save
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df, sample_gwas_df.copy()],
+            [regional_gwas_df, regional_gwas_df.copy()],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -444,14 +414,14 @@ class TestBokehNotebookCompatibility:
 class TestBackendConsistency:
     """Tests ensuring consistent output across backends."""
 
-    def test_all_backends_return_figure(self, sample_gwas_df):
+    def test_all_backends_return_figure(self, regional_gwas_df):
         """All backends should return a figure object."""
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
             fig = plotter.plot(
-                sample_gwas_df,
+                regional_gwas_df,
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
@@ -478,14 +448,14 @@ class TestBackendConsistency:
                     show_recombination=False,
                 )
 
-    def test_all_backends_handle_lead_position(self, sample_gwas_df):
+    def test_all_backends_handle_lead_position(self, regional_gwas_df):
         """All backends should handle lead_pos parameter."""
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
             fig = plotter.plot(
-                sample_gwas_df,
+                regional_gwas_df,
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
@@ -494,9 +464,9 @@ class TestBackendConsistency:
             )
             assert fig is not None, f"{backend_name} failed with lead_pos"
 
-    def test_all_backends_handle_precomputed_ld(self, sample_gwas_df):
+    def test_all_backends_handle_precomputed_ld(self, regional_gwas_df):
         """All backends should handle pre-computed LD column."""
-        df = sample_gwas_df.copy()
+        df = regional_gwas_df.copy()
         df["R2"] = np.random.default_rng(0).uniform(0, 1, len(df))
 
         for backend_name in ["matplotlib", "plotly", "bokeh"]:
@@ -517,11 +487,11 @@ class TestBackendConsistency:
 class TestDatabricksSpecific:
     """Tests specific to Databricks notebook environment."""
 
-    def test_plotly_displayhtml_compatible(self, sample_gwas_df):
+    def test_plotly_displayhtml_compatible(self, regional_gwas_df):
         """Plotly output should be compatible with Databricks displayHTML()."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -534,13 +504,13 @@ class TestDatabricksSpecific:
         assert "<html" in html or "<!DOCTYPE" in html
         assert "plotly" in html.lower()
 
-    def test_bokeh_components_for_embedding(self, sample_gwas_df):
+    def test_bokeh_components_for_embedding(self, regional_gwas_df):
         """Bokeh should provide components for Databricks embedding."""
         from bokeh.embed import components
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -556,19 +526,6 @@ class TestDatabricksSpecific:
 
 
 @pytest.fixture
-def sample_eqtl_df():
-    """Sample eQTL DataFrame with effect sizes."""
-    return pd.DataFrame(
-        {
-            "pos": [1_200_000, 1_400_000, 1_600_000, 1_800_000],
-            "p_value": [1e-8, 1e-6, 1e-4, 1e-5],
-            "effect_size": [0.5, -0.3, 0.8, -0.2],  # Mixed positive/negative
-            "gene": ["GENE_A", "GENE_A", "GENE_A", "GENE_A"],
-        }
-    )
-
-
-@pytest.fixture
 def sample_eqtl_no_effect_df():
     """Sample eQTL DataFrame without effect sizes."""
     return pd.DataFrame(
@@ -580,28 +537,16 @@ def sample_eqtl_no_effect_df():
     )
 
 
-@pytest.fixture
-def sample_finemapping_df():
-    """Sample fine-mapping DataFrame with credible sets."""
-    return pd.DataFrame(
-        {
-            "pos": [1_200_000, 1_300_000, 1_400_000, 1_500_000, 1_600_000],
-            "pip": [0.85, 0.10, 0.03, 0.45, 0.30],
-            "cs": [1, 1, 0, 2, 2],  # Two credible sets + non-CS variants
-        }
-    )
-
-
 class TestPlotlyEQTLFinemappingMarkers:
     """Tests for eQTL and fine-mapping marker rendering in Plotly."""
 
     def test_plotly_eqtl_positive_effect_markers(
-        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
     ):
         """Plotly eQTL positive effects should render as triangle-up markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -622,12 +567,12 @@ class TestPlotlyEQTLFinemappingMarkers:
         )
 
     def test_plotly_eqtl_negative_effect_markers(
-        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
     ):
         """Plotly eQTL negative effects should render as triangle-down markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -648,12 +593,12 @@ class TestPlotlyEQTLFinemappingMarkers:
         )
 
     def test_plotly_eqtl_no_effect_diamond_markers(
-        self, sample_gwas_df, sample_eqtl_no_effect_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_no_effect_df, sample_genes_df
     ):
         """Plotly eQTL without effect sizes should render as diamond markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -672,12 +617,12 @@ class TestPlotlyEQTLFinemappingMarkers:
         )
 
     def test_plotly_finemapping_circle_markers(
-        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
     ):
         """Plotly fine-mapping should render as circle markers."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -693,12 +638,12 @@ class TestPlotlyEQTLFinemappingMarkers:
         assert len(circle_traces) > 0, "No circle markers for fine-mapping"
 
     def test_plotly_eqtl_hover_data(
-        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
     ):
         """Plotly eQTL scatter should have hover data with position, p-value, effect."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -725,12 +670,12 @@ class TestPlotlyEQTLFinemappingMarkers:
             assert trace.customdata is not None, "eQTL trace missing customdata"
 
     def test_plotly_finemapping_hover_data(
-        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
     ):
         """Plotly fine-mapping scatter should have hover data with position, PIP, CS."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -755,12 +700,12 @@ class TestBokehEQTLFinemappingMarkers:
     """Tests for eQTL and fine-mapping marker rendering in Bokeh."""
 
     def test_bokeh_eqtl_with_effects_creates_renderers(
-        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
     ):
         """Bokeh eQTL with effect sizes should create scatter renderers."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -778,12 +723,12 @@ class TestBokehEQTLFinemappingMarkers:
         assert len(fig.children) >= 2
 
     def test_bokeh_eqtl_triangle_markers(
-        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
     ):
         """Bokeh eQTL should use triangle markers for directional effects."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -809,12 +754,12 @@ class TestBokehEQTLFinemappingMarkers:
         ), f"No triangle markers found in Bokeh plot. Markers: {scatter_markers}"
 
     def test_bokeh_finemapping_circle_markers(
-        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
     ):
         """Bokeh fine-mapping should use circle markers."""
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -839,14 +784,14 @@ class TestBokehEQTLFinemappingMarkers:
         )
 
     def test_bokeh_eqtl_has_hover_tool(
-        self, sample_gwas_df, sample_eqtl_df, sample_genes_df
+        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
     ):
         """Bokeh eQTL panels should have HoverTool for interactivity."""
         from bokeh.models import HoverTool
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -868,14 +813,14 @@ class TestBokehEQTLFinemappingMarkers:
         assert has_hover, "No HoverTool found in Bokeh eQTL plot"
 
     def test_bokeh_finemapping_has_hover_tool(
-        self, sample_gwas_df, sample_finemapping_df, sample_genes_df
+        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
     ):
         """Bokeh fine-mapping panels should have HoverTool for interactivity."""
         from bokeh.models import HoverTool
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot_stacked(
-            [sample_gwas_df],
+            [regional_gwas_df],
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -899,14 +844,16 @@ class TestBokehEQTLFinemappingMarkers:
 class TestGeneTrackMbFormatting:
     """Tests for Mb formatting on gene track axis in interactive backends."""
 
-    def test_plotly_gene_track_has_mb_formatting(self, sample_gwas_df, sample_genes_df):
+    def test_plotly_gene_track_has_mb_formatting(
+        self, regional_gwas_df, sample_genes_df
+    ):
         """Plotly gene track axis should have Mb formatting (not raw bp).
 
         Regression test: gene track axis showed raw bp ticks while label said "Mb".
         """
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,
@@ -926,7 +873,9 @@ class TestGeneTrackMbFormatting:
             "expected '1.00' for a region starting at 1 Mb"
         )
 
-    def test_bokeh_gene_track_has_mb_formatting(self, sample_gwas_df, sample_genes_df):
+    def test_bokeh_gene_track_has_mb_formatting(
+        self, regional_gwas_df, sample_genes_df
+    ):
         """Bokeh gene track axis should have Mb formatting (not raw bp).
 
         Regression test: gene track axis showed raw bp ticks while label said "Mb".
@@ -935,7 +884,7 @@ class TestGeneTrackMbFormatting:
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot(
-            sample_gwas_df,
+            regional_gwas_df,
             chrom=1,
             start=1_000_000,
             end=2_000_000,

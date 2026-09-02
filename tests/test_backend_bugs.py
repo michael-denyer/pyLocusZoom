@@ -16,7 +16,7 @@ from pylocuszoom.stats_plotter import StatsPlotter
 
 
 @pytest.fixture
-def sample_gwas_df():
+def manhattan_rs_gwas_df():
     """Sample GWAS results DataFrame."""
     rng = np.random.default_rng(42)
     n_snps = 50
@@ -32,7 +32,7 @@ def sample_gwas_df():
 
 
 @pytest.fixture
-def sample_phewas_df():
+def phewas_with_effects_df():
     """Sample PheWAS DataFrame."""
     return pd.DataFrame(
         {
@@ -202,10 +202,10 @@ class TestPlotlyGridSubplotAxisAddressing:
             "xaxis and xaxis2 have same range. Bug: both columns using same axis."
         )
 
-    def test_plot_manhattan_qq_distinct_axes(self, sample_gwas_df):
+    def test_plot_manhattan_qq_distinct_axes(self, manhattan_rs_gwas_df):
         """plot_manhattan_qq should have distinct axis limits for Manhattan and QQ."""
         plotter = ManhattanPlotter(species="canine", backend="plotly")
-        fig = plotter.plot_manhattan_qq(sample_gwas_df)
+        fig = plotter.plot_manhattan_qq(manhattan_rs_gwas_df)
 
         layout = fig.layout
 
@@ -321,11 +321,11 @@ class TestBokehSetYticksIgnoresLabels:
                 f"got '{y_overrides.get(pos)}'"
             )
 
-    def test_bokeh_phewas_shows_phenotype_names(self, sample_phewas_df):
+    def test_bokeh_phewas_shows_phenotype_names(self, phewas_with_effects_df):
         """PheWAS plot should show phenotype names, not numeric indices."""
         plotter = StatsPlotter(backend="bokeh")
         fig = plotter.plot_phewas(
-            sample_phewas_df,
+            phewas_with_effects_df,
             variant_id="rs12345",
             phenotype_col="phenotype",
             p_col="p",
@@ -460,10 +460,10 @@ class TestPlotlySetTitleOverwriting:
             f"QQ title not found in annotations: {annotation_texts}"
         )
 
-    def test_plot_manhattan_qq_has_distinct_titles(self, sample_gwas_df):
+    def test_plot_manhattan_qq_has_distinct_titles(self, manhattan_rs_gwas_df):
         """plot_manhattan_qq should show both Manhattan and QQ titles."""
         plotter = ManhattanPlotter(species="canine", backend="plotly")
-        fig = plotter.plot_manhattan_qq(sample_gwas_df)
+        fig = plotter.plot_manhattan_qq(manhattan_rs_gwas_df)
 
         # Convert to JSON to inspect all text elements
         import json
