@@ -72,6 +72,9 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 - `tests/test_recombination.py` — recombination map loading and CanFam4 liftover
 - `tests/test_ucsc.py` — the UCSC gene client and the build-to-source routing (HTTP mocked)
 - `tests/test_fixture_hygiene.py` — fails if one fixture name gains a second schema
+- `tests/test_docs_contract.py` — fails if a documented pytest command repeats an `addopts` flag, or if `__all__` outgrows the CODEMAP table
+- `tests/test_coerce.py`, `tests/test_plotly_layout.py` — the pure helpers the interactive backends share
+- `tests/test_ld_plotting.py` — the policy deciding whether a plot reaches for PLINK
 - `tests/test_loaders.py` — loader dispatch, format detection and file-path validation
 - `tests/test_loaders_gwas.py`, `tests/test_loaders_eqtl.py`, `tests/test_loaders_finemapping.py`, `tests/test_loaders_annotation.py` — one file per loader family
 - `tests/test_schemas.py` — the load-time contract, one class per family
