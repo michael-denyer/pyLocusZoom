@@ -11,13 +11,14 @@ from typing import Any, List, Optional, Sequence, Tuple
 import pandas as pd
 
 from ._manhattan_panel import (
-    padded_ymax,
-    render_manhattan_points,
+    ManhattanPanelSpec,
+    chromosome_ticks,
+    manhattan_spec,
+    render_manhattan_panel,
     shared_manhattan_limits,
 )
 from ._plotter_utils import (
     MANHATTAN_CATEGORICAL_POINT_SIZE,
-    MANHATTAN_EDGE_WIDTH,
     POINT_EDGE_COLOR,
     QQ_CI_ALPHA,
     QQ_CI_COLOR,
@@ -25,7 +26,6 @@ from ._plotter_utils import (
     QQ_POINT_COLOR,
     QQ_POINT_SIZE,
     SIGNIFICANCE_LINE_COLOR,
-    add_significance_line,
 )
 from .backends.base import PlotBackend
 
@@ -55,17 +55,15 @@ class ManhattanQQRenderer:
             height_ratios=[1.0],
             figsize=figsize,
         )
-        self._render_manhattan_panel(
+        render_manhattan_panel(
+            self._backend,
             axes[0],
-            prepared_df,
-            prepared_df.attrs["chrom_order"],
-            prepared_df.attrs["chrom_centers"],
-            significance_threshold=significance_threshold,
-            x_limits=None,
-            y_label_fontsize=12,
-            x_label="Chromosome",
-            title=title or "Manhattan Plot",
-            title_fontsize=14,
+            manhattan_spec(
+                prepared_df,
+                significance_threshold=significance_threshold,
+                x_label="Chromosome",
+                title=title or "Manhattan Plot",
+            ),
         )
         self._backend.finalize_layout(fig)
         return fig
@@ -84,34 +82,28 @@ class ManhattanQQRenderer:
             height_ratios=[1.0],
             figsize=figsize,
         )
-        ax = axes[0]
         cat_order = prepared_df.attrs["category_order"]
-        for category in cat_order:
-            category_data = prepared_df[prepared_df["_cat_str"] == category]
-            if not category_data.empty:
-                self._backend.scatter(
-                    ax,
-                    category_data["_x_pos"],
-                    category_data["_neg_log_p"],
-                    colors=category_data["_color"].iloc[0],
-                    sizes=MANHATTAN_CATEGORICAL_POINT_SIZE,
-                    marker="o",
-                    edgecolor=POINT_EDGE_COLOR,
-                    linewidth=MANHATTAN_EDGE_WIDTH,
-                    zorder=2,
-                )
-
-        add_significance_line(self._backend, ax, significance_threshold)
         category_centers = prepared_df.attrs["category_centers"]
-        positions = [category_centers[category] for category in cat_order]
-        self._backend.set_xticks(
-            ax, positions, cat_order, fontsize=10, rotation=45, ha="right"
+        render_manhattan_panel(
+            self._backend,
+            axes[0],
+            ManhattanPanelSpec(
+                prepared_df=prepared_df,
+                x_col="_x_pos",
+                group_col="_cat_str",
+                group_order=cat_order,
+                x_limits=(-0.5, len(cat_order) - 0.5),
+                tick_positions=[category_centers[category] for category in cat_order],
+                tick_labels=cat_order,
+                significance_threshold=significance_threshold,
+                point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
+                tick_fontsize=10,
+                tick_rotation=45,
+                tick_ha="right",
+                x_label="Category",
+                title=title or "Categorical Manhattan Plot",
+            ),
         )
-        self._backend.set_xlim(ax, -0.5, len(cat_order) - 0.5)
-        self._backend.set_ylim(ax, 0, padded_ymax(prepared_df["_neg_log_p"].max()))
-        self._backend.set_xlabel(ax, "Category", fontsize=12)
-        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=12)
-        self._backend.set_title(ax, title or "Categorical Manhattan Plot", fontsize=14)
         self._backend.finalize_layout(fig)
         return fig
 
@@ -163,24 +155,23 @@ class ManhattanQQRenderer:
             figsize=figsize,
             sharex=True,
         )
-        positions, labels = self._chromosome_ticks(chrom_order, chrom_centers)
+        ticks = chromosome_ticks(chrom_order, chrom_centers)
 
         for index, (ax, prepared_df) in enumerate(zip(axes, prepared_dfs)):
-            self._render_manhattan_panel(
+            render_manhattan_panel(
+                self._backend,
                 ax,
-                prepared_df,
-                chrom_order,
-                chrom_centers,
-                significance_threshold=significance_threshold,
-                x_limits=x_limits,
-                y_label_fontsize=10,
-                x_label="Chromosome" if index == n_panels - 1 else None,
-                title=None,
-                panel_label=panel_labels[index]
-                if panel_labels and index < len(panel_labels)
-                else None,
-                tick_positions=positions,
-                tick_labels=labels,
+                manhattan_spec(
+                    prepared_df,
+                    x_limits=x_limits,
+                    ticks=ticks,
+                    significance_threshold=significance_threshold,
+                    y_label_fontsize=10,
+                    x_label="Chromosome" if index == n_panels - 1 else None,
+                    panel_label=panel_labels[index]
+                    if panel_labels and index < len(panel_labels)
+                    else None,
+                ),
             )
 
         if title:
@@ -206,17 +197,16 @@ class ManhattanQQRenderer:
             width_ratios=[2.5, 1],
             figsize=figsize,
         )
-        self._render_manhattan_panel(
+        render_manhattan_panel(
+            self._backend,
             axes[0],
-            manhattan_df,
-            manhattan_df.attrs["chrom_order"],
-            manhattan_df.attrs["chrom_centers"],
-            significance_threshold=significance_threshold,
-            x_limits=None,
-            y_label_fontsize=12,
-            x_label="Chromosome",
-            title="Manhattan Plot",
-            title_fontsize=12,
+            manhattan_spec(
+                manhattan_df,
+                significance_threshold=significance_threshold,
+                x_label="Chromosome",
+                title="Manhattan Plot",
+                title_fontsize=12,
+            ),
         )
         self._render_qq_panel(axes[1], qq_df, show_confidence_band)
         self._set_qq_labels_and_title(
@@ -258,26 +248,25 @@ class ManhattanQQRenderer:
             width_ratios=[2.5, 1],
             figsize=figsize,
         )
-        positions, labels = self._chromosome_ticks(chrom_order, chrom_centers)
+        ticks = chromosome_ticks(chrom_order, chrom_centers)
 
         for index, (manhattan_df, qq_df) in enumerate(zip(manhattan_dfs, qq_dfs)):
             manhattan_ax = axes[index * 2]
             qq_ax = axes[index * 2 + 1]
-            self._render_manhattan_panel(
+            render_manhattan_panel(
+                self._backend,
                 manhattan_ax,
-                manhattan_df,
-                chrom_order,
-                chrom_centers,
-                significance_threshold=significance_threshold,
-                x_limits=x_limits,
-                y_label_fontsize=10,
-                x_label="Chromosome" if index == n_panels - 1 else None,
-                title=None,
-                panel_label=panel_labels[index]
-                if panel_labels and index < len(panel_labels)
-                else None,
-                tick_positions=positions,
-                tick_labels=labels,
+                manhattan_spec(
+                    manhattan_df,
+                    x_limits=x_limits,
+                    ticks=ticks,
+                    significance_threshold=significance_threshold,
+                    y_label_fontsize=10,
+                    x_label="Chromosome" if index == n_panels - 1 else None,
+                    panel_label=panel_labels[index]
+                    if panel_labels and index < len(panel_labels)
+                    else None,
+                ),
             )
             self._render_qq_panel(qq_ax, qq_df, show_confidence_band)
             self._set_qq_labels_and_title(
@@ -298,49 +287,6 @@ class ManhattanQQRenderer:
         else:
             self._backend.finalize_layout(fig, hspace=0.15)
         return fig
-
-    def _render_manhattan_panel(
-        self,
-        ax: Any,
-        prepared_df: pd.DataFrame,
-        chrom_order: List[str],
-        chrom_centers: dict[str, float],
-        *,
-        significance_threshold: Optional[float],
-        x_limits: Optional[Tuple[float, float]],
-        y_label_fontsize: int,
-        x_label: Optional[str],
-        title: Optional[str],
-        panel_label: Optional[str] = None,
-        tick_positions: Optional[List[float]] = None,
-        tick_labels: Optional[List[str]] = None,
-        title_fontsize: Optional[int] = None,
-    ) -> None:
-        """Apply shared Manhattan panel policy to one backend axis."""
-        render_manhattan_points(self._backend, ax, prepared_df, chrom_order)
-        add_significance_line(self._backend, ax, significance_threshold)
-
-        if x_limits is None:
-            x_limits = shared_manhattan_limits([prepared_df])
-        self._backend.set_xlim(ax, *x_limits)
-        self._backend.set_ylim(ax, 0, padded_ymax(prepared_df["_neg_log_p"].max()))
-
-        if tick_positions is None or tick_labels is None:
-            tick_positions, tick_labels = self._chromosome_ticks(
-                chrom_order, chrom_centers
-            )
-        self._backend.set_xticks(ax, tick_positions, tick_labels, fontsize=8)
-        if x_label:
-            self._backend.set_xlabel(ax, x_label, fontsize=12)
-        self._backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=y_label_fontsize)
-        if title:
-            self._backend.set_title(
-                ax,
-                title,
-                fontsize=title_fontsize or (14 if y_label_fontsize == 12 else 12),
-            )
-        if panel_label:
-            self._backend.add_panel_label(ax, panel_label)
 
     def _render_qq_panel(
         self,
@@ -409,10 +355,3 @@ class ManhattanQQRenderer:
         else:
             plot_title = "QQ" if stacked else "QQ Plot"
         self._backend.set_title(ax, plot_title, fontsize=title_fontsize or fontsize + 2)
-
-    @staticmethod
-    def _chromosome_ticks(
-        chrom_order: List[str], chrom_centers: dict[str, float]
-    ) -> Tuple[List[float], List[str]]:
-        labels = [chrom for chrom in chrom_order if chrom in chrom_centers]
-        return [chrom_centers[chrom] for chrom in labels], labels
