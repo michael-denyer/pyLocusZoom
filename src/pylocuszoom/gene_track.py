@@ -2,7 +2,7 @@
 
 Holds the region filter, the greedy row assignment that stacks overlapping
 genes, and the strand-arrow geometry.  The drawing that consumes them lives in
-``_regional_panels.draw_genes``.
+``_regional_panels.GenePanel.draw``.
 """
 
 from typing import List, Optional, Union

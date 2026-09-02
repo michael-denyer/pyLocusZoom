@@ -32,7 +32,7 @@ flowchart TB
         FM["finemapping<br/><small>3g</small>"]
         GS["_gene_source.GeneSource<br/><small>3h</small>"]
         HTTP["_http downloads<br/><small>5d</small>"]
-        REND["Semantic family renderers<br/><small>3i</small>"]
+        REND["Family panels<br/><small>3i</small>"]
     end
 
     subgraph Layer4["🎨 Backends"]
@@ -214,11 +214,14 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | add_snp_labels | SNP label placement and lead-proximity filtering | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
-| 3i | Regional panels | The five regional panel value types and the `draw_*` function each dispatches to | [_regional_panels.py](../src/pylocuszoom/_regional_panels.py) |
-| 3i | MiamiRequest, ColocRequest, LDHeatmapRequest | One frozen request per family, built by the plotter and consumed by `render_miami`, `render_coloc` and `render_ld_heatmap` | [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
-| 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
+| 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it | [_regional_panels.py](../src/pylocuszoom/_regional_panels.py) |
+| 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [_miami_panels.py](../src/pylocuszoom/_miami_panels.py) |
+| 3i | ColocPanel | The colocalization scatter, built by the plotter and drawing itself | [_coloc_panel.py](../src/pylocuszoom/_coloc_panel.py) |
+| 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [_ld_heatmap_panel.py](../src/pylocuszoom/_ld_heatmap_panel.py) |
+| 3i | FigurePlan, render_figure | The one figure model every family builds, and the only code above the backends that creates a figure or finalizes its layout | [_figure.py](../src/pylocuszoom/_figure.py) |
+| 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [_stats_panels.py](../src/pylocuszoom/_stats_panels.py) |
 | 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [_qq_panel.py](../src/pylocuszoom/_qq_panel.py) |
-| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, and the function that draws it, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
+| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, the function that draws it, and the `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` builders, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
 
 ### LD Colour Bins [3b]
 
@@ -339,8 +342,9 @@ sequenceDiagram
 
     P->>B: create_figure()
     activate B
-    P->>B: scatter(pos, -log10p, colors)
-    P->>G: draw_genes(backend, ax, panel, plan)
+    P->>G: AssociationPanel.draw(backend, ax)
+    G->>B: scatter(pos, -log10p, colors)
+    P->>G: GenePanel.draw(backend, ax)
     G->>B: add_rectangle(), add_polygon(), add_text()
     opt Recombination
         P->>O: render_recombination_overlay()

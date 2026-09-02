@@ -15,16 +15,15 @@ from typing import Any, List, Optional, Tuple, Union
 import pandas as pd
 
 from ._data import prepare_pvalue_data
+from ._figure import FigurePlan, render_figure
 from ._ld_plotting import enrich_with_ld
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
-from ._regional import RegionalPlotComposer
 from ._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
-    RegionalFigurePlan,
     RegionalPanel,
     hover_for_association,
 )
@@ -112,10 +111,6 @@ class LocusZoomPlotter:
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
-        self._regional_composer = RegionalPlotComposer(
-            self._backend,
-            genomewide_threshold,
-        )
         self._auto_genes = auto_genes
         self._recomb_cache = {}
 
@@ -480,9 +475,11 @@ class LocusZoomPlotter:
             association.append(
                 AssociationPanel(
                     data=df,
+                    region=region,
                     height=association_height,
                     columns=columns,
                     display=display,
+                    genomewide_threshold=self.genomewide_threshold,
                     ld_col=ld_col,
                     hover=hover_for_association(df, columns, ld_col),
                     lead_pos=lead_pos,
@@ -517,14 +514,16 @@ class LocusZoomPlotter:
             region.start,
             region.end,
         )
-        return self._regional_composer.render(
-            RegionalFigurePlan(
-                chrom=region.chrom,
-                start=region.start,
-                end=region.end,
+        return render_figure(
+            self._backend,
+            FigurePlan(
                 panels=panels,
                 figsize=(display.figsize[0], height),
-            )
+                height_ratios=[panel.height for panel in panels],
+                xlabel=f"Chromosome {region.chrom} (Mb)",
+                mb_xaxis=True,
+                hspace=0.1,
+            ),
         )
 
 

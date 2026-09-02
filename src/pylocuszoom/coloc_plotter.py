@@ -9,8 +9,9 @@ from typing import Any, Optional, Tuple
 
 import pandas as pd
 
-from ._coloc_renderer import ColocRequest, render_coloc
+from ._coloc_panel import ColocPanel
 from ._data import prepare_pvalue_data
+from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
     DEFAULT_EQTL_THRESHOLD,
     DEFAULT_GENOMEWIDE_THRESHOLD,
@@ -336,14 +337,14 @@ class ColocPlotter:
         merged.data["color"] = _assign_colors(merged, config)
         lead_idx = _resolve_lead_idx(merged, config)
 
-        return render_coloc(
-            self._backend,
-            ColocRequest(
-                merged=merged.data,
-                config=config,
-                rs_col=merged.rs_col,
-                ld_col=merged.ld_col,
-                lead_idx=lead_idx,
-                title=title,
-            ),
+        panel = ColocPanel(
+            merged=merged.data,
+            config=config,
+            rs_col=merged.rs_col,
+            ld_col=merged.ld_col,
+            lead_idx=lead_idx,
+            title=title,
+        )
+        return render_figure(
+            self._backend, FigurePlan(panels=[panel], figsize=config.figsize)
         )

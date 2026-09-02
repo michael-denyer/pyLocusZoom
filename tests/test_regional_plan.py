@@ -1,21 +1,19 @@
-"""Each regional panel type builds itself and renders through the composer."""
+"""Each regional panel type builds itself and draws itself."""
 
 from dataclasses import replace
-from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
-from pylocuszoom._regional import RegionalPlotComposer
+from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
-    RegionalFigurePlan,
     hover_for_association,
 )
 from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
@@ -37,9 +35,11 @@ def _gwas():
 def _association(**overrides):
     fields = dict(
         data=prepare_pvalue_data(_gwas(), "p_wald"),
+        region=REGION,
         height=4.0,
         columns=ColumnConfig(),
         display=DisplayConfig(snp_labels=False),
+        genomewide_threshold=5e-8,
         ld_col=None,
         lead_pos=1_500_000,
         recomb_df=None,
@@ -54,14 +54,7 @@ def _association(**overrides):
 
 def _render(panel, backend=None):
     backend = backend or RecordingBackend()
-    plan = RegionalFigurePlan(
-        chrom=REGION.chrom,
-        start=REGION.start,
-        end=REGION.end,
-        panels=[panel],
-        figsize=(8.0, panel.height),
-    )
-    RegionalPlotComposer(backend, genomewide_threshold=5e-8).render(plan)
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, panel.height)))
     return backend
 
 
@@ -224,11 +217,3 @@ def test_heatmap_panel_renders_on_a_capable_backend():
 
     assert names.count("add_heatmap") == 1
     assert names.count("add_rectangle") == 3
-
-
-def test_render_panel_rejects_unknown_panel_types():
-    composer = RegionalPlotComposer(RecordingBackend(), genomewide_threshold=5e-8)
-    plan = RegionalFigurePlan(chrom=1, start=1, end=2, panels=[], figsize=(1.0, 1.0))
-
-    with pytest.raises(TypeError, match="No renderer for str"):
-        composer.render_panel("not a panel", SimpleNamespace(), SimpleNamespace(), plan)

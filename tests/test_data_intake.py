@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
-from pylocuszoom.manhattan import prepare_categorical_data, prepare_manhattan_data
+from pylocuszoom.manhattan import prepare_categorical_data, prepare_manhattan_frames
 from pylocuszoom.plotter import LocusZoomPlotter
 from pylocuszoom.qq import prepare_qq_data
 from tests.strategies import gwas_dataframes
@@ -43,8 +43,8 @@ def test_eqtl_preparation_uses_the_shared_policy():
 @pytest.mark.parametrize(
     ("entry_point", "allow_zero"),
     [
-        (lambda df: prepare_manhattan_data(df, species="human"), True),
-        (lambda df: prepare_categorical_data(df, "category"), True),
+        (lambda df: prepare_manhattan_frames([df], species="human")[0].frame, True),
+        (lambda df: prepare_categorical_data(df, "category").frame, True),
     ],
     ids=["manhattan", "categorical"],
 )
@@ -65,14 +65,14 @@ def test_qq_excludes_exact_zero_pvalues():
 
     result = prepare_qq_data(raw, p_col="p")
 
-    assert result.attrs["n_variants"] == len(expected)
+    assert result.n_variants == len(expected)
 
 
 @pytest.mark.parametrize(
     ("entry_point", "message"),
     [
         (
-            lambda df: prepare_manhattan_data(df, species="human"),
+            lambda df: prepare_manhattan_frames([df], species="human"),
             "All rows have invalid p-values",
         ),
         (

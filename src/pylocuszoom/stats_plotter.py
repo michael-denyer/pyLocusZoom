@@ -10,13 +10,14 @@ from typing import Any, Optional, Tuple
 import pandas as pd
 
 from ._data import prepare_pvalue_data
+from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
     ThresholdArg,
     resolve_threshold,
 )
-from ._stats_renderer import StatsRenderer
+from ._stats_panels import ForestPanel, PhewasPanel
 from .backends import BackendType, get_backend
 from .schemas import validate_forest_df, validate_phewas_df
 
@@ -44,7 +45,6 @@ class StatsPlotter:
     ):
         """Initialize the stats plotter."""
         self._backend = get_backend(backend)
-        self._renderer = StatsRenderer(self._backend)
         self.genomewide_threshold = genomewide_threshold
 
     def plot_phewas(
@@ -90,19 +90,16 @@ class StatsPlotter:
         )
         validate_phewas_df(phewas_df, phenotype_col, p_col)
 
-        df = phewas_df.copy()
-        df = prepare_pvalue_data(df, p_col)
-
-        return self._renderer.render_phewas(
-            df,
+        panel = PhewasPanel.from_frame(
+            prepare_pvalue_data(phewas_df, p_col),
+            variant_id=variant_id,
             phenotype_col=phenotype_col,
             p_col=p_col,
             category_col=category_col,
-            variant_id=variant_id,
             effect_col=effect_col,
             significance_threshold=significance_threshold,
-            figsize=figsize,
         )
+        return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
     def plot_forest(
         self,
@@ -144,10 +141,9 @@ class StatsPlotter:
         """
         validate_forest_df(forest_df, study_col, effect_col, ci_lower_col, ci_upper_col)
 
-        df = forest_df.copy()
-
-        return self._renderer.render_forest(
-            df,
+        panel = ForestPanel.from_frame(
+            forest_df,
+            variant_id=variant_id,
             study_col=study_col,
             effect_col=effect_col,
             ci_lower_col=ci_lower_col,
@@ -155,6 +151,5 @@ class StatsPlotter:
             weight_col=weight_col,
             null_value=null_value,
             effect_label=effect_label,
-            variant_id=variant_id,
-            figsize=figsize,
         )
+        return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))

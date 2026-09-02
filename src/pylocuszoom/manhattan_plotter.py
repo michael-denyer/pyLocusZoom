@@ -11,19 +11,21 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
+from ._figure import FigurePlan, render_figure
+from ._manhattan_panel import (
+    categorical_spec,
+    manhattan_spec,
+    stacked_manhattan_specs,
+)
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
     ThresholdArg,
     resolve_threshold,
 )
-from ._rendering import ManhattanQQRenderer
+from ._qq_panel import QQPanelSpec, qq_title
 from .backends import BackendType, get_backend
-from .manhattan import (
-    prepare_categorical_data,
-    prepare_manhattan_data,
-    prepare_manhattan_frames,
-)
+from .manhattan import prepare_categorical_data, prepare_manhattan_frames
 from .qq import prepare_qq_data
 from .species import Species, resolve_species
 
@@ -61,7 +63,6 @@ class ManhattanPlotter:
         """Initialize the Manhattan plotter."""
         self.species = resolve_species(species)
         self._backend = get_backend(backend)
-        self._renderer = ManhattanQQRenderer(self._backend)
         self.genomewide_threshold = genomewide_threshold
 
     def plot_manhattan(
@@ -129,21 +130,22 @@ class ManhattanPlotter:
             )
 
         # Standard Manhattan plot
-        prepared_df = prepare_manhattan_data(
-            df=df,
+        prepared = prepare_manhattan_frames(
+            [df],
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
             species=self.species,
             custom_order=custom_chrom_order,
-        )
+        )[0]
 
-        return self._renderer.render_manhattan(
-            prepared_df,
-            figsize=figsize,
+        panel = manhattan_spec(
+            prepared,
             significance_threshold=significance_threshold,
-            title=title,
+            x_label="Chromosome",
+            title=title or "Manhattan Plot",
         )
+        return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
     def _plot_manhattan_categorical(
         self,
@@ -160,18 +162,18 @@ class ManhattanPlotter:
         Internal method called by plot_manhattan when category_col is provided.
         """
         # Prepare data
-        prepared_df = prepare_categorical_data(
+        prepared = prepare_categorical_data(
             df=df,
             category_col=category_col,
             p_col=p_col,
             category_order=category_order,
         )
-        return self._renderer.render_categorical(
-            prepared_df,
-            figsize=figsize,
+        panel = categorical_spec(
+            prepared,
             significance_threshold=significance_threshold,
-            title=title,
+            title=title or "Categorical Manhattan Plot",
         )
+        return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
     def plot_qq(
         self,
@@ -202,14 +204,15 @@ class ManhattanPlotter:
             >>> fig = plotter.plot_qq(gwas_df, p_col="pvalue")
         """
         # Prepare data
-        prepared_df = prepare_qq_data(df, p_col=p_col)
-        return self._renderer.render_qq(
-            prepared_df,
-            figsize=figsize,
+        qq = prepare_qq_data(df, p_col=p_col)
+        panel = QQPanelSpec(
+            qq_df=qq.frame,
             show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            title=title,
+            title=title
+            or qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=False),
+            title_fontsize=14,
         )
+        return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
     def plot_manhattan_stacked(
         self,
@@ -263,7 +266,7 @@ class ManhattanPlotter:
                 f"number of GWAS DataFrames ({n_gwas})"
             )
 
-        prepared_dfs = prepare_manhattan_frames(
+        prepared = prepare_manhattan_frames(
             gwas_dfs,
             chrom_col=chrom_col,
             pos_col=pos_col,
@@ -271,12 +274,19 @@ class ManhattanPlotter:
             species=self.species,
             custom_order=custom_chrom_order,
         )
-        return self._renderer.render_manhattan_stacked(
-            prepared_dfs,
-            figsize=figsize,
-            significance_threshold=significance_threshold,
-            panel_labels=panel_labels,
-            title=title,
+        return render_figure(
+            self._backend,
+            FigurePlan(
+                panels=stacked_manhattan_specs(
+                    prepared,
+                    significance_threshold=significance_threshold,
+                    panel_labels=panel_labels,
+                ),
+                figsize=figsize,
+                height_ratios=[figsize[1] / n_gwas] * n_gwas,
+                first_panel_title=title,
+                hspace=0.1,
+            ),
         )
 
     def plot_manhattan_qq(
@@ -322,26 +332,41 @@ class ManhattanPlotter:
             significance_threshold, self.genomewide_threshold
         )
 
-        # Prepare Manhattan data
-        manhattan_df = prepare_manhattan_data(
-            df=df,
+        manhattan = prepare_manhattan_frames(
+            [df],
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
             species=self.species,
             custom_order=custom_chrom_order,
-        )
-
-        # Prepare QQ data
-        qq_df = prepare_qq_data(df, p_col=p_col)
-        return self._renderer.render_manhattan_qq(
-            manhattan_df,
-            qq_df,
-            figsize=figsize,
-            significance_threshold=significance_threshold,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
-            title=title,
+        )[0]
+        qq = prepare_qq_data(df, p_col=p_col)
+        return render_figure(
+            self._backend,
+            FigurePlan(
+                panels=[
+                    manhattan_spec(
+                        manhattan,
+                        significance_threshold=significance_threshold,
+                        x_label="Chromosome",
+                        title="Manhattan Plot",
+                        title_fontsize=12,
+                    ),
+                    QQPanelSpec(
+                        qq_df=qq.frame,
+                        show_confidence_band=show_confidence_band,
+                        title=qq_title(
+                            qq.lambda_gc, show_lambda=show_lambda, compact=False
+                        ),
+                        title_fontsize=12,
+                    ),
+                ],
+                figsize=figsize,
+                n_cols=2,
+                width_ratios=[2.5, 1],
+                suptitle=title,
+                top=0.90 if title else 0.95,
+            ),
         )
 
     def plot_manhattan_qq_stacked(
@@ -394,7 +419,7 @@ class ManhattanPlotter:
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
 
-        manhattan_dfs = prepare_manhattan_frames(
+        manhattans = prepare_manhattan_frames(
             gwas_dfs,
             chrom_col=chrom_col,
             pos_col=pos_col,
@@ -402,14 +427,36 @@ class ManhattanPlotter:
             species=self.species,
             custom_order=custom_chrom_order,
         )
-        qq_dfs = [prepare_qq_data(df, p_col=p_col) for df in gwas_dfs]
-        return self._renderer.render_manhattan_qq_stacked(
-            manhattan_dfs,
-            qq_dfs,
-            figsize=figsize,
+        specs = stacked_manhattan_specs(
+            manhattans,
             significance_threshold=significance_threshold,
-            show_confidence_band=show_confidence_band,
-            show_lambda=show_lambda,
             panel_labels=panel_labels,
-            title=title,
+        )
+        panels = []
+        for index, (spec, df) in enumerate(zip(specs, gwas_dfs)):
+            qq = prepare_qq_data(df, p_col=p_col)
+            panels.append(spec)
+            panels.append(
+                QQPanelSpec(
+                    qq_df=qq.frame,
+                    show_confidence_band=show_confidence_band,
+                    title=qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=True),
+                    title_fontsize=10,
+                    label_fontsize=10,
+                    x_label="Expected $-\\log_{10}(p)$"
+                    if index == n_gwas - 1
+                    else None,
+                )
+            )
+        return render_figure(
+            self._backend,
+            FigurePlan(
+                panels=panels,
+                figsize=figsize,
+                n_cols=2,
+                width_ratios=[2.5, 1],
+                suptitle=title,
+                top=0.90 if title else 0.95,
+                hspace=0.15,
+            ),
         )

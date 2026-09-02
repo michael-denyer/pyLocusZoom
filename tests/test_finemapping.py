@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from pylocuszoom._regional_panels import FinemappingPanel, draw_finemapping
+from pylocuszoom._regional_panels import FinemappingPanel
 from pylocuszoom.backends.hover import HoverConfig
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.config import RegionConfig
@@ -182,9 +182,7 @@ class TestDrawFinemapping:
         backend, ax = rendering_axes
         df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
-        draw_finemapping(
-            backend, ax, FinemappingPanel.from_frame(df, DRAW_REGION, None)
-        )
+        FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
         lines = ax.get_lines()
         assert len(lines) >= 1, "expected a PIP line on the axes"
@@ -204,7 +202,7 @@ class TestDrawFinemapping:
 
         panel = FinemappingPanel.from_frame(df, DRAW_REGION, "cs")
         assert panel.credible_sets == [1, 2], "cs=0 is not a credible set"
-        draw_finemapping(backend, ax, panel)
+        panel.draw(backend, ax)
 
         assert len(ax.collections) >= 2, (
             f"expected >=2 scatter collections for CS 1 and CS 2, "
@@ -216,9 +214,7 @@ class TestDrawFinemapping:
         backend, ax = rendering_axes
         df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
-        draw_finemapping(
-            backend, ax, FinemappingPanel.from_frame(df, DRAW_REGION, None)
-        )
+        FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
         assert len(ax.get_lines()) >= 1
 
@@ -227,9 +223,7 @@ class TestDrawFinemapping:
         backend, ax = rendering_axes
         df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.005, 0.5, 0.002]})
 
-        draw_finemapping(
-            backend, ax, FinemappingPanel.from_frame(df, DRAW_REGION, None)
-        )
+        FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
         assert len(ax.get_lines()) >= 1
         assert len(ax.collections) == 1
@@ -248,7 +242,7 @@ class TestDrawFinemapping:
             hover=HoverConfig(pos_col="pos", extra_cols={"pip": "PIP"}),
         )
 
-        draw_finemapping(backend, ax, panel)
+        panel.draw(backend, ax)
 
         assert len(ax.get_lines()) == 0
         assert len(ax.collections) == 0

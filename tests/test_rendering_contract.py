@@ -1,4 +1,4 @@
-"""Contract tests for the semantic Manhattan/QQ renderer."""
+"""Contract tests for what each family's panels send through the backend seam."""
 
 import dataclasses
 import inspect
@@ -7,17 +7,18 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom._manhattan_panel import ManhattanPanelSpec, manhattan_spec
-from pylocuszoom._miami_renderer import MiamiRequest, render_miami
-from pylocuszoom._rendering import ManhattanQQRenderer
+from pylocuszoom._miami_panels import MiamiRequest, miami_plan
+from pylocuszoom._qq_panel import QQPanelSpec, qq_title
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
-from pylocuszoom.manhattan import prepare_manhattan_data
+from pylocuszoom.manhattan import prepare_manhattan_frames
 from pylocuszoom.qq import prepare_qq_data
 
 
 class RecordingBackend:
-    """Small primitive adapter used to test the renderer's semantic seam."""
+    """Small primitive adapter that records every backend call it receives."""
 
     supports_hover = False
 
@@ -133,21 +134,38 @@ def prepared_data():
         }
     )
     return (
-        prepare_manhattan_data(df, species="human"),
+        prepare_manhattan_frames([df], species="human")[0],
         prepare_qq_data(df),
     )
 
 
-def test_renderer_owns_manhattan_panel_policy(prepared_data):
+def _manhattan_plan(manhattan):
+    """The single Manhattan figure, as ManhattanPlotter.plot_manhattan builds it."""
+    panel = manhattan_spec(
+        manhattan,
+        significance_threshold=5e-8,
+        x_label="Chromosome",
+        title="Contract Manhattan",
+    )
+    return FigurePlan(panels=[panel], figsize=(12, 5))
+
+
+def _qq_plan(qq):
+    """The single QQ figure, as ManhattanPlotter.plot_qq builds it."""
+    panel = QQPanelSpec(
+        qq_df=qq.frame,
+        show_confidence_band=True,
+        title=qq_title(qq.lambda_gc, show_lambda=True, compact=False),
+        title_fontsize=14,
+    )
+    return FigurePlan(panels=[panel], figsize=(6, 6))
+
+
+def test_manhattan_panel_owns_its_policy(prepared_data):
     manhattan_df, _ = prepared_data
     backend = RecordingBackend()
 
-    ManhattanQQRenderer(backend).render_manhattan(
-        manhattan_df,
-        figsize=(12, 5),
-        significance_threshold=5e-8,
-        title="Contract Manhattan",
-    )
+    render_figure(backend, _manhattan_plan(manhattan_df))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -158,17 +176,11 @@ def test_renderer_owns_manhattan_panel_policy(prepared_data):
     assert "set_xticks" in names
 
 
-def test_renderer_owns_qq_panel_policy(prepared_data):
+def test_qq_panel_owns_its_policy(prepared_data):
     _, qq_df = prepared_data
     backend = RecordingBackend()
 
-    ManhattanQQRenderer(backend).render_qq(
-        qq_df,
-        figsize=(6, 6),
-        show_confidence_band=True,
-        show_lambda=True,
-        title=None,
-    )
+    render_figure(backend, _qq_plan(qq_df))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -185,21 +197,9 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     """All built-in adapters accept the same prepared rendering intent."""
     manhattan_df, qq_df = prepared_data
     backend = get_backend(backend_name)
-    renderer = ManhattanQQRenderer(backend)
     figures = [
-        renderer.render_manhattan(
-            manhattan_df,
-            figsize=(12, 5),
-            significance_threshold=5e-8,
-            title="Contract Manhattan",
-        ),
-        renderer.render_qq(
-            qq_df,
-            figsize=(6, 6),
-            show_confidence_band=True,
-            show_lambda=True,
-            title=None,
-        ),
+        render_figure(backend, _manhattan_plan(manhattan_df)),
+        render_figure(backend, _qq_plan(qq_df)),
     ]
     assert all(figure is not None for figure in figures)
 
@@ -209,8 +209,7 @@ def test_miami_highlight_reaches_the_backend(prepared_data):
     manhattan_df, _ = prepared_data
     backend = RecordingBackend()
 
-    figure = render_miami(
-        backend,
+    plan = miami_plan(
         MiamiRequest(
             top=manhattan_df,
             bottom=manhattan_df,
@@ -229,32 +228,30 @@ def test_miami_highlight_reaches_the_backend(prepared_data):
             title=None,
         ),
     )
+    figure = render_figure(backend, plan)
 
     assert figure is not None
     assert [name for name, _, _ in backend.calls].count("add_region_highlight") == 1
 
 
-def test_ld_heatmap_renderer_owns_panel_policy():
-    """render_ld_heatmap drives the heatmap, its scale, ticks, and layout."""
+def test_ld_heatmap_panel_owns_its_policy():
+    """LDHeatmapPanel drives the heatmap, its scale, ticks, and layout."""
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
+    from pylocuszoom._ld_heatmap_panel import LDHeatmapPanel
 
     backend = RecordingBackend()
 
-    render_ld_heatmap(
-        backend,
-        LDHeatmapRequest(
-            data=np.eye(3),
-            snp_ids=["rs1", "rs2", "rs3"],
-            lead_idx=0,
-            highlight_indices=[2],
-            metric="dprime",
-            figsize=(8.0, 8.0),
-            title="Contract Heatmap",
-            show_colorbar=True,
-        ),
+    panel = LDHeatmapPanel(
+        data=np.eye(3),
+        snp_ids=["rs1", "rs2", "rs3"],
+        lead_idx=0,
+        highlight_indices=[2],
+        metric="dprime",
+        title="Contract Heatmap",
+        show_colorbar=True,
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -273,26 +270,23 @@ def test_ld_heatmap_renderer_owns_panel_policy():
     assert colorbar["label"] == "D'"
 
 
-def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
+def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
+    from pylocuszoom._ld_heatmap_panel import LDHeatmapPanel
 
     backend = RecordingBackend()
 
-    render_ld_heatmap(
-        backend,
-        LDHeatmapRequest(
-            data=np.eye(2),
-            snp_ids=["rs1", "rs2"],
-            lead_idx=None,
-            highlight_indices=[],
-            metric="r2",
-            figsize=(8.0, 8.0),
-            title=None,
-            show_colorbar=False,
-        ),
+    panel = LDHeatmapPanel(
+        data=np.eye(2),
+        snp_ids=["rs1", "rs2"],
+        lead_idx=None,
+        highlight_indices=[],
+        metric="r2",
+        title=None,
+        show_colorbar=False,
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert "add_heatmap" in names
@@ -301,9 +295,9 @@ def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
     assert "set_title" not in names
 
 
-def test_stats_renderer_owns_phewas_panel_policy():
+def test_phewas_panel_owns_its_policy():
     """PheWAS grouping, the significance line, and axis policy live above the seam."""
-    from pylocuszoom._stats_renderer import StatsRenderer
+    from pylocuszoom._stats_panels import PhewasPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -315,7 +309,7 @@ def test_stats_renderer_owns_phewas_panel_policy():
         }
     )
 
-    StatsRenderer(backend).render_phewas(
+    panel = PhewasPanel.from_frame(
         df,
         variant_id="rs1",
         phenotype_col="phenotype",
@@ -323,8 +317,8 @@ def test_stats_renderer_owns_phewas_panel_policy():
         category_col="category",
         effect_col=None,
         significance_threshold=5e-8,
-        figsize=(10.0, 8.0),
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(10.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -335,8 +329,8 @@ def test_stats_renderer_owns_phewas_panel_policy():
     assert "set_yticks" in names
 
 
-def test_stats_renderer_draws_no_significance_line_for_none():
-    from pylocuszoom._stats_renderer import StatsRenderer
+def test_phewas_panel_draws_no_significance_line_for_none():
+    from pylocuszoom._stats_panels import PhewasPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -348,7 +342,7 @@ def test_stats_renderer_draws_no_significance_line_for_none():
         }
     )
 
-    StatsRenderer(backend).render_phewas(
+    panel = PhewasPanel.from_frame(
         df,
         variant_id="rs1",
         phenotype_col="phenotype",
@@ -356,15 +350,15 @@ def test_stats_renderer_draws_no_significance_line_for_none():
         category_col="category",
         effect_col=None,
         significance_threshold=None,
-        figsize=(10.0, 8.0),
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(10.0, 8.0)))
 
     assert "axvline" not in [name for name, _, _ in backend.calls]
 
 
-def test_stats_renderer_owns_forest_panel_policy():
+def test_forest_panel_owns_its_policy():
     """Forest error bars, markers, null line, and x-padding live above the seam."""
-    from pylocuszoom._stats_renderer import StatsRenderer
+    from pylocuszoom._stats_panels import ForestPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -376,7 +370,7 @@ def test_stats_renderer_owns_forest_panel_policy():
         }
     )
 
-    StatsRenderer(backend).render_forest(
+    panel = ForestPanel.from_frame(
         df,
         variant_id="rs1",
         study_col="study",
@@ -386,8 +380,8 @@ def test_stats_renderer_owns_forest_panel_policy():
         weight_col=None,
         null_value=0.0,
         effect_label="Beta",
-        figsize=(8.0, 6.0),
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 6.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -402,9 +396,9 @@ def test_stats_renderer_owns_forest_panel_policy():
     assert xlim[1:] == pytest.approx((-0.06, 0.66))
 
 
-def test_coloc_renderer_owns_panel_policy():
+def test_coloc_panel_owns_its_policy():
     """Colocalisation axes, thresholds, legend, and layout live above the seam."""
-    from pylocuszoom._coloc_renderer import ColocRequest, render_coloc
+    from pylocuszoom._coloc_panel import ColocPanel
     from pylocuszoom.config import ColocConfig
 
     backend = RecordingBackend()
@@ -417,24 +411,22 @@ def test_coloc_renderer_owns_panel_policy():
         }
     )
 
-    render_coloc(
-        backend,
-        ColocRequest(
-            merged=merged,
-            config=ColocConfig(
-                gwas_threshold=5e-8,
-                eqtl_threshold=1e-5,
-                show_correlation=True,
-                color_by_effect=False,
-                h4_posterior=0.92,
-                figsize=(8.0, 8.0),
-            ),
-            rs_col="rs",
-            ld_col=None,
-            lead_idx=0,
-            title="Contract Coloc",
+    panel = ColocPanel(
+        merged=merged,
+        config=ColocConfig(
+            gwas_threshold=5e-8,
+            eqtl_threshold=1e-5,
+            show_correlation=True,
+            color_by_effect=False,
+            h4_posterior=0.92,
+            figsize=(8.0, 8.0),
         ),
+        rs_col="rs",
+        ld_col=None,
+        lead_idx=0,
+        title="Contract Coloc",
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"

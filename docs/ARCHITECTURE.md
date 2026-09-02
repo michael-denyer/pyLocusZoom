@@ -40,8 +40,9 @@ graph TD
 
     subgraph Plotters["Plotter Classes"]
         LZ[LocusZoomPlotter]
-        REGIONAL["_regional.py: RegionalPlotComposer<br/>_regional_panels.py: panels + drawing"]
-        FAMILIES[_*_renderer.py: family renderers]
+        REGIONAL["_regional_panels.py: panels that draw themselves"]
+        FIGURE["_figure.py: FigurePlan + render_figure"]
+        FAMILIES[_*_panel.py, _*_panels.py: family panels]
         MP[ManhattanPlotter]
         SP[StatsPlotter]
         MIAMI[MiamiPlotter]
@@ -178,24 +179,30 @@ stages:
    share one private pipeline, `_render_regional`, which
    builds each optional panel through its own constructor
    (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
-   `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and hands an ordered
-   `RegionalFigurePlan` to `RegionalPlotComposer`. The composer creates the
-   figure and dispatches each panel by type through `render_panel`, a
-   `singledispatchmethod` whose arms are one call each into the matching
-   `draw_*` function in `_regional_panels.py`. Every panel resolves its mode
-   and its hover contract when it is built, so the drawing never inspects the
-   frame's columns; axes, labels, LD legend, SNP-label, and recombination
-   policy live beside the association panel, and the significance line goes
-   through the same `add_significance_line` the Manhattan family uses
-   ([ADR-0006](adr/0006-one-regional-pipeline.md)). Manhattan and QQ
-   plotters hand prepared data and
-   figure intent to semantic renderers. Manhattan and QQ go through
-   `ManhattanQQRenderer` and PheWAS and forest through `StatsRenderer`; Miami,
-   colocalisation and the standalone LD heatmap each build one frozen request
-   value (`MiamiRequest`, `ColocRequest`, `LDHeatmapRequest`) and pass it to a
-   module-level `render_*` function. Both shapes own panel composition, labels,
-   axes, legends, and layout, translating intent through the existing
-   `PlotBackend` primitive contract. Backend implementations translate the primitive calls
+   `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and puts them on a
+   `FigurePlan` for `render_figure`, which creates the figure, calls each
+   panel's `draw` method on its axis, labels and formats the shared
+   megabase x axis, and finalizes the layout
+   ([ADR-0007](adr/0007-one-figure-plan.md)). Every panel resolves its
+   mode, its region and its hover contract when it is built, so the drawing
+   never inspects the frame's columns; axes, labels, LD legend, SNP-label,
+   and recombination policy live on the association panel, and both the
+   association and eQTL significance lines go through the same
+   `add_significance_line` the Manhattan family uses
+   ([ADR-0006](adr/0006-one-regional-pipeline.md)). `ManhattanPlotter`
+   builds `ManhattanPanelSpec` and `QQPanelSpec` values through
+   `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` and
+   puts them on a `FigurePlan` as one panel, a vertical stack, or a
+   two-column grid beside QQ panels. `MiamiPlotter` builds a `MiamiRequest`
+   and `miami_plan` turns it into two `MiamiPanel`s (a mirrored
+   `ManhattanPanelSpec` each, plus SNP annotations) and the highlights that
+   span both. `StatsPlotter` builds a `PhewasPanel` or a `ForestPanel`
+   through its `from_frame`, `ColocPlotter` a `ColocPanel`, and
+   `LDHeatmapPlotter` an `LDHeatmapPanel`. Every family is a panel value
+   with `draw` on a `FigurePlan`; no family holds a renderer class.
+   Panels own their drawing, labels, axes and legends; `render_figure` owns
+   the figure, translating intent through the existing `PlotBackend`
+   primitive contract. Backend implementations translate the primitive calls
    into matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
 7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
    their respective figure objects. Callers export with the figure's own
@@ -207,9 +214,12 @@ stages:
 | Abstraction | Kind | Location | Purpose |
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
-| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders an ordered `RegionalFigurePlan`, dispatching each panel by type through `render_panel` (`singledispatchmethod`) to the panel's `draw_*` function |
-| Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw_*` function that draws it. A panel carries its resolved mode, hover contract and layout, so drawing inspects no columns |
-| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families. Miami, coloc and LD heatmap are a frozen request value plus one `render_*` function; PheWAS and forest stay a class because they share drawing between two entry points |
+| `FigurePlan`, `render_figure` | Internal module | `src/pylocuszoom/_figure.py` | The one figure model: an ordered list of panels on a grid plus figure-level policy (size, row and column ratios, shared-x label and megabase format, cross-panel highlights, title, layout fractions). `render_figure` is the only caller of `create_figure`, `create_figure_grid`, `set_suptitle` and `finalize_layout` outside `backends/` |
+| Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw` method that draws it. A panel carries its resolved mode, region, hover contract and layout, so drawing inspects no columns |
+| `MiamiRequest`, `MiamiPanel`, `miami_plan` | Internal module | `src/pylocuszoom/_miami_panels.py` | The Miami figure: a request the plotter resolves, a panel that draws one mirrored Manhattan half with its SNP annotations, and the builder that lays two of them on a `FigurePlan` with the cross-panel highlights |
+| `PhewasPanel`, `ForestPanel` | Internal module | `src/pylocuszoom/_stats_panels.py` | The PheWAS and forest panels, each built through `from_frame` and drawing itself. Every family is a panel value with `draw` on a `FigurePlan`; no family holds a renderer class |
+| `ColocPanel` | Internal module | `src/pylocuszoom/_coloc_panel.py` | The colocalization scatter: the merged frame, its resolved column names and lead index, drawing itself with both threshold lines through `add_significance_line` |
+| `LDHeatmapPanel` | Internal module | `src/pylocuszoom/_ld_heatmap_panel.py` | The standalone heatmap: the matrix, its ids, and the lead and highlight indices, drawing itself |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
@@ -218,12 +228,11 @@ stages:
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, heatmaps, error bars, the secondary axis, the region highlight, neutral `add_legend`). `add_snp_labels` is the one method left outside it |
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
-| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands renderers and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
+| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands the panels and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
 | `SupportsSNPLabels` | Optional protocol | `src/pylocuszoom/backends/base.py` | The one `@runtime_checkable` capability a backend opts into by implementing `add_snp_labels`; detected with `isinstance` |
-| `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and builds the `ManhattanPanelSpec` and `QQPanelSpec` values its panels are drawn from |
-| `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
+| `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis, and `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` build the specs the plotters put on their `FigurePlan` |
 | `QQPanelSpec`, `render_qq_panel` | Internal module | `src/pylocuszoom/_qq_panel.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
-| `GenomeLayout`, `CategoryLayout` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_manhattan_frames` computes one layout from every frame of a figure and gives it to all of them, so Miami and stacked panels share offsets and ticks instead of deriving their own |
+| `GenomeLayout`, `CategoryLayout`, `PreparedManhattan` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_manhattan_frames` computes one layout from every frame of a figure and returns each frame paired with it as a `PreparedManhattan`, so Miami and stacked panels share offsets and ticks instead of deriving their own. `qq.PreparedQQ` is the same shape for a QQ panel: the quantile frame with its `lambda_gc` and `n_variants` |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation. Every family routes through it, and the transformed column is `neglog10p` everywhere except colocalization, which needs two of them and names them `neglog10_gwas` and `neglog10_eqtl` |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
 | `BUILTIN_BACKENDS` | Constant | `src/pylocuszoom/backends/__init__.py` | The backend names shipped with the library, derived from `BackendType` so the two cannot drift; contract tests parametrize over it |
@@ -255,13 +264,12 @@ pyLocusZoom/
 │   ├── coloc_plotter.py       # Colocalization plotter
 │   ├── _data.py               # Shared p-value intake and transformation policy
 │   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
-│   ├── _regional.py           # Shared single/stacked regional composition
-│   ├── _regional_panels.py    # Regional panel value types and the drawing for each
-│   ├── _miami_renderer.py      # Miami figure composition
-│   ├── _stats_renderer.py      # PheWAS and forest figure composition
-│   ├── _coloc_renderer.py      # Colocalization figure composition
-│   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition
-│   ├── _rendering.py          # Semantic Manhattan/QQ rendering module
+│   ├── _figure.py             # FigurePlan and render_figure, the one figure model
+│   ├── _regional_panels.py    # Regional panel value types, each drawing itself
+│   ├── _miami_panels.py        # Miami request, panel, and plan builder
+│   ├── _stats_panels.py        # PheWAS and forest panels
+│   ├── _coloc_panel.py         # Colocalization panel
+│   ├── _ld_heatmap_panel.py    # Standalone LD heatmap panel
 │   ├── _manhattan_panel.py    # ManhattanPanelSpec and the one function that draws it
 │   ├── _qq_panel.py           # QQPanelSpec and the one function that draws it
 │   ├── backends/              # Pluggable rendering backends
@@ -305,7 +313,7 @@ pyLocusZoom/
 ```
 
 The `backends/` subpackage is the single point of extensibility for new
-renderers — adding a backend means writing one module that implements
+backends — adding one means writing one module that implements
 `PlotBackend` and decorating it with `@register_backend("name")`. No plotter
 class needs to change. Recombination maps are downloaded lazily at runtime by
 `recombination.ensure_recomb_maps()` and `download_canine_recombination_maps()`
@@ -374,7 +382,7 @@ and PheWAS plot.
 Two pieces of shared drawing knowledge sit above the seam rather than in each
 adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`
 returns the outline rectangles marking a SNP, in the same data coordinates the
-heatmap was drawn in, and the renderer draws them through `add_rectangle`, so no
+heatmap was drawn in, and the panel draws them through `add_rectangle`, so no
 adapter derives cell geometry. `hover.plotly_hovertemplate`
 and `hover.bokeh_tooltips` build the tooltip spec from a hover DataFrame, so the
 column-name-to-number-format heuristic has one owner.

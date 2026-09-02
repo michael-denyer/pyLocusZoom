@@ -1,15 +1,14 @@
-"""Regional panel value types and the drawing for each one.
+"""Regional panel value types, each of which draws itself.
 
 Every panel resolves its mode, its hover contract, and its layout when it is
-built, so the ``draw_*`` functions below take a prepared panel and issue
-backend primitives without probing the frame again.  The composer in
-``_regional.py`` picks the function; this module owns what it does.
+built, so each ``draw`` method issues backend primitives without probing the
+frame again.  The plotter puts the panels on one
+:class:`~._figure.FigurePlan` and ``render_figure`` draws them in order.
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
-import numpy as np
 import pandas as pd
 
 from ._plotter_utils import add_significance_line
@@ -78,15 +77,62 @@ class AssociationPanel:
     """
 
     data: pd.DataFrame
+    region: RegionConfig
     height: float
     columns: ColumnConfig
     display: DisplayConfig
+    genomewide_threshold: Optional[float]
     ld_col: Optional[str]
     lead_pos: Optional[int]
     recomb_df: Optional[pd.DataFrame]
     hover: HoverConfig
     panel_label: Optional[str] = None
     add_ld_legend: bool = False
+
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw the association scatter with its axes, overlay, and legends."""
+        df = self.data
+        columns = self.columns
+        start, end = self.region.start, self.region.end
+        _draw_association_points(backend, ax, self)
+        add_significance_line(
+            backend, ax, self.genomewide_threshold, alpha=REGIONAL_LINE_ALPHA
+        )
+        backend.set_ylabel(ax, r"$-\log_{10}$ P")
+        y_max = df["neglog10p"].max()
+        if pd.notna(y_max) and y_max > 0:
+            backend.set_ylim(ax, 0, y_max * 1.15)
+        backend.set_xlim(ax, start, end)
+
+        if (
+            self.display.snp_labels
+            and columns.rs_col in df.columns
+            and self.display.label_top_n > 0
+            and not df.empty
+            and isinstance(backend, SupportsSNPLabels)
+        ):
+            backend.add_snp_labels(
+                ax,
+                df,
+                pos_col=columns.pos_col,
+                neglog10p_col="neglog10p",
+                rs_col=columns.rs_col,
+                label_top_n=self.display.label_top_n,
+                adjust=True,
+                lead_pos=self.lead_pos,
+                region_span=end - start,
+            )
+
+        recomb_df = self.recomb_df
+        if recomb_df is not None and not recomb_df.empty:
+            render_recombination_overlay(backend, ax, recomb_df, start, end)
+
+        if self.panel_label:
+            backend.add_panel_label(ax, self.panel_label)
+        if self.add_ld_legend and self.ld_col is not None:
+            backend.add_legend(
+                ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
+            )
 
 
 @dataclass(frozen=True)
@@ -127,6 +173,45 @@ class FinemappingPanel:
             credible_sets=get_credible_sets(data, resolved) if resolved else [],
             hover=HoverConfig(pos_col="pos", extra_cols=extra_cols),
         )
+
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw the PIP line, credible-set points, and their legend."""
+        data = self.data
+        if not data.empty:
+            backend.line(
+                ax,
+                data["pos"],
+                data["pip"],
+                color=PIP_LINE_COLOR,
+                linewidth=1.5,
+                alpha=0.8,
+                zorder=1,
+            )
+            hover_builder = HoverDataBuilder(self.hover)
+            for subset, color, size, linewidth, zorder in _finemapping_groups(self):
+                if subset.empty:
+                    continue
+                backend.scatter(
+                    ax,
+                    subset["pos"],
+                    subset["pip"],
+                    colors=color,
+                    sizes=size,
+                    marker="o",
+                    edgecolor="black",
+                    linewidth=linewidth,
+                    zorder=zorder,
+                    hover_data=hover_builder.build_dataframe(subset),
+                )
+            if self.credible_sets:
+                backend.add_legend(
+                    ax,
+                    finemapping_legend_entries(self.credible_sets),
+                    loc="upper right",
+                    title="Credible sets",
+                )
+        backend.set_ylabel(ax, "PIP")
+        backend.set_ylim(ax, -0.05, 1.05)
 
 
 @dataclass(frozen=True)
@@ -179,6 +264,60 @@ class EqtlPanel:
             ),
         )
 
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw eQTL points, their legend, and the eQTL significance line."""
+        data = self.data
+        if not data.empty:
+            hover_builder = HoverDataBuilder(self.hover)
+            if self.effect_col is not None:
+                effect = data[self.effect_col]
+                for subset, marker in (
+                    (data[effect >= 0], "^"),
+                    (data[effect < 0], "v"),
+                ):
+                    if not subset.empty:
+                        backend.scatter(
+                            ax,
+                            subset["pos"],
+                            subset["neglog10p"],
+                            colors=subset[self.effect_col]
+                            .apply(get_eqtl_color)
+                            .tolist(),
+                            sizes=50,
+                            marker=marker,
+                            edgecolor="black",
+                            linewidth=0.5,
+                            zorder=2,
+                            hover_data=hover_builder.build_dataframe(subset),
+                        )
+                backend.add_legend(
+                    ax,
+                    eqtl_legend_entries(),
+                    loc="upper right",
+                    title="eQTL effect",
+                )
+            else:
+                label = f"eQTL ({self.gene})" if self.gene else "eQTL"
+                backend.scatter(
+                    ax,
+                    data["pos"],
+                    data["neglog10p"],
+                    colors="#FF6B6B",
+                    sizes=60,
+                    marker="D",
+                    edgecolor="black",
+                    linewidth=0.5,
+                    zorder=2,
+                    hover_data=hover_builder.build_dataframe(data),
+                )
+                backend.add_legend(
+                    ax,
+                    [LegendEntry(label, "#FF6B6B", marker="D")],
+                    loc="upper right",
+                )
+        backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
+        add_significance_line(backend, ax, self.threshold, alpha=REGIONAL_LINE_ALPHA)
+
 
 @dataclass(frozen=True)
 class GenePanel:
@@ -191,6 +330,7 @@ class GenePanel:
     genes: pd.DataFrame
     rows: List[int]
     exons: Optional[pd.DataFrame]
+    region: RegionConfig
     height: float
 
     @classmethod
@@ -214,8 +354,94 @@ class GenePanel:
             genes=genes,
             rows=rows,
             exons=exons,
+            region=region,
             height=1.0 + max(rows, default=0) * 0.5,
         )
+
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw gene bodies, exons, strand arrows, and labels for the region."""
+        start, end = self.region.start, self.region.end
+
+        backend.set_xlim(ax, start, end)
+        backend.set_ylabel(ax, "", fontsize=10)
+        backend.hide_yaxis(ax)
+
+        if self.genes.empty:
+            backend.set_ylim(ax, 0, 1)
+            backend.add_text(
+                ax,
+                (start + end) / 2,
+                0.5,
+                "No genes",
+                fontsize=9,
+                ha="center",
+                va="center",
+                color="grey",
+            )
+            return
+
+        max_row = max(self.rows, default=0)
+        bottom_margin = EXON_HEIGHT / 2 + 0.02
+        backend.set_ylim(ax, -bottom_margin, max_row * ROW_HEIGHT + GENE_AREA + 0.05)
+
+        region_exons = self.exons
+        region_width = end - start
+
+        for idx, (_, gene) in enumerate(self.genes.iterrows()):
+            gene_start = max(int(gene["start"]), start)
+            gene_end = min(int(gene["end"]), end)
+            gene_name = gene.get("gene_name", "")
+
+            raw_strand = gene.get("strand")
+            strand = raw_strand if raw_strand in ("+", "-") else None
+            gene_col = STRAND_COLORS.get(strand, STRAND_COLORS[None])
+
+            y_gene = self.rows[idx] * ROW_HEIGHT + 0.05
+
+            gene_exons = None
+            if region_exons is not None and not region_exons.empty and gene_name:
+                gene_exons = region_exons[region_exons["gene_name"] == gene_name].copy()
+
+            if gene_exons is not None and not gene_exons.empty:
+                _gene_band(
+                    backend,
+                    ax,
+                    (gene_start, gene_end),
+                    y_gene,
+                    INTRON_HEIGHT,
+                    gene_col,
+                    1,
+                )
+                for _, exon in gene_exons.iterrows():
+                    span = (max(int(exon["start"]), start), min(int(exon["end"]), end))
+                    _gene_band(backend, ax, span, y_gene, EXON_HEIGHT, gene_col, 2)
+            else:
+                _gene_band(
+                    backend,
+                    ax,
+                    (gene_start, gene_end),
+                    y_gene,
+                    EXON_HEIGHT,
+                    gene_col,
+                    2,
+                )
+
+            if strand is not None:
+                _draw_strand_arrows(
+                    backend, ax, strand, gene_start, gene_end, y_gene, region_width
+                )
+
+            if gene_name:
+                backend.add_text(
+                    ax,
+                    (gene_start + gene_end) / 2,
+                    y_gene + EXON_HEIGHT / 2 + 0.01,
+                    gene_name,
+                    fontsize=9,
+                    ha="center",
+                    va="bottom",
+                    color="#000000",
+                )
 
 
 @dataclass(frozen=True)
@@ -223,6 +449,7 @@ class HeatmapPanel:
     """Prepared regional LD heatmap panel."""
 
     matrix: pd.DataFrame
+    region: RegionConfig
     height: float
     x_positions: List[int]
     snp_ids: List[str]
@@ -272,12 +499,49 @@ class HeatmapPanel:
                 lead_snp_id = lead_row[rs_col].iloc[0]
         return cls(
             matrix=ld_matrix.iloc[indices, indices].copy(),
+            region=region,
             height=height,
             x_positions=x_positions,
             snp_ids=kept_ids,
             metric=metric,
             lead_snp_id=lead_snp_id,
         )
+
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw the lower-triangle LD heatmap and its lead-SNP crosshair."""
+        n_snps = len(self.snp_ids)
+        if n_snps < 2:
+            logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")
+            return
+        mappable = backend.add_heatmap(
+            ax,
+            data=lower_triangle(self.matrix.values),
+            x_coords=self.x_positions,
+            y_coords=list(range(n_snps)),
+            cmap_colors=LD_HEATMAP_COLORS,
+            vmin=0.0,
+            vmax=1.0,
+        )
+        backend.add_colorbar(ax, mappable, label="R²" if self.metric == "r2" else "D'")
+        if self.lead_snp_id is not None and self.lead_snp_id in self.snp_ids:
+            rects = heatmap_highlight_rects(
+                self.snp_ids.index(self.lead_snp_id),
+                self.x_positions,
+                list(range(n_snps)),
+            )
+            for x0, y0, width, height in rects:
+                backend.add_rectangle(
+                    ax,
+                    (x0, y0),
+                    width,
+                    height,
+                    facecolor=None,
+                    edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
+                    linewidth=2,
+                    zorder=10,
+                )
+        backend.set_xlim(ax, self.region.start, self.region.end)
+        backend.hide_yaxis(ax)
 
 
 RegionalPanel = Union[
@@ -287,67 +551,6 @@ RegionalPanel = Union[
     GenePanel,
     HeatmapPanel,
 ]
-
-
-@dataclass(frozen=True)
-class RegionalFigurePlan:
-    """Complete ordered plan for one regional figure."""
-
-    chrom: int | str
-    start: int
-    end: int
-    panels: Sequence[RegionalPanel]
-    figsize: Tuple[float, float]
-    hspace: float = 0.1
-
-
-def draw_association(
-    backend: PlotBackend,
-    ax: Any,
-    panel: AssociationPanel,
-    plan: RegionalFigurePlan,
-    genomewide_threshold: float,
-) -> None:
-    """Draw the association scatter with its axes, overlay, and legends."""
-    df = panel.data
-    columns = panel.columns
-    _draw_association_points(backend, ax, panel)
-    add_significance_line(backend, ax, genomewide_threshold, alpha=REGIONAL_LINE_ALPHA)
-    backend.set_ylabel(ax, r"$-\log_{10}$ P")
-    y_max = df["neglog10p"].max()
-    if pd.notna(y_max) and y_max > 0:
-        backend.set_ylim(ax, 0, y_max * 1.15)
-    backend.set_xlim(ax, plan.start, plan.end)
-
-    if (
-        panel.display.snp_labels
-        and columns.rs_col in df.columns
-        and panel.display.label_top_n > 0
-        and not df.empty
-        and isinstance(backend, SupportsSNPLabels)
-    ):
-        backend.add_snp_labels(
-            ax,
-            df,
-            pos_col=columns.pos_col,
-            neglog10p_col="neglog10p",
-            rs_col=columns.rs_col,
-            label_top_n=panel.display.label_top_n,
-            adjust=True,
-            lead_pos=panel.lead_pos,
-            region_span=plan.end - plan.start,
-        )
-
-    recomb_df = panel.recomb_df
-    if recomb_df is not None and not recomb_df.empty:
-        render_recombination_overlay(backend, ax, recomb_df, plan.start, plan.end)
-
-    if panel.panel_label:
-        backend.add_panel_label(ax, panel.panel_label)
-    if panel.add_ld_legend and panel.ld_col is not None:
-        backend.add_legend(
-            ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
-        )
 
 
 def _draw_association_points(
@@ -432,221 +635,6 @@ def _finemapping_groups(
         )
     )
     return groups
-
-
-def draw_finemapping(backend: PlotBackend, ax: Any, panel: FinemappingPanel) -> None:
-    """Draw the PIP line, credible-set points, and their legend."""
-    data = panel.data
-    if not data.empty:
-        backend.line(
-            ax,
-            data["pos"],
-            data["pip"],
-            color=PIP_LINE_COLOR,
-            linewidth=1.5,
-            alpha=0.8,
-            zorder=1,
-        )
-        hover_builder = HoverDataBuilder(panel.hover)
-        for subset, color, size, linewidth, zorder in _finemapping_groups(panel):
-            if subset.empty:
-                continue
-            backend.scatter(
-                ax,
-                subset["pos"],
-                subset["pip"],
-                colors=color,
-                sizes=size,
-                marker="o",
-                edgecolor="black",
-                linewidth=linewidth,
-                zorder=zorder,
-                hover_data=hover_builder.build_dataframe(subset),
-            )
-        if panel.credible_sets:
-            backend.add_legend(
-                ax,
-                finemapping_legend_entries(panel.credible_sets),
-                loc="upper right",
-                title="Credible sets",
-            )
-    backend.set_ylabel(ax, "PIP")
-    backend.set_ylim(ax, -0.05, 1.05)
-
-
-def draw_eqtl(backend: PlotBackend, ax: Any, panel: EqtlPanel) -> None:
-    """Draw eQTL points, their legend, and the eQTL significance line."""
-    data = panel.data
-    if not data.empty:
-        hover_builder = HoverDataBuilder(panel.hover)
-        if panel.effect_col is not None:
-            effect = data[panel.effect_col]
-            for subset, marker in (
-                (data[effect >= 0], "^"),
-                (data[effect < 0], "v"),
-            ):
-                if not subset.empty:
-                    backend.scatter(
-                        ax,
-                        subset["pos"],
-                        subset["neglog10p"],
-                        colors=subset[panel.effect_col].apply(get_eqtl_color).tolist(),
-                        sizes=50,
-                        marker=marker,
-                        edgecolor="black",
-                        linewidth=0.5,
-                        zorder=2,
-                        hover_data=hover_builder.build_dataframe(subset),
-                    )
-            backend.add_legend(
-                ax,
-                eqtl_legend_entries(),
-                loc="upper right",
-                title="eQTL effect",
-            )
-        else:
-            label = f"eQTL ({panel.gene})" if panel.gene else "eQTL"
-            backend.scatter(
-                ax,
-                data["pos"],
-                data["neglog10p"],
-                colors="#FF6B6B",
-                sizes=60,
-                marker="D",
-                edgecolor="black",
-                linewidth=0.5,
-                zorder=2,
-                hover_data=hover_builder.build_dataframe(data),
-            )
-            backend.add_legend(
-                ax,
-                [LegendEntry(label, "#FF6B6B", marker="D")],
-                loc="upper right",
-            )
-    backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
-    backend.axhline(
-        ax,
-        y=-np.log10(panel.threshold),
-        color="red",
-        linestyle="--",
-        linewidth=1,
-        alpha=REGIONAL_LINE_ALPHA,
-    )
-
-
-def draw_heatmap(
-    backend: PlotBackend, ax: Any, panel: HeatmapPanel, plan: RegionalFigurePlan
-) -> None:
-    """Draw the lower-triangle LD heatmap and its lead-SNP crosshair."""
-    n_snps = len(panel.snp_ids)
-    if n_snps < 2:
-        logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")
-        return
-    mappable = backend.add_heatmap(
-        ax,
-        data=lower_triangle(panel.matrix.values),
-        x_coords=panel.x_positions,
-        y_coords=list(range(n_snps)),
-        cmap_colors=LD_HEATMAP_COLORS,
-        vmin=0.0,
-        vmax=1.0,
-    )
-    backend.add_colorbar(ax, mappable, label="R²" if panel.metric == "r2" else "D'")
-    if panel.lead_snp_id is not None and panel.lead_snp_id in panel.snp_ids:
-        rects = heatmap_highlight_rects(
-            panel.snp_ids.index(panel.lead_snp_id),
-            panel.x_positions,
-            list(range(n_snps)),
-        )
-        for x0, y0, width, height in rects:
-            backend.add_rectangle(
-                ax,
-                (x0, y0),
-                width,
-                height,
-                facecolor=None,
-                edgecolor=LEAD_SNP_HIGHLIGHT_COLOR,
-                linewidth=2,
-                zorder=10,
-            )
-    backend.set_xlim(ax, plan.start, plan.end)
-    backend.hide_yaxis(ax)
-
-
-def draw_genes(
-    backend: PlotBackend, ax: Any, panel: GenePanel, plan: RegionalFigurePlan
-) -> None:
-    """Draw gene bodies, exons, strand arrows, and labels for the region."""
-    start, end = plan.start, plan.end
-
-    backend.set_xlim(ax, start, end)
-    backend.set_ylabel(ax, "", fontsize=10)
-    backend.hide_yaxis(ax)
-
-    if panel.genes.empty:
-        backend.set_ylim(ax, 0, 1)
-        backend.add_text(
-            ax,
-            (start + end) / 2,
-            0.5,
-            "No genes",
-            fontsize=9,
-            ha="center",
-            va="center",
-            color="grey",
-        )
-        return
-
-    max_row = max(panel.rows, default=0)
-    bottom_margin = EXON_HEIGHT / 2 + 0.02
-    backend.set_ylim(ax, -bottom_margin, max_row * ROW_HEIGHT + GENE_AREA + 0.05)
-
-    region_exons = panel.exons
-    region_width = end - start
-
-    for idx, (_, gene) in enumerate(panel.genes.iterrows()):
-        gene_start = max(int(gene["start"]), start)
-        gene_end = min(int(gene["end"]), end)
-        gene_name = gene.get("gene_name", "")
-
-        raw_strand = gene.get("strand")
-        strand = raw_strand if raw_strand in ("+", "-") else None
-        gene_col = STRAND_COLORS.get(strand, STRAND_COLORS[None])
-
-        y_gene = panel.rows[idx] * ROW_HEIGHT + 0.05
-
-        gene_exons = None
-        if region_exons is not None and not region_exons.empty and gene_name:
-            gene_exons = region_exons[region_exons["gene_name"] == gene_name].copy()
-
-        if gene_exons is not None and not gene_exons.empty:
-            _gene_band(
-                backend, ax, (gene_start, gene_end), y_gene, INTRON_HEIGHT, gene_col, 1
-            )
-            for _, exon in gene_exons.iterrows():
-                span = (max(int(exon["start"]), start), min(int(exon["end"]), end))
-                _gene_band(backend, ax, span, y_gene, EXON_HEIGHT, gene_col, 2)
-        else:
-            _gene_band(
-                backend, ax, (gene_start, gene_end), y_gene, EXON_HEIGHT, gene_col, 2
-            )
-
-        if strand is not None:
-            _draw_strand_arrows(
-                backend, ax, strand, gene_start, gene_end, y_gene, region_width
-            )
-
-        if gene_name:
-            backend.add_text(
-                ax,
-                (gene_start + gene_end) / 2,
-                y_gene + EXON_HEIGHT / 2 + 0.01,
-                gene_name,
-                fontsize=9,
-                ha="center",
-                va="bottom",
-                color="#000000",
-            )
 
 
 def _gene_band(

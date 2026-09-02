@@ -3,7 +3,7 @@
 Internal module - not part of public API.
 """
 
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 
@@ -62,24 +62,26 @@ def add_significance_line(
     ax: Any,
     threshold: Optional[float],
     *,
+    axis: Literal["x", "y"] = "y",
+    color: str = SIGNIFICANCE_LINE_COLOR,
     alpha: float = 1.0,
 ) -> None:
-    """Add genome-wide significance threshold line.
+    """Draw the dashed significance line at ``-log10(threshold)``.
 
     Args:
         backend: Plot backend instance.
         ax: Axes object from backend.
         threshold: P-value threshold (e.g., 5e-8). None to skip.
+        axis: The axis the p-value is plotted on: ``"y"`` draws a horizontal
+            line, ``"x"`` a vertical one.
+        color: Line colour.
         alpha: Opacity of the line.
     """
     if threshold is None:
         return
-    backend.axhline(
-        ax,
-        y=-np.log10(threshold),
-        color=SIGNIFICANCE_LINE_COLOR,
-        linestyle="--",
-        linewidth=1,
-        alpha=alpha,
-        zorder=1,
-    )
+    value = -np.log10(threshold)
+    style = dict(color=color, linestyle="--", linewidth=1, alpha=alpha, zorder=1)
+    if axis == "x":
+        backend.axvline(ax, x=value, **style)
+    else:
+        backend.axhline(ax, y=value, **style)

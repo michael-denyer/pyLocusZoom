@@ -138,9 +138,9 @@ class TestPrepareManhattanData:
 
     def test_adds_neglog10p_column(self, manhattan_snp_df):
         """Should compute -log10(p) for plotting."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
-        result = prepare_manhattan_data(manhattan_snp_df, species="human")
+        result = prepare_manhattan_frames([manhattan_snp_df], species="human")[0].frame
         assert "neglog10p" in result.columns
         # Check calculation for first row
         expected = -np.log10(0.05)
@@ -148,9 +148,9 @@ class TestPrepareManhattanData:
 
     def test_adds_cumulative_position(self, manhattan_snp_df):
         """Should compute cumulative x positions across chromosomes."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
-        result = prepare_manhattan_data(manhattan_snp_df, species="human")
+        result = prepare_manhattan_frames([manhattan_snp_df], species="human")[0].frame
         assert "_cumulative_pos" in result.columns
         # Positions should be monotonically increasing when sorted
         sorted_result = result.sort_values("_cumulative_pos")
@@ -158,19 +158,19 @@ class TestPrepareManhattanData:
 
     def test_adds_color_column(self, manhattan_snp_df):
         """Should assign colors to each variant."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
-        result = prepare_manhattan_data(manhattan_snp_df, species="human")
+        result = prepare_manhattan_frames([manhattan_snp_df], species="human")[0].frame
         assert "_color" in result.columns
         assert all(c.startswith("#") for c in result["_color"])
 
-    def test_stores_chrom_centers_in_attrs(self, manhattan_snp_df):
+    def test_carries_chrom_centers_in_layout(self, manhattan_snp_df):
         """Should store chromosome center positions for axis labels."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
-        result = prepare_manhattan_data(manhattan_snp_df, species="human")
-        assert "layout" in result.attrs
-        centers = result.attrs["layout"].centers
+        centers = prepare_manhattan_frames([manhattan_snp_df], species="human")[
+            0
+        ].layout.centers
         assert "1" in centers
         assert "2" in centers
 
@@ -189,9 +189,10 @@ class TestPrepareManhattanData:
             [first, second], species="human"
         )
 
-        assert prepared_first.attrs["layout"] is prepared_second.attrs["layout"]
-        chr2_first = prepared_first.loc[prepared_first["_chrom_str"] == "2"]
-        chr2_second = prepared_second.loc[prepared_second["_chrom_str"] == "2"]
+        assert prepared_first.layout is prepared_second.layout
+        first_frame, second_frame = prepared_first.frame, prepared_second.frame
+        chr2_first = first_frame.loc[first_frame["_chrom_str"] == "2"]
+        chr2_second = second_frame.loc[second_frame["_chrom_str"] == "2"]
         assert (
             chr2_first["_cumulative_pos"].iloc[0]
             == chr2_second["_cumulative_pos"].iloc[0]
@@ -199,15 +200,15 @@ class TestPrepareManhattanData:
 
     def test_validates_required_columns(self):
         """Should raise on missing required columns."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame({"wrong_col": [1, 2, 3]})
         with pytest.raises(ValueError, match="not found"):
-            prepare_manhattan_data(df, species="human")
+            prepare_manhattan_frames([df], species="human")
 
     def test_handles_integer_chromosomes(self):
         """Should handle int chromosome column."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -216,12 +217,12 @@ class TestPrepareManhattanData:
                 "p": [0.05, 0.01, 0.001],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         assert len(result) == 3
 
     def test_handles_unknown_chromosomes(self):
         """Unknown chromosomes should be appended at end."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -230,7 +231,7 @@ class TestPrepareManhattanData:
                 "p": [0.05, 0.01],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         # Unknown chromosome should have larger cumulative position
         chrom1_pos = result[result["_chrom_str"] == "1"]["_cumulative_pos"].iloc[0]
         unknown_pos = result[result["_chrom_str"] == "UNKNOWN"]["_cumulative_pos"].iloc[
@@ -244,7 +245,7 @@ class TestCumulativePositionVectorization:
 
     def test_cumulative_positions_correct_across_chromosomes(self):
         """Chromosome 2 positions should be offset by chromosome 1 max + 1Mb gap."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -253,7 +254,7 @@ class TestCumulativePositionVectorization:
                 "p": [0.05, 0.01, 0.001, 1e-8],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
 
         # Chromosome 1 offset is 0
         chrom1 = result[result["_chrom_str"] == "1"].sort_values("pos")
@@ -268,7 +269,7 @@ class TestCumulativePositionVectorization:
 
     def test_no_nan_in_cumulative_pos(self):
         """Cumulative positions should never contain NaN when chromosomes exist in data."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -277,7 +278,7 @@ class TestCumulativePositionVectorization:
                 "p": [0.05, 0.01, 0.001, 1e-8],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         assert not result["_cumulative_pos"].isna().any(), (
             "Found NaN in _cumulative_pos"
         )
@@ -302,7 +303,7 @@ class TestPrepareCategoricalData:
 
         result = prepare_categorical_data(
             sample_categorical_df, category_col="phenotype"
-        )
+        ).frame
         assert "neglog10p" in result.columns
 
     def test_adds_x_position(self, sample_categorical_df):
@@ -311,7 +312,7 @@ class TestPrepareCategoricalData:
 
         result = prepare_categorical_data(
             sample_categorical_df, category_col="phenotype"
-        )
+        ).frame
         assert "_x_pos" in result.columns
 
     def test_adds_color(self, sample_categorical_df):
@@ -320,7 +321,7 @@ class TestPrepareCategoricalData:
 
         result = prepare_categorical_data(
             sample_categorical_df, category_col="phenotype"
-        )
+        ).frame
         assert "_color" in result.columns
 
     def test_validates_category_column(self):
@@ -340,7 +341,7 @@ class TestPrepareCategoricalData:
             category_col="phenotype",
             category_order=["BMI", "Weight", "Height"],
         )
-        assert result.attrs["layout"].order == ("BMI", "Weight", "Height")
+        assert result.layout.order == ("BMI", "Weight", "Height")
 
 
 # =============================================================================
@@ -379,7 +380,7 @@ class TestInvalidPValueFiltering:
 
     def test_negative_p_values_dropped(self):
         """Negative p-values should be dropped from Manhattan data."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -388,14 +389,14 @@ class TestInvalidPValueFiltering:
                 "p": [0.5, -0.1, 0.01],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         assert len(result) == 2
         assert set(result["pos"].tolist()) == {100, 300}
         assert (result["neglog10p"] < 300).all()
 
     def test_nan_p_values_dropped(self):
         """NaN p-values should be dropped from Manhattan data."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -404,13 +405,13 @@ class TestInvalidPValueFiltering:
                 "p": [0.5, float("nan"), 0.01],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         assert len(result) == 2
         assert set(result["pos"].tolist()) == {100, 300}
 
     def test_p_values_greater_than_one_dropped(self):
         """P-values > 1 should be dropped from Manhattan data."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -419,7 +420,7 @@ class TestInvalidPValueFiltering:
                 "p": [0.5, 1.5, 0.01],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         assert len(result) == 2
         assert set(result["pos"].tolist()) == {100, 300}
 
@@ -433,13 +434,13 @@ class TestInvalidPValueFiltering:
                 "p": [0.5, -0.1, 0.01],
             }
         )
-        result = prepare_categorical_data(df, category_col="category")
+        result = prepare_categorical_data(df, category_col="category").frame
         assert len(result) == 2
         assert set(result["p"].tolist()) == {0.5, 0.01}
 
     def test_zero_p_value_not_dropped(self):
         """P-value of exactly 0 should not be dropped by the validity filter."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -448,14 +449,14 @@ class TestInvalidPValueFiltering:
                 "p": [0.0],
             }
         )
-        result = prepare_manhattan_data(df, species="human")
+        result = prepare_manhattan_frames([df], species="human")[0].frame
         # 0 passes the [0, 1] filter; -log10(clip(0, lower=1e-300)) = 300.0
         assert len(result) == 1
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
 
     def test_all_invalid_p_values_raises(self):
         """All-invalid p-values should raise ValueError, not produce a blank plot."""
-        from pylocuszoom.manhattan import prepare_manhattan_data
+        from pylocuszoom.manhattan import prepare_manhattan_frames
 
         df = pd.DataFrame(
             {
@@ -465,7 +466,7 @@ class TestInvalidPValueFiltering:
             }
         )
         with pytest.raises(ValueError, match="All rows have invalid p-values"):
-            prepare_manhattan_data(df, species="human")
+            prepare_manhattan_frames([df], species="human")
 
     def test_all_invalid_categorical_p_values_raises(self):
         """All-invalid p-values in categorical data should raise ValueError."""
@@ -494,7 +495,7 @@ class TestPrepareCategoricalDataIntegerCategories:
                 "p": [0.01, 0.05, 0.1, 0.001, 0.5],
             }
         )
-        result = prepare_categorical_data(df, category_col="cat")
+        result = prepare_categorical_data(df, category_col="cat").frame
         assert len(result) == 5
         assert "neglog10p" in result.columns
 
@@ -521,7 +522,9 @@ class TestCategoricalManhattanNaNHandling:
 
         # This should not raise
         try:
-            result = prepare_categorical_data(df, category_col="phenotype", p_col="p")
+            result = prepare_categorical_data(
+                df, category_col="phenotype", p_col="p"
+            ).frame
         except TypeError as e:
             pytest.fail(f"prepare_categorical_data raised TypeError on NaN values: {e}")
 

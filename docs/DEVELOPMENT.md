@@ -64,7 +64,7 @@ The common development commands are:
 | `uv run pre-commit run --all-files` | Run the full pre-commit suite against every file in the repo. |
 | `uv build` | Build the wheel and sdist via hatchling into `dist/`. |
 | `uv run python examples/generate_example_plots.py` | Regenerate example plots shown in the README. |
-| `scripts/example_diff.sh [--keep]` | Regenerate the examples and list the exports whose content changed after id normalisation; the equivalence check for backend and renderer changes. |
+| `scripts/example_diff.sh [--keep]` | Regenerate the examples and list the exports whose content changed after id normalisation; the equivalence check for backend and panel changes. |
 | `uv lock` | Refresh `uv.lock` after changing dependencies in `pyproject.toml`. |
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full pre-commit and pre-PR checklists.
@@ -100,7 +100,7 @@ Use **Google-style docstrings** for all public functions and classes. Key conven
 - Include an `Example` section for non-trivial public APIs.
 - Omit sections (`Raises`, `Example`) that do not apply.
 
-For a concrete example, see `prepare_manhattan_data` in
+For a concrete example, see `prepare_manhattan_frames` in
 [`src/pylocuszoom/manhattan.py`](../src/pylocuszoom/manhattan.py).
 
 ### Pre-commit Hooks
