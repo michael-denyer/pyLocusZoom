@@ -77,3 +77,18 @@ class TestAddSignificanceLine:
 
         add_significance_line(backend, ax, None)
         assert ax.get_lines() == [], "no lines should be drawn"
+
+    def test_vertical_line_on_the_x_axis(self):
+        """axis="x" draws the same dashed line vertically, in the given colour."""
+        backend = MatplotlibBackend()
+        fig, ax = plt.subplots()
+
+        add_significance_line(backend, ax, 1e-5, axis="x", color="grey", alpha=0.7)
+
+        (line,) = ax.get_lines()
+        x_data = line.get_xdata()
+        assert x_data[0] == pytest.approx(5.0)
+        assert x_data[-1] == pytest.approx(5.0)
+        assert line.get_color() == "grey"
+        assert line.get_linestyle() == "--"
+        assert line.get_alpha() == pytest.approx(0.7)

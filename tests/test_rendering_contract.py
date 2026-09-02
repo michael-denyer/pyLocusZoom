@@ -301,9 +301,9 @@ def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
     assert "set_title" not in names
 
 
-def test_stats_renderer_owns_phewas_panel_policy():
+def test_phewas_panel_owns_its_policy():
     """PheWAS grouping, the significance line, and axis policy live above the seam."""
-    from pylocuszoom._stats_renderer import StatsRenderer
+    from pylocuszoom._stats_panels import PhewasPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -315,7 +315,7 @@ def test_stats_renderer_owns_phewas_panel_policy():
         }
     )
 
-    StatsRenderer(backend).render_phewas(
+    panel = PhewasPanel.from_frame(
         df,
         variant_id="rs1",
         phenotype_col="phenotype",
@@ -323,8 +323,8 @@ def test_stats_renderer_owns_phewas_panel_policy():
         category_col="category",
         effect_col=None,
         significance_threshold=5e-8,
-        figsize=(10.0, 8.0),
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(10.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -335,8 +335,8 @@ def test_stats_renderer_owns_phewas_panel_policy():
     assert "set_yticks" in names
 
 
-def test_stats_renderer_draws_no_significance_line_for_none():
-    from pylocuszoom._stats_renderer import StatsRenderer
+def test_phewas_panel_draws_no_significance_line_for_none():
+    from pylocuszoom._stats_panels import PhewasPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -348,7 +348,7 @@ def test_stats_renderer_draws_no_significance_line_for_none():
         }
     )
 
-    StatsRenderer(backend).render_phewas(
+    panel = PhewasPanel.from_frame(
         df,
         variant_id="rs1",
         phenotype_col="phenotype",
@@ -356,15 +356,15 @@ def test_stats_renderer_draws_no_significance_line_for_none():
         category_col="category",
         effect_col=None,
         significance_threshold=None,
-        figsize=(10.0, 8.0),
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(10.0, 8.0)))
 
     assert "axvline" not in [name for name, _, _ in backend.calls]
 
 
-def test_stats_renderer_owns_forest_panel_policy():
+def test_forest_panel_owns_its_policy():
     """Forest error bars, markers, null line, and x-padding live above the seam."""
-    from pylocuszoom._stats_renderer import StatsRenderer
+    from pylocuszoom._stats_panels import ForestPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -376,7 +376,7 @@ def test_stats_renderer_owns_forest_panel_policy():
         }
     )
 
-    StatsRenderer(backend).render_forest(
+    panel = ForestPanel.from_frame(
         df,
         variant_id="rs1",
         study_col="study",
@@ -386,8 +386,8 @@ def test_stats_renderer_owns_forest_panel_policy():
         weight_col=None,
         null_value=0.0,
         effect_label="Beta",
-        figsize=(8.0, 6.0),
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 6.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
