@@ -8,7 +8,7 @@ from pylocuszoom.utils import ValidationError
 
 def test_validate_phewas_df_valid():
     """Test validation passes for valid PheWAS DataFrame."""
-    from pylocuszoom.phewas import validate_phewas_df
+    from pylocuszoom.schemas import validate_phewas_df
 
     df = pd.DataFrame(
         {
@@ -23,7 +23,7 @@ def test_validate_phewas_df_valid():
 
 def test_validate_phewas_df_missing_column():
     """Test validation fails for missing required column."""
-    from pylocuszoom.phewas import validate_phewas_df
+    from pylocuszoom.schemas import validate_phewas_df
 
     df = pd.DataFrame(
         {
@@ -37,7 +37,7 @@ def test_validate_phewas_df_missing_column():
 
 def test_validate_phewas_df_optional_effect():
     """Test validation allows optional effect_size column."""
-    from pylocuszoom.phewas import validate_phewas_df
+    from pylocuszoom.schemas import validate_phewas_df
 
     df = pd.DataFrame(
         {

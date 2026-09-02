@@ -8,7 +8,7 @@ from pylocuszoom.utils import ValidationError
 
 def test_validate_forest_df_valid():
     """Test validation passes for valid forest plot DataFrame."""
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {
@@ -24,7 +24,7 @@ def test_validate_forest_df_valid():
 
 def test_validate_forest_df_missing_column():
     """Test validation fails for missing required column."""
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {
@@ -39,7 +39,7 @@ def test_validate_forest_df_missing_column():
 
 def test_validate_forest_df_with_weight():
     """Test validation allows optional weight column."""
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {
@@ -59,7 +59,7 @@ def test_validate_forest_df_ci_lower_gt_effect():
 
     This would produce negative error bar lengths on the lower side.
     """
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {
@@ -78,7 +78,7 @@ def test_validate_forest_df_effect_gt_ci_upper():
 
     This would produce negative error bar lengths on the upper side.
     """
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {
@@ -97,7 +97,7 @@ def test_validate_forest_df_ci_lower_gt_ci_upper():
 
     Completely inverted interval - no valid visualization.
     """
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {
@@ -117,7 +117,7 @@ def test_validate_forest_df_non_numeric_effect():
     Ordering comparisons run after the dtype check, so a text column would
     otherwise surface as a bare TypeError from pandas.
     """
-    from pylocuszoom.forest import validate_forest_df
+    from pylocuszoom.schemas import validate_forest_df
 
     df = pd.DataFrame(
         {

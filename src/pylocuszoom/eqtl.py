@@ -11,8 +11,9 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
+from .schemas import Family, Tier, spec
 from .utils import filter_by_region
-from .validation import ColumnSpec, check
+from .validation import check
 
 
 def validate_eqtl_df(
@@ -30,15 +31,7 @@ def validate_eqtl_df(
     Raises:
         EQTLValidationError: If required columns are missing.
     """
-    check(
-        df,
-        ColumnSpec(
-            name="eQTL DataFrame",
-            required=(pos_col, p_col),
-            numeric=(p_col,),
-            error_class=EQTLValidationError,
-        ),
-    )
+    check(df, spec(Family.EQTL, Tier.PLOT, pos_col=pos_col, p_col=p_col))
 
 
 def filter_eqtl_by_gene(

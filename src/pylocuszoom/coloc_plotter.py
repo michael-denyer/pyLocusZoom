@@ -19,7 +19,6 @@ from ._plotter_utils import (
     resolve_threshold,
 )
 from .backends import BackendType, get_backend
-from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
 from .colors import (
     EFFECT_CONGRUENT_COLOR,
     EFFECT_INCONGRUENT_COLOR,
@@ -27,6 +26,7 @@ from .colors import (
     get_ld_color,
 )
 from .config import ColocConfig
+from .schemas import validate_coloc_df
 
 
 def _resolve_merged_column(
@@ -318,14 +318,16 @@ class ColocPlotter:
             h4_posterior=h4_posterior,
             figsize=figsize,
         )
-        validate_coloc_gwas_df(
+        validate_coloc_df(
             gwas_df,
+            "GWAS DataFrame",
             config.pos_col,
             config.gwas_p_col,
             config.rs_col,
         )
-        validate_coloc_eqtl_df(
+        validate_coloc_df(
             eqtl_df,
+            "eQTL DataFrame",
             config.pos_col,
             config.eqtl_p_col,
             config.rs_col,

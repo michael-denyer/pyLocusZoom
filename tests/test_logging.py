@@ -352,7 +352,7 @@ class TestSpecializedExceptionsInUse:
 
     def test_phewas_validation_raises_phewas_error(self):
         """validate_phewas_df raises PheWASValidationError, not generic ValidationError."""
-        from pylocuszoom.phewas import validate_phewas_df
+        from pylocuszoom.schemas import validate_phewas_df
 
         df = pd.DataFrame({"wrong_col": [1]})
         with pytest.raises(PheWASValidationError):
@@ -360,7 +360,7 @@ class TestSpecializedExceptionsInUse:
 
     def test_phewas_error_also_caught_as_validation_error(self):
         """PheWAS error is still catchable as ValidationError (backward compat)."""
-        from pylocuszoom.phewas import validate_phewas_df
+        from pylocuszoom.schemas import validate_phewas_df
 
         df = pd.DataFrame({"wrong_col": [1]})
         with pytest.raises(ValidationError):
@@ -368,7 +368,7 @@ class TestSpecializedExceptionsInUse:
 
     def test_forest_validation_raises_forest_error(self):
         """validate_forest_df raises ForestValidationError, not generic ValidationError."""
-        from pylocuszoom.forest import validate_forest_df
+        from pylocuszoom.schemas import validate_forest_df
 
         df = pd.DataFrame({"wrong_col": [1]})
         with pytest.raises(ForestValidationError):
@@ -376,7 +376,7 @@ class TestSpecializedExceptionsInUse:
 
     def test_forest_error_also_caught_as_validation_error(self):
         """Forest error is still catchable as ValidationError (backward compat)."""
-        from pylocuszoom.forest import validate_forest_df
+        from pylocuszoom.schemas import validate_forest_df
 
         df = pd.DataFrame({"wrong_col": [1]})
         with pytest.raises(ValidationError):

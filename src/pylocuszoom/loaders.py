@@ -56,8 +56,8 @@ from typing import Any, Optional, Union
 import pandas as pd
 
 from .logging import logger
-from .schemas import EQTL_SPEC, FINEMAPPING_SPEC, GENES_SPEC
-from .validation import ColumnSpec, check, gwas_spec
+from .schemas import Family, Tier, spec
+from .validation import ColumnSpec, check
 
 # =============================================================================
 # Table-driven loader engine
@@ -195,7 +195,9 @@ def _load_tabular(
 
 def _gwas_schema(out_cols: dict[str, str]) -> ColumnSpec:
     """Strict GWAS contract over the caller's position/p-value columns."""
-    return gwas_spec(out_cols["pos_col"], out_cols["p_col"], strict=True)
+    return spec(
+        Family.GWAS, Tier.LOAD, pos_col=out_cols["pos_col"], p_col=out_cols["p_col"]
+    )
 
 
 # =============================================================================
@@ -413,7 +415,7 @@ _GTEX_SPEC = LoaderSpec(
     },
     transform=_gtex_pos,
     gene_filter="contains",
-    schema=lambda out_cols: EQTL_SPEC,
+    schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
 )
 
 
@@ -444,7 +446,7 @@ _EQTL_CATALOGUE_SPEC = LoaderSpec(
         "chromosome": "chr",
     },
     gene_filter="contains",
-    schema=lambda out_cols: EQTL_SPEC,
+    schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
 )
 
 
@@ -471,7 +473,7 @@ _MATRIXEQTL_SPEC = LoaderSpec(
         "t-stat": "t_stat",
     },
     gene_filter="exact",
-    schema=lambda out_cols: EQTL_SPEC,
+    schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
     # MatrixEQTL carries no position; callers merge a SNP annotation to add it.
     schema_requires=("pos",),
 )
@@ -515,7 +517,7 @@ _SUSIE_SPEC = LoaderSpec(
         "rs": ("snp", "SNP", "variant_id", "rsid"),
     },
     transform=_susie_cs,
-    schema=lambda out_cols: FINEMAPPING_SPEC,
+    schema=lambda out_cols: spec(Family.FINEMAPPING, Tier.LOAD),
 )
 
 
@@ -552,7 +554,7 @@ _FINEMAP_SPEC = LoaderSpec(
     read={"sep": r"\s+"},
     col_map={"position": "pos", "prob": "pip", "rsid": "rs", "chromosome": "chr"},
     transform=_finemap_cs,
-    schema=lambda out_cols: FINEMAPPING_SPEC,
+    schema=lambda out_cols: spec(Family.FINEMAPPING, Tier.LOAD),
 )
 
 
@@ -577,7 +579,7 @@ _CAVIAR_SPEC = LoaderSpec(
     # CAVIAR .set files are headerless: SNP_ID Causal_Post_Prob.
     read={"sep": r"\s+", "header": None, "names": ["rs", "pip"]},
     transform=_finemap_cs,
-    schema=lambda out_cols: FINEMAPPING_SPEC,
+    schema=lambda out_cols: spec(Family.FINEMAPPING, Tier.LOAD),
     # CAVIAR carries no position; callers merge a SNP annotation to add it.
     schema_requires=("pos",),
 )
@@ -616,7 +618,7 @@ _POLYFUN_SPEC = LoaderSpec(
         "CREDIBLE_SET": "cs_col",
     },
     transform=_polyfun_cs,
-    schema=lambda out_cols: FINEMAPPING_SPEC,
+    schema=lambda out_cols: spec(Family.FINEMAPPING, Tier.LOAD),
 )
 
 
@@ -696,7 +698,7 @@ def load_gtf(
     # Select and return relevant columns
     result = df[["chr", "start", "end", "gene_name", "strand"]].copy()
     logger.debug(f"Loaded {len(result)} {feature_type} features from GTF")
-    check(result, GENES_SPEC)
+    check(result, spec(Family.GENES, Tier.LOAD))
     return result
 
 
@@ -739,7 +741,7 @@ _BED_SPEC = LoaderSpec(
     },
     transform=_bed_names,
     clean_chrom=True,
-    schema=lambda out_cols: GENES_SPEC,
+    schema=lambda out_cols: spec(Family.GENES, Tier.LOAD),
 )
 
 
@@ -790,7 +792,7 @@ _ENSEMBL_SPEC = LoaderSpec(
         "external_gene_name": "gene_name",
     },
     transform=_ensembl_strand,
-    schema=lambda out_cols: GENES_SPEC,
+    schema=lambda out_cols: spec(Family.GENES, Tier.LOAD),
 )
 
 

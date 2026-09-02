@@ -13,8 +13,9 @@ from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import PIP_LINE_COLOR, get_credible_set_color
 from .exceptions import FinemappingValidationError
 from .logging import logger
+from .schemas import Family, Tier, spec
 from .utils import filter_by_region
-from .validation import ColumnSpec, RangeRule, check
+from .validation import check
 
 
 def validate_finemapping_df(
@@ -32,16 +33,7 @@ def validate_finemapping_df(
     Raises:
         FinemappingValidationError: If required columns are missing.
     """
-    check(
-        df,
-        ColumnSpec(
-            name="Fine-mapping DataFrame",
-            required=(pos_col, pip_col),
-            numeric=(pip_col,),
-            ranges=(RangeRule(pip_col, min_val=0, max_val=1),),
-            error_class=FinemappingValidationError,
-        ),
-    )
+    check(df, spec(Family.FINEMAPPING, Tier.PLOT, pos_col=pos_col, pip_col=pip_col))
 
 
 def filter_finemapping_by_region(

@@ -18,8 +18,7 @@ from ._plotter_utils import (
 )
 from ._stats_renderer import StatsRenderer
 from .backends import BackendType, get_backend
-from .forest import validate_forest_df
-from .phewas import validate_phewas_df
+from .schemas import validate_forest_df, validate_phewas_df
 
 
 class StatsPlotter:

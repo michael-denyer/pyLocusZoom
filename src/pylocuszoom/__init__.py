@@ -101,9 +101,6 @@ from .finemapping import (
     validate_finemapping_df,
 )
 
-# Forest plot support
-from .forest import validate_forest_df
-
 # Gene track
 from .gene_track import get_nearest_gene
 
@@ -149,9 +146,6 @@ from .manhattan_plotter import ManhattanPlotter
 
 # Miami plot (mirrored Manhattan comparison)
 from .miami_plotter import MiamiPlotter
-
-# PheWAS support
-from .phewas import validate_phewas_df
 from .plotter import LocusZoomPlotter
 
 # Reference data management
@@ -164,6 +158,9 @@ from .recombination import (
 
 # Gene source routing over the Ensembl and UCSC clients
 from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
+
+# PheWAS and forest plot validation
+from .schemas import validate_forest_df, validate_phewas_df
 
 # Statistical visualizations (PheWAS, forest plots)
 from .stats_plotter import StatsPlotter
