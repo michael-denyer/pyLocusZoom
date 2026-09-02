@@ -15,16 +15,15 @@ from typing import Any, List, Optional, Tuple, Union
 import pandas as pd
 
 from ._data import prepare_pvalue_data
+from ._figure import FigurePlan, render_figure
 from ._ld_plotting import enrich_with_ld
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
-from ._regional import render_regional
 from ._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
-    RegionalFigurePlan,
     RegionalPanel,
     hover_for_association,
 )
@@ -515,14 +514,15 @@ class LocusZoomPlotter:
             region.start,
             region.end,
         )
-        return render_regional(
+        return render_figure(
             self._backend,
-            RegionalFigurePlan(
-                chrom=region.chrom,
-                start=region.start,
-                end=region.end,
+            FigurePlan(
                 panels=panels,
                 figsize=(display.figsize[0], height),
+                height_ratios=[panel.height for panel in panels],
+                xlabel=f"Chromosome {region.chrom} (Mb)",
+                mb_xaxis=True,
+                hspace=0.1,
             ),
         )
 

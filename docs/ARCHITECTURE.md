@@ -40,7 +40,8 @@ graph TD
 
     subgraph Plotters["Plotter Classes"]
         LZ[LocusZoomPlotter]
-        REGIONAL["_regional.py: render_regional<br/>_regional_panels.py: panels that draw themselves"]
+        REGIONAL["_regional_panels.py: panels that draw themselves"]
+        FIGURE["_figure.py: FigurePlan + render_figure"]
         FAMILIES[_*_renderer.py: family renderers]
         MP[ManhattanPlotter]
         SP[StatsPlotter]
@@ -178,9 +179,11 @@ stages:
    share one private pipeline, `_render_regional`, which
    builds each optional panel through its own constructor
    (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
-   `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and hands an ordered
-   `RegionalFigurePlan` to `render_regional`, which creates the figure and
-   calls each panel's `draw` method on its axis. Every panel resolves its
+   `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and puts them on a
+   `FigurePlan` for `render_figure`, which creates the figure, calls each
+   panel's `draw` method on its axis, labels and formats the shared
+   megabase x axis, and finalizes the layout
+   ([ADR-0007](adr/0007-one-figure-plan.md)). Every panel resolves its
    mode, its region and its hover contract when it is built, so the drawing
    never inspects the frame's columns; axes, labels, LD legend, SNP-label,
    and recombination policy live on the association panel, and both the
@@ -206,7 +209,7 @@ stages:
 | Abstraction | Kind | Location | Purpose |
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
-| `render_regional` | Internal function | `src/pylocuszoom/_regional.py` | Renders an ordered `RegionalFigurePlan`: creates the figure, calls each panel's `draw`, and labels and formats the shared genomic x axis |
+| `FigurePlan`, `render_figure` | Internal module | `src/pylocuszoom/_figure.py` | The one figure model: an ordered list of panels on a grid plus figure-level policy (size, row and column ratios, shared-x label and megabase format, cross-panel highlights, title, layout fractions). `render_figure` is the only caller of `create_figure`, `create_figure_grid`, `set_suptitle` and `finalize_layout` outside `backends/` |
 | Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw` method that draws it. A panel carries its resolved mode, region, hover contract and layout, so drawing inspects no columns |
 | Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families. Miami, coloc and LD heatmap are a frozen request value plus one `render_*` function; PheWAS and forest stay a class because they share drawing between two entry points |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
@@ -254,8 +257,8 @@ pyLocusZoom/
 │   ├── coloc_plotter.py       # Colocalization plotter
 │   ├── _data.py               # Shared p-value intake and transformation policy
 │   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
-│   ├── _regional.py           # Shared single/stacked regional composition
-│   ├── _regional_panels.py    # Regional panel value types and the drawing for each
+│   ├── _figure.py             # FigurePlan and render_figure, the one figure model
+│   ├── _regional_panels.py    # Regional panel value types, each drawing itself
 │   ├── _miami_renderer.py      # Miami figure composition
 │   ├── _stats_renderer.py      # PheWAS and forest figure composition
 │   ├── _coloc_renderer.py      # Colocalization figure composition

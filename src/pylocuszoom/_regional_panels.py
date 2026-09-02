@@ -1,13 +1,13 @@
 """Regional panel value types, each of which draws itself.
 
 Every panel resolves its mode, its hover contract, and its layout when it is
-built, so each ``draw`` method takes a prepared panel and issues backend
-primitives without probing the frame again.  ``_regional.py`` creates the
-figure and calls ``draw`` on each panel in order.
+built, so each ``draw`` method issues backend primitives without probing the
+frame again.  The plotter puts the panels on one
+:class:`~._figure.FigurePlan` and ``render_figure`` draws them in order.
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -551,18 +551,6 @@ RegionalPanel = Union[
     GenePanel,
     HeatmapPanel,
 ]
-
-
-@dataclass(frozen=True)
-class RegionalFigurePlan:
-    """Complete ordered plan for one regional figure."""
-
-    chrom: int | str
-    start: int
-    end: int
-    panels: Sequence[RegionalPanel]
-    figsize: Tuple[float, float]
-    hspace: float = 0.1
 
 
 def _draw_association_points(

@@ -7,14 +7,13 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
-from pylocuszoom._regional import render_regional
+from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
-    RegionalFigurePlan,
     hover_for_association,
 )
 from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
@@ -55,14 +54,7 @@ def _association(**overrides):
 
 def _render(panel, backend=None):
     backend = backend or RecordingBackend()
-    plan = RegionalFigurePlan(
-        chrom=REGION.chrom,
-        start=REGION.start,
-        end=REGION.end,
-        panels=[panel],
-        figsize=(8.0, panel.height),
-    )
-    render_regional(backend, plan)
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, panel.height)))
     return backend
 
 
