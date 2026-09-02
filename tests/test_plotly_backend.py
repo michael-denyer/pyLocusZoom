@@ -245,3 +245,30 @@ class TestPlotlySetTitleOverwriting:
 
         assert has_manhattan, f"Manhattan title not found in annotations: {all_text}"
         assert has_qq, f"QQ title not found in annotations: {all_text}"
+
+
+class TestPlotlyMegabaseTicks:
+    """format_xaxis_mb reads the panel it is given, not the whole figure."""
+
+    def test_ticks_come_from_the_panels_own_traces(self):
+        import pandas as pd
+
+        backend = PlotlyBackend()
+        fig, panels = backend.create_figure(
+            n_panels=2, height_ratios=[1.0, 1.0], figsize=(8, 6)
+        )
+        backend.scatter(
+            panels[0], pd.Series([1_000_000, 2_000_000]), pd.Series([1.0, 2.0]), "blue"
+        )
+        backend.scatter(
+            panels[1],
+            pd.Series([50_000_000, 51_000_000]),
+            pd.Series([1.0, 2.0]),
+            "blue",
+        )
+
+        backend.format_xaxis_mb(panels[1])
+
+        tickvals = fig.layout.xaxis2.tickvals
+        assert min(tickvals) >= 50_000_000
+        assert max(tickvals) <= 51_000_000

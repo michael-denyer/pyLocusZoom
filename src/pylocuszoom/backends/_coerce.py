@@ -8,6 +8,7 @@ functions instead of once per adapter.
 
 from typing import Any, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 # Web backends render at a nominal 100 dpi, so an inch of figsize is 100 pixels.
@@ -99,7 +100,9 @@ def marker_colors(
     """
     if isinstance(colors, str):
         return colors
-    return list(colors) if hasattr(colors, "tolist") else colors
+    if isinstance(colors, (pd.Series, np.ndarray)):
+        return list(colors)
+    return colors
 
 
 def per_point(value: Union[str, float, Sequence[Any], pd.Series], n: int) -> List[Any]:
@@ -120,7 +123,9 @@ def per_point(value: Union[str, float, Sequence[Any], pd.Series], n: int) -> Lis
     return list(value)
 
 
-def broadcast(value: Union[float, pd.Series, Sequence[Any]], n: int) -> Any:
+def broadcast(
+    value: Union[float, pd.Series, Sequence[Any]], n: int
+) -> Union[List[Any], np.ndarray]:
     """Repeat a scalar fill bound across ``n`` points, or pass a sequence through.
 
     A pandas Series is handed over as its ndarray rather than a list. Bokeh packs
@@ -136,4 +141,4 @@ def broadcast(value: Union[float, pd.Series, Sequence[Any]], n: int) -> Any:
     """
     if isinstance(value, (int, float)):
         return [value] * n
-    return value.values if hasattr(value, "values") else list(value)
+    return value.values if isinstance(value, pd.Series) else list(value)

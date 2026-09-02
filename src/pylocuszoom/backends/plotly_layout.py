@@ -179,20 +179,23 @@ def configure_legend(
 
 
 def x_range(panel: _Panel, xaxis_name: str) -> Optional[Tuple[float, float]]:
-    """Resolve a panel's x-range, falling back to the extent of trace data.
+    """A panel's x-range, falling back to the extent of its own traces.
 
     Args:
         panel: The panel whose range is wanted.
         xaxis_name: Layout key for the panel's x-axis.
 
     Returns:
-        The (min, max) range, or None when the figure carries no x data.
+        The (min, max) range, or None when the panel carries no x data.
     """
     xaxis = getattr(panel.fig.layout, xaxis_name, None)
     if xaxis and xaxis.range:
         return xaxis.range
+    ref = panel.xref
     x_vals: List[Any] = []
     for trace in panel.fig.data:
+        if (getattr(trace, "xaxis", None) or "x") != ref:
+            continue
         if getattr(trace, "x", None) is not None:
             x_vals.extend([v for v in trace.x if v is not None])
     return (min(x_vals), max(x_vals)) if x_vals else None
