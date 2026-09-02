@@ -15,7 +15,7 @@ pyLocusZoom uses **pytest** (`>=7.0.0`) along with several plugins configured in
 | `pytest-timeout` | `>=2.0.0` | Per-test timeout of 30s (catches hung tests and accidental network calls) |
 | `hypothesis` | `>=6.0.0` | Property-based testing |
 
-Shared fixtures (`sample_gwas_df`, `sample_genes_df`, `sample_exons_df`, `sample_recomb_df`) and Hypothesis profiles (`ci`, `dev`, `debug`) are defined in `tests/conftest.py`. The active Hypothesis profile is controlled by the `HYPOTHESIS_PROFILE` environment variable and defaults to `dev` (20 examples); CI typically sets `HYPOTHESIS_PROFILE=ci` (100 examples).
+Shared fixtures and Hypothesis profiles (`ci`, `dev`, `debug`) are defined in `tests/conftest.py`. The active Hypothesis profile is controlled by the `HYPOTHESIS_PROFILE` environment variable and defaults to `dev` (20 examples). CI sets `HYPOTHESIS_PROFILE=ci` (100 examples), which costs under a second on the full suite.
 
 ### Installing Test Dependencies
 
@@ -27,13 +27,11 @@ The `all` extra pulls in `pyspark` so PySpark-dependent tests can run.
 
 ## Running Tests
 
-The `[tool.pytest.ini_options]` section of `pyproject.toml` sets default options:
-
-```toml
-addopts = "-n 3 --timeout=30 --cov=pylocuszoom --cov-report=term-missing -v -m 'not integration'"
-```
-
-That means `uv run pytest` already runs with three parallel workers, a 30-second per-test timeout, coverage reporting, verbose output, and integration tests deselected.
+Defaults come from `[tool.pytest.ini_options].addopts` in
+[`pyproject.toml`](../pyproject.toml), which is the only place they are
+written down. `uv run pytest` already runs with parallel workers, a per-test
+timeout, coverage reporting, verbose output, and integration tests deselected,
+so none of those flags belong on a command line or in a CI step.
 
 | Command | What It Runs |
 |---------|--------------|
