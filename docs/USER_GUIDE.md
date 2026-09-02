@@ -1203,9 +1203,16 @@ plotter = LocusZoomPlotter(species="canine")
 plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 ```
 
-Recombination maps are automatically downloaded on first use (~50MB).
+Recombination maps are automatically downloaded on first use (~50MB), into
+`recombination_maps` under the platform cache. The CanFam3.1 to CanFam4
+liftover chain downloads into a `liftover` directory beside it, so replacing a
+map set never touches the chain.
 
 ### Feline
+
+Canine is the only species with built-in maps. Any other species plots its
+recombination overlay from data you supply, either per plot with `recomb_df` or
+from a directory of `chr{N}_recomb.tsv` files with `recomb_data_dir`.
 
 ```python
 plotter = LocusZoomPlotter(species="feline")

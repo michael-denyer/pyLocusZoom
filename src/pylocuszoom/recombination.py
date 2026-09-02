@@ -12,6 +12,8 @@ import tarfile
 import tempfile
 import uuid
 import warnings
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -34,6 +36,29 @@ CANINE_RECOMB_URL = (
 
 # Liftover chain files
 CANFAM3_TO_CANFAM4_CHAIN_URL = "https://hgdownload.soe.ucsc.edu/gbdb/canFam3/liftOver/canFam3ToCanFam4.over.chain.gz"
+
+
+@dataclass(frozen=True)
+class RecombSource:
+    """Where one species' built-in recombination maps come from.
+
+    Attributes:
+        species: Species name callers pass, and the key in ``RECOMB_SOURCES``.
+        filenames: The complete map set. A directory holding exactly these is
+            a cache hit; anything else is downloaded again.
+        native_build: Build the published maps are in.
+        liftover_chains: Target build token -> chain URL, for the builds the
+            maps can be lifted to. A build absent from here is served in
+            ``native_build`` coordinates.
+        download: Downloads the set, taking ``output_dir`` and ``force``.
+    """
+
+    species: str
+    filenames: frozenset[str]
+    native_build: str
+    liftover_chains: dict[str, str]
+    download: Callable[..., Path]
+
 
 _CANONICAL_RECOMB_HEADER = "chr\tpos\trate\tcM\n"
 _KNOWN_HEADER_TOKENS = frozenset(
@@ -80,9 +105,18 @@ def ensure_recomb_header(content: str, source_name: str) -> str:
     return content
 
 
+def get_chain_dir() -> Path:
+    """Get the directory holding downloaded liftover chain files.
+
+    Chains live beside the recombination maps rather than inside them, so a
+    map set can be replaced wholesale without taking the chain with it.
+    """
+    return _platform_cache_base() / "liftover"
+
+
 def get_chain_file_path() -> Path:
     """Get path to the CanFam3 to CanFam4 liftover chain file."""
-    return get_default_data_dir() / "canFam3ToCanFam4.over.chain.gz"
+    return get_chain_dir() / CANFAM3_TO_CANFAM4_CHAIN_URL.rsplit("/", 1)[-1]
 
 
 def download_liftover_chain(force: bool = False) -> Path:
@@ -159,67 +193,51 @@ def get_default_data_dir() -> Path:
     return _platform_cache_base() / "recombination_maps"
 
 
-def _has_complete_canine_maps(path: Path) -> bool:
-    """Return whether path contains exactly the expected canine map set."""
+def _has_complete_maps(path: Path, source: RecombSource) -> bool:
+    """Return whether path contains exactly this source's map set."""
     if not path.exists():
         return False
     present = {map_path.name for map_path in path.glob("chr*_recomb.tsv")}
-    return present == CANINE_MAP_FILENAMES
+    return present == source.filenames
 
 
-def _publish_map_generation(staging_dir: Path, output_path: Path) -> Path:
-    """Publish a complete map generation behind an atomically replaced link."""
+def _discard_map_dir(path: Path) -> None:
+    """Delete a replaced map directory, following the link older releases left."""
+    if path.is_symlink():
+        target = path.resolve()
+        path.unlink()
+        if target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+    else:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _publish_map_generation(
+    staging_dir: Path, output_path: Path, source: RecombSource
+) -> Path:
+    """Swap a complete map set into place, keeping the old one until it lands."""
+    if not _has_complete_maps(staging_dir, source):
+        raise DataDownloadError(
+            f"Downloaded recombination archive does not contain the complete "
+            f"{source.species} map set ({len(source.filenames)} chromosome files)"
+        )
+
     parent = output_path.parent
     parent.mkdir(parents=True, exist_ok=True)
-    token = uuid.uuid4().hex
-    generation = parent / f".{output_path.name}.generation-{token}"
+    previous = parent / f".{output_path.name}.previous-{uuid.uuid4().hex}"
+    replacing = output_path.is_symlink() or output_path.exists()
+    if replacing:
+        os.replace(output_path, previous)
 
-    if output_path.exists():
-        shutil.copytree(output_path, generation)
-        for old_map in generation.glob("chr*_recomb.tsv"):
-            old_map.unlink()
-    else:
-        generation.mkdir()
+    try:
+        os.replace(staging_dir, output_path)
+    except BaseException:
+        if replacing:
+            os.replace(previous, output_path)
+        raise
 
-    for staged_file in staging_dir.glob("chr*_recomb.tsv"):
-        shutil.move(str(staged_file), generation / staged_file.name)
-
-    if not _has_complete_canine_maps(generation):
-        shutil.rmtree(generation)
-        raise DataDownloadError(
-            "Downloaded recombination archive does not contain the complete canine "
-            "map set (chromosomes 1-38)"
-        )
-
-    pending_link = parent / f".{output_path.name}.pending-{token}"
-    pending_link.symlink_to(generation.name, target_is_directory=True)
-
-    if output_path.is_symlink() or not output_path.exists():
-        previous_generation = (
-            output_path.resolve() if output_path.is_symlink() else None
-        )
-        os.replace(pending_link, output_path)
-    else:
-        previous_generation = None
-        legacy = parent / f".{output_path.name}.legacy-{token}"
-        os.replace(output_path, legacy)
-        try:
-            os.replace(pending_link, output_path)
-        except BaseException:
-            os.replace(legacy, output_path)
-            shutil.rmtree(generation, ignore_errors=True)
-            pending_link.unlink(missing_ok=True)
-            raise
-        shutil.rmtree(legacy)
-
-    if (
-        previous_generation is not None
-        and previous_generation != generation
-        and previous_generation.parent == parent
-        and previous_generation.name.startswith(f".{output_path.name}.generation-")
-    ):
-        shutil.rmtree(previous_generation, ignore_errors=True)
-
+    if replacing:
+        _discard_map_dir(previous)
     return output_path
 
 
@@ -255,7 +273,7 @@ def download_canine_recombination_maps(
         output_path = Path(output_dir)
 
     # Check if already downloaded
-    if not force and _has_complete_canine_maps(output_path):
+    if not force and _has_complete_maps(output_path, CANINE_SOURCE):
         return output_path
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -340,10 +358,23 @@ def download_canine_recombination_maps(
                 with open(output_file, "w") as f:
                     f.write(content)
 
-        _publish_map_generation(staging_dir, output_path)
+        _publish_map_generation(staging_dir, output_path, CANINE_SOURCE)
 
     logger.info(f"Recombination maps saved to: {output_path}")
     return output_path
+
+
+CANINE_SOURCE = RecombSource(
+    species="canine",
+    filenames=CANINE_MAP_FILENAMES,
+    native_build="canfam3",
+    liftover_chains={"canfam4": CANFAM3_TO_CANFAM4_CHAIN_URL},
+    download=download_canine_recombination_maps,
+)
+
+# Species with built-in maps. A species absent from here has no built-in
+# source, and its caller supplies data_dir instead.
+RECOMB_SOURCES: dict[str, RecombSource] = {CANINE_SOURCE.species: CANINE_SOURCE}
 
 
 def load_recombination_map(
@@ -372,34 +403,27 @@ def load_recombination_map(
     map_file = data_path / f"chr{chrom_str}_recomb.tsv"
 
     if not map_file.exists():
-        raise FileNotFoundError(
-            f"Recombination map not found: {map_file}\n"
-            f"Run download_{species}_recombination_maps() first to download the data."
+        remedy = (
+            f"Run ensure_recomb_maps(species={species!r}) first to download them."
+            if species in RECOMB_SOURCES
+            else f"There are no built-in recombination maps for {species!r}; "
+            f"pass data_dir pointing at your own chr{{N}}_recomb.tsv files."
         )
+        raise FileNotFoundError(f"Recombination map not found: {map_file}\n{remedy}")
 
     df = pd.read_csv(map_file, sep="\t")
 
-    for col in ["pos", "rate"]:
+    for col in ("pos", "rate", "cM"):
+        if col not in df.columns:
+            continue
         original = df[col]
         df[col] = pd.to_numeric(df[col], errors="coerce")
-        bad_mask = df[col].isna() & original.notna()
-        bad_count = bad_mask.sum()
-        if bad_count > 0:
-            sample_vals = original[bad_mask].head(3).tolist()
+        dropped = original[df[col].isna() & original.notna()]
+        if not dropped.empty:
             logger.warning(
-                f"Recombination map chr{chrom_str}: {bad_count} non-numeric "
-                f"values in '{col}' column dropped. Sample values: {sample_vals}"
-            )
-    if "cM" in df.columns:
-        original = df["cM"]
-        df["cM"] = pd.to_numeric(df["cM"], errors="coerce")
-        bad_mask = df["cM"].isna() & original.notna()
-        bad_count = bad_mask.sum()
-        if bad_count > 0:
-            sample_vals = original[bad_mask].head(3).tolist()
-            logger.warning(
-                f"Recombination map chr{chrom_str}: {bad_count} non-numeric "
-                f"values in 'cM' column dropped. Sample values: {sample_vals}"
+                f"Recombination map chr{chrom_str}: {len(dropped)} non-numeric "
+                f"values in '{col}' column dropped. "
+                f"Sample values: {dropped.head(3).tolist()}"
             )
 
     return df.dropna(subset=["pos", "rate"])
@@ -434,15 +458,16 @@ def get_recombination_rate_for_region(
     """
     df = load_recombination_map(chrom, species=species, data_dir=data_dir)
 
-    # Liftover if needed
-    if (
-        species == "canine"
-        and genome_build
-        and assembly_token(genome_build) == "canfam4"
-    ):
-        logger.debug(f"Lifting over recombination map for chr{chrom} to CanFam4")
+    # Liftover if the source publishes a chain to the caller's build
+    source = RECOMB_SOURCES.get(species)
+    target_build = assembly_token(genome_build) if genome_build else ""
+    if source is not None and target_build in source.liftover_chains:
+        logger.debug(f"Lifting over recombination map for chr{chrom} to {target_build}")
         df = liftover_recombination_map(
-            df, from_build="canfam3", to_build="canfam4", chrom=chrom
+            df,
+            from_build=source.native_build,
+            to_build=target_build,
+            chrom=chrom,
         )
 
     # Filter to region
@@ -471,7 +496,8 @@ def ensure_recomb_maps(
         or the maps could not be downloaded. A failed download emits a
         UserWarning naming the cause so the missing overlay is not silent.
     """
-    if species != "canine":
+    source = RECOMB_SOURCES.get(species)
+    if source is None:
         logger.debug(f"No built-in recombination maps for species: {species}")
         return None
 
@@ -481,14 +507,14 @@ def ensure_recomb_maps(
         output_path = get_default_data_dir()
 
     # Check if maps already exist
-    if _has_complete_canine_maps(output_path):
+    if _has_complete_maps(output_path, source):
         logger.debug(f"Recombination maps already exist at {output_path}")
         return output_path
 
     # Download maps with error handling
-    logger.info("Downloading canine recombination maps...")
+    logger.info(f"Downloading {source.species} recombination maps...")
     try:
-        return download_canine_recombination_maps(output_dir=str(output_path))
+        return source.download(output_dir=str(output_path))
     except (DataDownloadError, OSError) as e:
         warnings.warn(
             f"Recombination overlay skipped; could not download recombination "
