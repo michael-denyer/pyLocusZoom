@@ -433,6 +433,199 @@ classDiagram
 
 ---
 
+## Public API Surface
+
+Every name in `pylocuszoom.__all__`, grouped by the module that defines it.
+`tests/test_public_surface.py` fails when a name is added to `__all__` and not
+listed here. [docs/USER_GUIDE.md](USER_GUIDE.md) is a curated guide, not a
+complete reference; this table is the complete one.
+
+### Regional plots
+
+| Name | Purpose |
+|------|---------|
+| `LocusZoomPlotter` | Regional association plot generator with LD coloring and annotations. |
+
+### Manhattan and QQ plots
+
+| Name | Purpose |
+|------|---------|
+| `ManhattanPlotter` | Manhattan and QQ plot generator for genome-wide visualizations. |
+
+### Miami plots
+
+| Name | Purpose |
+|------|---------|
+| `MiamiPlotter` | Miami plot generator for comparing two GWAS datasets. |
+
+### PheWAS and forest plots
+
+| Name | Purpose |
+|------|---------|
+| `StatsPlotter` | Statistical visualization plotter for PheWAS and forest plots. |
+
+### LD heatmaps
+
+| Name | Purpose |
+|------|---------|
+| `LDHeatmapPlotter` | LD heatmap generator for pairwise LD visualization. |
+
+### Colocalisation plots
+
+| Name | Purpose |
+|------|---------|
+| `ColocPlotter` | Colocalization scatter plot generator. |
+
+### File loaders
+
+| Name | Purpose |
+|------|---------|
+| `load_bed` | Load gene annotations from BED file. |
+| `load_bolt_lmm` | Load BOLT-LMM association results (.stats). |
+| `load_caviar` | Load CAVIAR results (.set output file). |
+| `load_ensembl_genes` | Load Ensembl BioMart gene export. |
+| `load_eqtl_catalogue` | Load eQTL Catalogue format. |
+| `load_finemap` | Load FINEMAP results (.snp output file). |
+| `load_gemma` | Load GEMMA association results (.assoc.txt). |
+| `load_gtex_eqtl` | Load GTEx eQTL significant pairs format. |
+| `load_gtf` | Load gene annotations from GTF/GFF3 file. |
+| `load_gwas` | Load GWAS results with automatic format detection. |
+| `load_gwas_catalog` | Load GWAS Catalog summary statistics format. |
+| `load_matrixeqtl` | Load MatrixEQTL output format. |
+| `load_plink_assoc` | Load PLINK association results (.assoc, .assoc.linear, .assoc.logistic, .qassoc). |
+| `load_polyfun` | Load PolyFun/SuSiE fine-mapping results. |
+| `load_regenie` | Load REGENIE association results (.regenie). |
+| `load_saige` | Load SAIGE association results. |
+| `load_susie` | Load SuSiE fine-mapping results. |
+
+### Schema validators
+
+| Name | Purpose |
+|------|---------|
+| `validate_forest_df` | Validate forest plot DataFrame has required columns and types. |
+| `validate_phewas_df` | Validate PheWAS DataFrame has required columns and types. |
+
+### eQTL helpers
+
+| Name | Purpose |
+|------|---------|
+| `calculate_colocalization_overlap` | Find SNPs significant in both GWAS and eQTL. |
+| `filter_eqtl_by_gene` | Filter eQTL data to a specific target gene. |
+| `filter_eqtl_by_region` | Filter eQTL data to a genomic region. |
+| `get_eqtl_genes` | Get list of unique genes in eQTL data. |
+| `prepare_eqtl_for_plotting` | Prepare eQTL data for plotting. |
+| `validate_eqtl_df` | Validate eQTL DataFrame has required columns. |
+
+### Fine-mapping helpers
+
+| Name | Purpose |
+|------|---------|
+| `filter_by_credible_set` | Filter to variants in a specific credible set. |
+| `filter_finemapping_by_region` | Filter fine-mapping data to a genomic region. |
+| `get_credible_sets` | Get list of unique credible set IDs. |
+| `get_top_pip_variants` | Get top variants by posterior inclusion probability. |
+| `prepare_finemapping_for_plotting` | Prepare fine-mapping data for plotting. |
+| `validate_finemapping_df` | Validate fine-mapping DataFrame has required columns. |
+
+### LD calculation
+
+| Name | Purpose |
+|------|---------|
+| `calculate_ld` | Calculate LD (R²) between a lead SNP and all SNPs in a region. |
+| `calculate_pairwise_ld` | Calculate pairwise LD matrix for a set of variants. |
+
+### SNP labels
+
+| Name | Purpose |
+|------|---------|
+| `add_snp_labels` | Add text labels to top SNPs in the regional plot. |
+| `adjust_snp_labels` | Adjust SNP label positions to avoid overlaps. |
+
+### Gene track
+
+| Name | Purpose |
+|------|---------|
+| `get_nearest_gene` | Get the nearest gene name for a genomic position. |
+
+### Recombination maps
+
+| Name | Purpose |
+|------|---------|
+| `download_canine_recombination_maps` | Download canine recombination rate maps from Campbell et al. 2016. |
+| `ensure_recomb_maps` | Ensure recombination maps are available, downloading if needed. |
+| `get_recombination_rate_for_region` | Get recombination rate data for a genomic region. |
+| `load_recombination_map` | Load recombination map for a specific chromosome. |
+
+### Gene reference routing
+
+| Name | Purpose |
+|------|---------|
+| `clear_gene_cache` | Clear one source's cached gene files. |
+| `get_genes_for_build` | Get the gene annotations for a region from one source. |
+| `source_for` | Pick the GeneSource that can serve this species and genome build. |
+
+### Ensembl client
+
+| Name | Purpose |
+|------|---------|
+| `get_ensembl_species_name` | Convert species alias to Ensembl species name. |
+
+### Backends
+
+| Name | Purpose |
+|------|---------|
+| `BackendType` | Literal type of the built-in backend names. |
+| `get_backend` | Get a backend instance by name. |
+
+### Colours
+
+| Name | Purpose |
+|------|---------|
+| `get_ld_bin` | Get LD bin label for categorical coloring. |
+| `get_ld_color` | Get LocusZoom-style color based on LD R² value. |
+| `get_ld_color_palette` | Get color palette mapping bin labels to colors. |
+| `get_phewas_category_color` | Get color for a PheWAS category by index. |
+| `get_phewas_category_palette` | Get color palette mapping category names to colors. |
+
+### Logging
+
+| Name | Purpose |
+|------|---------|
+| `disable_logging` | Disable logging output. |
+| `enable_logging` | Enable logging output. |
+
+### Utilities
+
+| Name | Purpose |
+|------|---------|
+| `to_pandas` | Convert DataFrame-like object to pandas DataFrame. |
+
+### Exceptions
+
+| Name | Purpose |
+|------|---------|
+| `DataDownloadError` | Raised when data download operations fail. |
+| `EQTLValidationError` | Raised when eQTL DataFrame validation fails. |
+| `EmptyLDOutputError` | Raised when PLINK succeeds but produces no LD pairs. |
+| `EnsemblAPIError` | Raised when the Ensembl REST API is unreachable or returns an error. |
+| `FinemappingValidationError` | Raised when fine-mapping DataFrame validation fails. |
+| `ForestValidationError` | Raised when forest plot DataFrame validation fails. |
+| `LoaderValidationError` | Raised when loaded data fails validation. |
+| `PheWASValidationError` | Raised when PheWAS DataFrame validation fails. |
+| `PlinkError` | Raised when PLINK subprocess fails. |
+| `PyLocusZoomError` | Base exception for all pyLocusZoom errors. |
+| `ReferenceAPIError` | Raised when a reference-annotation API is unreachable or errors. |
+| `UCSCAPIError` | Raised when the UCSC REST API is unreachable or returns an error. |
+| `ValidationError` | Raised when input validation fails. Inherits ValueError for backward compat. |
+
+### Package metadata and constants
+
+| Name | Purpose |
+|------|---------|
+| `LEAD_SNP_COLOR` | Hex colour the plotters use for the lead SNP. |
+| `PHEWAS_CATEGORY_COLORS` | Ordered colour cycle for PheWAS categories. |
+| `__version__` | The installed package version. |
+
 ## Quick Navigation
 
 | Area | Entry Point |

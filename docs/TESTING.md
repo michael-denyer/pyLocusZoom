@@ -15,7 +15,7 @@ pyLocusZoom uses **pytest** (`>=7.0.0`) along with several plugins configured in
 | `pytest-timeout` | `>=2.0.0` | Per-test timeout of 30s (catches hung tests and accidental network calls) |
 | `hypothesis` | `>=6.0.0` | Property-based testing |
 
-The suite asserts on plotter and renderer call sequences, not on serialised backend output, so a change to a backend or a renderer must also pass `scripts/example_diff.sh`. It regenerates `examples/`, normalises plotly UUIDs and bokeh element ids, and prints `NO REAL DIFFS` or one `REAL DIFF:` line per export whose content changed. Matplotlib PNGs are deterministic, so any PNG diff is a real rendering change.
+`tests/test_rendering_contract.py` drives the plotters through a `RecordingBackend` and asserts on the call sequence it records, because no backend can serialise a figure the same way twice. Every other test asserts on observable output. A change to a backend or a renderer must also pass `scripts/example_diff.sh`. It regenerates `examples/`, normalises plotly UUIDs and bokeh element ids, and prints `NO REAL DIFFS` or one `REAL DIFF:` line per export whose content changed. Matplotlib PNGs are deterministic, so any PNG diff is a real rendering change.
 
 Shared fixtures and Hypothesis profiles (`ci`, `dev`, `debug`) are defined in `tests/conftest.py`. The active Hypothesis profile is controlled by the `HYPOTHESIS_PROFILE` environment variable and defaults to `dev` (20 examples). CI sets `HYPOTHESIS_PROFILE=ci` (100 examples), which costs under a second on the full suite.
 
@@ -38,9 +38,9 @@ so none of those flags belong on a command line or in a CI step.
 | Command | What It Runs |
 |---------|--------------|
 | `uv run python -m pytest tests/` | Full default suite (parallel, with coverage, integration tests skipped) |
-| `uv run python -m pytest tests/ -n 3 --no-cov` | Fast iteration without coverage overhead |
+| `uv run python -m pytest tests/ --no-cov` | Fast iteration without coverage overhead |
 | `uv run python -m pytest tests/test_plotter.py` | Single test file |
-| `uv run python -m pytest tests/test_plotter.py::TestPlotEdgeCases -v` | Single test class |
+| `uv run python -m pytest tests/test_plotter.py::TestPlotEdgeCases` | Single test class |
 | `uv run python -m pytest tests/test_plotter.py::TestPlotEdgeCases::test_name` | Single test function |
 | `uv run python -m pytest -m integration` | Only integration tests (e.g. `tests/test_ensembl_integration.py`, which hits the live Ensembl API) |
 | `uv run python -m pytest -p no:randomly` | Disable randomization to reproduce a specific order |
@@ -125,7 +125,7 @@ Steps:
 2. Install `uv` via `astral-sh/setup-uv`.
 3. `uv python install ${{ matrix.python-version }}`.
 4. `uv sync --extra dev --extra all` to install dev and PySpark dependencies.
-5. `uv run pytest -v -m "not integration"` to run the suite (integration tests are skipped in CI because they hit the live Ensembl API).
+5. `uv run pytest` to run the suite. Every flag comes from `addopts`, including the marker expression that deselects the integration tests, which hit the live Ensembl API.
 
 Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), and package building (`uv build`). A test failure, lint failure, or doc-lint failure will block the PR.
 
