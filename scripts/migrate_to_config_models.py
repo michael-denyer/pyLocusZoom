@@ -11,9 +11,12 @@ a new import after the last one; run ``ruff check --fix`` and
 Usage:
     uv run --with libcst python scripts/migrate_to_config_models.py PATH...
 
-A ``.ipynb`` path is rewritten cell by cell without re-executing it.
+A ``.ipynb`` path is rewritten cell by cell without re-executing it, and a
+``.md`` path has each ``python`` fenced block rewritten in place.
 """
 
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -185,10 +188,60 @@ def rewrite_notebook(path: Path) -> None:
     print(f"rewrote {path}: {', '.join(sorted(needed))}")
 
 
+def _format(source: str) -> str:
+    """Sort the imports and format a rewritten block the way ruff would a file."""
+    sorted_imports = subprocess.run(
+        [
+            "ruff",
+            "check",
+            "--fix",
+            "--select",
+            "I",
+            "--stdin-filename",
+            "block.py",
+            "-",
+        ],
+        input=source,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    return subprocess.run(
+        ["ruff", "format", "--stdin-filename", "block.py", "-"],
+        input=sorted_imports or source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+
+def rewrite_markdown(path: Path) -> None:
+    text = path.read_text()
+    needed: set = set()
+
+    def rewrite_block(match: re.Match) -> str:
+        source = match.group(1)
+        try:
+            module, block_needed = rewrite_source(source)
+        except cst.ParserSyntaxError:
+            return match.group(0)
+        if not block_needed:
+            return match.group(0)
+        needed.update(block_needed)
+        return "```python\n" + _format(_add_import(module, block_needed).code) + "```"
+
+    rewritten = re.sub(r"```python\n(.*?)```", rewrite_block, text, flags=re.S)
+    if needed:
+        path.write_text(rewritten)
+        print(f"rewrote {path}: {', '.join(sorted(needed))}")
+
+
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
         path = Path(arg)
         if path.suffix == ".ipynb":
             rewrite_notebook(path)
+        elif path.suffix == ".md":
+            rewrite_markdown(path)
         else:
             rewrite_py(path)

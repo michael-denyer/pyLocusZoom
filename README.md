@@ -486,21 +486,19 @@ fig = stats_plotter.plot_forest(
 Compare two GWAS datasets with mirrored Manhattan plots (top panel ascending, bottom panel inverted):
 
 ```python
-from pylocuszoom import MiamiPlotter
+from pylocuszoom import GenomeWideConfig, MiamiPlotter
 
 plotter = MiamiPlotter(species="human")
 
 fig = plotter.plot_miami(
     discovery_df,
     replication_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     top_label="Discovery",
     bottom_label="Replication",
     top_threshold=5e-8,
     bottom_threshold=1e-6,
-    highlight_regions=[("6", 30_000_000, 35_000_000)],  # Highlight MHC region
+    highlight_regions=[("6", 30_000_000, 35_000_000)],
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("miami.png", dpi=150)
 ```
@@ -529,17 +527,15 @@ save(fig)
 Create genome-wide Manhattan plots showing associations across all chromosomes:
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter(species="human")
 
 fig = plotter.plot_manhattan(
     gwas_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
-    significance_threshold=5e-8,  # Genome-wide significance line
+    significance_threshold=5e-8,
     figsize=(12, 5),
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan.png", dpi=150)
 ```
@@ -550,10 +546,12 @@ fig.savefig("manhattan.png", dpi=150)
 Categorical Manhattan plots (PheWAS-style) are also supported:
 
 ```python
+from pylocuszoom import GenomeWideConfig
+
 fig = plotter.plot_manhattan(
     phewas_df,
     category_col="phenotype_category",
-    p_col="pvalue",
+    config=GenomeWideConfig(p_col="pvalue"),
 )
 ```
 
@@ -562,16 +560,16 @@ fig = plotter.plot_manhattan(
 Create quantile-quantile plots to assess p-value distribution:
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 
 fig = plotter.plot_qq(
     gwas_df,
-    p_col="p",
-    show_confidence_band=True,  # 95% confidence band
-    show_lambda=True,           # Genomic inflation factor in title
+    show_confidence_band=True,
+    show_lambda=True,
     figsize=(6, 6),
+    config=GenomeWideConfig(p_col="p"),
 )
 fig.savefig("qq_plot.png", dpi=150)
 ```
@@ -584,19 +582,17 @@ fig.savefig("qq_plot.png", dpi=150)
 Compare multiple GWAS results in vertically stacked Manhattan plots:
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 
 fig = plotter.plot_manhattan_stacked(
     [gwas_study1, gwas_study2, gwas_study3],
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     panel_labels=["Study 1", "Study 2", "Study 3"],
     significance_threshold=5e-8,
     figsize=(12, 8),
     title="Multi-study GWAS Comparison",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
@@ -609,20 +605,18 @@ fig.savefig("manhattan_stacked.png", dpi=150)
 Create combined Manhattan and QQ plots in a single figure:
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 
 fig = plotter.plot_manhattan_qq(
     gwas_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     significance_threshold=5e-8,
     show_confidence_band=True,
     show_lambda=True,
     figsize=(14, 5),
     title="GWAS Results",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
@@ -689,7 +683,7 @@ fm_df = load_susie("susie_output.tsv")
 
 ### GWAS Results DataFrame
 
-Required columns (names configurable via `pos_col`, `p_col`, `rs_col`):
+Required columns (names configurable through `ColumnConfig`):
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|

@@ -6,6 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom import GenomeWideConfig
 from pylocuszoom.manhattan import prepare_categorical_data
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from tests.strategies import gwas_dataframes_multichrom
@@ -358,7 +359,9 @@ class TestManhattanProperties:
         """Manhattan plot should render multi-chromosome data without crashing."""
         plotter = ManhattanPlotter(species="canine")
 
-        fig = plotter.plot_manhattan(df, chrom_col="chr", pos_col="ps", p_col="p_wald")
+        fig = plotter.plot_manhattan(
+            df, config=GenomeWideConfig(chrom_col="chr", pos_col="ps", p_col="p_wald")
+        )
 
         assert fig is not None
 
@@ -369,7 +372,7 @@ class TestManhattanProperties:
         plotter = ManhattanPlotter(species="canine")
 
         fig = plotter.plot_manhattan_qq(
-            df, chrom_col="chr", pos_col="ps", p_col="p_wald"
+            df, config=GenomeWideConfig(chrom_col="chr", pos_col="ps", p_col="p_wald")
         )
 
         assert fig is not None

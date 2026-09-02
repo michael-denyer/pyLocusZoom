@@ -483,8 +483,9 @@ Miami plots (mirrored Manhattan plots) compare two GWAS datasets side-by-side wi
 ![Miami plot](../examples/matplotlib/miami_plot.png)
 
 ```python
-from pylocuszoom import MiamiPlotter
 import pandas as pd
+
+from pylocuszoom import GenomeWideConfig, MiamiPlotter
 
 # Two GWAS datasets to compare
 gwas1 = pd.read_csv("gwas_study1.csv")
@@ -494,12 +495,10 @@ plotter = MiamiPlotter()
 fig = plotter.plot_miami(
     top_df=gwas1,
     bottom_df=gwas2,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     top_label="Study 1",
     bottom_label="Study 2",
     figsize=(14, 8),
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("miami.png", dpi=150)
 ```
@@ -517,19 +516,19 @@ fig.savefig("miami.png", dpi=150)
 **Customization options:**
 
 ```python
+from pylocuszoom import GenomeWideConfig
+
 fig = plotter.plot_miami(
     top_df=gwas1,
     bottom_df=gwas2,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
     # Per-panel thresholds
     top_threshold=5e-8,
     bottom_threshold=1e-5,
     # Panel labels
     top_label="Discovery Cohort",
     bottom_label="Replication Cohort",
-    # SNP annotations (list of SNP IDs — requires rs_col to be set)
+    # SNP annotations (list of SNP IDs; requires rs_col to be set)
     rs_col="rs",
     top_snp_annotations=["rs123"],
     bottom_snp_annotations=["rs456"],
@@ -603,16 +602,14 @@ Genome-wide Manhattan plots showing associations across all chromosomes.
 ![Manhattan plot](../examples/matplotlib/manhattan_plot.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan(
     gwas_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     significance_threshold=5e-8,
     figsize=(12, 5),
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan.png", dpi=150)
 ```
@@ -631,15 +628,15 @@ Quantile-quantile plots for assessing p-value distribution and detecting systema
 ![QQ plot](../examples/matplotlib/qq_plot.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_qq(
     gwas_df,
-    p_col="p",
     show_confidence_band=True,
     show_lambda=True,
     figsize=(6, 6),
+    config=GenomeWideConfig(p_col="p"),
 )
 fig.savefig("qq_plot.png", dpi=150)
 ```
@@ -658,18 +655,16 @@ Compare multiple GWAS studies in vertically stacked Manhattan plots with shared 
 ![Stacked Manhattan plot](../examples/matplotlib/manhattan_stacked.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_stacked(
     [gwas_study1, gwas_study2, gwas_study3],
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     panel_labels=["Study 1", "Study 2", "Study 3"],
     significance_threshold=5e-8,
     figsize=(12, 8),
     title="Multi-study GWAS Comparison",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
@@ -689,19 +684,17 @@ Combined Manhattan and QQ plots in a single figure for comprehensive GWAS summar
 ![Manhattan and QQ side-by-side](../examples/matplotlib/manhattan_qq_sidebyside.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_qq(
     gwas_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     significance_threshold=5e-8,
     show_confidence_band=True,
     show_lambda=True,
     figsize=(14, 5),
     title="GWAS Results",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_qq.png", dpi=150)
 ```

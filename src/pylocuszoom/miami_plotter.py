@@ -20,7 +20,8 @@ from ._plotter_utils import (
 )
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig
-from .manhattan import prepare_manhattan_frames
+from .config import GenomeWideConfig
+from .manhattan import prepare_genomewide_frames
 from .species import Species, resolve_species
 
 
@@ -64,11 +65,9 @@ class MiamiPlotter:
         self,
         top_df: pd.DataFrame,
         bottom_df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
+        *,
+        config: GenomeWideConfig = GenomeWideConfig(),
         rs_col: Optional[str] = None,
-        custom_chrom_order: Optional[List[str]] = None,
         top_threshold: ThresholdArg = UNSET,
         bottom_threshold: ThresholdArg = UNSET,
         top_label: Optional[str] = None,
@@ -90,12 +89,9 @@ class MiamiPlotter:
         Args:
             top_df: GWAS results DataFrame for top panel.
             bottom_df: GWAS results DataFrame for bottom panel.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
+            config: Column names and chromosome order. Both panels are
+                validated against it and laid out on its chromosome order.
             rs_col: Column name for SNP RS ID (for hover tooltips and annotations).
-            custom_chrom_order: Custom chromosome order (overrides species).
-                Both panels are laid out against it.
             top_threshold: Significance threshold for the top panel. Defaults to
                 the plotter's ``genomewide_threshold``; pass None to draw no line.
             bottom_threshold: Significance threshold for the bottom panel. Same
@@ -117,8 +113,10 @@ class MiamiPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValueError: If required columns are missing from either DataFrame,
-                or if the plotter's species is unknown.
+            ValidationError: If either frame is empty or lacks a configured
+                column, or ``rs_col`` when given.
+            ValueError: If the plotter's species has no chromosome order and
+                ``config.custom_chrom_order`` is not set.
 
         Example:
             >>> fig = plotter.plot_miami(
@@ -133,20 +131,15 @@ class MiamiPlotter:
             bottom_threshold, self.genomewide_threshold
         )
 
-        top_prepared, bottom_prepared = prepare_manhattan_frames(
-            [top_df, bottom_df],
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
+        top_prepared, bottom_prepared = prepare_genomewide_frames(
+            [top_df, bottom_df], config, species=self.species, rs_col=rs_col
         )
 
         request = MiamiRequest(
             top=top_prepared,
             bottom=bottom_prepared,
             hover=(
-                HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
+                HoverConfig(snp_col=rs_col, pos_col=config.pos_col, p_col=config.p_col)
                 if rs_col is not None
                 else None
             ),

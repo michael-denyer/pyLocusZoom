@@ -55,11 +55,15 @@ def _gwas_load(
 
 
 def _gwas_plot(
-    pos_col: str = "ps", p_col: str = "p_wald", rs_col: Optional[str] = None
+    pos_col: str = "ps",
+    p_col: str = "p_wald",
+    rs_col: Optional[str] = None,
+    chrom_col: Optional[str] = None,
 ) -> ColumnSpec:
+    optional = tuple(col for col in (rs_col, chrom_col) if col is not None)
     return ColumnSpec(
         name="gwas_df",
-        required=(pos_col, p_col) if rs_col is None else (pos_col, p_col, rs_col),
+        required=(pos_col, p_col, *optional),
         non_empty=True,
     )
 
@@ -209,6 +213,7 @@ def validate_gwas_df(
     pos_col: str = "ps",
     p_col: str = "p_wald",
     rs_col: Optional[str] = None,
+    chrom_col: Optional[str] = None,
 ) -> None:
     """Validate a GWAS DataFrame at the permissive plot-time tier.
 
@@ -217,11 +222,23 @@ def validate_gwas_df(
         pos_col: Column name for position.
         p_col: Column name for p-values.
         rs_col: Column name for SNP IDs (optional).
+        chrom_col: Column name for chromosome, required by the genome-wide
+            families (optional).
 
     Raises:
         ValidationError: If required columns are missing or the frame is empty.
     """
-    check(df, spec(Family.GWAS, Tier.PLOT, pos_col=pos_col, p_col=p_col, rs_col=rs_col))
+    check(
+        df,
+        spec(
+            Family.GWAS,
+            Tier.PLOT,
+            pos_col=pos_col,
+            p_col=p_col,
+            rs_col=rs_col,
+            chrom_col=chrom_col,
+        ),
+    )
 
 
 def validate_genes_df(df: pd.DataFrame) -> None:

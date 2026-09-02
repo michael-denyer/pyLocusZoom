@@ -191,7 +191,12 @@ stages:
    and recombination policy live on the association panel, and both the
    association and eQTL significance lines go through the same
    `add_significance_line` the Manhattan family uses
-   ([ADR-0006](adr/0006-one-regional-pipeline.md)). `ManhattanPlotter`
+   ([ADR-0006](adr/0006-one-regional-pipeline.md)). Every `ManhattanPlotter`
+   and `MiamiPlotter` method takes a `GenomeWideConfig` (column names and
+   chromosome order) and hands its frames to
+   `manhattan.prepare_genomewide_frames`, which runs `validate_gwas_df`
+   against those names before any frame is laid out, so the genome-wide
+   families guard the boundary the way `plot()` does. `ManhattanPlotter`
    builds `ManhattanPanelSpec` and `QQPanelSpec` values through
    `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` and
    puts them on a `FigurePlan` as one panel, a vertical stack, or a

@@ -59,7 +59,13 @@ from .colors import (
 )
 
 # Configuration models the plot methods take as values
-from .config import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
+from .config import (
+    ColumnConfig,
+    DisplayConfig,
+    GenomeWideConfig,
+    LDConfig,
+    PanelInputs,
+)
 
 # Ensembl integration
 from .ensembl import get_ensembl_species_name
@@ -185,6 +191,7 @@ __all__ = [
     # Plot configuration
     "ColumnConfig",
     "DisplayConfig",
+    "GenomeWideConfig",
     "LDConfig",
     "PanelInputs",
     # Backends

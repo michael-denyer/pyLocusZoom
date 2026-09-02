@@ -176,6 +176,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2b | validate_phewas_df, validate_forest_df, validate_coloc_df | Plot-time checks for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2c | ColumnConfig, DisplayConfig, LDConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
 | 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
+| 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 
 ---
 
@@ -442,6 +443,7 @@ complete reference; this table is the complete one.
 | Name | Purpose |
 |------|---------|
 | `ManhattanPlotter` | Manhattan and QQ plot generator for genome-wide visualizations. |
+| `GenomeWideConfig` | Chromosome, position and p-value column names plus chromosome order, shared with `MiamiPlotter`. |
 
 ### Miami plots
 
