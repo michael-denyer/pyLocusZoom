@@ -1,7 +1,7 @@
 """Tests for Pydantic configuration classes.
 
 Tests cover:
-- RegionConfig: chrom >= 1, start < end, immutability
+- RegionConfig: chrom >= 1, start >= 1, start < end, immutability
 - ColumnConfig: sensible defaults, immutability
 - DisplayConfig: sensible defaults, label_top_n >= 0, immutability
 - LDConfig: lead_pos required when ld_reference_file provided, immutability
@@ -62,12 +62,15 @@ class TestRegionConfig:
         with pytest.raises(ValidationError, match="start.*must be.*end"):
             RegionConfig(chrom=1, start=1000, end=1000)
 
-    def test_start_can_be_zero(self):
-        """Start position of 0 is valid."""
+    def test_start_is_one_based(self):
+        """Coordinates are 1-based: start=0 is rejected, start=1 accepted."""
         from pylocuszoom.config import RegionConfig
 
-        config = RegionConfig(chrom=1, start=0, end=1000)
-        assert config.start == 0
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            RegionConfig(chrom=1, start=0, end=1000)
+
+        config = RegionConfig(chrom=1, start=1, end=1000)
+        assert config.start == 1
 
     def test_region_is_frozen(self):
         """Config should be immutable after creation."""

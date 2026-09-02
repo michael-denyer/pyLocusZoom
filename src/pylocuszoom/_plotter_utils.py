@@ -6,7 +6,6 @@ Internal module - not part of public API.
 from typing import Any, Optional, Union
 
 import numpy as np
-import pandas as pd
 
 # Significance thresholds
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
@@ -80,62 +79,3 @@ def add_significance_line(
         linewidth=1,
         zorder=1,
     )
-
-
-def calculate_gene_track_rows(
-    genes_df: pd.DataFrame, chrom: int, start: int, end: int
-) -> int:
-    """Calculate number of gene track rows needed for a region.
-
-    Filters genes to the specified region and computes how many
-    vertical rows are needed to display overlapping genes without
-    collision.
-
-    Args:
-        genes_df: Gene annotations DataFrame with chr, start, end columns.
-        chrom: Chromosome number.
-        start: Region start position.
-        end: Region end position.
-
-    Returns:
-        Number of gene rows (minimum 1).
-    """
-    from .gene_track import assign_gene_positions
-    from .utils import normalize_chrom
-
-    chrom_str = normalize_chrom(chrom)
-    region_genes = genes_df[
-        (genes_df["chr"].astype(str).str.replace("chr", "", regex=False) == chrom_str)
-        & (genes_df["end"] >= start)
-        & (genes_df["start"] <= end)
-    ]
-    if not region_genes.empty:
-        temp_positions = assign_gene_positions(
-            region_genes.sort_values("start"), start, end
-        )
-        return max(temp_positions) + 1 if temp_positions else 1
-    return 1
-
-
-def calculate_gene_track_height(
-    genes_df: pd.DataFrame, chrom: int, start: int, end: int
-) -> float:
-    """Calculate subplot height-ratio units for a gene track panel.
-
-    Extracted from duplicated logic in LocusZoomPlotter.plot() and
-    plot_stacked(). The height grows linearly with the number of stacked
-    gene rows so multi-row regions stay legible.
-
-    Args:
-        genes_df: Gene annotations DataFrame.
-        chrom: Chromosome number.
-        start: Region start position.
-        end: Region end position.
-
-    Returns:
-        Height in the same units as other panel height_ratios.
-    """
-    n_rows = calculate_gene_track_rows(genes_df, chrom, start, end)
-    base_height = 1.0
-    per_row_height = 0.5
-    return base_height + (n_rows - 1) * per_row_height

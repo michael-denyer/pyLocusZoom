@@ -237,6 +237,35 @@ class TestAutoGenes:
 
         assert fig is not None
 
+    def test_plot_stacked_auto_genes_overrides_constructor(self, sample_gwas_df):
+        """plot_stacked(auto_genes=True) fetches genes on a plotter built without it."""
+        mock_genes = pd.DataFrame(
+            {
+                "chr": ["1"],
+                "start": [1200000],
+                "end": [1400000],
+                "gene_name": ["GENE1"],
+                "strand": ["+"],
+            }
+        )
+        plotter = LocusZoomPlotter(species="human", log_level=None)
+
+        with patch(
+            "pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes
+        ) as mock_fetch:
+            fig = plotter.plot_stacked(
+                [sample_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=False,
+                auto_genes=True,
+            )
+
+        mock_fetch.assert_called_once()
+        assert len(fig.get_axes()) == 2
+        plt.close(fig)
+
     def test_plot_auto_genes_disabled_by_default(self, sample_gwas_df):
         """Test that auto_genes=False by default (backward compatible)."""
         plotter = LocusZoomPlotter(species="canine", log_level=None)
@@ -1122,6 +1151,29 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
         plt.close(fig)
 
+    def test_plot_accepts_eqtl_and_finemapping_panels(
+        self, sample_gwas_df, sample_eqtl_df, sample_finemapping_df
+    ):
+        """plot() carries the same optional panels as plot_stacked()."""
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+
+        fig = plotter.plot(
+            sample_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            show_recombination=False,
+            eqtl_df=sample_eqtl_df,
+            eqtl_gene="GENE1",
+            finemapping_df=sample_finemapping_df,
+        )
+
+        axes = fig.get_axes()
+        assert len(axes) == 3
+        assert axes[1].get_ylabel() == "PIP"
+        assert "eQTL" in axes[2].get_ylabel()
+        plt.close(fig)
+
     def test_plotly_eqtl_with_effects(self, sample_gwas_df, sample_eqtl_df):
         """Plotly backend should handle eQTL panel with effect sizes without error."""
         plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
@@ -1286,23 +1338,40 @@ class TestBackendEQTLFinemapping:
         assert fig is not None
         plt.close(fig)
 
-    def test_eqtl_gene_without_gene_column_no_gene_in_label(self, sample_gwas_df):
-        """Test that eqtl_gene without 'gene' column doesn't label as gene-filtered.
+    def test_eqtl_gene_without_gene_column_raises(self, sample_gwas_df):
+        """eqtl_gene on a frame with no gene column is an error, not a warning.
 
-        Bug fix: Previously, label would show "eQTL (GENE1)" even when filtering
-        didn't occur because the DataFrame lacked a 'gene' column.
-
-        Warning is logged to stderr (see "Captured stderr call" in test output).
-        loguru doesn't integrate with pytest's caplog/capsys fixtures directly.
+        Drawing every eQTL unfiltered after the caller asked for one gene is
+        the silent-failure shape the library rejects.
         """
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        from pylocuszoom.eqtl import EQTLValidationError
 
-        # Create eQTL data WITHOUT gene column
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
         eqtl_df_no_gene_col = pd.DataFrame(
             {
                 "pos": [1200000, 1400000, 1600000],
                 "p_value": [1e-6, 1e-4, 0.01],
-                # No "gene" column - so filtering can't occur
+            }
+        )
+
+        with pytest.raises(EQTLValidationError, match="gene"):
+            plotter.plot_stacked(
+                [sample_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=False,
+                eqtl_df=eqtl_df_no_gene_col,
+                eqtl_gene="GENE1",
+            )
+
+    def test_eqtl_zero_pvalue_is_dropped(self, sample_gwas_df):
+        """A zero eQTL p-value is outside the strict (0, 1] domain and not drawn."""
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        eqtl_df = pd.DataFrame(
+            {
+                "pos": [1200000, 1400000, 1600000],
+                "p_value": [1e-6, 0.0, 0.01],
             }
         )
 
@@ -1312,24 +1381,12 @@ class TestBackendEQTLFinemapping:
             start=1000000,
             end=2000000,
             show_recombination=False,
-            eqtl_df=eqtl_df_no_gene_col,
-            eqtl_gene="GENE1",  # Specified but can't filter
+            eqtl_df=eqtl_df,
         )
 
-        # Verify the eQTL panel axes don't have "(GENE1)" in any labels
-        # The panel is axes[1] (after GWAS panel at axes[0])
-        axes = fig.get_axes()
-        eqtl_ax = axes[1]  # eQTL panel
-
-        # Check that no legend entry contains "(GENE1)"
-        legend = eqtl_ax.get_legend()
-        if legend:
-            for text in legend.get_texts():
-                assert "(GENE1)" not in text.get_text(), (
-                    f"Label incorrectly shows gene filter: {text.get_text()}"
-                )
-
-        assert fig is not None
+        eqtl_ax = fig.get_axes()[1]
+        drawn = sum(len(c.get_offsets()) for c in eqtl_ax.collections)
+        assert drawn == 2
         plt.close(fig)
 
 
@@ -1442,7 +1499,7 @@ class TestPlotterDelegation:
             fig = plotter.plot_stacked(
                 [gwas_df],
                 chrom=1,
-                start=0,
+                start=1,
                 end=3000,
                 finemapping_df=fm_df,
             )
