@@ -562,6 +562,30 @@ class TestBuildPairwiseLdCommand:
         assert "dprime" in cmd
         assert "square" in cmd
 
+    @pytest.mark.parametrize("metric", ["Dprime", "r", "R2", ""])
+    def test_unknown_metric_is_rejected(self, metric):
+        """Any spelling other than the two accepted metrics is an error, not r2."""
+        with pytest.raises(ValidationError, match="dprime"):
+            build_pairwise_ld_command(
+                plink_path="/usr/bin/plink1.9",
+                bfile_path="/path/to/data",
+                output_path="/path/to/output",
+                metric=metric,
+            )
+
+    def test_calculate_pairwise_ld_rejects_metric_before_running_plink(self, tmp_path):
+        """A bad metric fails at the boundary, before PLINK is even looked up."""
+        for ext in (".bed", ".bim", ".fam"):
+            (tmp_path / f"data{ext}").touch()
+        with patch("pylocuszoom.ld.subprocess.run") as mock_run:
+            with pytest.raises(ValidationError, match="dprime"):
+                calculate_pairwise_ld(
+                    bfile_path=str(tmp_path / "data"),
+                    plink_path="/usr/bin/plink1.9",
+                    metric="Dprime",
+                )
+        mock_run.assert_not_called()
+
     def test_default_metric_is_r2(self):
         """Command should use --r2 by default."""
         cmd = build_pairwise_ld_command(

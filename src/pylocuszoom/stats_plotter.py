@@ -88,7 +88,7 @@ class StatsPlotter:
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )
-        validate_phewas_df(phewas_df, phenotype_col, p_col, category_col)
+        validate_phewas_df(phewas_df, phenotype_col, p_col)
 
         df = phewas_df.copy()
         df = prepare_pvalue_data(df, p_col)

@@ -459,7 +459,7 @@ class BokehBackend:
         """Create a secondary y-axis and return its handle."""
         # Add a second y-axis without tick marks (cleaner look)
         y_range = Range1d(start=0, end=100)
-        ax.extra_y_ranges = {_SECONDARY_RANGE: y_range}
+        ax.extra_y_ranges = {**ax.extra_y_ranges, _SECONDARY_RANGE: y_range}
         secondary_axis = LinearAxis(
             y_range_name=_SECONDARY_RANGE,
             major_tick_line_color=None,  # Hide major ticks

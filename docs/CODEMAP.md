@@ -294,6 +294,7 @@ PyLocusZoomError
 │   ├── LoaderValidationError
 │   ├── PheWASValidationError
 │   └── ForestValidationError
+├── OptionalDependencyMissing (also ImportError)
 ├── PlinkError (also RuntimeError)
 │   └── EmptyLDOutputError
 └── DataDownloadError (also RuntimeError)
@@ -611,6 +612,7 @@ complete reference; this table is the complete one.
 | `FinemappingValidationError` | Raised when fine-mapping DataFrame validation fails. |
 | `ForestValidationError` | Raised when forest plot DataFrame validation fails. |
 | `LoaderValidationError` | Raised when loaded data fails validation. |
+| `OptionalDependencyMissing` | Raised when a feature needs an optional extra that is not installed. |
 | `PheWASValidationError` | Raised when PheWAS DataFrame validation fails. |
 | `PlinkError` | Raised when PLINK subprocess fails. |
 | `PyLocusZoomError` | Base exception for all pyLocusZoom errors. |

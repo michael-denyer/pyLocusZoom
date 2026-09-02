@@ -404,3 +404,28 @@ class TestSetSuptitle:
         backend.set_suptitle(fig, "Cohort B")
 
         assert "Cohort B" in _plot_titles(fig)
+
+
+class TestCreateTwinAxisKeepsExtraRanges:
+    """create_twin_axis and add_legend both need an extra y-range on the same
+    figure; whichever runs second must not drop the other's range."""
+
+    @staticmethod
+    def _figure():
+        from pylocuszoom.backends.composition import LegendEntry
+
+        backend = BokehBackend()
+        _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        return backend, axes[0], [LegendEntry(label="a", color="#000000")]
+
+    def test_twin_axis_after_legend_keeps_legend_range(self):
+        backend, ax, entries = self._figure()
+        backend.add_legend(ax, entries)
+        backend.create_twin_axis(ax)
+        assert {"legend_range", "secondary"} <= set(ax.extra_y_ranges)
+
+    def test_legend_after_twin_axis_keeps_secondary_range(self):
+        backend, ax, entries = self._figure()
+        backend.create_twin_axis(ax)
+        backend.add_legend(ax, entries)
+        assert {"legend_range", "secondary"} <= set(ax.extra_y_ranges)

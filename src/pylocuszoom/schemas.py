@@ -240,15 +240,16 @@ def validate_phewas_df(
     df: pd.DataFrame,
     phenotype_col: str = "phenotype",
     p_col: str = "p_value",
-    category_col: str = "category",
 ) -> None:
     """Validate PheWAS DataFrame has required columns and types.
+
+    The category column is optional at render time, so it is not part of
+    this contract.
 
     Args:
         df: PheWAS results DataFrame.
         phenotype_col: Column name for phenotype names.
         p_col: Column name for p-values.
-        category_col: Column name for phenotype categories.
 
     Raises:
         PheWASValidationError: If required columns are missing or have invalid types.

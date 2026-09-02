@@ -41,6 +41,10 @@ class EmptyLDOutputError(PlinkError):
     """Raised when PLINK succeeds but produces no LD pairs."""
 
 
+class OptionalDependencyMissing(PyLocusZoomError, ImportError):
+    """Raised when a feature needs an optional extra that is not installed."""
+
+
 class DataDownloadError(PyLocusZoomError, RuntimeError):
     """Raised when data download operations fail."""
 

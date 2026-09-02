@@ -31,7 +31,7 @@ from ._regional_panels import (
 )
 from .backends import BackendType, get_backend
 from .config import ColumnConfig, PlotConfig, RegionConfig, StackedPlotConfig
-from .exceptions import ReferenceAPIError
+from .exceptions import OptionalDependencyMissing, ReferenceAPIError
 from .ld import find_plink
 from .logging import enable_logging, logger
 from .recombination import (
@@ -136,9 +136,8 @@ class LocusZoomPlotter:
     ) -> Optional[pd.DataFrame]:
         """Get recombination rate data for a region, with caching.
 
-        The pyliftover check reads the message because
-        ``get_recombination_rate_for_region`` raises a bare ``ImportError``
-        for it; any other one is a broken environment, not a missing overlay.
+        A missing optional dependency skips the overlay with a warning; any
+        other ``ImportError`` is a broken environment and propagates.
         """
         cache_key = (chrom, start, end, self.genome_build)
         if cache_key in self._recomb_cache:
@@ -159,9 +158,7 @@ class LocusZoomPlotter:
             )
             self._recomb_cache[cache_key] = recomb_df
             return recomb_df
-        except (FileNotFoundError, ImportError) as e:
-            if isinstance(e, ImportError) and "pyliftover" not in str(e):
-                raise
+        except (FileNotFoundError, OptionalDependencyMissing) as e:
             warnings.warn(f"Recombination overlay skipped; {e}", stacklevel=2)
             return None
 
@@ -212,8 +209,10 @@ class LocusZoomPlotter:
             chrom: Chromosome of the region.
             start: Region start position (bp, inclusive).
             end: Region end position (bp, inclusive).
-            lead_pos: Genomic position of the lead SNP (``>= 1``). Required
-                when ``ld_reference_file`` is supplied and ``ld_col`` is not.
+            lead_pos: Genomic position of the lead SNP (``>= 1``), marked
+                with a diamond. Auto-detected as the strongest in-region
+                p-value when omitted. Required when ``ld_reference_file`` is
+                supplied and ``ld_col`` is not.
             genes_df: Gene annotations; adds a gene track. ``exons_df`` draws
                 exon structure within it. Both are filtered to the region.
             recomb_df: Recombination rates to overlay on the first
@@ -275,7 +274,7 @@ class LocusZoomPlotter:
         return self._render_regional(
             config,
             [gwas_df],
-            leads=[config.ld.lead_pos],
+            leads=None if config.ld.lead_pos is None else [config.ld.lead_pos],
             reference_files=[config.ld.ld_reference_file],
             panel_labels=None,
             association_height=config.display.figsize[1] * 0.6,
@@ -386,7 +385,7 @@ class LocusZoomPlotter:
         config: PlotConfig,
         gwas_dfs: List[pd.DataFrame],
         *,
-        leads: Optional[List[Optional[int]]],
+        leads: Optional[List[int]],
         reference_files: List[Optional[str]],
         panel_labels: Optional[List[str]],
         association_height: float,
