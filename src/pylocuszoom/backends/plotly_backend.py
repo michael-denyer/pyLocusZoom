@@ -21,6 +21,7 @@ from .composition import LegendEntry, mb_tick_positions
 from .hover import plotly_hovertemplate
 from .plotly_layout import (
     _Panel,
+    _SecondaryAxis,
     configure_legend,
     secondary_axis_key,
     x_range,
@@ -64,7 +65,7 @@ class PlotlyBackend:
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
-    ) -> Tuple[go.Figure, List[Any]]:
+    ) -> Tuple[go.Figure, List[_Panel]]:
         """Create a figure with multiple panels."""
         width_px, height_px = pixels(figsize)
         row_heights = normalize_ratios(height_ratios)
@@ -99,10 +100,7 @@ class PlotlyBackend:
                 **{panel.axis("xaxis"): axis_style, panel.axis("yaxis"): axis_style}
             )
 
-        # Return (fig, row) tuples for each panel
-        # This matches the expected ax parameter format for all methods
-        panel_refs = [(fig, row) for row in range(1, n_panels + 1)]
-        return fig, panel_refs
+        return fig, [_Panel(fig, row) for row in range(1, n_panels + 1)]
 
     def create_figure_grid(
         self,
@@ -111,7 +109,7 @@ class PlotlyBackend:
         width_ratios: Optional[List[float]] = None,
         height_ratios: Optional[List[float]] = None,
         figsize: Tuple[float, float] = (12.0, 8.0),
-    ) -> Tuple[go.Figure, List[Any]]:
+    ) -> Tuple[go.Figure, List[_Panel]]:
         """Create a figure with a grid of subplots."""
         width_px, height_px = pixels(figsize)
         column_widths = normalize_ratios(width_ratios)
@@ -148,16 +146,15 @@ class PlotlyBackend:
                     **{panel.axis("xaxis"): axis_style, panel.axis("yaxis"): axis_style}
                 )
 
-        # Return flattened list of (fig, row, col, n_cols) tuples
-        panel_refs = []
-        for row in range(1, n_rows + 1):
-            for col in range(1, n_cols + 1):
-                panel_refs.append((fig, row, col, n_cols))
-        return fig, panel_refs
+        return fig, [
+            _Panel(fig, row, col, n_cols)
+            for row in range(1, n_rows + 1)
+            for col in range(1, n_cols + 1)
+        ]
 
     def scatter(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         x: pd.Series,
         y: pd.Series,
         colors: Union[str, List[str], pd.Series],
@@ -169,12 +166,8 @@ class PlotlyBackend:
         hover_data: Optional[pd.DataFrame] = None,
         label: Optional[str] = None,
     ) -> Any:
-        """Create a scatter plot on the given panel.
-
-        For plotly, ax is a tuple of (figure, row_number) or (figure, row, col).
-        """
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        """Create a scatter plot on the given panel."""
+        fig, row, col = ax.fig, ax.row, ax.col
 
         # Convert matplotlib marker to plotly symbol
         symbol = _MARKER_SYMBOLS.get(marker, "circle")
@@ -212,7 +205,7 @@ class PlotlyBackend:
 
     def line(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -223,8 +216,7 @@ class PlotlyBackend:
         label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
         dash = _DASH_MAP.get(linestyle, "solid")
 
         trace = go.Scatter(
@@ -242,7 +234,7 @@ class PlotlyBackend:
 
     def fill_between(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
@@ -251,8 +243,7 @@ class PlotlyBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         y1 = pd.Series(broadcast(y1, len(x)))
 
@@ -272,7 +263,7 @@ class PlotlyBackend:
 
     def axhline(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         y: float,
         color: str = "grey",
         linestyle: str = "--",
@@ -281,8 +272,7 @@ class PlotlyBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a horizontal line across the panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
         dash = _DASH_MAP.get(linestyle, "dash")
 
         fig.add_hline(
@@ -297,7 +287,7 @@ class PlotlyBackend:
 
     def add_text(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         x: float,
         y: float,
         text: str,
@@ -308,8 +298,7 @@ class PlotlyBackend:
         color: str = "black",
     ) -> Any:
         """Add text annotation to panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         # Map alignment
         xanchor_map = {"center": "center", "left": "left", "right": "right"}
@@ -330,7 +319,7 @@ class PlotlyBackend:
 
     def add_rectangle(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         xy: Tuple[float, float],
         width: float,
         height: float,
@@ -340,8 +329,7 @@ class PlotlyBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a rectangle to the panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         x0, y0 = xy
         x1, y1 = x0 + width, y0 + height
@@ -360,7 +348,7 @@ class PlotlyBackend:
 
     def add_polygon(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         points: List[List[float]],
         facecolor: str = "blue",
         edgecolor: str = "black",
@@ -368,8 +356,7 @@ class PlotlyBackend:
         zorder: int = 2,
     ) -> Any:
         """Add a polygon (e.g., triangle for strand arrows) to the panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         # Build SVG path from points
         path = f"M {points[0][0]} {points[0][1]}"
@@ -386,61 +373,39 @@ class PlotlyBackend:
             col=col,
         )
 
-    def set_xlim(self, ax: Tuple[go.Figure, int], left: float, right: float) -> None:
+    def set_xlim(self, ax: _Panel, left: float, right: float) -> None:
         """Set x-axis limits."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-        fig.update_layout(**{panel.axis("xaxis"): dict(range=[left, right])})
+        ax.fig.update_layout(**{ax.axis("xaxis"): dict(range=[left, right])})
 
-    def set_ylim(self, ax: Tuple[go.Figure, int], bottom: float, top: float) -> None:
+    def set_ylim(self, ax: _Panel, bottom: float, top: float) -> None:
         """Set y-axis limits."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-        fig.update_layout(**{panel.axis("yaxis"): dict(range=[bottom, top])})
+        ax.fig.update_layout(**{ax.axis("yaxis"): dict(range=[bottom, top])})
 
-    def set_xlabel(
-        self, ax: Tuple[go.Figure, int], label: str, fontsize: int = 12
-    ) -> None:
+    def set_xlabel(self, ax: _Panel, label: str, fontsize: int = 12) -> None:
         """Set x-axis label."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
         label = convert_latex_to_unicode(label)
-        fig.update_layout(
-            **{
-                panel.axis("xaxis"): dict(
-                    title=dict(text=label, font=dict(size=fontsize))
-                )
-            }
+        ax.fig.update_layout(
+            **{ax.axis("xaxis"): dict(title=dict(text=label, font=dict(size=fontsize)))}
         )
 
-    def set_ylabel(
-        self, ax: Tuple[go.Figure, int], label: str, fontsize: int = 12
-    ) -> None:
+    def set_ylabel(self, ax: _Panel, label: str, fontsize: int = 12) -> None:
         """Set y-axis label."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
         label = convert_latex_to_unicode(label)
-        fig.update_layout(
-            **{
-                panel.axis("yaxis"): dict(
-                    title=dict(text=label, font=dict(size=fontsize))
-                )
-            }
+        ax.fig.update_layout(
+            **{ax.axis("yaxis"): dict(title=dict(text=label, font=dict(size=fontsize)))}
         )
 
     def set_yticks(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         positions: List[float],
         labels: List[str],
         fontsize: int = 10,
     ) -> None:
         """Set y-axis tick positions and labels."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-        fig.update_layout(
+        ax.fig.update_layout(
             **{
-                panel.axis("yaxis"): dict(
+                ax.axis("yaxis"): dict(
                     tickmode="array",
                     tickvals=positions,
                     ticktext=labels,
@@ -451,7 +416,7 @@ class PlotlyBackend:
 
     def set_xticks(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         positions: List[float],
         labels: List[str],
         fontsize: int = 10,
@@ -459,11 +424,9 @@ class PlotlyBackend:
         ha: str = "center",
     ) -> None:
         """Set x-axis tick positions and labels."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-        fig.update_layout(
+        ax.fig.update_layout(
             **{
-                panel.axis("xaxis"): dict(
+                ax.axis("xaxis"): dict(
                     tickmode="array",
                     tickvals=positions,
                     ticktext=labels,
@@ -473,27 +436,22 @@ class PlotlyBackend:
             }
         )
 
-    def set_title(
-        self, ax: Tuple[go.Figure, int], title: str, fontsize: int = 14
-    ) -> None:
+    def set_title(self, ax: _Panel, title: str, fontsize: int = 14) -> None:
         """Set subplot title using annotation.
 
         For grid layouts, this adds an annotation above the subplot.
         For single-column layouts, sets the global figure title for the first panel.
         """
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-
-        if n_cols == 1 and row == 1:
+        if ax.n_cols == 1 and ax.row == 1:
             # Single-column layout: use global figure title
-            fig.update_layout(title=dict(text=title, font=dict(size=fontsize)))
+            ax.fig.update_layout(title=dict(text=title, font=dict(size=fontsize)))
         else:
             # Grid layout: add annotation above the subplot
             # Use subplot's axis domain for positioning
-            xref = f"{panel.ref('x')} domain"
-            yref = f"{panel.ref('y')} domain"
+            xref = f"{ax.ref('x')} domain"
+            yref = f"{ax.ref('y')} domain"
 
-            fig.add_annotation(
+            ax.fig.add_annotation(
                 text=f"<b>{title}</b>",
                 xref=xref,
                 yref=yref,
@@ -516,20 +474,15 @@ class PlotlyBackend:
             )
         )
 
-    def create_twin_axis(self, ax: Tuple[go.Figure, int]) -> Any:
-        """Create a secondary y-axis.
-
-        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
-        primitives.
-        """
-        panel = _Panel.of(ax)
-        secondary_y = panel.secondary_ref()
-        panel.fig.update_layout(
+    def create_twin_axis(self, ax: _Panel) -> _SecondaryAxis:
+        """Create a secondary y-axis and return its handle."""
+        secondary_y = ax.secondary_ref()
+        ax.fig.update_layout(
             **{
                 secondary_axis_key(secondary_y): dict(
-                    overlaying=panel.ref("y"),
+                    overlaying=ax.ref("y"),
                     side="right",
-                    anchor=panel.ref("x"),
+                    anchor=ax.ref("x"),
                     showgrid=False,
                     showline=False,
                     zeroline=False,
@@ -537,11 +490,11 @@ class PlotlyBackend:
             }
         )
 
-        return (ax, secondary_y)
+        return _SecondaryAxis(ax, secondary_y)
 
     def line_secondary(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -551,14 +504,11 @@ class PlotlyBackend:
         label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on secondary y-axis."""
-        ax, yaxis_name = secondary
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
         dash = _DASH_MAP.get(linestyle, "solid")
 
         # For secondary axes, we need to set both xaxis and yaxis explicitly
         # and NOT use row/col which would override these references
-        xaxis_ref = panel.ref("x")
+        xaxis_ref = secondary.panel.ref("x")
 
         trace = go.Scatter(
             x=x,
@@ -569,17 +519,17 @@ class PlotlyBackend:
             name=label or "",
             showlegend=label is not None,
             xaxis=xaxis_ref,
-            yaxis=yaxis_name,
+            yaxis=secondary.yref,
             hoverinfo="skip",
         )
 
         # Add trace directly without row/col to preserve axis references
-        fig.add_trace(trace)
+        secondary.fig.add_trace(trace)
         return trace
 
     def fill_between_secondary(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
@@ -587,16 +537,12 @@ class PlotlyBackend:
         alpha: float = 0.3,
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
-        ax, yaxis_name = secondary
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-
         if isinstance(y1, (int, float)):
             y1 = pd.Series([y1] * len(x))
 
         # For secondary axes, we need to set both xaxis and yaxis explicitly
         # and NOT use row/col which would override these references
-        xaxis_ref = panel.ref("x")
+        xaxis_ref = secondary.panel.ref("x")
 
         trace = go.Scatter(
             x=pd.concat([x, x[::-1]]),
@@ -608,38 +554,36 @@ class PlotlyBackend:
             showlegend=False,
             hoverinfo="skip",
             xaxis=xaxis_ref,
-            yaxis=yaxis_name,
+            yaxis=secondary.yref,
         )
 
         # Add trace directly without row/col to preserve axis references
-        fig.add_trace(trace)
+        secondary.fig.add_trace(trace)
         return trace
 
     def set_secondary_ylim(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         bottom: float,
         top: float,
     ) -> None:
         """Set secondary y-axis limits."""
-        ax, yaxis_name = secondary
-        _Panel.of(ax).fig.update_layout(
-            **{secondary_axis_key(yaxis_name): dict(range=[bottom, top])}
+        secondary.fig.update_layout(
+            **{secondary_axis_key(secondary.yref): dict(range=[bottom, top])}
         )
 
     def set_secondary_ylabel(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         label: str,
         color: str = "black",
         fontsize: int = 10,
     ) -> None:
         """Set secondary y-axis label."""
-        ax, yaxis_name = secondary
         label = convert_latex_to_unicode(label)
-        _Panel.of(ax).fig.update_layout(
+        secondary.fig.update_layout(
             **{
-                secondary_axis_key(yaxis_name): dict(
+                secondary_axis_key(secondary.yref): dict(
                     title=dict(text=label, font=dict(size=fontsize, color=color)),
                     tickfont=dict(color=color),
                 )
@@ -679,14 +623,13 @@ class PlotlyBackend:
 
     def add_panel_label(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         label: str,
         x_frac: float = 0.02,
         y_frac: float = 0.95,
     ) -> None:
         """Add label text at fractional position in panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
         fig.add_annotation(
             text=f"<b>{label}</b>",
             xref="x domain",
@@ -701,7 +644,7 @@ class PlotlyBackend:
 
     def add_legend(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         entries: List[LegendEntry],
         loc: str = "upper left",
         title: Optional[str] = None,
@@ -711,8 +654,7 @@ class PlotlyBackend:
         Each call allocates a fresh legend key (legend, legend2, ...) so several
         legends coexist on one figure, positioned per panel row.
         """
-        panel = _Panel.of(ax)
-        fig, row = panel.fig, panel.row
+        fig, row = ax.fig, ax.row
         # to_plotly_json reports only legends that have been configured, so the
         # count of existing ones gives the next free key.
         existing = [k for k in fig.to_plotly_json()["layout"] if k.startswith("legend")]
@@ -738,13 +680,11 @@ class PlotlyBackend:
             fig, row, legend_key, convert_latex_to_unicode(title or ""), loc
         )
 
-    def hide_yaxis(self, ax: Tuple[go.Figure, int]) -> None:
+    def hide_yaxis(self, ax: _Panel) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
-        panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-        fig.update_layout(
+        ax.fig.update_layout(
             **{
-                panel.axis("yaxis"): dict(
+                ax.axis("yaxis"): dict(
                     showticklabels=False,
                     showline=False,
                     showgrid=False,
@@ -753,15 +693,14 @@ class PlotlyBackend:
             }
         )
 
-    def format_xaxis_mb(self, ax: Tuple[go.Figure, int]) -> None:
+    def format_xaxis_mb(self, ax: _Panel) -> None:
         """Format x-axis to show megabase values."""
-        panel = _Panel.of(ax)
-        xaxis_name = panel.axis("xaxis")
-        panel_range = x_range(panel, xaxis_name)
+        xaxis_name = ax.axis("xaxis")
+        panel_range = x_range(ax, xaxis_name)
         if not panel_range:
             return
         tickvals, ticktext = mb_tick_positions(panel_range[0], panel_range[1])
-        panel.fig.update_layout(
+        ax.fig.update_layout(
             **{
                 xaxis_name: dict(
                     tickvals=tickvals,
@@ -773,7 +712,7 @@ class PlotlyBackend:
 
     def axvline(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         x: float,
         color: str = "grey",
         linestyle: str = "--",
@@ -782,8 +721,7 @@ class PlotlyBackend:
         zorder: int = 1,
     ) -> Any:
         """Add a vertical line across the panel."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
         dash = _DASH_MAP.get(linestyle, "dash")
 
         fig.add_vline(
@@ -798,7 +736,7 @@ class PlotlyBackend:
 
     def hbar(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         y: pd.Series,
         width: pd.Series,
         height: float = 0.8,
@@ -809,8 +747,7 @@ class PlotlyBackend:
         zorder: int = 2,
     ) -> Any:
         """Create horizontal bar chart."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         # Convert left to array if scalar
         if isinstance(left, (int, float)):
@@ -835,7 +772,7 @@ class PlotlyBackend:
 
     def errorbar_h(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         x: pd.Series,
         y: pd.Series,
         xerr_lower: pd.Series,
@@ -846,8 +783,7 @@ class PlotlyBackend:
         zorder: int = 3,
     ) -> Any:
         """Add horizontal error bars."""
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         trace = go.Scatter(
             x=x,
@@ -912,7 +848,7 @@ class PlotlyBackend:
 
     def add_heatmap(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
@@ -923,8 +859,7 @@ class PlotlyBackend:
         """Render a heatmap of an already-shaped matrix."""
         import numpy as np
 
-        panel = _Panel.of(ax)
-        fig, row, col = panel.fig, panel.row, panel.col
+        fig, row, col = ax.fig, ax.row, ax.col
 
         if cmap_colors is None:
             cmap_colors = ["#FFFFFF", "#FF0000"]
@@ -954,7 +889,7 @@ class PlotlyBackend:
 
     def add_colorbar(
         self,
-        ax: Tuple[go.Figure, int],
+        ax: _Panel,
         mappable: Any,
         label: str = "R²",
         orientation: str = "vertical",

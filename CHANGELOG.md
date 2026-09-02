@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`SupportsHeatmap` drops `highlight_heatmap_snp` (breaking for custom backends).** The protocol is now `add_heatmap` and `add_colorbar`. Split cell geometry caused the defect above: `add_heatmap` knew the coordinates and `highlight_heatmap_snp` did not, so three adapters each invented a third rule. A custom backend can delete the method; `runtime_checkable` protocols check names, so one that keeps it still satisfies `SupportsHeatmap`.
+- **The Plotly backend hands out `_Panel` values, not tuples.** `create_figure` returned `(fig, row)` pairs and `create_figure_grid` returned `(fig, row, col, n_cols)` quadruples, and every drawing method reparsed the handle through `_Panel.of` before using it. The constructors now return `_Panel` instances directly, `_Panel.of` and its length check are gone, and each signature says `ax: _Panel` where 25 of them claimed `Tuple[go.Figure, int]`, which was false for every grid handle. `_Panel` is still a `NamedTuple`, so code indexing `ax[0]` for the figure keeps working. `create_twin_axis` returns a `_SecondaryAxis` on Plotly and on Bokeh, which lets Bokeh label and scale the axis it created rather than searching the figure for it.
 - **`add_rectangle` accepts `facecolor=None` for an outline with no fill.** Matplotlib draws it with `fill=False`, Plotly with a transparent `fillcolor`, Bokeh with `fill_color=None`.
 
 ## [3.0.0] - 2026-09-02

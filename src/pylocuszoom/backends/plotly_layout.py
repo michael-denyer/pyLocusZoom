@@ -42,24 +42,6 @@ class _Panel(NamedTuple):
     col: int = 1
     n_cols: int = 1
 
-    @classmethod
-    def of(cls, ax: Any) -> "_Panel":
-        """Build a panel from a ``(fig, row)`` or ``(fig, row, col, n_cols)`` handle.
-
-        Args:
-            ax: Panel handle as returned by ``create_figure`` or
-                ``create_figure_grid``.
-
-        Returns:
-            The resolved panel.
-
-        Raises:
-            ValueError: If the handle has an unexpected length.
-        """
-        if len(ax) == 2 or len(ax) == 4:
-            return cls(*ax)
-        raise ValueError(f"Expected ax tuple of length 2 or 4, got {len(ax)}")
-
     @property
     def subplot_idx(self) -> int:
         """Plotly's linear index for this subplot, 1-based."""
@@ -100,6 +82,22 @@ class _Panel(NamedTuple):
         """
         idx = self.subplot_idx
         return f"{kind}{idx}" if idx > 1 else kind
+
+
+class _SecondaryAxis(NamedTuple):
+    """A panel's secondary y-axis, as returned by ``create_twin_axis``.
+
+    Carries the panel it overlays, so a drawing primitive reaches the figure
+    and the panel's x-axis through the handle it is given.
+    """
+
+    panel: _Panel
+    yref: str
+
+    @property
+    def fig(self) -> go.Figure:
+        """The figure the panel belongs to."""
+        return self.panel.fig
 
 
 def secondary_axis_key(secondary_ref: str) -> str:

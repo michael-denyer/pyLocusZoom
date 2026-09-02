@@ -95,8 +95,8 @@ tracing a protocol method still resolves through the class to find it, and the
 method count on the seam is unchanged. That hop is the cost the rejection names.
 
 Extracting a value type and pure functions has no such hop.
-`backends/plotly_layout.py` holds `_Panel`, which resolves a renderer's panel
-handle and owns Plotly's subplot axis naming, plus `configure_legend`,
+`backends/plotly_layout.py` holds `_Panel`, the panel handle itself, which
+owns Plotly's subplot axis naming, plus `configure_legend`,
 `panel_y`, `x_range`, and `secondary_axis_key`. None of them touch the backend
 instance, so a reader following `set_xlim` reads one call to a named function
 rather than a method that might be overridden further up an inheritance chain.

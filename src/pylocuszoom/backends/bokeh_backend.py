@@ -4,7 +4,7 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 """
 
 import math
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -76,6 +76,21 @@ _BASELINE_MAP = {"center": "middle", "baseline": "alphabetic"}
 # Namespaces hover columns in a ColumnDataSource so a hover column named "x"
 # or "size" cannot shadow the keys scatter() sets for geometry and styling.
 _HOVER_KEY_PREFIX = "hover_"
+# Name of the extra y-range a twin axis draws against.
+_SECONDARY_RANGE = "secondary"
+
+
+class _SecondaryAxis(NamedTuple):
+    """A figure's secondary y-axis, as returned by ``create_twin_axis``.
+
+    Carries the axis and the range ``create_twin_axis`` added, so labelling and
+    scaling reach them directly instead of searching the figure for them.
+    """
+
+    figure: figure
+    axis: LinearAxis
+    y_range: Range1d
+    name: str = _SECONDARY_RANGE
 
 
 @register_backend("bokeh")
@@ -447,27 +462,24 @@ class BokehBackend:
             fig.title.text = title
             fig.title.text_font_size = f"{fontsize}pt"
 
-    def create_twin_axis(self, ax: figure) -> Any:
-        """Create a secondary y-axis.
-
-        Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
-        primitives.
-        """
+    def create_twin_axis(self, ax: figure) -> _SecondaryAxis:
+        """Create a secondary y-axis and return its handle."""
         # Add a second y-axis without tick marks (cleaner look)
-        ax.extra_y_ranges = {"secondary": Range1d(start=0, end=100)}
+        y_range = Range1d(start=0, end=100)
+        ax.extra_y_ranges = {_SECONDARY_RANGE: y_range}
         secondary_axis = LinearAxis(
-            y_range_name="secondary",
+            y_range_name=_SECONDARY_RANGE,
             major_tick_line_color=None,  # Hide major ticks
             minor_tick_line_color=None,  # Hide minor ticks
             major_label_text_font_size="0pt",  # Hide tick labels
         )
         ax.add_layout(secondary_axis, "right")
 
-        return (ax, "secondary")
+        return _SecondaryAxis(ax, secondary_axis, y_range)
 
     def line_secondary(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -477,22 +489,21 @@ class BokehBackend:
         label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on secondary y-axis."""
-        ax, yaxis_name = secondary
         line_dash = _DASH_MAP.get(linestyle, "solid")
 
-        return ax.line(
+        return secondary.figure.line(
             x.values,
             y.values,
             line_color=color,
             line_width=linewidth,
             line_alpha=alpha,
             line_dash=line_dash,
-            y_range_name=yaxis_name,
+            y_range_name=secondary.name,
         )
 
     def fill_between_secondary(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
@@ -500,50 +511,38 @@ class BokehBackend:
         alpha: float = 0.3,
     ) -> Any:
         """Fill area between two y-values on secondary y-axis."""
-        ax, yaxis_name = secondary
         x_arr = x.values
-        return ax.varea(
+        return secondary.figure.varea(
             x=x_arr,
             y1=broadcast(y1, len(x_arr)),
             y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
-            y_range_name=yaxis_name,
+            y_range_name=secondary.name,
         )
 
     def set_secondary_ylim(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         bottom: float,
         top: float,
     ) -> None:
         """Set secondary y-axis limits."""
-        ax, yaxis_name = secondary
-        if yaxis_name in ax.extra_y_ranges:
-            ax.extra_y_ranges[yaxis_name].start = bottom
-            ax.extra_y_ranges[yaxis_name].end = top
+        secondary.y_range.start = bottom
+        secondary.y_range.end = top
 
     def set_secondary_ylabel(
         self,
-        secondary: Any,
+        secondary: _SecondaryAxis,
         label: str,
         color: str = "black",
         fontsize: int = 10,
     ) -> None:
         """Set secondary y-axis label."""
-        ax, yaxis_name = secondary
-        label = convert_latex_to_unicode(label)
-        # Find the secondary axis and update its label
-        for renderer in ax.right:
-            if (
-                hasattr(renderer, "y_range_name")
-                and renderer.y_range_name == yaxis_name
-            ):
-                renderer.axis_label = label
-                renderer.axis_label_text_font_size = f"{fontsize}pt"
-                renderer.axis_label_text_color = color
-                renderer.major_label_text_color = color
-                break
+        secondary.axis.axis_label = convert_latex_to_unicode(label)
+        secondary.axis.axis_label_text_font_size = f"{fontsize}pt"
+        secondary.axis.axis_label_text_color = color
+        secondary.axis.major_label_text_color = color
 
     def add_panel_label(
         self,
