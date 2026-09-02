@@ -238,8 +238,6 @@ class TestToPandas:
         mock_obj.toPandas.assert_called_once()
 
 
-
-
 class TestNormalizeChrom:
     """Tests for normalize_chrom function."""
 

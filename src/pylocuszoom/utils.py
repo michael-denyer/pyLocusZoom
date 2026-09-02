@@ -212,5 +212,3 @@ def filter_by_region(
         mask = mask & (df_chrom_normalized == chrom_normalized)
 
     return df[mask].copy()
-
-

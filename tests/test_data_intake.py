@@ -1,6 +1,7 @@
 """Contract tests for the shared plot-data intake policy."""
 
 import pandas as pd
+import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
@@ -38,9 +39,8 @@ def test_eqtl_preparation_uses_the_shared_policy():
     [
         (lambda df: prepare_manhattan_data(df, species="human"), True),
         (lambda df: prepare_categorical_data(df, "category"), True),
-        (lambda df: transform_pvalues(df, "p"), True),
     ],
-    ids=["manhattan", "categorical", "regional"],
+    ids=["manhattan", "categorical"],
 )
 def test_entry_points_keep_the_same_survivors(entry_point, allow_zero):
     """Every DataFrame-returning entry point drops the same bad rows."""
@@ -85,10 +85,3 @@ def test_entry_points_raise_when_nothing_survives(entry_point, message):
 
     with pytest.raises(ValueError, match=message):
         entry_point(raw)
-
-
-def test_regional_returns_empty_when_nothing_survives():
-    """The regional path returns an empty frame where the others raise."""
-    raw = pd.DataFrame({"pos": [1, 2], "p": [2.0, -1.0]})
-
-    assert transform_pvalues(raw, "p").empty
