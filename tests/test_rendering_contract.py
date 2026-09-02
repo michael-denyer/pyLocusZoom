@@ -9,7 +9,7 @@ import pytest
 
 from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom._manhattan_panel import ManhattanPanelSpec, manhattan_spec
-from pylocuszoom._miami_renderer import MiamiRequest, render_miami
+from pylocuszoom._miami_panels import MiamiRequest, miami_plan
 from pylocuszoom._qq_panel import QQPanelSpec, qq_title
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
@@ -209,8 +209,7 @@ def test_miami_highlight_reaches_the_backend(prepared_data):
     manhattan_df, _ = prepared_data
     backend = RecordingBackend()
 
-    figure = render_miami(
-        backend,
+    plan = miami_plan(
         MiamiRequest(
             top=manhattan_df,
             bottom=manhattan_df,
@@ -229,6 +228,7 @@ def test_miami_highlight_reaches_the_backend(prepared_data):
             title=None,
         ),
     )
+    figure = render_figure(backend, plan)
 
     assert figure is not None
     assert [name for name, _, _ in backend.calls].count("add_region_highlight") == 1

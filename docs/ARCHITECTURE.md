@@ -193,10 +193,13 @@ stages:
    builds `ManhattanPanelSpec` and `QQPanelSpec` values through
    `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` and
    puts them on a `FigurePlan` as one panel, a vertical stack, or a
-   two-column grid beside QQ panels. PheWAS and forest go through
-   `StatsRenderer`; Miami, colocalisation and the standalone LD heatmap each
-   build one frozen request value (`MiamiRequest`, `ColocRequest`,
-   `LDHeatmapRequest`) and pass it to a module-level `render_*` function.
+   two-column grid beside QQ panels. `MiamiPlotter` builds a `MiamiRequest`
+   and `miami_plan` turns it into two `MiamiPanel`s (a mirrored
+   `ManhattanPanelSpec` each, plus SNP annotations) and the highlights that
+   span both. PheWAS and forest go through `StatsRenderer`; colocalisation
+   and the standalone LD heatmap each build one frozen request value
+   (`ColocRequest`, `LDHeatmapRequest`) and pass it to a module-level
+   `render_*` function.
    Panels own their drawing, labels, axes and legends; `render_figure` owns
    the figure, translating intent through the existing `PlotBackend`
    primitive contract. Backend implementations translate the primitive calls
@@ -213,7 +216,8 @@ stages:
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
 | `FigurePlan`, `render_figure` | Internal module | `src/pylocuszoom/_figure.py` | The one figure model: an ordered list of panels on a grid plus figure-level policy (size, row and column ratios, shared-x label and megabase format, cross-panel highlights, title, layout fractions). `render_figure` is the only caller of `create_figure`, `create_figure_grid`, `set_suptitle` and `finalize_layout` outside `backends/` |
 | Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw` method that draws it. A panel carries its resolved mode, region, hover contract and layout, so drawing inspects no columns |
-| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families. Miami, coloc and LD heatmap are a frozen request value plus one `render_*` function; PheWAS and forest stay a class because they share drawing between two entry points |
+| `MiamiRequest`, `MiamiPanel`, `miami_plan` | Internal module | `src/pylocuszoom/_miami_panels.py` | The Miami figure: a request the plotter resolves, a panel that draws one mirrored Manhattan half with its SNP annotations, and the builder that lays two of them on a `FigurePlan` with the cross-panel highlights |
+| Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for the PheWAS/forest, colocalization, and LD heatmap families. Coloc and LD heatmap are a frozen request value plus one `render_*` function; PheWAS and forest stay a class because they share drawing between two entry points |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
@@ -260,7 +264,7 @@ pyLocusZoom/
 │   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
 │   ├── _figure.py             # FigurePlan and render_figure, the one figure model
 │   ├── _regional_panels.py    # Regional panel value types, each drawing itself
-│   ├── _miami_renderer.py      # Miami figure composition
+│   ├── _miami_panels.py        # Miami request, panel, and plan builder
 │   ├── _stats_renderer.py      # PheWAS and forest figure composition
 │   ├── _coloc_renderer.py      # Colocalization figure composition
 │   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition

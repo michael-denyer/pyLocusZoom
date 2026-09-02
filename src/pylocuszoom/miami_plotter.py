@@ -10,7 +10,8 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._miami_renderer import MiamiRequest, render_miami
+from ._figure import render_figure
+from ._miami_panels import MiamiRequest, miami_plan
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
@@ -141,27 +142,25 @@ class MiamiPlotter:
             custom_order=custom_chrom_order,
         )
 
-        return render_miami(
-            self._backend,
-            MiamiRequest(
-                top=top_prepared,
-                bottom=bottom_prepared,
-                hover=(
-                    HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
-                    if rs_col is not None
-                    else None
-                ),
-                rs_col=rs_col,
-                top_threshold=top_threshold,
-                bottom_threshold=bottom_threshold,
-                top_label=top_label,
-                bottom_label=bottom_label,
-                top_annotations=tuple(top_snp_annotations or ()),
-                bottom_annotations=tuple(bottom_snp_annotations or ()),
-                highlights=tuple(highlight_regions or ()),
-                highlight_color=highlight_color,
-                highlight_alpha=highlight_alpha,
-                figsize=figsize,
-                title=title,
+        request = MiamiRequest(
+            top=top_prepared,
+            bottom=bottom_prepared,
+            hover=(
+                HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
+                if rs_col is not None
+                else None
             ),
+            rs_col=rs_col,
+            top_threshold=top_threshold,
+            bottom_threshold=bottom_threshold,
+            top_label=top_label,
+            bottom_label=bottom_label,
+            top_annotations=tuple(top_snp_annotations or ()),
+            bottom_annotations=tuple(bottom_snp_annotations or ()),
+            highlights=tuple(highlight_regions or ()),
+            highlight_color=highlight_color,
+            highlight_alpha=highlight_alpha,
+            figsize=figsize,
+            title=title,
         )
+        return render_figure(self._backend, miami_plan(request))
