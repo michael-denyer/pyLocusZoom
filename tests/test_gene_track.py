@@ -6,7 +6,6 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom._regional_panels import GenePanel
 from pylocuszoom.colors import STRAND_COLORS
 from pylocuszoom.config import RegionConfig
 from pylocuszoom.gene_track import (
@@ -14,6 +13,7 @@ from pylocuszoom.gene_track import (
     filter_genes_by_region,
     get_nearest_gene,
 )
+from pylocuszoom.panels.genes import GenePanel
 from tests.strategies import gene_dataframes
 
 

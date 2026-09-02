@@ -12,21 +12,21 @@ from typing import Any, List, Optional, Tuple
 import pandas as pd
 
 from ._figure import FigurePlan, render_figure
-from ._manhattan_panel import (
-    categorical_spec,
-    manhattan_spec,
-    stacked_manhattan_specs,
-)
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
     ThresholdArg,
     resolve_threshold,
 )
-from ._qq_panel import QQPanelSpec, qq_title
 from .backends import BackendType, get_backend
 from .config import GenomeWideConfig
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
+from .panels.manhattan import (
+    categorical_spec,
+    manhattan_spec,
+    stacked_manhattan_specs,
+)
+from .panels.qq import QQPanelSpec, qq_title
 from .qq import prepare_qq_data
 from .schemas import Canonical
 from .species import Species, resolve_species

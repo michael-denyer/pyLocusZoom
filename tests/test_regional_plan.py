@@ -8,7 +8,8 @@ import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom._figure import FigurePlan, render_figure
-from pylocuszoom._regional_panels import (
+from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
+from pylocuszoom.panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
@@ -16,7 +17,6 @@ from pylocuszoom._regional_panels import (
     HeatmapPanel,
     hover_for_association,
 )
-from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
 from tests.test_rendering_contract import RecordingBackend
 
 REGION = RegionConfig(chrom=1, start=1_000_000, end=2_000_000)

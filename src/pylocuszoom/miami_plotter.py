@@ -9,7 +9,6 @@ Provides visualization of GWAS comparisons with mirrored y-axes:
 from typing import Any, List, Optional, Tuple
 
 from ._figure import render_figure
-from ._miami_panels import MiamiRequest, miami_plan
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
@@ -20,6 +19,7 @@ from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig
 from .config import GenomeWideConfig
 from .manhattan import prepare_genomewide_frames
+from .panels.miami import MiamiRequest, miami_plan
 from .species import Species, resolve_species
 from .utils import DataFrameLike, to_pandas
 

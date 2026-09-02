@@ -168,7 +168,13 @@ from .recombination import (
 
 # Gene source routing over the Ensembl and UCSC clients
 from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
-from .schemas import Canonical, validate_forest_df, validate_phewas_df
+from .schemas import (
+    Canonical,
+    validate_forest_df,
+    validate_genes_df,
+    validate_gwas_df,
+    validate_phewas_df,
+)
 
 # One record per species, resolved once at the API boundary
 from .species import Species, resolve_species
@@ -179,9 +185,15 @@ from .stats_plotter import StatsPlotter
 # Validation utilities
 from .utils import to_pandas
 
+# Two tiers, documented in docs/USER_GUIDE.md under API Stability.
 __all__ = [
-    # Core
+    # ------------------------------------------------------------------
+    # Core: the plot families, the values you hand them, the loaders that
+    # produce those values, and the errors they raise. These names follow
+    # semantic versioning, so a break here means a major release.
+    # ------------------------------------------------------------------
     "__version__",
+    # Plotters
     "LocusZoomPlotter",
     "ManhattanPlotter",
     "MiamiPlotter",
@@ -194,6 +206,56 @@ __all__ = [
     "GenomeWideConfig",
     "LDConfig",
     "PanelInputs",
+    # The column vocabulary every loader emits and every plotter defaults to
+    "Canonical",
+    # GWAS loaders
+    "load_gwas",
+    "load_plink_assoc",
+    "load_regenie",
+    "load_bolt_lmm",
+    "load_gemma",
+    "load_saige",
+    "load_gwas_catalog",
+    # eQTL loaders
+    "load_gtex_eqtl",
+    "load_eqtl_catalogue",
+    "load_matrixeqtl",
+    # Fine-mapping loaders
+    "load_susie",
+    "load_finemap",
+    "load_caviar",
+    "load_polyfun",
+    # Gene annotation loaders
+    "load_gtf",
+    "load_bed",
+    "load_ensembl_genes",
+    # Species
+    "Species",
+    "resolve_species",
+    # Logging
+    "enable_logging",
+    "disable_logging",
+    # Exceptions
+    "PyLocusZoomError",
+    "ValidationError",
+    "DataDownloadError",
+    "EmptyLDOutputError",
+    "EnsemblAPIError",
+    "OptionalDependencyMissing",
+    "ReferenceAPIError",
+    "UCSCAPIError",
+    "PlinkError",
+    "PheWASValidationError",
+    "ForestValidationError",
+    "EQTLValidationError",
+    "FinemappingValidationError",
+    "LoaderValidationError",
+    # ------------------------------------------------------------------
+    # Toolbox: internals useful on their own, exported because somebody
+    # wanted them. None is deprecated and none is dead, but any of them may
+    # change shape or move between minor releases. Building on one is fine;
+    # pin the version if you do.
+    # ------------------------------------------------------------------
     # Backends
     "BackendType",
     "get_backend",
@@ -229,7 +291,6 @@ __all__ = [
     "prepare_eqtl_for_plotting",
     "get_eqtl_genes",
     "calculate_colocalization_overlap",
-    "EQTLValidationError",
     # Fine-mapping/SuSiE
     "validate_finemapping_df",
     "filter_finemapping_by_region",
@@ -237,58 +298,16 @@ __all__ = [
     "get_credible_sets",
     "get_top_pip_variants",
     "prepare_finemapping_for_plotting",
-    "FinemappingValidationError",
-    # Logging
-    "enable_logging",
-    "disable_logging",
-    # Exceptions
-    "PyLocusZoomError",
-    "ValidationError",
-    "DataDownloadError",
-    "EmptyLDOutputError",
-    "EnsemblAPIError",
-    "OptionalDependencyMissing",
-    "ReferenceAPIError",
-    "UCSCAPIError",
-    "PlinkError",
-    "PheWASValidationError",
-    "ForestValidationError",
+    # Frame validators, the same checks the plotters run at their boundary
+    "validate_gwas_df",
+    "validate_genes_df",
+    "validate_phewas_df",
+    "validate_forest_df",
     # Utils
     "to_pandas",
-    # PheWAS
-    "validate_phewas_df",
-    "Canonical",
-    # Forest plot
-    "validate_forest_df",
-    # GWAS loaders
-    "load_gwas",
-    "load_plink_assoc",
-    "load_regenie",
-    "load_bolt_lmm",
-    "load_gemma",
-    "load_saige",
-    "load_gwas_catalog",
-    # eQTL loaders
-    "load_gtex_eqtl",
-    "load_eqtl_catalogue",
-    "load_matrixeqtl",
-    # Fine-mapping loaders
-    "load_susie",
-    "load_finemap",
-    "load_caviar",
-    "load_polyfun",
-    # Gene annotation loaders
-    "load_gtf",
-    "load_bed",
-    "load_ensembl_genes",
-    # Schema validation
-    "LoaderValidationError",
     # Gene annotations, from Ensembl or from UCSC for the builds it retired
     "get_genes_for_build",
     "source_for",
     "clear_gene_cache",
     "get_ensembl_species_name",
-    # Species
-    "Species",
-    "resolve_species",
 ]

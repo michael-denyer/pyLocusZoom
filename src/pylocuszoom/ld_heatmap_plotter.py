@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 
 from ._figure import FigurePlan, render_figure
-from ._ld_heatmap_panel import LDHeatmapPanel
 from .backends import BackendType, get_backend
+from .panels.ld_heatmap import LDHeatmapPanel
 
 
 class LDHeatmapPlotter:

@@ -13,7 +13,7 @@ flowchart TB
         ST["StatsPlotter<br/><small>1d</small>"]
         HM["LDHeatmapPlotter<br/><small>1e</small>"]
         CP["ColocPlotter<br/><small>1f</small>"]
-        LD_IN["load_gwas + loaders<br/><small>1g</small>"]
+        LD_IN["load_gwas + loaders/<br/><small>1g</small>"]
     end
 
     subgraph Layer2["⚙️ Validation"]
@@ -145,8 +145,8 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 | 1d | StatsPlotter | PheWAS and forest plots | [stats_plotter.py](../src/pylocuszoom/stats_plotter.py) |
 | 1e | LDHeatmapPlotter | Pairwise LD heatmaps | [ld_heatmap_plotter.py](../src/pylocuszoom/ld_heatmap_plotter.py) |
 | 1f | ColocPlotter | Colocalisation scatter (GWAS × eQTL) | [coloc_plotter.py](../src/pylocuszoom/coloc_plotter.py) |
-| 1g | load_gwas | Auto-detecting GWAS format loader | [loaders.py](../src/pylocuszoom/loaders.py) |
-| 1g | LoaderSpec | Frozen per-format loader contract (separator, renames, p-value and first-present candidates, transform) driven by one `_load_tabular` engine | [loaders.py](../src/pylocuszoom/loaders.py) |
+| 1g | load_gwas | Auto-detecting GWAS format loader | [loaders/gwas.py](../src/pylocuszoom/loaders/gwas.py) |
+| 1g | LoaderSpec | Frozen per-format loader contract (separator, renames, p-value and first-present candidates, transform) driven by one `_load_tabular` engine | [loaders/_engine.py](../src/pylocuszoom/loaders/_engine.py) |
 
 ### File Loaders [1g]
 
@@ -154,10 +154,10 @@ Each static format is a `LoaderSpec` constant plus a thin public wrapper. `load_
 
 | Domain | Formats | Entry points |
 |--------|---------|--------------|
-| GWAS | PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog | [loaders.py](../src/pylocuszoom/loaders.py) |
-| eQTL | GTEx, eQTL Catalogue, MatrixEQTL | [loaders.py](../src/pylocuszoom/loaders.py) |
-| Fine-mapping | SuSiE, FINEMAP, CAVIAR, PolyFun | [loaders.py](../src/pylocuszoom/loaders.py) |
-| Genes | GTF, BED, Ensembl | [loaders.py](../src/pylocuszoom/loaders.py) |
+| GWAS | PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog | [loaders/gwas.py](../src/pylocuszoom/loaders/gwas.py) |
+| eQTL | GTEx, eQTL Catalogue, MatrixEQTL | [loaders/eqtl.py](../src/pylocuszoom/loaders/eqtl.py) |
+| Fine-mapping | SuSiE, FINEMAP, CAVIAR, PolyFun | [loaders/finemapping.py](../src/pylocuszoom/loaders/finemapping.py) |
+| Genes | GTF, BED, Ensembl | [loaders/annotation.py](../src/pylocuszoom/loaders/annotation.py) |
 
 ---
 
@@ -216,14 +216,14 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | add_snp_labels | SNP label placement and lead-proximity filtering | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
-| 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it | [_regional_panels.py](../src/pylocuszoom/_regional_panels.py) |
-| 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [_miami_panels.py](../src/pylocuszoom/_miami_panels.py) |
-| 3i | ColocPanel | The colocalization scatter, built by the plotter and drawing itself | [_coloc_panel.py](../src/pylocuszoom/_coloc_panel.py) |
-| 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [_ld_heatmap_panel.py](../src/pylocuszoom/_ld_heatmap_panel.py) |
+| 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
+| 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |
+| 3i | ColocPanel | The colocalization scatter, built by the plotter and drawing itself | [panels/coloc.py](../src/pylocuszoom/panels/coloc.py) |
+| 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [panels/ld_heatmap.py](../src/pylocuszoom/panels/ld_heatmap.py) |
 | 3i | FigurePlan, render_figure | The one figure model every family builds, and the only code above the backends that creates a figure or finalizes its layout | [_figure.py](../src/pylocuszoom/_figure.py) |
-| 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [_stats_panels.py](../src/pylocuszoom/_stats_panels.py) |
-| 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [_qq_panel.py](../src/pylocuszoom/_qq_panel.py) |
-| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, the function that draws it, and the `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` builders, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
+| 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [panels/stats.py](../src/pylocuszoom/panels/stats.py) |
+| 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [panels/qq.py](../src/pylocuszoom/panels/qq.py) |
+| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, the function that draws it, and the `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` builders, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [panels/manhattan.py](../src/pylocuszoom/panels/manhattan.py) |
 
 ### LD Colour Bins [3b]
 
@@ -325,7 +325,7 @@ sequenceDiagram
     end
     box rgb(46, 125, 50) Core
         participant L as calculate_ld (3a)
-        participant G as _regional_panels (3i)
+        participant G as panels (3i)
     end
     box rgb(173, 20, 87) Backend
         participant O as composition (4f)
@@ -427,9 +427,11 @@ classDiagram
 ## Public API Surface
 
 Every name in `pylocuszoom.__all__`, grouped by the module that defines it.
-`tests/test_public_surface.py` fails when a name is added to `__all__` and not
+`tests/test_docs_contract.py` fails when a name is added to `__all__` and not
 listed here. [docs/USER_GUIDE.md](USER_GUIDE.md) is a curated guide, not a
-complete reference; this table is the complete one.
+complete reference; this table is the complete one. `__all__` is written in
+two tiers, core and toolbox, tabulated under
+[API Stability](USER_GUIDE.md#api-stability).
 
 ### Regional plots
 
@@ -500,6 +502,8 @@ complete reference; this table is the complete one.
 |------|---------|
 | `Canonical` | The column names every loader emits and every plotter defaults to: `chr`, `pos`, `p_value`, `rs`. |
 | `validate_forest_df` | Validate forest plot DataFrame has required columns and types. |
+| `validate_genes_df` | Validate a gene annotation DataFrame at the plot-time tier. |
+| `validate_gwas_df` | Validate a GWAS DataFrame at the plot-time tier, over the caller's column names. |
 | `validate_phewas_df` | Validate PheWAS DataFrame has required columns and types. |
 
 ### eQTL helpers
@@ -644,7 +648,7 @@ complete reference; this table is the complete one.
 | PheWAS / forest | [stats_plotter.py](../src/pylocuszoom/stats_plotter.py) |
 | LD heatmap | [ld_heatmap_plotter.py](../src/pylocuszoom/ld_heatmap_plotter.py) |
 | Colocalisation | [coloc_plotter.py](../src/pylocuszoom/coloc_plotter.py) |
-| Data loaders | [loaders.py](../src/pylocuszoom/loaders.py) |
+| Data loaders | [loaders/](../src/pylocuszoom/loaders/) |
 | DataFrame validator | [validation.py](../src/pylocuszoom/validation.py) |
 | Pydantic config | [config.py](../src/pylocuszoom/config.py) |
 | Backend protocol | [backends/base.py](../src/pylocuszoom/backends/base.py) |

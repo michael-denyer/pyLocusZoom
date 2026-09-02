@@ -38,6 +38,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
 - [Data Formats](#data-formats)
 - [Species Support](#species-support)
 - [Recipes & Examples](#recipes--examples)
+- [API Stability](#api-stability)
 
 ---
 
@@ -1486,6 +1487,55 @@ Ensure:
 1. GWAS DataFrame has `rs` column (or specify `rs_col`)
 2. SNP IDs match those in PLINK fileset
 3. Lead SNP exists in both datasets
+
+---
+
+## API Stability
+
+`pylocuszoom.__all__` exports two tiers. Both work and both are tested; they
+differ in what a minor release is allowed to do to them. `__all__` in
+`pylocuszoom/__init__.py` is written in the same two blocks.
+
+### Core
+
+The plot families, the values you hand them, the loaders that produce those
+values, and the errors they raise. These follow semantic versioning: a break
+here means a major release, with a CHANGELOG entry and a migration note.
+
+| Group | Names |
+|-------|-------|
+| Plotters | `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, `StatsPlotter`, `LDHeatmapPlotter`, `ColocPlotter` |
+| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `LDConfig`, `PanelInputs` |
+| Column vocabulary | `Canonical` |
+| GWAS loaders | `load_gwas`, `load_plink_assoc`, `load_regenie`, `load_bolt_lmm`, `load_gemma`, `load_saige`, `load_gwas_catalog` |
+| eQTL loaders | `load_gtex_eqtl`, `load_eqtl_catalogue`, `load_matrixeqtl` |
+| Fine-mapping loaders | `load_susie`, `load_finemap`, `load_caviar`, `load_polyfun` |
+| Gene annotation loaders | `load_gtf`, `load_bed`, `load_ensembl_genes` |
+| Species | `Species`, `resolve_species` |
+| Logging | `enable_logging`, `disable_logging` |
+| Exceptions | `PyLocusZoomError`, `ValidationError`, `DataDownloadError`, `EmptyLDOutputError`, `EnsemblAPIError`, `OptionalDependencyMissing`, `ReferenceAPIError`, `UCSCAPIError`, `PlinkError`, `PheWASValidationError`, `ForestValidationError`, `EQTLValidationError`, `FinemappingValidationError`, `LoaderValidationError` |
+| Metadata | `__version__` |
+
+### Toolbox
+
+Internals that are useful on their own and exported because somebody wanted
+them. None is deprecated and none is dead, but any of them may change shape or
+move between minor releases. Building on one is fine; pin the version if you
+do, and open an issue so the name can be promoted to core.
+
+| Group | Names |
+|-------|-------|
+| Backends | `BackendType`, `get_backend` |
+| Colours | `get_ld_color`, `get_ld_bin`, `get_ld_color_palette`, `get_phewas_category_color`, `get_phewas_category_palette`, `LEAD_SNP_COLOR`, `PHEWAS_CATEGORY_COLORS` |
+| LD | `calculate_ld`, `calculate_pairwise_ld` |
+| SNP labels | `add_snp_labels`, `adjust_snp_labels` |
+| Gene track | `get_nearest_gene` |
+| Gene reference routing | `get_genes_for_build`, `source_for`, `clear_gene_cache`, `get_ensembl_species_name` |
+| Recombination maps | `download_canine_recombination_maps`, `ensure_recomb_maps`, `get_recombination_rate_for_region`, `load_recombination_map`, `recomb_for_region`, `RecombResult`, `RecombStatus` |
+| eQTL helpers | `validate_eqtl_df`, `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
+| Fine-mapping helpers | `validate_finemapping_df`, `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |
+| Frame validators | `validate_gwas_df`, `validate_genes_df`, `validate_phewas_df`, `validate_forest_df` |
+| DataFrame helpers | `to_pandas` |
 
 ---
 

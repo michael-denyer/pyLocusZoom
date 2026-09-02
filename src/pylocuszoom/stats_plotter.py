@@ -15,8 +15,8 @@ from ._plotter_utils import (
     ThresholdArg,
     resolve_threshold,
 )
-from ._stats_panels import ForestPanel, PhewasPanel
 from .backends import BackendType, get_backend
+from .panels.stats import ForestPanel, PhewasPanel
 from .schemas import Canonical, validate_forest_df, validate_phewas_df
 from .utils import DataFrameLike, to_pandas
 

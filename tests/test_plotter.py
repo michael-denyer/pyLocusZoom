@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 
 from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom._gene_source import GeneAnnotations
-from pylocuszoom._regional_panels import AssociationPanel
+from pylocuszoom.panels.association import AssociationPanel
 from pylocuszoom.plotter import LocusZoomPlotter
 from pylocuszoom.recombination import RecombResult, RecombStatus
 from tests.reference_mocks import (

@@ -3,11 +3,11 @@
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
-from ._figure import FigurePlan, RegionHighlight
-from ._manhattan_panel import ManhattanPanelSpec, manhattan_spec
-from .backends.base import PlotBackend
-from .backends.hover import HoverConfig
-from .manhattan import PreparedManhattan
+from .._figure import FigurePlan, RegionHighlight
+from ..backends.base import PlotBackend
+from ..backends.hover import HoverConfig
+from ..manhattan import PreparedManhattan
+from .manhattan import ManhattanPanelSpec, manhattan_spec
 
 
 @dataclass(frozen=True)
