@@ -1,5 +1,8 @@
 """Tests for the Plotly backend's subplot addressing and titles."""
 
+import pandas as pd
+
+from pylocuszoom.backends.composition import mb_tick_positions
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
@@ -247,26 +250,59 @@ class TestPlotlySetTitleOverwriting:
         assert has_qq, f"QQ title not found in annotations: {all_text}"
 
 
-class TestPlotlyMegabaseTicksReadOnePanel:
-    def test_ticks_come_from_the_panels_own_traces(self):
-        import pandas as pd
+class TestPlotlyMegabaseTicksFollowTheAxisRange:
+    """Tick ladders come from the axis limits, never from a panel's traces."""
 
+    def test_each_panel_is_ticked_from_its_own_limits(self):
         backend = PlotlyBackend()
         fig, panels = backend.create_figure(
-            n_panels=2, height_ratios=[1.0, 1.0], figsize=(8, 6)
+            n_panels=2, height_ratios=[1.0, 1.0], figsize=(8, 6), sharex=False
         )
-        backend.scatter(
-            panels[0], pd.Series([1_000_000, 2_000_000]), pd.Series([1.0, 2.0]), "blue"
-        )
-        backend.scatter(
-            panels[1],
-            pd.Series([50_000_000, 51_000_000]),
-            pd.Series([1.0, 2.0]),
-            "blue",
-        )
+        backend.set_xlim(panels[0], 1_000_000, 2_000_000)
+        backend.set_xlim(panels[1], 50_000_000, 51_000_000)
 
+        backend.format_xaxis_mb(panels[0])
         backend.format_xaxis_mb(panels[1])
 
-        tickvals = fig.layout.xaxis2.tickvals
-        assert min(tickvals) >= 50_000_000
-        assert max(tickvals) <= 51_000_000
+        assert (
+            list(fig.layout.xaxis.tickvals)
+            == mb_tick_positions(1_000_000, 2_000_000)[0]
+        )
+        assert (
+            list(fig.layout.xaxis2.tickvals)
+            == mb_tick_positions(50_000_000, 51_000_000)[0]
+        )
+
+    def test_shared_axis_panel_without_its_own_limits_is_ticked_from_the_shared_range(
+        self,
+    ):
+        """A stacked panel whose traces are narrower than the region must still
+        carry the region's tick ladder, taken from the axis it is matched to."""
+        backend = PlotlyBackend()
+        fig, panels = backend.create_figure(
+            n_panels=2, height_ratios=[1.0, 1.0], figsize=(8, 6), sharex=True
+        )
+        backend.set_xlim(panels[0], 1_000_000, 2_000_000)
+        backend.scatter(
+            panels[1], pd.Series([1_410_000, 1_660_000]), pd.Series([1.0, 2.0]), "blue"
+        )
+
+        backend.format_xaxis_mb(panels[0])
+        backend.format_xaxis_mb(panels[1])
+
+        expected = mb_tick_positions(1_000_000, 2_000_000)[0]
+        assert list(fig.layout.xaxis.tickvals) == expected
+        assert list(fig.layout.xaxis2.tickvals) == expected
+
+    def test_panel_with_no_range_anywhere_is_left_to_plotly(self):
+        backend = PlotlyBackend()
+        fig, panels = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(8, 6)
+        )
+        backend.scatter(
+            panels[0], pd.Series([1_410_000, 1_660_000]), pd.Series([1.0, 2.0]), "blue"
+        )
+
+        backend.format_xaxis_mb(panels[0])
+
+        assert fig.layout.xaxis.tickvals is None

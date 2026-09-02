@@ -7,7 +7,7 @@ type. A reader following a protocol method resolves nothing through the
 instance to reach them.
 """
 
-from typing import Any, List, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 import plotly.graph_objects as go
 
@@ -179,23 +179,41 @@ def configure_legend(
 
 
 def x_range(panel: _Panel, xaxis_name: str) -> Optional[Tuple[float, float]]:
-    """A panel's x-range, falling back to the extent of its own traces.
+    """A panel's x-axis limits, as set with ``set_xlim``.
+
+    A shared-x figure links its panels with ``matches``, so every axis in
+    the group spans whatever any one of them was given. The traces are not
+    consulted: a panel whose data is narrower than the region must still be
+    labelled for the region.
 
     Args:
         panel: The panel whose range is wanted.
         xaxis_name: Layout key for the panel's x-axis.
 
     Returns:
-        The (min, max) range, or None when the panel carries no x data.
+        The (min, max) range, or None when no axis in the group has limits.
     """
-    xaxis = getattr(panel.fig.layout, xaxis_name, None)
-    if xaxis and xaxis.range:
-        return xaxis.range
-    ref = panel.xref
-    x_vals: List[Any] = []
-    for trace in panel.fig.data:
-        if (getattr(trace, "xaxis", None) or "x") != ref:
-            continue
-        if getattr(trace, "x", None) is not None:
-            x_vals.extend([v for v in trace.x if v is not None])
-    return (min(x_vals), max(x_vals)) if x_vals else None
+    layout = panel.fig.layout
+
+    def root(name: str) -> str:
+        seen = set()
+        while name not in seen:
+            seen.add(name)
+            axis = getattr(layout, name, None)
+            if axis is None or not axis.matches:
+                return name
+            name = axis.matches.replace("x", "xaxis", 1)
+        return name
+
+    group = [xaxis_name] + [
+        name
+        for name in layout
+        if name.startswith("xaxis")
+        and name != xaxis_name
+        and root(name) == root(xaxis_name)
+    ]
+    for name in group:
+        axis = getattr(layout, name, None)
+        if axis is not None and axis.range:
+            return axis.range
+    return None
