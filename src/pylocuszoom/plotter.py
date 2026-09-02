@@ -347,11 +347,9 @@ class LocusZoomPlotter:
             association_height: Height-ratio units for each association panel.
             min_figure_height: Floor on the figure height in inches.
         """
-        region, columns, display = config.region, config.columns, config.display
-        if display.label_top_n is None:
-            display = display.model_copy(update={"label_top_n": label_top_n})
-        auto_genes = (
-            self._auto_genes if display.auto_genes is None else display.auto_genes
+        region, columns = config.region, config.columns
+        display = config.display.with_defaults(
+            label_top_n=label_top_n, auto_genes=self._auto_genes
         )
         inputs = config.panels
         genes_df, exons_df = inputs.genes_df, inputs.exons_df
@@ -359,7 +357,7 @@ class LocusZoomPlotter:
         for gwas_df in gwas_dfs:
             validate_gwas_df(gwas_df, pos_col=columns.pos_col, p_col=columns.p_col)
 
-        if genes_df is None and auto_genes:
+        if genes_df is None and display.auto_genes:
             logger.debug(
                 "auto_genes enabled, fetching genes for chr{}:{}-{}",
                 region.chrom,

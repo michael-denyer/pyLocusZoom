@@ -140,6 +140,18 @@ class TestDisplayConfig:
         assert config.show_recombination is False
         assert config.figsize == (8.0, 6.0)
 
+    def test_with_defaults_fills_only_the_unset_fields(self):
+        """None fields take the caller's defaults; set fields are kept."""
+        from pylocuszoom.config import DisplayConfig
+
+        unset = DisplayConfig().with_defaults(label_top_n=3, auto_genes=True)
+        assert (unset.label_top_n, unset.auto_genes) == (3, True)
+        chosen = DisplayConfig(label_top_n=0, auto_genes=False).with_defaults(
+            label_top_n=3, auto_genes=True
+        )
+        assert (chosen.label_top_n, chosen.auto_genes) == (0, False)
+        assert chosen.show_recombination is True
+
     def test_label_top_n_must_be_non_negative(self):
         """label_top_n must be >= 0."""
         from pylocuszoom.config import DisplayConfig

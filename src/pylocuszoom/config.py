@@ -107,6 +107,24 @@ class DisplayConfig(BaseModel):
         default=(12.0, 8.0), description="Figure size (width, height)"
     )
 
+    def with_defaults(self, *, label_top_n: int, auto_genes: bool) -> "DisplayConfig":
+        """Return a copy with the unset fields filled from the caller's defaults.
+
+        Args:
+            label_top_n: The plot method's own label count.
+            auto_genes: The plotter's constructor setting.
+        """
+        return self.model_copy(
+            update={
+                "label_top_n": (
+                    label_top_n if self.label_top_n is None else self.label_top_n
+                ),
+                "auto_genes": auto_genes
+                if self.auto_genes is None
+                else self.auto_genes,
+            }
+        )
+
 
 class LDConfig(BaseModel):
     """Linkage disequilibrium configuration.
@@ -277,6 +295,31 @@ class StackedPlotConfig(PlotConfig):
         return self
 
 
+class GenomeWideConfig(BaseModel):
+    """Column names and chromosome order for the genome-wide plot families.
+
+    Manhattan, QQ and Miami plots lay a whole-genome frame out along one
+    chromosome axis, so they share one column contract. ``plot_qq`` reads
+    only ``p_col``.
+
+    Attributes:
+        chrom_col: Column name for chromosome.
+        pos_col: Column name for genomic position.
+        p_col: Column name for p-value.
+        custom_chrom_order: Chromosome order along the axis, overriding the
+            plotter's species order.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    chrom_col: str = Field(default="chrom", description="Chromosome column name")
+    pos_col: str = Field(default="pos", description="Position column name")
+    p_col: str = Field(default="p", description="P-value column name")
+    custom_chrom_order: Optional[List[str]] = Field(
+        default=None, description="Chromosome order overriding the species"
+    )
+
+
 class ColocConfig(BaseModel):
     """Configuration for colocalization plot.
 
@@ -345,5 +388,6 @@ __all__ = [
     "PanelInputs",
     "PlotConfig",
     "StackedPlotConfig",
+    "GenomeWideConfig",
     "ColocConfig",
 ]
