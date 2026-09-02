@@ -26,8 +26,6 @@ from .logging import logger
 from .species import Species, resolve_species
 from .utils import _platform_cache_base, assembly_token, filter_by_region
 
-# Recombination overlay color
-RECOMB_COLOR = "#7FCDFF"  # Light blue
 CANINE_MAP_FILENAMES = frozenset(f"chr{chrom}_recomb.tsv" for chrom in range(1, 39))
 
 # Data sources by species

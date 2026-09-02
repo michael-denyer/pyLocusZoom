@@ -9,10 +9,10 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
+from pylocuszoom.colors import RECOMB_COLOR
 from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
-    RECOMB_COLOR,
     RecombStatus,
     _extract_archive,
     _publish_map_generation,

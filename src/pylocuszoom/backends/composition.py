@@ -23,6 +23,7 @@ from ..colors import (
     LD_BINS,
     LD_NA_COLOR,
     LEAD_SNP_COLOR,
+    RECOMB_COLOR,
     EQTLBin,
     LDBin,
     get_credible_set_color,
@@ -111,8 +112,6 @@ def render_recombination_overlay(
     two ``*_secondary`` axis calls, so the composition is identical across
     backends.
     """
-    from ..recombination import RECOMB_COLOR
-
     region = recomb_df[(recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)]
     if region.empty:
         return

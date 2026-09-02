@@ -190,6 +190,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | find_plink | Locate PLINK executable | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | Species, resolve_species | The one record a species resolves to, and the boundary parser every entry point calls | [species.py](../src/pylocuszoom/species.py) |
+| 3b | colors.py | The one owner of the palette: LD, eQTL, credible-set, PheWAS, gene-track, recombination, QQ and heatmap colours. No module outside `backends/` holds a hex literal, and `test_colors.py` fails if one appears | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_ld_color | Map R² → hex colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
@@ -228,13 +229,13 @@ Data transformation between validated input and backend-ready primitives.
 
 ```python
 # from src/pylocuszoom/colors.py
-LD_BINS = [
+LD_BINS = (
     (0.8, "0.8 - 1.0", "#FF0000"),
     (0.6, "0.6 - 0.8", "#FFA500"),
     (0.4, "0.4 - 0.6", "#00CD00"),
     (0.2, "0.2 - 0.4", "#00EEEE"),
     (0.0, "0.0 - 0.2", "#4169E1"),
-]
+)
 LEAD_SNP_COLOR = "#7D26CD"
 ```
 

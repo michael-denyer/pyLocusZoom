@@ -7,9 +7,9 @@ from hypothesis import given
 from hypothesis import settings as hyp_settings
 
 from pylocuszoom._regional_panels import GenePanel
+from pylocuszoom.colors import STRAND_COLORS
 from pylocuszoom.config import RegionConfig
 from pylocuszoom.gene_track import (
-    STRAND_COLORS,
     assign_gene_positions,
     filter_genes_by_region,
     get_nearest_gene,

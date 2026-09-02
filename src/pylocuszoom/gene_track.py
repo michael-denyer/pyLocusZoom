@@ -9,14 +9,8 @@ from typing import List, Optional, Union
 
 import pandas as pd
 
+from .colors import STRAND_ARROW_COLORS
 from .utils import normalize_chrom, normalize_chrom_series
-
-# Strand-specific colors (distinct from LD palette)
-STRAND_COLORS: dict[Optional[str], str] = {
-    "+": "#DAA520",  # Goldenrod for forward strand
-    "-": "#6BB3FF",  # Light blue for reverse strand
-    None: "#999999",  # Light grey if no strand info
-}
 
 # Layout constants
 ROW_HEIGHT = 0.35  # Total height per row (reduced for tighter spacing)
@@ -132,13 +126,13 @@ def compute_arrow_geometry(
             gene_center + tri_width / 2,
             gene_end - tip_offset,
         ]
-        arrow_color = "#000000"
+        arrow_color = STRAND_ARROW_COLORS["+"]
     else:
         arrow_tip_positions = [
             gene_end - tail_offset,
             gene_center - tri_width / 2,
             gene_start + tip_offset,
         ]
-        arrow_color = "#333333"
+        arrow_color = STRAND_ARROW_COLORS["-"]
 
     return arrow_tip_positions, tri_height, tri_width, arrow_color

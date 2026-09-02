@@ -28,10 +28,14 @@ from .backends.composition import (
 )
 from .backends.hover import HoverConfig, HoverDataBuilder
 from .colors import (
+    EQTL_MARKER_COLOR,
+    GENE_LABEL_COLOR,
     LD_HEATMAP_COLORS,
     LEAD_SNP_COLOR,
     LEAD_SNP_HIGHLIGHT_COLOR,
+    NO_DATA_COLOR,
     PIP_LINE_COLOR,
+    STRAND_COLORS,
     get_credible_set_color,
     get_eqtl_color,
     get_ld_bin,
@@ -45,7 +49,6 @@ from .gene_track import (
     GENE_AREA,
     INTRON_HEIGHT,
     ROW_HEIGHT,
-    STRAND_COLORS,
     assign_gene_positions,
     compute_arrow_geometry,
     filter_genes_by_region,
@@ -302,7 +305,7 @@ class EqtlPanel:
                     ax,
                     data["pos"],
                     data["neglog10p"],
-                    colors="#FF6B6B",
+                    colors=EQTL_MARKER_COLOR,
                     sizes=60,
                     marker="D",
                     edgecolor="black",
@@ -312,7 +315,7 @@ class EqtlPanel:
                 )
                 backend.add_legend(
                     ax,
-                    [LegendEntry(label, "#FF6B6B", marker="D")],
+                    [LegendEntry(label, EQTL_MARKER_COLOR, marker="D")],
                     loc="upper right",
                 )
         backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
@@ -440,7 +443,7 @@ class GenePanel:
                     fontsize=9,
                     ha="center",
                     va="bottom",
-                    color="#000000",
+                    color=GENE_LABEL_COLOR,
                 )
 
 
@@ -573,7 +576,7 @@ def _draw_association_points(
                 ax,
                 bin_data[pos_col],
                 bin_data["neglog10p"],
-                colors=palette.get(bin_label, "#BEBEBE"),
+                colors=palette[bin_label],
                 sizes=60,
                 edgecolor="black",
                 linewidth=0.5,
@@ -585,7 +588,7 @@ def _draw_association_points(
             ax,
             df[pos_col],
             df["neglog10p"],
-            colors="#BEBEBE",
+            colors=NO_DATA_COLOR,
             sizes=60,
             edgecolor="black",
             linewidth=0.5,
@@ -628,7 +631,7 @@ def _finemapping_groups(
     groups.append(
         (
             unassigned[unassigned["pip"] >= PIP_SCATTER_THRESHOLD],
-            "#BEBEBE",
+            NO_DATA_COLOR,
             30,
             0.3,
             2,
