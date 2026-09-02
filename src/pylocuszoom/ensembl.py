@@ -17,7 +17,6 @@ Use species-specific recombination maps instead (see recombination.py).
 """
 
 import warnings
-from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
@@ -29,7 +28,6 @@ from .logging import logger
 from .reference_genes import (
     EXON_COLUMNS,
     GENE_COLUMNS,
-    FetchWhat,
     clear_gene_cache,
     ensembl_source,
     get_genes_for_build,
@@ -168,71 +166,79 @@ def _gene_record(feature: dict, chrom_str: str) -> dict:
     }
 
 
-def _exon_record(feature: dict, chrom_str: str) -> dict:
+def _exon_record(feature: dict, chrom_str: str, gene_name: str) -> dict:
     """Build an exon DataFrame row from an Ensembl overlap feature."""
     return {
         "chr": str(feature.get("seq_region_name", chrom_str)),
         "start": feature.get("start"),
         "end": feature.get("end"),
-        "gene_name": "",  # Exon endpoint doesn't include gene name
+        "gene_name": gene_name,
         "exon_id": feature.get("id", ""),
         "transcript_id": feature.get("Parent", ""),
         "assembly": str(feature.get("assembly_name", "")),
     }
 
 
-def _fetch_overlap_features(
+def _frame(records: list[dict], columns: tuple[str, ...]) -> pd.DataFrame:
+    """Build a frame that carries ``columns`` even when there are no records."""
+    return pd.DataFrame(records) if records else pd.DataFrame(columns=list(columns))
+
+
+def _by_feature_type(data: list[dict]) -> dict[str, list[dict]]:
+    """Split an overlap response into its gene, transcript and exon features."""
+    buckets: dict[str, list[dict]] = {"gene": [], "transcript": [], "exon": []}
+    for feature in data:
+        bucket = buckets.get(str(feature.get("feature_type")))
+        if bucket is not None:
+            bucket.append(feature)
+    return buckets
+
+
+def fetch_overlap_frames(
     species: str,
     chrom: str | int,
     start: int,
     end: int,
-    *,
-    params: dict,
-    feature_type: str,
-    record_builder: Callable[[dict, str], dict],
-    columns: tuple[str, ...],
     genome_build: str | None = None,
-) -> pd.DataFrame:
-    """Fetch features from the Ensembl overlap/region endpoint.
+    biotype: str = "protein_coding",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fetch the gene and exon frames for a region in one overlap request.
 
-    Shared by fetch_genes_from_ensembl and fetch_exons_from_ensembl, which differ
-    only in the request params, the feature_type they keep, and how each feature
-    maps to a DataFrame row (record_builder).
+    Exon features name only their transcript, and transcript features name
+    only their gene, so asking for all three feature types in one request is
+    what lets an exon carry the gene symbol the gene track matches it by. An
+    exon whose gene is absent from the response (its biotype was filtered out)
+    is dropped rather than returned unattached.
 
     Args:
         species: Species name or alias.
         chrom: Chromosome name or number.
         start: Region start position (1-based).
         end: Region end position (1-based).
-        params: Query parameters for the overlap request.
-        feature_type: Ensembl feature_type to keep (e.g. "gene", "exon").
-        record_builder: Maps a kept feature and chrom to a DataFrame row.
-        columns: Schema the returned frame carries, including when empty.
         genome_build: Build the caller's data is in; warns if Ensembl serves a
             different assembly.
+        biotype: Gene biotype filter.
 
     Returns:
-        DataFrame of built records, always carrying ``columns``; empty when the
-        region has no features of this type.
+        Tuple of (genes_df, exons_df), each carrying its full column set even
+        when the region has nothing of that kind.
 
     Raises:
         ValidationError: If region > 5Mb.
         EnsemblAPIError: If the API fails.
     """
-    _validate_region_size(start, end, f"{feature_type}s_df")
+    _validate_region_size(start, end, "genes_df")
 
     ensembl_species = get_ensembl_species_name(species)
     chrom_str = normalize_chrom(chrom)
     region = f"{chrom_str}:{start}-{end}"
     url = f"{ENSEMBL_REST_URL}/overlap/region/{ensembl_species}/{region}"
 
-    logger.debug(f"Fetching {feature_type}s from Ensembl: {url}")
-
-    empty = pd.DataFrame(columns=list(columns))
+    logger.debug(f"Fetching genes and exons from Ensembl: {url}")
 
     data = request_json(
         url,
-        params,
+        {"feature": ["gene", "transcript", "exon"], "biotype": biotype},
         error_cls=EnsemblAPIError,
         service="Ensembl",
         headers={"Content-Type": "application/json"},
@@ -242,108 +248,28 @@ def _fetch_overlap_features(
     )
 
     if not data:
-        logger.debug(f"No {feature_type}s found in region {region}")
-        return empty
+        logger.debug(f"No genes found in region {region}")
+        return _frame([], GENE_COLUMNS), _frame([], EXON_COLUMNS)
 
     _warn_on_assembly_mismatch(_response_assembly(data), genome_build, ensembl_species)
 
-    records = [
-        record_builder(feature, chrom_str)
-        for feature in data
-        if feature.get("feature_type") == feature_type
-    ]
-    if not records:
-        logger.debug(f"No {feature_type}s found in region {region}")
-        return empty
+    features = _by_feature_type(data)
+    genes = [_gene_record(feature, chrom_str) for feature in features["gene"]]
+    symbol_of_gene = {
+        feature.get("id"): record["gene_name"]
+        for feature, record in zip(features["gene"], genes)
+    }
+    gene_of_transcript = {
+        feature.get("id"): feature.get("Parent") for feature in features["transcript"]
+    }
+    exons = []
+    for feature in features["exon"]:
+        symbol = symbol_of_gene.get(gene_of_transcript.get(feature.get("Parent")), "")
+        if symbol:
+            exons.append(_exon_record(feature, chrom_str, symbol))
 
-    df = pd.DataFrame(records)
-    logger.debug(f"Fetched {len(df)} {feature_type}s from Ensembl")
-    return df
-
-
-def _fetch_genes(
-    species: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    biotype: str,
-    genome_build: str | None,
-) -> pd.DataFrame:
-    """Fetch the gene frame, always raising on a service failure."""
-    return _fetch_overlap_features(
-        species,
-        chrom,
-        start,
-        end,
-        params={"feature": "gene", "biotype": biotype},
-        feature_type="gene",
-        record_builder=_gene_record,
-        columns=GENE_COLUMNS,
-        genome_build=genome_build,
-    )
-
-
-def _fetch_exons(
-    species: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    genome_build: str | None,
-) -> pd.DataFrame:
-    """Fetch the exon frame, always raising on a service failure."""
-    return _fetch_overlap_features(
-        species,
-        chrom,
-        start,
-        end,
-        params={"feature": "exon"},
-        feature_type="exon",
-        record_builder=_exon_record,
-        columns=EXON_COLUMNS,
-        genome_build=genome_build,
-    )
-
-
-def fetch_overlap_frames(
-    species: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    what: FetchWhat,
-    genome_build: str | None = None,
-    biotype: str = "protein_coding",
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fetch the gene and exon frames a GeneSource orchestration asked for.
-
-    Ensembl's overlap endpoint takes one ``feature`` per request, so genes and
-    exons cost a request each. The frame that was not asked for comes back
-    empty rather than unfetched.
-
-    Args:
-        species: Species name or alias.
-        chrom: Chromosome name or number.
-        start: Region start position (1-based).
-        end: Region end position (1-based).
-        what: Which frames to fetch.
-        genome_build: Build the caller's data is in; warns if Ensembl serves a
-            different assembly.
-        biotype: Gene biotype filter, as on ``fetch_genes_from_ensembl``.
-
-    Returns:
-        Tuple of (genes_df, exons_df).
-
-    Raises:
-        ValidationError: If region > 5Mb.
-        EnsemblAPIError: If the API fails.
-    """
-    genes_df = pd.DataFrame(columns=list(GENE_COLUMNS))
-    exons_df = pd.DataFrame(columns=list(EXON_COLUMNS))
-
-    if what in ("genes", "both"):
-        genes_df = _fetch_genes(species, chrom, start, end, biotype, genome_build)
-    if what in ("exons", "both"):
-        exons_df = _fetch_exons(species, chrom, start, end, genome_build)
-    return genes_df, exons_df
+    logger.debug(f"Fetched {len(genes)} genes and {len(exons)} exons from Ensembl")
+    return _frame(genes, GENE_COLUMNS), _frame(exons, EXON_COLUMNS)
 
 
 def _frames_or_empty(
@@ -351,23 +277,17 @@ def _frames_or_empty(
     chrom: str | int,
     start: int,
     end: int,
-    what: FetchWhat,
     raise_on_error: bool,
     genome_build: str | None = None,
     biotype: str = "protein_coding",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Fetch frames, translating a service failure to empties if allowed."""
     try:
-        return fetch_overlap_frames(
-            species, chrom, start, end, what, genome_build, biotype
-        )
+        return fetch_overlap_frames(species, chrom, start, end, genome_build, biotype)
     except EnsemblAPIError:
         if raise_on_error:
             raise
-        return (
-            pd.DataFrame(columns=list(GENE_COLUMNS)),
-            pd.DataFrame(columns=list(EXON_COLUMNS)),
-        )
+        return _frame([], GENE_COLUMNS), _frame([], EXON_COLUMNS)
 
 
 def fetch_genes_from_ensembl(
@@ -400,7 +320,7 @@ def fetch_genes_from_ensembl(
         EnsemblAPIError: If raise_on_error=True and the API fails.
     """
     return _frames_or_empty(
-        species, chrom, start, end, "genes", raise_on_error, genome_build, biotype
+        species, chrom, start, end, raise_on_error, genome_build, biotype
     )[0]
 
 
@@ -431,9 +351,7 @@ def fetch_exons_from_ensembl(
         ValidationError: If region > 5Mb.
         EnsemblAPIError: If raise_on_error=True and the API fails.
     """
-    return _frames_or_empty(
-        species, chrom, start, end, "exons", raise_on_error, genome_build
-    )[1]
+    return _frames_or_empty(species, chrom, start, end, raise_on_error, genome_build)[1]
 
 
 def get_genes_for_region(

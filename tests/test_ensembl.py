@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
+from pylocuszoom.reference_genes import EXON_COLUMNS
 from tests.reference_mocks import ok_response, ros_cfam_gene_payload
 
 
@@ -139,13 +140,28 @@ def test_fetch_genes_retry_on_429():
     assert df["gene_name"].iloc[0] == "BRCA2"
 
 
-def test_fetch_exons_from_ensembl_success():
-    """Test fetching exons from Ensembl API with mocked response."""
-    from pylocuszoom.ensembl import fetch_exons_from_ensembl
-
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = [
+def _brca2_annotation_features():
+    """BRCA2 with one transcript and two exons, as one overlap response."""
+    return [
+        {
+            "id": "ENSG00000139618",
+            "external_name": "BRCA2",
+            "seq_region_name": "13",
+            "start": 32315474,
+            "end": 32400266,
+            "strand": 1,
+            "biotype": "protein_coding",
+            "feature_type": "gene",
+        },
+        {
+            "id": "ENST00000380152",
+            "Parent": "ENSG00000139618",
+            "seq_region_name": "13",
+            "start": 32315474,
+            "end": 32400266,
+            "strand": 1,
+            "feature_type": "transcript",
+        },
         {
             "id": "ENSE00003659301",
             "Parent": "ENST00000380152",
@@ -166,15 +182,43 @@ def test_fetch_exons_from_ensembl_success():
         },
     ]
 
+
+def test_fetch_exons_from_ensembl_success():
+    """Exons carry the symbol of the gene their transcript belongs to."""
+    from pylocuszoom.ensembl import fetch_exons_from_ensembl
+
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.json.return_value = _brca2_annotation_features()
+
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
         df = fetch_exons_from_ensembl("human", chrom="13", start=32000000, end=33000000)
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 2
-    assert "chr" in df.columns
-    assert "start" in df.columns
-    assert "end" in df.columns
-    assert "exon_id" in df.columns
+    assert df["gene_name"].tolist() == ["BRCA2", "BRCA2"]
+    assert df["transcript_id"].tolist() == ["ENST00000380152"] * 2
+    assert df["exon_id"].tolist() == ["ENSE00003659301", "ENSE00003527960"]
+
+
+def test_exons_without_their_gene_are_dropped():
+    """An exon whose gene the response omits cannot be drawn, so it is dropped."""
+    from pylocuszoom.ensembl import fetch_exons_from_ensembl
+
+    orphaned = [
+        feature
+        for feature in _brca2_annotation_features()
+        if feature["feature_type"] != "gene"
+    ]
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.json.return_value = orphaned
+
+    with patch("pylocuszoom._http.requests.get", return_value=mock_response):
+        df = fetch_exons_from_ensembl("human", chrom="13", start=32000000, end=33000000)
+
+    assert df.empty
+    assert list(df.columns) == list(EXON_COLUMNS)
 
 
 def test_fetch_exons_region_too_large():
@@ -379,41 +423,14 @@ def test_get_genes_for_region_include_exons():
     """Test fetching genes with exons included."""
     from pylocuszoom.ensembl import get_genes_for_region
 
-    mock_genes = Mock()
-    mock_genes.ok = True
-    mock_genes.json.return_value = [
-        {
-            "id": "ENSG00000139618",
-            "external_name": "BRCA2",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32400266,
-            "strand": 1,
-            "biotype": "protein_coding",
-            "feature_type": "gene",
-        },
-    ]
-
-    mock_exons = Mock()
-    mock_exons.ok = True
-    mock_exons.json.return_value = [
-        {
-            "id": "ENSE00003659301",
-            "Parent": "ENST00000380152",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32315667,
-            "strand": 1,
-            "feature_type": "exon",
-        },
-    ]
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.json.return_value = _brca2_annotation_features()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
 
-        with patch(
-            "pylocuszoom._http.requests.get", side_effect=[mock_genes, mock_exons]
-        ):
+        with patch("pylocuszoom._http.requests.get", return_value=mock_response):
             genes_df, exons_df = get_genes_for_region(
                 species="human",
                 chrom="13",
@@ -424,7 +441,8 @@ def test_get_genes_for_region_include_exons():
             )
 
         assert len(genes_df) == 1
-        assert len(exons_df) == 1
+        assert len(exons_df) == 2
+        assert exons_df["gene_name"].unique().tolist() == ["BRCA2"]
 
 
 # --- clear_ensembl_cache tests ---
@@ -715,10 +733,21 @@ class TestAssemblyMismatch:
         """Exon rows record their assembly too, not just genes."""
         from pylocuszoom.ensembl import fetch_exons_from_ensembl
 
-        exon = dict(
-            ros_cfam_gene_payload()[0], feature_type="exon", id="ENSCAFE00000001"
+        gene = ros_cfam_gene_payload()[0]
+        transcript = dict(
+            gene,
+            feature_type="transcript",
+            id="ENSCAFT00000001",
+            Parent=gene["id"],
         )
-        with patch("pylocuszoom._http.requests.get", return_value=ok_response([exon])):
+        exon = dict(
+            gene,
+            feature_type="exon",
+            id="ENSCAFE00000001",
+            Parent=transcript["id"],
+        )
+        payload = [gene, transcript, exon]
+        with patch("pylocuszoom._http.requests.get", return_value=ok_response(payload)):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 exons = fetch_exons_from_ensembl(
                     "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"

@@ -11,45 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from tests.reference_mocks import ok_response, ros_cfam_gene_payload
-
-
-def _refseq_payload():
-    """Two NFATC1 transcripts and one non-coding gene, as UCSC returns them."""
-    return {
-        "ncbiRefSeq": [
-            {
-                "name": "XM_005615289.3",
-                "name2": "NFATC1",
-                "chrom": "chr1",
-                "strand": "-",
-                "txStart": 1027020,
-                "txEnd": 1121187,
-                "exonStarts": "1027020,1060176,",
-                "exonEnds": "1027500,1060900,",
-            },
-            {
-                "name": "XM_022408507.1",
-                "name2": "NFATC1",
-                "chrom": "chr1",
-                "strand": "-",
-                "txStart": 1060176,
-                "txEnd": 1121362,
-                "exonStarts": "1060176,",
-                "exonEnds": "1060900,",
-            },
-            {
-                "name": "XR_002615165.1",
-                "name2": "LOC111090558",
-                "chrom": "chr1",
-                "strand": "+",
-                "txStart": 1003647,
-                "txEnd": 1004169,
-                "exonStarts": "1003647,",
-                "exonEnds": "1004169,",
-            },
-        ]
-    }
+from tests.reference_mocks import ok_response, refseq_payload, ros_cfam_gene_payload
 
 
 class TestUCSCGeneFetch:
@@ -59,7 +21,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ):
             genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
 
@@ -75,7 +37,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ):
             all_genes = fetch_genes_from_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, biotype=""
@@ -91,7 +53,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ):
             genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
 
@@ -103,7 +65,7 @@ class TestUCSCGeneFetch:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ):
             exons = fetch_exons_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
 
@@ -156,7 +118,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ) as mock_get:
             first = get_genes_for_region_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, tmp_path
@@ -188,7 +150,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ):
             after = get_genes_for_region_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, tmp_path
@@ -201,7 +163,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ) as mock_get:
             genes, exons = get_genes_for_region_ucsc(
                 "canFam3", "1", 1_000_000, 1_200_000, tmp_path, include_exons=True
@@ -216,7 +178,7 @@ class TestUCSCCaching:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ) as mock_get:
             get_genes_for_region_ucsc("canFam3", "1", 1_000_000, 1_200_000, tmp_path)
             get_genes_for_region_ucsc("canFam4", "1", 1_000_000, 1_200_000, tmp_path)
@@ -252,7 +214,7 @@ class TestBuildRouting:
 
         with patch(
             "pylocuszoom._http.requests.get",
-            return_value=ok_response(_refseq_payload()),
+            return_value=ok_response(refseq_payload()),
         ):
             genes = get_genes_for_build(
                 "canine",
@@ -304,8 +266,9 @@ class TestBuildRouting:
 
         with patch(
             "pylocuszoom.plotter.get_genes_for_build",
-            return_value=pd.DataFrame(
-                columns=["chr", "start", "end", "gene_name", "assembly"]
+            return_value=(
+                pd.DataFrame(columns=["chr", "start", "end", "gene_name", "assembly"]),
+                pd.DataFrame(),
             ),
         ) as mock_fetch:
             plotter.plot(gwas, chrom=1, start=900_000, end=1_200_000)

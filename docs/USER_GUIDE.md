@@ -823,7 +823,7 @@ plotter = LocusZoomPlotter(
 | `recomb_data_dir` | str | Auto | Directory with recombination maps. |
 | `genomewide_threshold` | float | `5e-8` | P-value for significance line. |
 | `log_level` | str | `"INFO"` | Logging verbosity or `None` to disable. |
-| `auto_genes` | bool | `False` | If `True`, fetch gene track from Ensembl when `genes_df` is not supplied. |
+| `auto_genes` | bool | `False` | If `True`, fetch the gene track with exon structure when `genes_df` is not supplied. |
 
 ### plot() Method
 
@@ -934,7 +934,7 @@ fig = plotter.plot_stacked(
 | `ld_reference_file` | str | None | Single PLINK fileset (broadcast to all panels with lead_positions). |
 | `ld_reference_files` | list | None | Per-panel PLINK filesets. |
 | `ld_col` | str | None | Pre-computed LD column name. |
-| `auto_genes` | bool | None | Fetch the gene track when `genes_df` is not supplied; `None` inherits the constructor setting. |
+| `auto_genes` | bool | None | Fetch the gene track with exon structure when `genes_df` is not supplied; `None` inherits the constructor setting. |
 | `show_recombination` | bool | True | Whether to show recombination overlay. |
 | `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
 | `label_top_n` | int | 3 | Number of top SNPs to label per panel. |
@@ -1237,6 +1237,10 @@ plotter = LocusZoomPlotter(species="human", auto_genes=True)
 fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 # Gene track populated automatically from Ensembl
 ```
+
+Genes come back with their exons, so the automatic track draws intron and exon
+structure rather than a plain rectangle per gene. Passing your own `exons_df`
+overrides the fetched one.
 
 **Supported Species:**
 

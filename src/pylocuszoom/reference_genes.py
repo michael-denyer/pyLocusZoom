@@ -22,7 +22,6 @@ than once per source.
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 import pandas as pd
 
@@ -63,14 +62,9 @@ EXON_COLUMNS = (
     "assembly",
 )
 
-# What a fetch is being asked for. "both" exists so UCSC can serve genes and
-# exons from one track request; Ensembl needs a request per feature type either
-# way, and the cache-hit path asks for "exons" alone.
-FetchWhat = Literal["genes", "exons", "both"]
-
-# Fetch (genes, exons) for (chrom, start, end, what). The frame that was not
-# asked for comes back empty.
-FetchFn = Callable[[str, int, int, FetchWhat], "tuple[pd.DataFrame, pd.DataFrame]"]
+# Fetch (genes, exons) for (chrom, start, end). Both sources answer from one
+# request, so neither frame costs anything the other did not.
+FetchFn = Callable[[str, int, int], "tuple[pd.DataFrame, pd.DataFrame]"]
 
 
 @dataclass(frozen=True)
@@ -85,9 +79,8 @@ class GeneSource:
         build_token: Extra cache-key component. Ensembl serves every build of a
             species from one URL, so its entries have to be keyed by build;
             a UCSC genome already names one build, so it needs none.
-        fetch: Fetch (genes, exons) for (chrom, start, end, what). Always
-            raises ``error_cls`` on failure rather than returning an empty
-            frame. The frame that was not asked for comes back empty.
+        fetch: Fetch (genes, exons) for (chrom, start, end). Always raises
+            ``error_cls`` on failure rather than returning an empty frame.
         on_cache_hit: Inspect a frame reloaded from cache. Ensembl uses it to
             repeat its assembly-mismatch warning in a later session.
     """
@@ -116,8 +109,8 @@ def ucsc_source(ucsc_genome: str) -> GeneSource:
         error_cls=UCSCAPIError,
         cache_species=ucsc_genome,
         build_token="",
-        fetch=lambda chrom, start, end, what: fetch_track_frames(
-            ucsc_genome, chrom, start, end, what
+        fetch=lambda chrom, start, end: fetch_track_frames(
+            ucsc_genome, chrom, start, end
         ),
     )
 
@@ -136,8 +129,8 @@ def ensembl_source(species: str, genome_build: str | None = None) -> GeneSource:
         error_cls=EnsemblAPIError,
         cache_species=ensembl_species,
         build_token=assembly_token(genome_build or ""),
-        fetch=lambda chrom, start, end, what: fetch_overlap_frames(
-            species, chrom, start, end, what, genome_build=genome_build
+        fetch=lambda chrom, start, end: fetch_overlap_frames(
+            species, chrom, start, end, genome_build=genome_build
         ),
         on_cache_hit=lambda cached: warn_on_cached_assembly(
             cached, genome_build, ensembl_species
@@ -220,9 +213,9 @@ def get_genes_for_build(
     empty_genes = pd.DataFrame(columns=list(GENE_COLUMNS))
     empty_exons = pd.DataFrame(columns=list(EXON_COLUMNS))
 
-    def fetch(what: FetchWhat) -> tuple[pd.DataFrame, pd.DataFrame, bool]:
+    def fetch() -> tuple[pd.DataFrame, pd.DataFrame, bool]:
         try:
-            genes_df, exons_df = source.fetch(chrom_str, start, end, what)
+            genes_df, exons_df = source.fetch(chrom_str, start, end)
         except source.error_cls:
             if raise_on_error:
                 raise
@@ -242,9 +235,9 @@ def get_genes_for_build(
             source.on_cache_hit(cached)
             if not include_exons:
                 return cached
-            return cached, fetch("exons")[1]
+            return cached, fetch()[1]
 
-    genes_df, exons_df, fetch_failed = fetch("both" if include_exons else "genes")
+    genes_df, exons_df, fetch_failed = fetch()
 
     if use_cache and not fetch_failed:
         save_genes(

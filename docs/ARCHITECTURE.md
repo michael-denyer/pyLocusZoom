@@ -154,7 +154,9 @@ stages:
 5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py`, or
    fetched through `reference_genes.py`, which routes the plotter's
    `genome_build` to whichever source can serve it: `ucsc.py` for CanFam3.1,
-   CanFam4 and FelCat9, `ensembl.py` for everything else. Recombination rates
+   CanFam4 and FelCat9, `ensembl.py` for everything else. Each source answers
+   with genes and exons from one request, so an automatic gene track carries
+   exon structure. Recombination rates
    are loaded via `recombination.py`, which handles download of bundled canine
    maps and CanFam3.1 → CanFam4 liftover through pyliftover.
 6. **Regional composition and backend dispatch.** `plot()` and

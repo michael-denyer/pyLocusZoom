@@ -26,7 +26,6 @@ from .logging import logger
 from .reference_genes import (
     EXON_COLUMNS,
     GENE_COLUMNS,
-    FetchWhat,
     clear_gene_cache,
     get_genes_for_build,
     ucsc_source,
@@ -187,21 +186,18 @@ def fetch_track_frames(
     chrom: str | int,
     start: int,
     end: int,
-    what: FetchWhat,
     biotype: str = "protein_coding",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fetch the gene and exon frames a GeneSource orchestration asked for.
+    """Fetch the gene and exon frames for a region from one track request.
 
-    ncbiRefSeq rows already carry ``exonStarts``/``exonEnds``, so genes and
-    exons come out of one request no matter which was asked for. The frame that
-    was not asked for comes back empty.
+    ncbiRefSeq rows already carry ``exonStarts``/``exonEnds``, so the exons
+    cost nothing beyond the genes.
 
     Args:
         ucsc_genome: UCSC genome name, e.g. ``"canFam3"``.
         chrom: Chromosome name or number.
         start: Region start position (1-based).
         end: Region end position (1-based).
-        what: Which frames to fetch.
         biotype: Gene biotype filter, as on ``fetch_genes_from_ucsc``.
 
     Returns:
@@ -213,13 +209,10 @@ def fetch_track_frames(
     chrom_str = normalize_chrom(chrom)
     rows = _fetch_track(ucsc_genome, chrom_str, start, end)
 
-    genes_df = pd.DataFrame(columns=list(GENE_COLUMNS))
-    exons_df = pd.DataFrame(columns=list(EXON_COLUMNS))
-    if what in ("genes", "both"):
-        genes_df = _genes_from_rows(rows, ucsc_genome, chrom_str, biotype)
-    if what in ("exons", "both"):
-        exons_df = _exons_from_rows(rows, ucsc_genome, chrom_str)
-    return genes_df, exons_df
+    return (
+        _genes_from_rows(rows, ucsc_genome, chrom_str, biotype),
+        _exons_from_rows(rows, ucsc_genome, chrom_str),
+    )
 
 
 def _frames_or_empty(
@@ -227,13 +220,12 @@ def _frames_or_empty(
     chrom: str | int,
     start: int,
     end: int,
-    what: FetchWhat,
     raise_on_error: bool,
     biotype: str = "protein_coding",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Fetch frames, translating a service failure to empties if allowed."""
     try:
-        return fetch_track_frames(ucsc_genome, chrom, start, end, what, biotype)
+        return fetch_track_frames(ucsc_genome, chrom, start, end, biotype)
     except UCSCAPIError:
         if raise_on_error:
             raise
@@ -276,7 +268,7 @@ def fetch_genes_from_ucsc(
         UCSCAPIError: If raise_on_error=True and the API fails.
     """
     return _frames_or_empty(
-        ucsc_genome, chrom, start, end, "genes", raise_on_error, biotype=biotype
+        ucsc_genome, chrom, start, end, raise_on_error, biotype=biotype
     )[0]
 
 
@@ -306,7 +298,7 @@ def fetch_exons_from_ucsc(
     Raises:
         UCSCAPIError: If raise_on_error=True and the API fails.
     """
-    return _frames_or_empty(ucsc_genome, chrom, start, end, "exons", raise_on_error)[1]
+    return _frames_or_empty(ucsc_genome, chrom, start, end, raise_on_error)[1]
 
 
 def get_genes_for_region_ucsc(

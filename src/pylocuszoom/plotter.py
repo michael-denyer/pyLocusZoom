@@ -456,12 +456,13 @@ class LocusZoomPlotter:
                 region.end,
             )
             try:
-                genes_df = get_genes_for_build(
+                genes_df, fetched_exons = get_genes_for_build(
                     species=self.species,
                     chrom=region.chrom,
                     start=region.start,
                     end=region.end,
                     genome_build=self.genome_build,
+                    include_exons=True,
                     raise_on_error=True,
                 )
             except ReferenceAPIError as e:
@@ -475,6 +476,8 @@ class LocusZoomPlotter:
                 if genes_df.empty:
                     logger.debug("No genes found in region")
                     genes_df = None
+                elif exons_df is None:
+                    exons_df = fetched_exons
         if genes_df is not None:
             validate_genes_df(genes_df)
 

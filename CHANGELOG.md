@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **An automatic gene track now draws exon structure.** `LocusZoomPlotter` with `auto_genes=True` asked its gene source for genes only, so every automatically fetched gene was drawn as a plain rectangle. On the Ensembl path the exons were unusable anyway: exon features name their transcript and nothing else, so every fetched exon carried an empty `gene_name` and the renderer, which matches exons to genes by that column, never found one. Ensembl is now asked for genes, transcripts and exons in one request and the transcript joins each exon to its gene symbol, and the plotter asks for exons. An exon whose gene is absent from the response is dropped rather than returned unattached.
+
 ## [3.0.0] - 2026-09-02
 
 ### Added
