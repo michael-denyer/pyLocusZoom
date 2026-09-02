@@ -228,7 +228,7 @@ stages:
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, heatmaps, error bars, the secondary axis, the region highlight, neutral `add_legend`). `add_snp_labels` is the one method left outside it |
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
-| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands renderers and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
+| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands the panels and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
 | `SupportsSNPLabels` | Optional protocol | `src/pylocuszoom/backends/base.py` | The one `@runtime_checkable` capability a backend opts into by implementing `add_snp_labels`; detected with `isinstance` |
 | `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis, and `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` build the specs the plotters put on their `FigurePlan` |
 | `QQPanelSpec`, `render_qq_panel` | Internal module | `src/pylocuszoom/_qq_panel.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
@@ -313,7 +313,7 @@ pyLocusZoom/
 ```
 
 The `backends/` subpackage is the single point of extensibility for new
-renderers — adding a backend means writing one module that implements
+backends — adding one means writing one module that implements
 `PlotBackend` and decorating it with `@register_backend("name")`. No plotter
 class needs to change. Recombination maps are downloaded lazily at runtime by
 `recombination.ensure_recomb_maps()` and `download_canine_recombination_maps()`
@@ -382,7 +382,7 @@ and PheWAS plot.
 Two pieces of shared drawing knowledge sit above the seam rather than in each
 adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`
 returns the outline rectangles marking a SNP, in the same data coordinates the
-heatmap was drawn in, and the renderer draws them through `add_rectangle`, so no
+heatmap was drawn in, and the panel draws them through `add_rectangle`, so no
 adapter derives cell geometry. `hover.plotly_hovertemplate`
 and `hover.bokeh_tooltips` build the tooltip spec from a hover DataFrame, so the
 column-name-to-number-format heuristic has one owner.

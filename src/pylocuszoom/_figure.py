@@ -9,7 +9,7 @@ only code above ``backends/`` that creates a figure or finalizes its layout.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, Sequence, Tuple
+from typing import Any, List, Optional, Protocol, Sequence, Tuple
 
 from .backends.base import PlotBackend
 
@@ -54,9 +54,9 @@ class FigurePlan:
 
     panels: Sequence[Panel]
     figsize: Tuple[float, float]
-    height_ratios: Optional[Sequence[float]] = None
+    height_ratios: Optional[List[float]] = None
     n_cols: int = 1
-    width_ratios: Optional[Sequence[float]] = None
+    width_ratios: Optional[List[float]] = None
     sharex: bool = True
     xlabel: Optional[str] = None
     mb_xaxis: bool = False
@@ -78,9 +78,8 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
         raise ValueError("Figure plan must contain at least one panel")
 
     if plan.n_cols == 1:
-        height_ratios = plan.height_ratios or [1.0] * n_panels
         fig, axes = backend.create_figure(
-            height_ratios=list(height_ratios),
+            height_ratios=plan.height_ratios or [1.0] * n_panels,
             figsize=plan.figsize,
             sharex=plan.sharex,
         )
@@ -88,10 +87,8 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
         fig, axes = backend.create_figure_grid(
             n_rows=n_panels // plan.n_cols,
             n_cols=plan.n_cols,
-            width_ratios=None if plan.width_ratios is None else list(plan.width_ratios),
-            height_ratios=None
-            if plan.height_ratios is None
-            else list(plan.height_ratios),
+            width_ratios=plan.width_ratios,
+            height_ratios=plan.height_ratios,
             figsize=plan.figsize,
         )
 

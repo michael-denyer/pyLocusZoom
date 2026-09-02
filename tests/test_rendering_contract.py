@@ -1,4 +1,4 @@
-"""Contract tests for the semantic Manhattan/QQ renderer."""
+"""Contract tests for what each family's panels send through the backend seam."""
 
 import dataclasses
 import inspect
@@ -18,7 +18,7 @@ from pylocuszoom.qq import prepare_qq_data
 
 
 class RecordingBackend:
-    """Small primitive adapter used to test the renderer's semantic seam."""
+    """Small primitive adapter that records every backend call it receives."""
 
     supports_hover = False
 

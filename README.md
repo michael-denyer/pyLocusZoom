@@ -217,9 +217,9 @@ fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 
 > **Note:** All backends support scatter plots, gene tracks, recombination overlay, and LD legend. SNP labels (auto-positioned with adjustText) are matplotlib-only; interactive backends use hover tooltips instead.
 
-Plotters prepare data and pass complete figure intent to internal semantic
-renderers. Those renderers keep panel composition consistent while the backend
-protocol handles drawing primitives.
+Plotters prepare data into panel values and put them on one figure plan. Each
+panel draws itself and one function renders any plan, so panel composition
+stays consistent while the backend protocol handles drawing primitives.
 
 > **Breaking in 2.0:** custom backends written against 1.x need migration. The
 > `PlotBackend` protocol now carries only drawing primitives; legend and

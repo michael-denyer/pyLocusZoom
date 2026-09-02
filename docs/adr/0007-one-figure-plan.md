@@ -91,11 +91,11 @@ every other family resolved it through `UNSET` into an `Optional[float]`.
 
 `create_figure`, `create_figure_grid`, `set_suptitle` and `finalize_layout`
 have one caller above the seam. `_regional.py` and `_rendering.py` are
-deleted; `_stats_renderer.py`, `_coloc_renderer.py` and
-`_ld_heatmap_renderer.py` hold panels and `_miami_renderer.py` holds the
-request, the panel and the plan builder. The answer to "how do I add a plot
-type" is one sentence: write a panel value with `draw`, and a plotter method
-that returns a `FigurePlan`.
+deleted, and the four `_*_renderer.py` modules are `_stats_panels.py`,
+`_coloc_panel.py`, `_ld_heatmap_panel.py` and `_miami_panels.py`, named for
+the panels they hold; the Miami module also holds the request and the plan
+builder. The answer to "how do I add a plot type" is one sentence: write a
+panel value with `draw`, and a plotter method that returns a `FigurePlan`.
 
 Rendered output for every existing call is unchanged; the example plots
 regenerate identically after id normalisation at every commit of the

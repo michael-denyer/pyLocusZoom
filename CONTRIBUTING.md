@@ -71,7 +71,7 @@ markdown, mermaid, link-check, or test failures will not merge.
 - **Docs:** update `README.md`, `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`,
   or `docs/CONFIGURATION.md` when your change alters public APIs, adds
   features, or changes behavior that users rely on.
-- **Example plots:** if your change touches a backend or a renderer, run
+- **Example plots:** if your change touches a backend or a panel, run
   `scripts/example_diff.sh`. It regenerates the examples and lists the exports
   whose content changed after normalising generated ids; the suite does not
   see serialised output. Commit only the files it reports, using `--keep`.
