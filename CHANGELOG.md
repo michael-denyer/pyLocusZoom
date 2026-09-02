@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bokeh Manhattan+QQ figures keep their title.** `set_suptitle` looked only at the layout's first child, which on a `create_figure_grid` layout is a `Row` with no title, so `plot_manhattan_qq(title=...)` and `plot_manhattan_qq_stacked(title=...)` silently dropped the title on bokeh. The backend now walks to the first plot in the layout tree.
+
 ## [3.0.0] - 2026-09-02
 
 ### Added
