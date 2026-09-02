@@ -813,7 +813,7 @@ def load_ensembl_genes(
 # =============================================================================
 
 
-# Filename substrings that identify a GWAS format, in match order.
+# Filename substrings that identify a GWAS format.
 _FORMAT_HINTS: tuple[tuple[str, str], ...] = (
     (".assoc", "plink"),
     (".qassoc", "plink"),
@@ -838,7 +838,7 @@ _GWAS_LOADERS: dict[str, Callable[..., pd.DataFrame]] = {
 def _detect_format(filepath: Path) -> str:
     """Identify a GWAS format from the filename, defaulting to PLINK."""
     name = filepath.name.lower()
-    for hint, format in _FORMAT_HINTS:
+    for hint, format in sorted(_FORMAT_HINTS, key=lambda h: len(h[0]), reverse=True):
         if hint in name:
             return format
     logger.warning(
