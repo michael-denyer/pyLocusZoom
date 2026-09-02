@@ -189,15 +189,17 @@ stages:
    and recombination policy live on the association panel, and both the
    association and eQTL significance lines go through the same
    `add_significance_line` the Manhattan family uses
-   ([ADR-0006](adr/0006-one-regional-pipeline.md)). Manhattan and QQ
-   plotters hand prepared data and
-   figure intent to semantic renderers. Manhattan and QQ go through
-   `ManhattanQQRenderer` and PheWAS and forest through `StatsRenderer`; Miami,
-   colocalisation and the standalone LD heatmap each build one frozen request
-   value (`MiamiRequest`, `ColocRequest`, `LDHeatmapRequest`) and pass it to a
-   module-level `render_*` function. Both shapes own panel composition, labels,
-   axes, legends, and layout, translating intent through the existing
-   `PlotBackend` primitive contract. Backend implementations translate the primitive calls
+   ([ADR-0006](adr/0006-one-regional-pipeline.md)). `ManhattanPlotter`
+   builds `ManhattanPanelSpec` and `QQPanelSpec` values through
+   `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` and
+   puts them on a `FigurePlan` as one panel, a vertical stack, or a
+   two-column grid beside QQ panels. PheWAS and forest go through
+   `StatsRenderer`; Miami, colocalisation and the standalone LD heatmap each
+   build one frozen request value (`MiamiRequest`, `ColocRequest`,
+   `LDHeatmapRequest`) and pass it to a module-level `render_*` function.
+   Panels own their drawing, labels, axes and legends; `render_figure` owns
+   the figure, translating intent through the existing `PlotBackend`
+   primitive contract. Backend implementations translate the primitive calls
    into matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
 7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
    their respective figure objects. Callers export with the figure's own
@@ -222,8 +224,7 @@ stages:
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
 | `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands renderers and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
 | `SupportsSNPLabels` | Optional protocol | `src/pylocuszoom/backends/base.py` | The one `@runtime_checkable` capability a backend opts into by implementing `add_snp_labels`; detected with `isinstance` |
-| `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and builds the `ManhattanPanelSpec` and `QQPanelSpec` values its panels are drawn from |
-| `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
+| `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis, and `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` build the specs the plotters put on their `FigurePlan` |
 | `QQPanelSpec`, `render_qq_panel` | Internal module | `src/pylocuszoom/_qq_panel.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
 | `GenomeLayout`, `CategoryLayout`, `PreparedManhattan` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_manhattan_frames` computes one layout from every frame of a figure and returns each frame paired with it as a `PreparedManhattan`, so Miami and stacked panels share offsets and ticks instead of deriving their own. `qq.PreparedQQ` is the same shape for a QQ panel: the quantile frame with its `lambda_gc` and `n_variants` |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation. Every family routes through it, and the transformed column is `neglog10p` everywhere except colocalization, which needs two of them and names them `neglog10_gwas` and `neglog10_eqtl` |
@@ -263,7 +264,6 @@ pyLocusZoom/
 │   ├── _stats_renderer.py      # PheWAS and forest figure composition
 │   ├── _coloc_renderer.py      # Colocalization figure composition
 │   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition
-│   ├── _rendering.py          # Semantic Manhattan/QQ rendering module
 │   ├── _manhattan_panel.py    # ManhattanPanelSpec and the one function that draws it
 │   ├── _qq_panel.py           # QQPanelSpec and the one function that draws it
 │   ├── backends/              # Pluggable rendering backends

@@ -45,6 +45,9 @@ class FigurePlan:
         mb_xaxis: Whether every x axis reads in megabases.
         highlights: Spans highlighted across every panel.
         suptitle: Figure-level title, or None for none.
+        first_panel_title: Title set on the first panel once every panel is
+            drawn, for figures that title their top panel rather than the
+            figure.
         top: Fraction of the figure height the panels extend to.
         hspace: Vertical space between panels as a fraction of panel height.
     """
@@ -59,6 +62,7 @@ class FigurePlan:
     mb_xaxis: bool = False
     highlights: Sequence[RegionHighlight] = ()
     suptitle: Optional[str] = None
+    first_panel_title: Optional[str] = None
     top: float = 0.95
     hspace: float = 0.08
 
@@ -105,6 +109,8 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
         backend.add_region_highlight(
             axes, span.start, span.end, color=span.color, alpha=span.alpha
         )
+    if plan.first_panel_title:
+        backend.set_title(axes[0], plan.first_panel_title, fontsize=14)
     if plan.suptitle:
         backend.set_suptitle(fig, plan.suptitle, fontsize=14)
     backend.finalize_layout(fig, top=plan.top, hspace=plan.hspace)

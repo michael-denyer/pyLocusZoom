@@ -88,6 +88,7 @@ def test_figure_level_policy_reaches_the_backend():
             mb_xaxis=True,
             highlights=[RegionHighlight(10.0, 20.0, "yellow", 0.3)],
             suptitle="Title",
+            first_panel_title="Top panel",
             top=0.9,
             hspace=0.05,
         ),
@@ -105,6 +106,9 @@ def test_figure_level_policy_reaches_the_backend():
     assert highlight_kwargs == {"color": "yellow", "alpha": 0.3}
     ((suptitle_args, suptitle_kwargs),) = _calls(backend, "set_suptitle")
     assert suptitle_args[1] == "Title" and suptitle_kwargs == {"fontsize": 14}
+    ((title_args, title_kwargs),) = _calls(backend, "set_title")
+    assert title_args[1] == "Top panel" and title_kwargs == {"fontsize": 14}
+    assert names.index("scatter", 1) < names.index("set_title")
     ((_, layout_kwargs),) = _calls(backend, "finalize_layout")
     assert layout_kwargs == {"top": 0.9, "hspace": 0.05}
 
@@ -116,6 +120,7 @@ def test_no_title_means_no_suptitle_call():
 
     names = [name for name, _, _ in backend.calls]
     assert "set_suptitle" not in names
+    assert "set_title" not in names
     assert "set_xlabel" not in names
     assert "format_xaxis_mb" not in names
     assert "add_region_highlight" not in names

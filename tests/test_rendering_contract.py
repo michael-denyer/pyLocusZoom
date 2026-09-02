@@ -7,9 +7,10 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom._manhattan_panel import ManhattanPanelSpec, manhattan_spec
 from pylocuszoom._miami_renderer import MiamiRequest, render_miami
-from pylocuszoom._rendering import ManhattanQQRenderer
+from pylocuszoom._qq_panel import QQPanelSpec, qq_title
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.manhattan import prepare_manhattan_frames
@@ -138,16 +139,33 @@ def prepared_data():
     )
 
 
-def test_renderer_owns_manhattan_panel_policy(prepared_data):
+def _manhattan_plan(manhattan):
+    """The single Manhattan figure, as ManhattanPlotter.plot_manhattan builds it."""
+    panel = manhattan_spec(
+        manhattan,
+        significance_threshold=5e-8,
+        x_label="Chromosome",
+        title="Contract Manhattan",
+    )
+    return FigurePlan(panels=[panel], figsize=(12, 5))
+
+
+def _qq_plan(qq):
+    """The single QQ figure, as ManhattanPlotter.plot_qq builds it."""
+    panel = QQPanelSpec(
+        qq_df=qq.frame,
+        show_confidence_band=True,
+        title=qq_title(qq.lambda_gc, show_lambda=True, compact=False),
+        title_fontsize=14,
+    )
+    return FigurePlan(panels=[panel], figsize=(6, 6))
+
+
+def test_manhattan_panel_owns_its_policy(prepared_data):
     manhattan_df, _ = prepared_data
     backend = RecordingBackend()
 
-    ManhattanQQRenderer(backend).render_manhattan(
-        manhattan_df,
-        figsize=(12, 5),
-        significance_threshold=5e-8,
-        title="Contract Manhattan",
-    )
+    render_figure(backend, _manhattan_plan(manhattan_df))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -158,17 +176,11 @@ def test_renderer_owns_manhattan_panel_policy(prepared_data):
     assert "set_xticks" in names
 
 
-def test_renderer_owns_qq_panel_policy(prepared_data):
+def test_qq_panel_owns_its_policy(prepared_data):
     _, qq_df = prepared_data
     backend = RecordingBackend()
 
-    ManhattanQQRenderer(backend).render_qq(
-        qq_df,
-        figsize=(6, 6),
-        show_confidence_band=True,
-        show_lambda=True,
-        title=None,
-    )
+    render_figure(backend, _qq_plan(qq_df))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -185,21 +197,9 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     """All built-in adapters accept the same prepared rendering intent."""
     manhattan_df, qq_df = prepared_data
     backend = get_backend(backend_name)
-    renderer = ManhattanQQRenderer(backend)
     figures = [
-        renderer.render_manhattan(
-            manhattan_df,
-            figsize=(12, 5),
-            significance_threshold=5e-8,
-            title="Contract Manhattan",
-        ),
-        renderer.render_qq(
-            qq_df,
-            figsize=(6, 6),
-            show_confidence_band=True,
-            show_lambda=True,
-            title=None,
-        ),
+        render_figure(backend, _manhattan_plan(manhattan_df)),
+        render_figure(backend, _qq_plan(qq_df)),
     ]
     assert all(figure is not None for figure in figures)
 

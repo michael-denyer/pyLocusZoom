@@ -3,16 +3,17 @@
 A Manhattan panel, a categorical (PheWAS-style) panel, and each half of a
 Miami plot are the same nine drawing steps over different data columns, tick
 sets, and limits. :class:`ManhattanPanelSpec` names those differences so the
-single/stacked renderer (:mod:`._rendering`) and the Miami renderer
-(:mod:`._miami_renderer`) share one policy instead of three copies.
+Manhattan plotter's plans and the Miami plan share one policy instead of
+three copies.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, List, Optional, Sequence
 
 import pandas as pd
 
 from ._plotter_utils import (
+    MANHATTAN_CATEGORICAL_POINT_SIZE,
     MANHATTAN_EDGE_WIDTH,
     MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
@@ -74,6 +75,10 @@ class ManhattanPanelSpec:
     invert_y: bool = False
     hover: Optional[HoverConfig] = None
 
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw this panel onto a backend axis."""
+        render_manhattan_panel(backend, ax, self)
+
 
 def manhattan_spec(
     prepared: PreparedManhattan,
@@ -127,6 +132,73 @@ def manhattan_spec(
         invert_y=invert_y,
         hover=hover,
     )
+
+
+def categorical_spec(
+    prepared: PreparedManhattan,
+    *,
+    significance_threshold: Optional[float],
+    title: str,
+) -> ManhattanPanelSpec:
+    """Build a category-axis panel spec from a prepared categorical frame.
+
+    Args:
+        prepared: The value from ``prepare_categorical_data``.
+        significance_threshold: P-value to draw the significance line at, or
+            None to draw no line.
+        title: Panel title.
+
+    Returns:
+        The panel spec, with the larger points and rotated ticks a category
+        axis needs.
+    """
+    return ManhattanPanelSpec(
+        prepared_df=prepared.frame,
+        x_col="_x_pos",
+        group_col="_cat_str",
+        layout=prepared.layout,
+        significance_threshold=significance_threshold,
+        point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
+        tick_fontsize=10,
+        tick_rotation=45,
+        tick_ha="right",
+        x_label="Category",
+        title=title,
+    )
+
+
+def stacked_manhattan_specs(
+    prepared: Sequence[PreparedManhattan],
+    *,
+    significance_threshold: Optional[float],
+    panel_labels: Optional[Sequence[str]],
+) -> List[ManhattanPanelSpec]:
+    """Build specs for vertically stacked panels sharing one genome layout.
+
+    Only the bottom panel carries the x-axis label, since the panels share
+    one x axis.
+
+    Args:
+        prepared: Values from ``prepare_manhattan_frames``, top to bottom.
+        significance_threshold: P-value for the significance line, or None.
+        panel_labels: Corner label per panel, or None.
+
+    Returns:
+        One spec per frame, in the same order.
+    """
+    n_panels = len(prepared)
+    return [
+        manhattan_spec(
+            value,
+            significance_threshold=significance_threshold,
+            y_label_fontsize=10,
+            x_label="Chromosome" if index == n_panels - 1 else None,
+            panel_label=panel_labels[index]
+            if panel_labels and index < len(panel_labels)
+            else None,
+        )
+        for index, value in enumerate(prepared)
+    ]
 
 
 def render_manhattan_panel(

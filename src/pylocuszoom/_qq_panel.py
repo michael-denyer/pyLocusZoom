@@ -56,6 +56,10 @@ class QQPanelSpec:
     x_label: Optional[str] = r"Expected $-\log_{10}(p)$"
     y_label: str = r"Observed $-\log_{10}(p)$"
 
+    def draw(self, backend: PlotBackend, ax: Any) -> None:
+        """Draw this panel onto a backend axis."""
+        render_qq_panel(backend, ax, self)
+
 
 def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
     """Draw one QQ panel onto a backend axis.
