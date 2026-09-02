@@ -13,6 +13,7 @@ from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
     RECOMB_COLOR,
+    RecombStatus,
     _extract_archive,
     _publish_map_generation,
     _stage_maps,
@@ -24,6 +25,7 @@ from pylocuszoom.recombination import (
     get_recombination_rate_for_region,
     liftover_recombination_map,
     load_recombination_map,
+    recomb_for_region,
 )
 
 
@@ -646,48 +648,115 @@ class TestEnsureRecombMaps:
         assert result is None
 
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_warns_and_returns_none_on_download_error(
+    def test_ensure_recomb_maps_propagates_a_download_error(
         self, mock_get_dir, tmp_path
     ):
+        """The data layer raises; recomb_for_region is what degrades."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download = Mock(side_effect=DataDownloadError("Network error"))
 
-        with (
-            self._patched_download(mock_download),
-            pytest.warns(UserWarning, match="recombination maps.*Network error"),
-        ):
-            result = ensure_recomb_maps(species="canine")
-
-        assert result is None
+        with self._patched_download(mock_download):
+            with pytest.raises(DataDownloadError, match="Network error"):
+                ensure_recomb_maps(species="canine")
 
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_warns_and_returns_none_on_io_error(
-        self, mock_get_dir, tmp_path
-    ):
+    def test_ensure_recomb_maps_propagates_an_io_error(self, mock_get_dir, tmp_path):
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download = Mock(side_effect=OSError("Disk full"))
 
-        with (
-            self._patched_download(mock_download),
-            pytest.warns(UserWarning, match="recombination maps.*Disk full"),
-        ):
-            result = ensure_recomb_maps(species="canine")
+        with self._patched_download(mock_download):
+            with pytest.raises(OSError, match="Disk full"):
+                ensure_recomb_maps(species="canine")
 
-        assert result is None
+
+class TestRecombForRegion:
+    """One status per way the overlay can be unavailable, and no warnings."""
+
+    @staticmethod
+    def _failing_download(exc):
+        return patch(
+            "pylocuszoom.recombination.download_recombination_maps",
+            Mock(side_effect=exc),
+        )
+
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_a_download_failure_is_a_status_with_the_cause_in_it(
+        self, mock_get_dir, tmp_path
+    ):
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+
+        with self._failing_download(DataDownloadError("Network error")):
+            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        assert "Network error" in result.detail
+        assert result.frame is None
+
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_an_os_error_is_also_a_download_failure(self, mock_get_dir, tmp_path):
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+
+        with self._failing_download(OSError("Disk full")):
+            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        assert "Disk full" in result.detail
+
+    def test_a_species_with_no_built_in_maps_says_so_instead_of_going_quiet(self):
+        """This case used to reach the user as a debug log and nothing else."""
+        result = recomb_for_region(1, 1_000_000, 2_000_000, species="human")
+
+        assert result.status is RecombStatus.NO_MAPS_FOR_SPECIES
+        assert "human" in result.detail
+
+    def test_a_chromosome_the_map_set_does_not_cover_is_its_own_status(self, tmp_path):
+        with patch(
+            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+        ):
+            result = recomb_for_region(41, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.NO_MAP_FOR_CHROMOSOME
+
+    def test_a_region_that_resolves_carries_its_frame(self, tmp_path):
+        (tmp_path / "chr1_recomb.tsv").write_text(
+            "chr\tpos\trate\tcM\n1\t1500000\t0.5\t0.1\n"
+        )
+
+        with patch(
+            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+        ):
+            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.OK
+        assert result.detail == ""
+        assert list(result.frame["pos"]) == [1500000]
+
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_no_outcome_warns(self, mock_get_dir, tmp_path, recwarn):
+        """The caller renders one policy; this layer only reports."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+
+        with self._failing_download(DataDownloadError("Network error")):
+            recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert list(recwarn) == []
+
+
+class TestEnsureRecombMapsCorruptArchive:
+    """A corrupt archive surfaces as a status, not a crash, through the plotter."""
 
     @patch("pylocuszoom.recombination.download_file")
-    def test_ensure_recomb_maps_warns_and_returns_none_on_corrupt_archive(
-        self, mock_download, tmp_path
-    ):
+    def test_a_corrupt_archive_is_a_download_failure(self, mock_download, tmp_path):
         def write_garbage(url, dest_path, desc=None):
             dest_path.write_bytes(b"not a gzip archive")
 
         mock_download.side_effect = write_garbage
 
-        with pytest.warns(UserWarning, match="recombination maps"):
-            result = ensure_recomb_maps(species="canine", data_dir=str(tmp_path / "x"))
+        result = recomb_for_region(
+            1, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path / "x")
+        )
 
-        assert result is None
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
 
 
 class TestDownloadLiftoverChainDownloadError:

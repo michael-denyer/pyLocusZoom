@@ -12,8 +12,8 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-import warnings
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -531,12 +531,15 @@ def ensure_recomb_maps(
         data_dir: Directory for recombination maps. Uses default if None.
 
     Returns:
-        Path to recombination maps directory, or None if species not supported
-        or the maps could not be downloaded. A failed download emits a
-        UserWarning naming the cause so the missing overlay is not silent.
+        Path to the recombination maps directory, or None if the species has
+        no built-in map set.
 
     Raises:
         ValidationError: If the species is not one this package knows.
+        DataDownloadError: If the species has maps and they could not be
+            fetched. Callers that would rather degrade than fail should use
+            ``recomb_for_region``, which reports this as a status.
+        OSError: If the maps could not be written.
     """
     record = resolve_species(species)
     source = RECOMB_SOURCES.get(record.key) if record else None
@@ -546,18 +549,100 @@ def ensure_recomb_maps(
 
     output_path = _resolve_map_dir(data_dir)
 
-    # Check if maps already exist
     if _has_complete_maps(output_path, source):
         logger.debug(f"Recombination maps already exist at {output_path}")
         return output_path
 
-    # Download maps with error handling
+    return download_recombination_maps(source, output_path)
+
+
+class RecombStatus(Enum):
+    """Why a region does or does not have recombination rates to draw."""
+
+    OK = "ok"
+    NO_MAPS_FOR_SPECIES = "no_maps_for_species"
+    NO_MAP_FOR_CHROMOSOME = "no_map_for_chromosome"
+    DOWNLOAD_FAILED = "download_failed"
+    LIFTOVER_UNAVAILABLE = "liftover_unavailable"
+
+
+@dataclass(frozen=True)
+class RecombResult:
+    """The outcome of asking for one region's recombination rates.
+
+    Attributes:
+        status: Why there is or is not a frame.
+        frame: The region's ``pos`` and ``rate``, set only when status is OK.
+        detail: One sentence naming the cause, for the caller to render. Empty
+            when status is OK.
+    """
+
+    status: RecombStatus
+    frame: Optional[pd.DataFrame] = None
+    detail: str = ""
+
+
+def recomb_for_region(
+    chrom: int,
+    start: int,
+    end: int,
+    *,
+    species: str | Species | None = "canine",
+    data_dir: Optional[str] = None,
+    genome_build: Optional[str] = None,
+) -> RecombResult:
+    """Get a region's recombination rates, or say why there are none.
+
+    The one place the "skip the overlay" decision is made. Three layers used
+    to make it independently, so whether the user heard about it depended on
+    which one fired: a download failure warned, an unsupported species was
+    silent, and a missing map file only reached the log. This reports every
+    outcome the same way and warns about none of them, leaving the caller to
+    render one policy.
+
+    Args:
+        chrom: Chromosome number.
+        start: Start position (bp).
+        end: End position (bp).
+        species: Species name, alias or record.
+        data_dir: Directory holding the maps. Uses the platform cache if None.
+        genome_build: Target build. Coordinates are lifted over if the source
+            offers a chain to it.
+
+    Returns:
+        A RecombResult carrying the frame, or the status and the reason.
+
+    Raises:
+        ValidationError: If the species is not one this package knows.
+    """
+    record = resolve_species(species)
     try:
-        return download_recombination_maps(source, output_path)
+        map_dir = ensure_recomb_maps(species=record, data_dir=data_dir)
     except (DataDownloadError, OSError) as e:
-        warnings.warn(
-            f"Recombination overlay skipped; could not download recombination "
-            f"maps: {e}",
-            stacklevel=2,
+        return RecombResult(
+            RecombStatus.DOWNLOAD_FAILED,
+            detail=f"could not download recombination maps: {e}",
         )
-        return None
+
+    if map_dir is None:
+        name = record.key if record else species
+        return RecombResult(
+            RecombStatus.NO_MAPS_FOR_SPECIES,
+            detail=f"there are no built-in recombination maps for {name!r}",
+        )
+
+    try:
+        frame = get_recombination_rate_for_region(
+            chrom=chrom,
+            start=start,
+            end=end,
+            species=record,
+            data_dir=str(map_dir),
+            genome_build=genome_build,
+        )
+    except FileNotFoundError as e:
+        return RecombResult(RecombStatus.NO_MAP_FOR_CHROMOSOME, detail=str(e))
+    except OptionalDependencyMissing as e:
+        return RecombResult(RecombStatus.LIFTOVER_UNAVAILABLE, detail=str(e))
+
+    return RecombResult(RecombStatus.OK, frame=frame)

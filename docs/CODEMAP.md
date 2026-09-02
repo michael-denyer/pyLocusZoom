@@ -196,6 +196,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3c | compute_arrow_geometry | Strand-arrow tip positions and dimensions | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | recomb_for_region, RecombResult | The one place the skip-the-overlay decision is made, reported as a value | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_recombination_maps, RecombSource | Species-generic download, extract and publish; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | GenomeLayout | Chromosome order, offsets, colours, ticks, and x limits for every panel of a figure | [manhattan.py](../src/pylocuszoom/manhattan.py) |
@@ -538,6 +539,9 @@ complete reference; this table is the complete one.
 | `ensure_recomb_maps` | Ensure recombination maps are available, downloading if needed. |
 | `get_recombination_rate_for_region` | Get recombination rate data for a genomic region. |
 | `load_recombination_map` | Load recombination map for a specific chromosome. |
+| `recomb_for_region` | Get a region's recombination rates, or a `RecombStatus` saying why there are none. |
+| `RecombResult` | The outcome of one region's recombination query: status, frame, detail. |
+| `RecombStatus` | Why a region does or does not have recombination rates to draw. |
 
 ### Gene reference routing
 

@@ -10,7 +10,6 @@ Supports multiple backends:
 """
 
 import warnings
-from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -31,13 +30,10 @@ from ._regional_panels import (
 )
 from .backends import BackendType, get_backend
 from .config import ColumnConfig, PlotConfig, RegionConfig, StackedPlotConfig
-from .exceptions import OptionalDependencyMissing, ReferenceAPIError
+from .exceptions import ReferenceAPIError
 from .ld import find_plink
 from .logging import enable_logging, logger
-from .recombination import (
-    ensure_recomb_maps,
-    get_recombination_rate_for_region,
-)
+from .recombination import RecombResult, RecombStatus, recomb_for_region
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import validate_genes_df, validate_gwas_df
 from .species import Species, resolve_species
@@ -123,40 +119,23 @@ class LocusZoomPlotter:
         self._auto_genes = auto_genes
         self._recomb_cache = {}
 
-    def _ensure_recomb_maps(self) -> Optional[Path]:
-        """Ensure recombination maps are available."""
-        return ensure_recomb_maps(species=self.species, data_dir=self.recomb_data_dir)
+    def _get_recomb_for_region(self, chrom: int, start: int, end: int) -> RecombResult:
+        """Get a region's recombination rates, or the reason there are none.
 
-    def _get_recomb_for_region(
-        self, chrom: int, start: int, end: int
-    ) -> Optional[pd.DataFrame]:
-        """Get recombination rate data for a region, with caching.
-
-        A missing optional dependency skips the overlay with a warning; any
-        other ``ImportError`` is a broken environment and propagates.
+        Caches per region and build. The caller renders the outcome; this does
+        not warn, so a region asked for twice is reported once.
         """
         cache_key = (chrom, start, end, self.genome_build)
-        if cache_key in self._recomb_cache:
-            return self._recomb_cache[cache_key]
-
-        recomb_dir = self._ensure_recomb_maps()
-        if recomb_dir is None:
-            return None
-
-        try:
-            recomb_df = get_recombination_rate_for_region(
+        if cache_key not in self._recomb_cache:
+            self._recomb_cache[cache_key] = recomb_for_region(
                 chrom=chrom,
                 start=start,
                 end=end,
                 species=self.species,
-                data_dir=str(recomb_dir),
+                data_dir=self.recomb_data_dir,
                 genome_build=self.genome_build,
             )
-            self._recomb_cache[cache_key] = recomb_df
-            return recomb_df
-        except (FileNotFoundError, OptionalDependencyMissing) as e:
-            warnings.warn(f"Recombination overlay skipped; {e}", stacklevel=2)
-            return None
+        return self._recomb_cache[cache_key]
 
     def plot(
         self,
@@ -464,9 +443,14 @@ class LocusZoomPlotter:
         )
 
         if display.show_recombination and recomb_df is None:
-            recomb_df = self._get_recomb_for_region(
-                region.chrom, region.start, region.end
-            )
+            recomb = self._get_recomb_for_region(region.chrom, region.start, region.end)
+            if recomb.status is RecombStatus.OK:
+                recomb_df = recomb.frame
+            else:
+                warnings.warn(
+                    f"Recombination overlay skipped; {recomb.detail}",
+                    stacklevel=3,
+                )
 
         association: List[AssociationPanel] = []
         for index, (gwas_df, reference_file) in enumerate(

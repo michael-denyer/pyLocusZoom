@@ -165,9 +165,13 @@ stages:
    `genome_build` to whichever source can serve it: `ucsc.py` for CanFam3.1,
    CanFam4 and FelCat9, `ensembl.py` for everything else. Each source answers
    with genes and exons from one request, so an automatic gene track carries
-   exon structure. Recombination rates
-   are loaded via `recombination.py`, which handles download of bundled canine
-   maps and CanFam3.1 → CanFam4 liftover through pyliftover.
+   exon structure. Recombination rates come from
+   `recombination.recomb_for_region`, which handles download of bundled canine
+   maps and CanFam3.1 → CanFam4 liftover through pyliftover. It never warns:
+   it returns a `RecombResult` whose `RecombStatus` says whether there is a
+   frame and, if not, why. The plotter turns any status other than `OK` into
+   one `UserWarning` pointing at the caller's own line, so every reason the
+   overlay is missing reaches the user the same way.
 6. **Regional composition and backend dispatch.** `plot()` and
    `plot_stacked()` validate every keyword through `PlotConfig`, whose
    `panels` field (`PanelInputs`) carries the optional-panel data, then
