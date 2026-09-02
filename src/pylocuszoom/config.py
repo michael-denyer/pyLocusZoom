@@ -13,9 +13,14 @@ Example:
     >>> config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
 """
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Annotated, Any, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
+
+# A p-value a significance line may be drawn at.
+PValueThreshold = Annotated[float, Field(gt=0, le=1)]
 
 
 class RegionConfig(BaseModel):
@@ -253,8 +258,8 @@ class ColocConfig(BaseModel):
         rs_col: Optional column name for SNP identifiers.
         ld_col: Optional column name for pre-computed LD values.
         lead_snp: Optional lead SNP identifier for highlighting.
-        gwas_threshold: GWAS significance threshold (default 5e-8).
-        eqtl_threshold: eQTL significance threshold (default 1e-5).
+        gwas_threshold: GWAS significance threshold, or None to draw no line.
+        eqtl_threshold: eQTL significance threshold, or None to draw no line.
         show_correlation: Whether to display Pearson correlation.
         color_by_effect: Whether to color by effect direction agreement.
         gwas_effect_col: Column name for GWAS effect sizes.
@@ -271,11 +276,11 @@ class ColocConfig(BaseModel):
     rs_col: Optional[str] = Field(default="rs", description="SNP ID column")
     ld_col: Optional[str] = Field(default=None, description="Pre-computed LD column")
     lead_snp: Optional[str] = Field(default=None, description="Lead SNP ID")
-    gwas_threshold: float = Field(
-        default=5e-8, gt=0, le=1, description="GWAS significance"
+    gwas_threshold: Optional[PValueThreshold] = Field(
+        default=DEFAULT_GENOMEWIDE_THRESHOLD, description="GWAS significance"
     )
-    eqtl_threshold: float = Field(
-        default=1e-5, gt=0, le=1, description="eQTL significance"
+    eqtl_threshold: Optional[PValueThreshold] = Field(
+        default=DEFAULT_EQTL_THRESHOLD, description="eQTL significance"
     )
     show_correlation: bool = Field(default=True, description="Show Pearson correlation")
     color_by_effect: bool = Field(

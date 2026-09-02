@@ -11,6 +11,13 @@ import pandas as pd
 
 from ._coloc_renderer import ColocRenderer
 from ._data import prepare_pvalue_data
+from ._plotter_utils import (
+    DEFAULT_EQTL_THRESHOLD,
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+    UNSET,
+    ThresholdArg,
+    resolve_threshold,
+)
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
 from .colors import (
@@ -207,6 +214,8 @@ class ColocPlotter:
 
     Args:
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
+        genomewide_threshold: P-value threshold for the GWAS significance line.
+        eqtl_threshold: P-value threshold for the eQTL significance line.
 
     Example:
         >>> plotter = ColocPlotter()
@@ -217,10 +226,14 @@ class ColocPlotter:
     def __init__(
         self,
         backend: BackendType = "matplotlib",
+        genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
+        eqtl_threshold: float = DEFAULT_EQTL_THRESHOLD,
     ):
         """Initialize the colocalization plotter."""
         self._backend = get_backend(backend)
         self._renderer = ColocRenderer(self._backend)
+        self.genomewide_threshold = genomewide_threshold
+        self.eqtl_threshold = eqtl_threshold
 
     def plot_coloc(
         self,
@@ -232,8 +245,8 @@ class ColocPlotter:
         rs_col: Optional[str] = "rs",
         ld_col: Optional[str] = None,
         lead_snp: Optional[str] = None,
-        gwas_threshold: float = 5e-8,
-        eqtl_threshold: float = 1e-5,
+        gwas_threshold: ThresholdArg = UNSET,
+        eqtl_threshold: ThresholdArg = UNSET,
         show_correlation: bool = True,
         color_by_effect: bool = False,
         gwas_effect_col: Optional[str] = None,
@@ -254,8 +267,11 @@ class ColocPlotter:
             ld_col: Column name for LD R² values in GWAS df (optional).
             lead_snp: SNP ID to highlight as lead variant. If None and ld_col
                 is provided, auto-selects SNP with highest combined -log10(p).
-            gwas_threshold: P-value threshold for GWAS significance line.
-            eqtl_threshold: P-value threshold for eQTL significance line.
+            gwas_threshold: Significance threshold for the GWAS line. Defaults
+                to the plotter's ``genomewide_threshold``; pass None to draw no
+                line.
+            eqtl_threshold: Significance threshold for the eQTL line. Defaults
+                to the plotter's ``eqtl_threshold``; pass None to draw no line.
             show_correlation: Whether to display Pearson correlation.
             color_by_effect: Whether to color points by effect direction agreement.
             gwas_effect_col: Column name for GWAS effect sizes (required if
@@ -296,8 +312,8 @@ class ColocPlotter:
             rs_col=rs_col,
             ld_col=ld_col,
             lead_snp=lead_snp,
-            gwas_threshold=gwas_threshold,
-            eqtl_threshold=eqtl_threshold,
+            gwas_threshold=resolve_threshold(gwas_threshold, self.genomewide_threshold),
+            eqtl_threshold=resolve_threshold(eqtl_threshold, self.eqtl_threshold),
             show_correlation=show_correlation,
             color_by_effect=color_by_effect,
             gwas_effect_col=gwas_effect_col,

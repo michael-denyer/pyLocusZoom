@@ -18,7 +18,7 @@ import pandas as pd
 
 from ._data import prepare_pvalue_data
 from ._ld_plotting import enrich_with_ld
-from ._plotter_utils import DEFAULT_GENOMEWIDE_THRESHOLD
+from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
 from ._regional import (
     AssociationPanel,
     EqtlPanel,
@@ -194,7 +194,7 @@ class LocusZoomPlotter:
         recomb_df: Optional[pd.DataFrame] = None,
         eqtl_df: Optional[pd.DataFrame] = None,
         eqtl_gene: Optional[str] = None,
-        eqtl_threshold: float = 1e-5,
+        eqtl_threshold: float = DEFAULT_EQTL_THRESHOLD,
         finemapping_df: Optional[pd.DataFrame] = None,
         finemapping_cs_col: Optional[str] = "cs",
         ld_heatmap_df: Optional[pd.DataFrame] = None,
@@ -304,7 +304,7 @@ class LocusZoomPlotter:
         exons_df: Optional[pd.DataFrame] = None,
         eqtl_df: Optional[pd.DataFrame] = None,
         eqtl_gene: Optional[str] = None,
-        eqtl_threshold: float = 1e-5,
+        eqtl_threshold: float = DEFAULT_EQTL_THRESHOLD,
         finemapping_df: Optional[pd.DataFrame] = None,
         finemapping_cs_col: Optional[str] = "cs",
         recomb_df: Optional[pd.DataFrame] = None,

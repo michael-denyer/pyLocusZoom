@@ -1373,8 +1373,9 @@ plotter = LocusZoomPlotter(species="canine", log_level=None)
 ### Custom Significance Threshold
 
 `genomewide_threshold` sets where that plotter draws its significance line.
-`LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, and `StatsPlotter` all
-take it. It applies to the plot families that have a significance line; QQ plots
+`LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, `StatsPlotter`, and
+`ColocPlotter` all take it. `ColocPlotter` also takes `eqtl_threshold` for its
+horizontal line. It applies to the plot families that have a significance line; QQ plots
 (`plot_qq`) and forest plots (`plot_forest`) do not draw one and ignore it.
 
 ```python
@@ -1398,6 +1399,7 @@ everywhere, and two methods do not take one at all:
 | `ManhattanPlotter.plot_manhattan_qq_stacked` | `significance_threshold` |
 | `StatsPlotter.plot_phewas` | `significance_threshold` |
 | `MiamiPlotter.plot_miami` | `top_threshold` and `bottom_threshold` |
+| `ColocPlotter.plot_coloc` | `gwas_threshold` and `eqtl_threshold` |
 | `ManhattanPlotter.plot_qq` | none |
 | `StatsPlotter.plot_forest` | none |
 
@@ -1420,6 +1422,8 @@ miami.plot_miami(top_df, bottom_df, top_threshold=5e-8, bottom_threshold=None)
 > `StatsPlotter` accepted `genomewide_threshold` and then ignored it, always
 > drawing at 5e-8. If you passed it and worked around the old behaviour by also
 > passing the per-call argument, that still works and still wins.
+> `ColocPlotter` had no constructor threshold at all and its two per-call
+> arguments were plain floats, so there was no way to ask it for no line.
 
 ### Large Datasets with PySpark
 
