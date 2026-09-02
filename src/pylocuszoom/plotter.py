@@ -31,7 +31,6 @@ from ._regional import (
 )
 from .backends import BackendType, get_backend
 from .config import PlotConfig, StackedPlotConfig
-from .eqtl import validate_eqtl_df
 from .exceptions import ReferenceAPIError
 from .ld import find_plink
 from .logging import enable_logging, logger
@@ -442,8 +441,11 @@ class LocusZoomPlotter:
             )
         if genes_df is not None:
             validate_genes_df(genes_df)
-        if eqtl_df is not None:
-            validate_eqtl_df(eqtl_df)
+        eqtl = (
+            EqtlPanel.from_frame(eqtl_df, region, eqtl_gene, eqtl_threshold)
+            if eqtl_df is not None
+            else None
+        )
 
         if ld_heatmap_df is not None and ld_heatmap_snp_ids is None:
             raise ValueError(
@@ -536,43 +538,8 @@ class LocusZoomPlotter:
                 FinemappingPanel.from_frame(finemapping_df, region, finemapping_cs_col)
             )
 
-        if eqtl_df is not None:
-            eqtl_data = eqtl_df.copy()
-
-            eqtl_gene_filtered = False
-            if eqtl_gene:
-                if "gene" in eqtl_data.columns:
-                    eqtl_data = eqtl_data[eqtl_data["gene"] == eqtl_gene]
-                    eqtl_gene_filtered = True
-                else:
-                    logger.warning(
-                        f"eqtl_gene='{eqtl_gene}' specified but eQTL data has no 'gene' column; "
-                        "showing all eQTL data unfiltered"
-                    )
-
-            if "pos" in eqtl_data.columns:
-                mask = (eqtl_data["pos"] >= region.start) & (
-                    eqtl_data["pos"] <= region.end
-                )
-                if "chr" in eqtl_data.columns:
-                    chrom_str = str(region.chrom).replace("chr", "")
-                    eqtl_chrom = (
-                        eqtl_data["chr"].astype(str).str.replace("chr", "", regex=False)
-                    )
-                    mask = mask & (eqtl_chrom == chrom_str)
-                eqtl_data = eqtl_data[mask]
-
-            if not eqtl_data.empty:
-                eqtl_data = prepare_pvalue_data(eqtl_data, "p_value")
-            panels.append(
-                EqtlPanel(
-                    data=eqtl_data,
-                    height=2.0,
-                    gene_filtered=eqtl_gene_filtered,
-                    gene=eqtl_gene,
-                    threshold=eqtl_threshold,
-                )
-            )
+        if eqtl is not None:
+            panels.append(eqtl)
 
         if genes_df is not None:
             panels.append(GenePanel.from_genes(genes_df, region, exons_df))

@@ -37,6 +37,7 @@ from .colors import (
     get_ld_color_palette,
 )
 from .config import ColumnConfig, DisplayConfig, RegionConfig
+from .eqtl import prepare_eqtl_for_plotting
 from .finemapping import plot_finemapping, prepare_finemapping_for_plotting
 from .gene_track import (
     assign_gene_positions,
@@ -90,13 +91,31 @@ class FinemappingPanel:
 
 @dataclass(frozen=True)
 class EqtlPanel:
-    """Prepared eQTL panel."""
+    """Prepared eQTL panel; ``gene`` is the gene the data was filtered to."""
 
     data: pd.DataFrame
     height: float
-    gene_filtered: bool
     gene: Optional[str]
     threshold: float
+
+    @classmethod
+    def from_frame(
+        cls,
+        df: pd.DataFrame,
+        region: RegionConfig,
+        gene: Optional[str],
+        threshold: float,
+    ) -> "EqtlPanel":
+        """Validate, gene- and region-filter, and transform raw eQTL results.
+
+        Raises:
+            EQTLValidationError: If required columns are missing, or ``gene``
+                is given and the frame has no ``gene`` column.
+        """
+        data = prepare_eqtl_for_plotting(
+            df, gene=gene, chrom=region.chrom, start=region.start, end=region.end
+        )
+        return cls(data=data, height=2.0, gene=gene, threshold=threshold)
 
 
 @dataclass(frozen=True)
@@ -507,7 +526,7 @@ class RegionalPlotComposer:
                     title="eQTL effect",
                 )
             else:
-                label = f"eQTL ({panel.gene})" if panel.gene_filtered else "eQTL"
+                label = f"eQTL ({panel.gene})" if panel.gene else "eQTL"
                 self._backend.scatter(
                     ax,
                     eqtl_data["pos"],

@@ -99,12 +99,10 @@ def test_finemapping_panel_from_frame_filters_sorts_and_renders():
 
 
 def test_eqtl_panel_renders_threshold_line():
-    data = prepare_pvalue_data(
-        pd.DataFrame({"pos": [1_200_000], "p_value": [1e-6]}), "p_value"
-    )
-    panel = EqtlPanel(
-        data=data, height=2.0, gene_filtered=False, gene=None, threshold=1e-5
-    )
+    eqtl = pd.DataFrame({"pos": [1_200_000, 5], "p_value": [1e-6, 1e-3]})
+    panel = EqtlPanel.from_frame(eqtl, REGION, gene=None, threshold=1e-5)
+
+    assert list(panel.data["pos"]) == [1_200_000]
 
     names = _names(_render(panel))
 
