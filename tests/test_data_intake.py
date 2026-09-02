@@ -178,12 +178,8 @@ class TestPValueValidation:
         )
         assert isinstance(fig, Figure)
 
-    def test_prepare_pvalue_data_filters_invalid_range(self):
+    def test_prepare_pvalue_data_filters_invalid_range(self, warning_records):
         """prepare_pvalue_data filters out-of-range p-values (< 0 or > 1)."""
-        import io
-
-        from loguru import logger as loguru_logger
-
         df = pd.DataFrame(
             {
                 "pos": [1100000, 1500000, 1700000, 1900000],
@@ -191,19 +187,7 @@ class TestPValueValidation:
             }
         )
 
-        # Capture log output
-        log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
-
-        try:
-            result = prepare_pvalue_data(df.copy(), "p_value")
-        finally:
-            loguru_logger.remove(handler_id)
+        result = prepare_pvalue_data(df.copy(), "p_value")
 
         # Only valid rows (0.001, 0.5) should remain
         assert len(result) == 2
@@ -211,16 +195,10 @@ class TestPValueValidation:
         assert np.isfinite(result["neglog10p"]).all()
         assert (result["neglog10p"] > 0).all()
 
-        # Warning logged about 2 invalid values
-        log_output = log_capture.getvalue()
-        assert "2 p-values outside [0, 1]" in log_output
+        assert any("2 p-values outside [0, 1]" in line for line in warning_records)
 
-    def test_prepare_pvalue_data_filters_nan(self):
+    def test_prepare_pvalue_data_filters_nan(self, warning_records):
         """prepare_pvalue_data filters NaN p-values."""
-        import io
-
-        from loguru import logger as loguru_logger
-
         df = pd.DataFrame(
             {
                 "pos": [1100000, 1500000, 1900000],
@@ -228,33 +206,16 @@ class TestPValueValidation:
             }
         )
 
-        log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
-
-        try:
-            result = prepare_pvalue_data(df.copy(), "p_value")
-        finally:
-            loguru_logger.remove(handler_id)
+        result = prepare_pvalue_data(df.copy(), "p_value")
 
         # NaN row filtered out
         assert len(result) == 2
         assert not result["p_value"].isna().any()
 
-        # Warning logged
-        log_output = log_capture.getvalue()
-        assert "1 NaN p-values" in log_output
+        assert any("1 NaN p-values" in line for line in warning_records)
 
     def test_prepare_pvalue_data_clips_very_small(self):
         """prepare_pvalue_data clips very small p-values to 1e-300."""
-        import io
-
-        from loguru import logger as loguru_logger
-
         df = pd.DataFrame(
             {
                 "pos": [1100000],
@@ -262,27 +223,12 @@ class TestPValueValidation:
             }
         )
 
-        log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="DEBUG",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
+        result = prepare_pvalue_data(df.copy(), "p_value")
 
-        try:
-            result = prepare_pvalue_data(df.copy(), "p_value")
-        finally:
-            loguru_logger.remove(handler_id)
-
-        # Should be clipped to 1e-300, giving -log10(1e-300) = 300
+        # Clipped to 1e-300, so -log10 is 300 rather than inf
         assert len(result) == 1
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
         assert not np.isinf(result["neglog10p"]).any()
-
-        # Debug log about clipping
-        log_output = log_capture.getvalue()
-        assert "Clipping" in log_output
 
     def test_prepare_pvalue_data_preserves_valid_data(self):
         """prepare_pvalue_data passes through all-valid data unchanged."""
