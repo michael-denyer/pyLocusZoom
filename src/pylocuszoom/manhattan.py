@@ -198,6 +198,19 @@ class CategoryLayout:
 PanelLayout = Union[GenomeLayout, CategoryLayout]
 
 
+@dataclass(frozen=True)
+class PreparedManhattan:
+    """One frame laid out for a Manhattan-style panel, with its layout.
+
+    ``frame`` carries ``neglog10p``, ``_color`` and the x column the layout
+    places it on. ``layout`` is the one every frame prepared in the same call
+    shares, so a given point lands at the same x in all of them.
+    """
+
+    frame: pd.DataFrame
+    layout: PanelLayout
+
+
 def prepare_manhattan_frames(
     dfs: Sequence[pd.DataFrame],
     *,
@@ -206,11 +219,12 @@ def prepare_manhattan_frames(
     p_col: str = "p",
     species: str | Species | None = None,
     custom_order: list[str] | None = None,
-) -> list[pd.DataFrame]:
+) -> list[PreparedManhattan]:
     """Prepare several GWAS frames against one shared genome layout.
 
-    Every returned frame carries the same layout in ``attrs["layout"]``, so a
-    given ``(chrom, pos)`` lands at the same x in all of them.
+    Every returned value carries the same :class:`GenomeLayout`, so a given
+    ``(chrom, pos)`` lands at the same x in all of them. Pass a one-element
+    list for a single panel.
 
     Args:
         dfs: GWAS results DataFrames, in panel order.
@@ -221,7 +235,9 @@ def prepare_manhattan_frames(
         custom_order: Custom chromosome order.
 
     Returns:
-        One prepared frame per input, in the same order.
+        One prepared value per input, in the same order, each carrying the
+        columns ``_chrom_str``, ``_chrom_idx``, ``_cumulative_pos``,
+        ``neglog10p`` and ``_color``.
 
     Raises:
         ValueError: If a required column is missing, or if neither species nor
@@ -241,7 +257,10 @@ def prepare_manhattan_frames(
         filtered, chrom_col=chrom_col, pos_col=pos_col, order=order
     )
     return [
-        _apply_genome_layout(frame, chrom_col, pos_col, layout) for frame in filtered
+        PreparedManhattan(
+            _apply_genome_layout(frame, chrom_col, pos_col, layout), layout
+        )
+        for frame in filtered
     ]
 
 
@@ -262,48 +281,7 @@ def _apply_genome_layout(
         result["_chrom_str"].map(layout.offsets) + result[pos_col]
     )
     result["_color"] = result["_chrom_str"].map(layout.colors)
-    result.attrs["layout"] = layout
     return result
-
-
-def prepare_manhattan_data(
-    df: pd.DataFrame,
-    chrom_col: str = "chrom",
-    pos_col: str = "pos",
-    p_col: str = "p",
-    species: str | Species | None = None,
-    custom_order: list[str] | None = None,
-) -> pd.DataFrame:
-    """Prepare one DataFrame for Manhattan plot rendering.
-
-    The single-frame case of :func:`prepare_manhattan_frames`.
-
-    Args:
-        df: GWAS results DataFrame.
-        chrom_col: Column name for chromosome.
-        pos_col: Column name for position.
-        p_col: Column name for p-value.
-        species: Species for chromosome ordering.
-        custom_order: Custom chromosome order.
-
-    Returns:
-        DataFrame with additional columns:
-        - _chrom_str: String-normalized chromosome name
-        - _chrom_idx: Integer index for chromosome
-        - _cumulative_pos: X-axis position
-        - neglog10p: -log10(p-value)
-        - _color: Hex color for chromosome
-
-        The shared :class:`GenomeLayout` is in ``attrs["layout"]``.
-    """
-    return prepare_manhattan_frames(
-        [df],
-        chrom_col=chrom_col,
-        pos_col=pos_col,
-        p_col=p_col,
-        species=species,
-        custom_order=custom_order,
-    )[0]
 
 
 def prepare_categorical_data(
@@ -311,7 +289,7 @@ def prepare_categorical_data(
     category_col: str,
     p_col: str = "p",
     category_order: list[str] | None = None,
-) -> pd.DataFrame:
+) -> PreparedManhattan:
     """Prepare DataFrame for categorical Manhattan plot (PheWAS-style).
 
     Args:
@@ -321,7 +299,8 @@ def prepare_categorical_data(
         category_order: Custom category order.
 
     Returns:
-        DataFrame with additional columns for plotting.
+        The frame with ``_cat_str``, ``_cat_idx``, ``_x_pos``, ``neglog10p``
+        and ``_color`` columns, and its :class:`CategoryLayout`.
     """
     # Validate required columns
     if category_col not in df.columns:
@@ -358,6 +337,4 @@ def prepare_categorical_data(
         colors=dict(zip(category_order, get_chromosome_colors(len(category_order)))),
     )
     result["_color"] = result["_cat_str"].map(layout.colors)
-    result.attrs["layout"] = layout
-
-    return result
+    return PreparedManhattan(result, layout)

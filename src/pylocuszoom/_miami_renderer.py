@@ -8,6 +8,7 @@ import pandas as pd
 from ._manhattan_panel import manhattan_spec, render_manhattan_panel
 from .backends.base import PlotBackend
 from .backends.hover import HoverConfig
+from .manhattan import PreparedManhattan
 
 
 @dataclass(frozen=True)
@@ -19,8 +20,8 @@ class MiamiRequest:
     whenever either annotation tuple is non-empty.
     """
 
-    top: pd.DataFrame
-    bottom: pd.DataFrame
+    top: PreparedManhattan
+    bottom: PreparedManhattan
     hover: Optional[HoverConfig]
     rs_col: Optional[str]
     top_threshold: Optional[float]
@@ -68,13 +69,13 @@ def render_miami(backend: PlotBackend, req: MiamiRequest) -> Any:
         ),
     )
     if req.rs_col is not None:
-        for ax, frame, ids in (
+        for ax, prepared, ids in (
             (top_ax, req.top, req.top_annotations),
             (bottom_ax, req.bottom, req.bottom_annotations),
         ):
-            _add_snp_annotations(backend, ax, frame, req.rs_col, ids)
+            _add_snp_annotations(backend, ax, prepared.frame, req.rs_col, ids)
     if req.highlights:
-        offsets = req.top.attrs["layout"].offsets
+        offsets = req.top.layout.offsets
         for chrom, start, end in req.highlights:
             _add_region_highlight(
                 backend,

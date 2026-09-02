@@ -12,7 +12,7 @@ from pylocuszoom._miami_renderer import MiamiRequest, render_miami
 from pylocuszoom._rendering import ManhattanQQRenderer
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
-from pylocuszoom.manhattan import prepare_manhattan_data
+from pylocuszoom.manhattan import prepare_manhattan_frames
 from pylocuszoom.qq import prepare_qq_data
 
 
@@ -133,7 +133,7 @@ def prepared_data():
         }
     )
     return (
-        prepare_manhattan_data(df, species="human"),
+        prepare_manhattan_frames([df], species="human")[0],
         prepare_qq_data(df),
     )
 

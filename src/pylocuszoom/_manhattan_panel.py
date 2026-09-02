@@ -20,7 +20,7 @@ from ._plotter_utils import (
 )
 from .backends.base import PlotBackend
 from .backends.hover import HoverConfig, HoverDataBuilder
-from .manhattan import PanelLayout
+from .manhattan import PanelLayout, PreparedManhattan
 
 
 def padded_ymax(y_max: float) -> float:
@@ -33,8 +33,7 @@ class ManhattanPanelSpec:
     """One Manhattan-style panel's data and presentation policy.
 
     Attributes:
-        prepared_df: Frame from ``prepare_manhattan_data`` or
-            ``prepare_categorical_data``.
+        prepared_df: The ``frame`` of a :class:`~.manhattan.PreparedManhattan`.
         x_col: Column holding each point's x coordinate.
         group_col: Column the scatter loop groups by, one colour per group.
         layout: Group order, x limits, and ticks, shared by every panel of
@@ -77,7 +76,7 @@ class ManhattanPanelSpec:
 
 
 def manhattan_spec(
-    prepared_df: pd.DataFrame,
+    prepared: PreparedManhattan,
     *,
     significance_threshold: Optional[float] = None,
     x_label: Optional[str] = None,
@@ -97,8 +96,8 @@ def manhattan_spec(
     fails if the two lists of defaults drift.
 
     Args:
-        prepared_df: Frame from ``prepare_manhattan_data``, carrying the
-            shared :class:`~.manhattan.GenomeLayout` in ``attrs["layout"]``.
+        prepared: One value from ``prepare_manhattan_frames``, carrying the
+            frame and the shared :class:`~.manhattan.GenomeLayout`.
         significance_threshold: P-value to draw the significance line at, or
             None to draw no line.
         x_label: X axis label, or None for none.
@@ -114,10 +113,10 @@ def manhattan_spec(
         The panel spec.
     """
     return ManhattanPanelSpec(
-        prepared_df=prepared_df,
+        prepared_df=prepared.frame,
         x_col="_cumulative_pos",
         group_col="_chrom_str",
-        layout=prepared_df.attrs["layout"],
+        layout=prepared.layout,
         significance_threshold=significance_threshold,
         x_label=x_label,
         y_label_fontsize=y_label_fontsize,

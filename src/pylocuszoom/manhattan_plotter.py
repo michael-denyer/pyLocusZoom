@@ -19,11 +19,7 @@ from ._plotter_utils import (
 )
 from ._rendering import ManhattanQQRenderer
 from .backends import BackendType, get_backend
-from .manhattan import (
-    prepare_categorical_data,
-    prepare_manhattan_data,
-    prepare_manhattan_frames,
-)
+from .manhattan import prepare_categorical_data, prepare_manhattan_frames
 from .qq import prepare_qq_data
 from .species import Species, resolve_species
 
@@ -129,17 +125,17 @@ class ManhattanPlotter:
             )
 
         # Standard Manhattan plot
-        prepared_df = prepare_manhattan_data(
-            df=df,
+        prepared = prepare_manhattan_frames(
+            [df],
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
             species=self.species,
             custom_order=custom_chrom_order,
-        )
+        )[0]
 
         return self._renderer.render_manhattan(
-            prepared_df,
+            prepared,
             figsize=figsize,
             significance_threshold=significance_threshold,
             title=title,
@@ -322,21 +318,18 @@ class ManhattanPlotter:
             significance_threshold, self.genomewide_threshold
         )
 
-        # Prepare Manhattan data
-        manhattan_df = prepare_manhattan_data(
-            df=df,
+        manhattan = prepare_manhattan_frames(
+            [df],
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
             species=self.species,
             custom_order=custom_chrom_order,
-        )
-
-        # Prepare QQ data
-        qq_df = prepare_qq_data(df, p_col=p_col)
+        )[0]
+        qq = prepare_qq_data(df, p_col=p_col)
         return self._renderer.render_manhattan_qq(
-            manhattan_df,
-            qq_df,
+            manhattan,
+            qq,
             figsize=figsize,
             significance_threshold=significance_threshold,
             show_confidence_band=show_confidence_band,

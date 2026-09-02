@@ -8,8 +8,6 @@ working while the rendering seam gains depth.
 
 from typing import Any, List, Optional, Sequence, Tuple
 
-import pandas as pd
-
 from ._manhattan_panel import (
     ManhattanPanelSpec,
     manhattan_spec,
@@ -18,6 +16,8 @@ from ._manhattan_panel import (
 from ._plotter_utils import MANHATTAN_CATEGORICAL_POINT_SIZE
 from ._qq_panel import QQPanelSpec, qq_title, render_qq_panel
 from .backends.base import PlotBackend
+from .manhattan import PreparedManhattan
+from .qq import PreparedQQ
 
 
 class ManhattanQQRenderer:
@@ -33,7 +33,7 @@ class ManhattanQQRenderer:
 
     def render_manhattan(
         self,
-        prepared_df: pd.DataFrame,
+        prepared: PreparedManhattan,
         *,
         figsize: Tuple[float, float],
         significance_threshold: Optional[float],
@@ -48,7 +48,7 @@ class ManhattanQQRenderer:
             self._backend,
             axes[0],
             manhattan_spec(
-                prepared_df,
+                prepared,
                 significance_threshold=significance_threshold,
                 x_label="Chromosome",
                 title=title or "Manhattan Plot",
@@ -59,7 +59,7 @@ class ManhattanQQRenderer:
 
     def render_categorical(
         self,
-        prepared_df: pd.DataFrame,
+        prepared: PreparedManhattan,
         *,
         figsize: Tuple[float, float],
         significance_threshold: Optional[float],
@@ -74,10 +74,10 @@ class ManhattanQQRenderer:
             self._backend,
             axes[0],
             ManhattanPanelSpec(
-                prepared_df=prepared_df,
+                prepared_df=prepared.frame,
                 x_col="_x_pos",
                 group_col="_cat_str",
-                layout=prepared_df.attrs["layout"],
+                layout=prepared.layout,
                 significance_threshold=significance_threshold,
                 point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
                 tick_fontsize=10,
@@ -92,7 +92,7 @@ class ManhattanQQRenderer:
 
     def render_qq(
         self,
-        qq_df: pd.DataFrame,
+        qq: PreparedQQ,
         *,
         figsize: Tuple[float, float],
         show_confidence_band: bool,
@@ -108,12 +108,10 @@ class ManhattanQQRenderer:
             self._backend,
             axes[0],
             QQPanelSpec(
-                qq_df=qq_df,
+                qq_df=qq.frame,
                 show_confidence_band=show_confidence_band,
                 title=title
-                or qq_title(
-                    qq_df.attrs["lambda_gc"], show_lambda=show_lambda, compact=False
-                ),
+                or qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=False),
                 title_fontsize=14,
             ),
         )
@@ -122,7 +120,7 @@ class ManhattanQQRenderer:
 
     def render_manhattan_stacked(
         self,
-        prepared_dfs: Sequence[pd.DataFrame],
+        prepared: Sequence[PreparedManhattan],
         *,
         figsize: Tuple[float, float],
         significance_threshold: Optional[float],
@@ -130,7 +128,7 @@ class ManhattanQQRenderer:
         title: Optional[str],
     ) -> Any:
         """Render prepared Manhattan panels with shared x coordinates."""
-        n_panels = len(prepared_dfs)
+        n_panels = len(prepared)
         fig, axes = self._backend.create_figure(
             height_ratios=[figsize[1] / n_panels] * n_panels,
             figsize=figsize,
@@ -139,7 +137,7 @@ class ManhattanQQRenderer:
         for ax, spec in zip(
             axes,
             self._stacked_manhattan_specs(
-                prepared_dfs,
+                prepared,
                 significance_threshold=significance_threshold,
                 panel_labels=panel_labels,
             ),
@@ -153,8 +151,8 @@ class ManhattanQQRenderer:
 
     def render_manhattan_qq(
         self,
-        manhattan_df: pd.DataFrame,
-        qq_df: pd.DataFrame,
+        manhattan: PreparedManhattan,
+        qq: PreparedQQ,
         *,
         figsize: Tuple[float, float],
         significance_threshold: Optional[float],
@@ -173,7 +171,7 @@ class ManhattanQQRenderer:
             self._backend,
             axes[0],
             manhattan_spec(
-                manhattan_df,
+                manhattan,
                 significance_threshold=significance_threshold,
                 x_label="Chromosome",
                 title="Manhattan Plot",
@@ -184,11 +182,9 @@ class ManhattanQQRenderer:
             self._backend,
             axes[1],
             QQPanelSpec(
-                qq_df=qq_df,
+                qq_df=qq.frame,
                 show_confidence_band=show_confidence_band,
-                title=qq_title(
-                    qq_df.attrs["lambda_gc"], show_lambda=show_lambda, compact=False
-                ),
+                title=qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=False),
                 title_fontsize=12,
             ),
         )
@@ -202,8 +198,8 @@ class ManhattanQQRenderer:
 
     def render_manhattan_qq_stacked(
         self,
-        manhattan_dfs: Sequence[pd.DataFrame],
-        qq_dfs: Sequence[pd.DataFrame],
+        manhattans: Sequence[PreparedManhattan],
+        qqs: Sequence[PreparedQQ],
         *,
         figsize: Tuple[float, float],
         significance_threshold: Optional[float],
@@ -213,7 +209,7 @@ class ManhattanQQRenderer:
         title: Optional[str],
     ) -> Any:
         """Render stacked side-by-side Manhattan and QQ panels."""
-        n_panels = len(manhattan_dfs)
+        n_panels = len(manhattans)
         fig, axes = self._backend.create_figure_grid(
             n_rows=n_panels,
             n_cols=2,
@@ -221,22 +217,20 @@ class ManhattanQQRenderer:
             figsize=figsize,
         )
         specs = self._stacked_manhattan_specs(
-            manhattan_dfs,
+            manhattans,
             significance_threshold=significance_threshold,
             panel_labels=panel_labels,
         )
 
-        for index, (spec, qq_df) in enumerate(zip(specs, qq_dfs)):
+        for index, (spec, qq) in enumerate(zip(specs, qqs)):
             render_manhattan_panel(self._backend, axes[index * 2], spec)
             render_qq_panel(
                 self._backend,
                 axes[index * 2 + 1],
                 QQPanelSpec(
-                    qq_df=qq_df,
+                    qq_df=qq.frame,
                     show_confidence_band=show_confidence_band,
-                    title=qq_title(
-                        qq_df.attrs["lambda_gc"], show_lambda=show_lambda, compact=True
-                    ),
+                    title=qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=True),
                     title_fontsize=10,
                     label_fontsize=10,
                     x_label="Expected $-\\log_{10}(p)$"
@@ -254,7 +248,7 @@ class ManhattanQQRenderer:
 
     @staticmethod
     def _stacked_manhattan_specs(
-        prepared_dfs: Sequence[pd.DataFrame],
+        prepared: Sequence[PreparedManhattan],
         *,
         significance_threshold: Optional[float],
         panel_labels: Optional[List[str]],
@@ -265,18 +259,17 @@ class ManhattanQQRenderer:
         one x axis.
 
         Args:
-            prepared_dfs: Frames from ``prepare_manhattan_frames``, top to
-                bottom.
+            prepared: Values from ``prepare_manhattan_frames``, top to bottom.
             significance_threshold: P-value for the significance line, or None.
             panel_labels: Corner label per panel, or None.
 
         Returns:
             One spec per frame, in the same order.
         """
-        n_panels = len(prepared_dfs)
+        n_panels = len(prepared)
         return [
             manhattan_spec(
-                prepared_df,
+                value,
                 significance_threshold=significance_threshold,
                 y_label_fontsize=10,
                 x_label="Chromosome" if index == n_panels - 1 else None,
@@ -284,5 +277,5 @@ class ManhattanQQRenderer:
                 if panel_labels and index < len(panel_labels)
                 else None,
             )
-            for index, prepared_df in enumerate(prepared_dfs)
+            for index, value in enumerate(prepared)
         ]

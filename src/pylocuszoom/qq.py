@@ -1,5 +1,7 @@
 """QQ plot data preparation and statistics."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -67,10 +69,24 @@ def calculate_confidence_band(
     return expected, lower_bound, upper_bound
 
 
+@dataclass(frozen=True)
+class PreparedQQ:
+    """Observed and expected quantiles for one QQ panel, with its statistics.
+
+    ``frame`` carries ``_expected``, ``_observed``, ``_ci_lower`` and
+    ``_ci_upper``; ``lambda_gc`` is the genomic inflation factor and
+    ``n_variants`` the number of valid p-values behind them.
+    """
+
+    frame: pd.DataFrame
+    lambda_gc: float
+    n_variants: int
+
+
 def prepare_qq_data(
     df: pd.DataFrame,
     p_col: str = "p",
-) -> pd.DataFrame:
+) -> PreparedQQ:
     """Prepare DataFrame for QQ plot rendering.
 
     Args:
@@ -78,15 +94,10 @@ def prepare_qq_data(
         p_col: Column name for p-value.
 
     Returns:
-        DataFrame with columns for QQ plotting:
-        - _expected: Expected -log10(p) under null
-        - _observed: Observed -log10(p)
-        - _ci_lower: Lower confidence bound
-        - _ci_upper: Upper confidence bound
+        The quantile frame and its statistics.
 
-        Attributes stored in DataFrame.attrs:
-        - lambda_gc: Genomic inflation factor
-        - n_variants: Number of valid p-values
+    Raises:
+        ValueError: If ``p_col`` is missing or no p-value lies in ``(0, 1]``.
     """
     if p_col not in df.columns:
         raise ValueError(f"Column '{p_col}' not found in DataFrame")
@@ -108,8 +119,7 @@ def prepare_qq_data(
     # Calculate expected and confidence bands
     expected, ci_lower, ci_upper = calculate_confidence_band(len(p_sorted))
 
-    # Create result DataFrame
-    result = pd.DataFrame(
+    frame = pd.DataFrame(
         {
             "_expected": expected,
             "_observed": observed,
@@ -117,9 +127,4 @@ def prepare_qq_data(
             "_ci_upper": ci_upper,
         }
     )
-
-    # Store statistics in attrs
-    result.attrs["lambda_gc"] = calculate_lambda_gc(p_valid)
-    result.attrs["n_variants"] = len(p_valid)
-
-    return result
+    return PreparedQQ(frame, calculate_lambda_gc(p_valid), len(p_valid))

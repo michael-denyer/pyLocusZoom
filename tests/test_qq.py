@@ -103,8 +103,8 @@ class TestPrepareQQData:
 
         df = pd.DataFrame({"p": [0.1, 0.01, 0.001, 0.5, 0.9]})
         result = prepare_qq_data(df, p_col="p")
-        assert "_expected" in result.columns
-        assert "_observed" in result.columns
+        assert "_expected" in result.frame.columns
+        assert "_observed" in result.frame.columns
 
     def test_adds_confidence_bounds(self):
         """Should add confidence interval columns."""
@@ -112,24 +112,24 @@ class TestPrepareQQData:
 
         df = pd.DataFrame({"p": [0.1, 0.01, 0.001, 0.5, 0.9]})
         result = prepare_qq_data(df, p_col="p")
-        assert "_ci_lower" in result.columns
-        assert "_ci_upper" in result.columns
+        assert "_ci_lower" in result.frame.columns
+        assert "_ci_upper" in result.frame.columns
 
-    def test_stores_lambda_in_attrs(self):
-        """Should store lambda in DataFrame attrs."""
+    def test_carries_lambda(self):
+        """The inflation factor is a field of the prepared value."""
+        from pylocuszoom.qq import calculate_lambda_gc, prepare_qq_data
+
+        df = pd.DataFrame({"p": [0.1, 0.01, 0.001, 0.5, 0.9]})
+        result = prepare_qq_data(df, p_col="p")
+        assert result.lambda_gc == calculate_lambda_gc(df["p"].to_numpy())
+
+    def test_carries_n_variants(self):
+        """The valid p-value count is a field of the prepared value."""
         from pylocuszoom.qq import prepare_qq_data
 
         df = pd.DataFrame({"p": [0.1, 0.01, 0.001, 0.5, 0.9]})
         result = prepare_qq_data(df, p_col="p")
-        assert "lambda_gc" in result.attrs
-
-    def test_stores_n_variants_in_attrs(self):
-        """Should store variant count in DataFrame attrs."""
-        from pylocuszoom.qq import prepare_qq_data
-
-        df = pd.DataFrame({"p": [0.1, 0.01, 0.001, 0.5, 0.9]})
-        result = prepare_qq_data(df, p_col="p")
-        assert result.attrs["n_variants"] == 5
+        assert result.n_variants == 5
 
     def test_validates_p_column(self):
         """Should raise on missing p column."""
@@ -146,7 +146,7 @@ class TestPrepareQQData:
         df = pd.DataFrame({"p": [0.1, np.nan, -0.1, 1.5, 0.5]})
         result = prepare_qq_data(df, p_col="p")
         # Only 0.1 and 0.5 are valid
-        assert result.attrs["n_variants"] == 2
+        assert result.n_variants == 2
 
     def test_raises_on_no_valid_pvalues(self):
         """Should raise if no valid p-values."""
@@ -164,7 +164,7 @@ class TestPrepareQQData:
         result = prepare_qq_data(df, p_col="p")
         # QQ plots have expected on x, observed on y
         # We sort p-values ascending, so -log10(p) is descending
-        assert result["_observed"].is_monotonic_decreasing
+        assert result.frame["_observed"].is_monotonic_decreasing
 
 
 # =============================================================================

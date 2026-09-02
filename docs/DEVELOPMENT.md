@@ -100,7 +100,7 @@ Use **Google-style docstrings** for all public functions and classes. Key conven
 - Include an `Example` section for non-trivial public APIs.
 - Omit sections (`Raises`, `Example`) that do not apply.
 
-For a concrete example, see `prepare_manhattan_data` in
+For a concrete example, see `prepare_manhattan_frames` in
 [`src/pylocuszoom/manhattan.py`](../src/pylocuszoom/manhattan.py).
 
 ### Pre-commit Hooks
