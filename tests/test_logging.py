@@ -21,6 +21,21 @@ from pylocuszoom.exceptions import (
 )
 
 
+@pytest.fixture(autouse=True)
+def restore_logging_state():
+    """Put the global logger back the way this file found it.
+
+    Most tests here end in ``disable_logging()``, which mutates process-wide
+    state. Under ``pytest-randomly`` that leaked into any later test asserting
+    on a warning, which then passed or failed by execution order.
+    """
+    from pylocuszoom.logging import logger
+
+    was_enabled = logger._enabled
+    yield
+    logger._enabled = was_enabled
+
+
 class TestLoggingWrapper:
     """Tests for the logging wrapper."""
 

@@ -20,6 +20,13 @@ from tests.reference_mocks import (
 )
 
 
+def _drawn_positions(ax):
+    """Return the distinct x coordinates of every point scattered on ``ax``."""
+    return {
+        float(x) for collection in ax.collections for x, _ in collection.get_offsets()
+    }
+
+
 def _captured_association_leads(call):
     """Run ``call`` and return the lead position of each association panel drawn."""
     captured = []
@@ -57,16 +64,6 @@ class TestLocusZoomPlotterInit:
         plotter = LocusZoomPlotter(genomewide_threshold=5e-8)
         assert plotter.genomewide_threshold == 5e-8
 
-    def test_auto_genes_default_false(self):
-        """auto_genes should be False by default for backward compatibility."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-        assert plotter._auto_genes is False
-
-    def test_auto_genes_can_be_enabled(self):
-        """auto_genes=True should be accepted."""
-        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
-        assert plotter._auto_genes is True
-
 
 class TestAutoGenes:
     """Tests for automatic gene fetching from Ensembl."""
@@ -85,8 +82,7 @@ class TestAutoGenes:
         )
 
     def test_plot_with_auto_genes_enabled(self, small_regional_gwas_df):
-        """Test that auto_genes=True fetches genes from the reference source."""
-        # Mock the Ensembl API response
+        """Label the gene track with the genes the reference source returned."""
         mock_genes = pd.DataFrame(
             {
                 "chr": ["1", "1"],
@@ -110,7 +106,8 @@ class TestAutoGenes:
                 end=2000000,
             )
 
-        assert fig is not None
+        gene_track_ax = fig.get_axes()[1]
+        assert [text.get_text() for text in gene_track_ax.texts] == ["GENE1", "GENE2"]
 
     @pytest.mark.parametrize(
         "species,payload",
@@ -204,23 +201,23 @@ class TestAutoGenes:
         assert len(fig.get_axes()) == 2
 
     def test_plot_auto_genes_disabled_by_default(self, small_regional_gwas_df):
-        """Test that auto_genes=False by default (backward compatible)."""
+        """Without auto_genes a plot reaches no reference source."""
         plotter = LocusZoomPlotter(species="canine", log_level=None)
 
-        # Should work without genes_df and without calling Ensembl
-        fig = plotter.plot(
-            small_regional_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-        )
+        with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
+            plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+            )
 
-        assert fig is not None
+        assert not mock_fetch.called, "auto_genes is off, so no gene fetch is allowed"
 
     def test_plot_auto_genes_respects_explicit_genes_df(
         self, small_regional_gwas_df, two_gene_track_df
     ):
-        """Test that explicit genes_df is used even when auto_genes=True."""
+        """Draw the caller's own genes, and fetch nothing, when genes_df is given."""
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
         with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
@@ -232,10 +229,12 @@ class TestAutoGenes:
                 panels=PanelInputs(genes_df=two_gene_track_df),
             )
 
-            # Ensembl should NOT be called when genes_df is provided
             mock_fetch.assert_not_called()
 
-        assert fig is not None
+        gene_track_ax = fig.get_axes()[1]
+        assert [
+            (text.get_text(), text.get_position()[0]) for text in gene_track_ax.texts
+        ] == [("GENE1", 1150000.0), ("GENE2", 1350000.0)]
 
 
 class TestLocusZoomPlotterPlot:
@@ -699,12 +698,10 @@ class TestEmptyDataFrames:
 class TestNaNPvalues:
     """Test handling of NaN p-values in plots."""
 
-    def test_plot_with_some_nan_pvalues_succeeds(self, regional_plotter):
-        """Regional plot with partial NaN p-values should work.
-
-        Rows with NaN p-values are excluded from plotting but do not
-        cause errors. A warning is logged (visible in stderr).
-        """
+    def test_plot_with_some_nan_pvalues_draws_only_the_valid_rows(
+        self, regional_plotter
+    ):
+        """Draw the rows with a p-value and drop the NaN ones."""
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
@@ -720,14 +717,11 @@ class TestNaNPvalues:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert fig is not None
 
-    def test_plot_with_all_nan_pvalues_succeeds(self, regional_plotter):
-        """Regional plot with all NaN p-values should render empty.
+        assert _drawn_positions(fig.get_axes()[0]) == {1100000.0, 1500000.0, 1900000.0}
 
-        The plot renders without error but contains no data points.
-        This tests graceful degradation rather than raising an error.
-        """
+    def test_plot_with_all_nan_pvalues_draws_no_points(self, regional_plotter):
+        """Render an empty association panel rather than raising."""
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3"],
@@ -743,7 +737,8 @@ class TestNaNPvalues:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert fig is not None
+
+        assert _drawn_positions(fig.get_axes()[0]) == set()
 
 
 class TestStackedPlotMismatchedLengths:
@@ -808,16 +803,13 @@ class TestStackedPlotMismatchedLengths:
 class TestFinemappingManyCredibleSets:
     """Test fine-mapping plot with many credible sets cycles colors correctly."""
 
-    def test_finemapping_12_credible_sets_succeeds(
+    def test_finemapping_12_credible_sets_cycle_the_palette(
         self, regional_plotter, small_regional_gwas_df
     ):
-        """Fine-mapping with >10 credible sets should cycle colors without error.
+        """Draw all 12 credible sets in the palette's 10 colours, cycled."""
+        from pylocuszoom.colors import CREDIBLE_SET_COLORS
 
-        The CREDIBLE_SET_COLORS palette has 10 colors, so 12 credible sets
-        requires color cycling. This tests that modulo indexing works.
-        """
-        # Create fine-mapping data with 12 credible sets
-        n_variants = 60  # 5 variants per credible set
+        n_variants = 60
         positions = list(range(1000000, 1000000 + n_variants * 10000, 10000))
         credible_sets = [((i // 5) % 12) + 1 for i in range(n_variants)]
 
@@ -838,7 +830,13 @@ class TestFinemappingManyCredibleSets:
             panels=PanelInputs(finemapping_df=finemapping_df, finemapping_cs_col="cs"),
         )
 
-        assert fig is not None
+        pip_ax = fig.get_axes()[1]
+        drawn_points = sum(len(c.get_offsets()) for c in pip_ax.collections)
+        drawn_colours = {
+            tuple(face) for c in pip_ax.collections for face in c.get_facecolor()
+        }
+        assert drawn_points == n_variants
+        assert len(drawn_colours) == len(CREDIBLE_SET_COLORS)
 
     def test_credible_set_color_cycling(self):
         """Verify get_credible_set_color cycles correctly for cs > 10."""

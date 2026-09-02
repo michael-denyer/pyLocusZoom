@@ -276,20 +276,6 @@ class TestLDConfig:
 class TestConfigIntegration:
     """Integration tests for config classes working together."""
 
-    def test_all_configs_can_be_imported(self):
-        """All config classes should be importable from config module."""
-        from pylocuszoom.config import (
-            ColumnConfig,
-            DisplayConfig,
-            LDConfig,
-            RegionConfig,
-        )
-
-        assert RegionConfig is not None
-        assert ColumnConfig is not None
-        assert DisplayConfig is not None
-        assert LDConfig is not None
-
     def test_configs_are_pydantic_models(self):
         """All configs should be Pydantic BaseModel subclasses."""
         from pydantic import BaseModel

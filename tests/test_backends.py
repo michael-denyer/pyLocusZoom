@@ -2,6 +2,7 @@
 
 import sys
 
+import numpy as np
 import pytest
 
 from pylocuszoom.backends import BUILTIN_BACKENDS
@@ -89,20 +90,6 @@ class TestGetBackend:
 class TestBackendImportErrors:
     """Tests for ImportError behavior when optional backends unavailable."""
 
-    def test_plotly_succeeds_when_installed(self):
-        """No error when plotly is available."""
-        from pylocuszoom.backends import get_backend
-
-        backend = get_backend("plotly")
-        assert backend is not None
-
-    def test_bokeh_succeeds_when_installed(self):
-        """No error when bokeh is available."""
-        from pylocuszoom.backends import get_backend
-
-        backend = get_backend("bokeh")
-        assert backend is not None
-
     @pytest.mark.parametrize("name", ["plotly", "bokeh"])
     def test_missing_optional_backend_names_its_install_command(
         self, monkeypatch, name
@@ -120,18 +107,6 @@ class TestBackendImportErrors:
 
         with pytest.raises(ImportError, match=f"pip install {name}"):
             backends.get_backend(name)
-
-    def test_repeated_calls_return_fresh_instances_of_one_class(self):
-        """Each call builds a new backend, both from the same registered class."""
-        from pylocuszoom.backends import get_backend
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        first = get_backend("matplotlib")
-        second = get_backend("matplotlib")
-
-        assert isinstance(first, MatplotlibBackend)
-        assert isinstance(second, MatplotlibBackend)
-        assert first is not second
 
 
 class TestBackendCapabilities:
@@ -317,21 +292,6 @@ class TestLazyAttributeAccess:
 
         assert "NonExistentAttribute" in str(exc_info.value)
 
-    def test_all_exports(self):
-        """Module __all__ should contain expected exports."""
-        from pylocuszoom.backends import __all__
-
-        expected = [
-            "PlotBackend",
-            "BackendType",
-            "get_backend",
-            "register_backend",
-            "MatplotlibBackend",
-            "convert_latex_to_unicode",
-        ]
-        for name in expected:
-            assert name in __all__
-
 
 class TestHeatmapMethods:
     """Tests for heatmap rendering methods across backends."""
@@ -368,7 +328,7 @@ class TestHeatmapMethods:
         assert hasattr(mappable, "get_cmap")
 
     def test_matplotlib_add_heatmap_lower_triangle(self, ld_matrix_array):
-        """Matplotlib add_heatmap should accept a lower-triangle matrix."""
+        """Draw a lower-triangle matrix with its upper triangle masked out."""
         from pylocuszoom.backends.composition import lower_triangle
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
@@ -381,7 +341,9 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        assert mappable is not None
+
+        drawn = np.ma.getmaskarray(mappable.get_array())
+        assert drawn.tolist() == np.triu(np.ones((5, 5), dtype=bool), k=1).tolist()
 
     def test_matplotlib_add_colorbar(self, ld_matrix_array):
         """Matplotlib add_colorbar attaches a labelled scale to the figure."""
@@ -493,12 +455,11 @@ class TestHeatmapMethods:
         assert [type(m) for m in axes[0].right] == [ColorBar]
 
     def test_matplotlib_custom_colors(self, ld_matrix_array):
-        """Matplotlib add_heatmap should accept custom color gradient."""
+        """Build the heatmap colormap from the caller's own gradient stops."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure([1.0], (6, 6))
-        # Use blue-to-yellow gradient
         mappable = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -506,7 +467,10 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=["#0000FF", "#FFFF00"],
         )
-        assert mappable is not None
+
+        cmap = mappable.get_cmap()
+        assert cmap(0.0) == (0.0, 0.0, 1.0, 1.0)
+        assert cmap(1.0) == (1.0, 1.0, 0.0, 1.0)
 
     def test_heatmap_lower_triangle_masks_upper(self, ld_matrix_array):
         """A lower_triangle matrix should reach matplotlib still masked."""

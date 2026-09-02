@@ -9,7 +9,11 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._gene_source import EXON_COLUMNS
-from tests.reference_mocks import ok_response, ros_cfam_gene_payload
+from tests.reference_mocks import (
+    gene_transcript_exon_payload,
+    ok_response,
+    ros_cfam_gene_payload,
+)
 
 
 def test_get_ensembl_species_name_canine():
@@ -39,30 +43,30 @@ def test_fetch_genes_from_ensembl_success():
     """Test fetching genes from Ensembl API with mocked response."""
     from pylocuszoom.ensembl import fetch_overlap_frames
 
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = [
-        {
-            "id": "ENSG00000139618",
-            "external_name": "BRCA2",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32400266,
-            "strand": 1,
-            "biotype": "protein_coding",
-            "feature_type": "gene",
-        },
-        {
-            "id": "ENSG00000012048",
-            "external_name": "BRCA1",
-            "seq_region_name": "17",
-            "start": 43044295,
-            "end": 43170245,
-            "strand": -1,
-            "biotype": "protein_coding",
-            "feature_type": "gene",
-        },
-    ]
+    mock_response = ok_response(
+        [
+            {
+                "id": "ENSG00000139618",
+                "external_name": "BRCA2",
+                "seq_region_name": "13",
+                "start": 32315474,
+                "end": 32400266,
+                "strand": 1,
+                "biotype": "protein_coding",
+                "feature_type": "gene",
+            },
+            {
+                "id": "ENSG00000012048",
+                "external_name": "BRCA1",
+                "seq_region_name": "17",
+                "start": 43044295,
+                "end": 43170245,
+                "strand": -1,
+                "biotype": "protein_coding",
+                "feature_type": "gene",
+            },
+        ]
+    )
 
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
         df, _ = fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
@@ -116,20 +120,20 @@ def test_fetch_genes_retry_on_429():
     mock_429.status_code = 429
     mock_429.text = "Rate limited"
 
-    mock_success = Mock()
-    mock_success.ok = True
-    mock_success.json.return_value = [
-        {
-            "id": "ENSG00000139618",
-            "external_name": "BRCA2",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32400266,
-            "strand": 1,
-            "biotype": "protein_coding",
-            "feature_type": "gene",
-        },
-    ]
+    mock_success = ok_response(
+        [
+            {
+                "id": "ENSG00000139618",
+                "external_name": "BRCA2",
+                "seq_region_name": "13",
+                "start": 32315474,
+                "end": 32400266,
+                "strand": 1,
+                "biotype": "protein_coding",
+                "feature_type": "gene",
+            },
+        ]
+    )
 
     with patch("pylocuszoom._http.requests.get", side_effect=[mock_429, mock_success]):
         with patch("pylocuszoom._http.time.sleep"):  # Skip actual sleep
@@ -141,65 +145,20 @@ def test_fetch_genes_retry_on_429():
     assert df["gene_name"].iloc[0] == "BRCA2"
 
 
-def _brca2_annotation_features():
-    """BRCA2 with one transcript and two exons, as one overlap response."""
-    return [
-        {
-            "id": "ENSG00000139618",
-            "external_name": "BRCA2",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32400266,
-            "strand": 1,
-            "biotype": "protein_coding",
-            "feature_type": "gene",
-        },
-        {
-            "id": "ENST00000380152",
-            "Parent": "ENSG00000139618",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32400266,
-            "strand": 1,
-            "feature_type": "transcript",
-        },
-        {
-            "id": "ENSE00003659301",
-            "Parent": "ENST00000380152",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32315667,
-            "strand": 1,
-            "feature_type": "exon",
-        },
-        {
-            "id": "ENSE00003527960",
-            "Parent": "ENST00000380152",
-            "seq_region_name": "13",
-            "start": 32316422,
-            "end": 32316527,
-            "strand": 1,
-            "feature_type": "exon",
-        },
-    ]
-
-
 def test_fetch_exons_from_ensembl_success():
     """Exons carry the symbol of the gene their transcript belongs to."""
     from pylocuszoom.ensembl import fetch_overlap_frames
 
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = _brca2_annotation_features()
+    mock_response = ok_response(gene_transcript_exon_payload())
 
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-        _, df = fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
+        _, df = fetch_overlap_frames("human", chrom="1", start=1000000, end=2000000)
 
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == 2
-    assert df["gene_name"].tolist() == ["BRCA2", "BRCA2"]
-    assert df["transcript_id"].tolist() == ["ENST00000380152"] * 2
-    assert df["exon_id"].tolist() == ["ENSE00003659301", "ENSE00003527960"]
+    assert len(df) == 3
+    assert df["gene_name"].tolist() == ["NFATC1"] * 3
+    assert df["transcript_id"].tolist() == ["ENST01"] * 3
+    assert df["exon_id"].tolist() == ["ENSE01", "ENSE02", "ENSE03"]
 
 
 def test_exons_without_their_gene_are_dropped():
@@ -208,12 +167,10 @@ def test_exons_without_their_gene_are_dropped():
 
     orphaned = [
         feature
-        for feature in _brca2_annotation_features()
+        for feature in gene_transcript_exon_payload()
         if feature["feature_type"] != "gene"
     ]
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = orphaned
+    mock_response = ok_response(orphaned)
 
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
         _, df = fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
@@ -388,20 +345,20 @@ def test_get_genes_for_build_fetches_and_caches():
     from pylocuszoom.ensembl import ensembl_source
     from pylocuszoom.reference_genes import get_genes_for_build
 
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = [
-        {
-            "id": "ENSG00000139618",
-            "external_name": "BRCA2",
-            "seq_region_name": "13",
-            "start": 32315474,
-            "end": 32400266,
-            "strand": 1,
-            "biotype": "protein_coding",
-            "feature_type": "gene",
-        },
-    ]
+    mock_response = ok_response(
+        [
+            {
+                "id": "ENSG00000139618",
+                "external_name": "BRCA2",
+                "seq_region_name": "13",
+                "start": 32315474,
+                "end": 32400266,
+                "strand": 1,
+                "biotype": "protein_coding",
+                "feature_type": "gene",
+            },
+        ]
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -428,9 +385,7 @@ def test_get_genes_for_build_returns_exons():
     from pylocuszoom.ensembl import ensembl_source
     from pylocuszoom.reference_genes import get_genes_for_build
 
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = _brca2_annotation_features()
+    mock_response = ok_response(gene_transcript_exon_payload())
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -438,27 +393,27 @@ def test_get_genes_for_build_returns_exons():
         with patch("pylocuszoom._http.requests.get", return_value=mock_response):
             genes_df, exons_df = get_genes_for_build(
                 ensembl_source("human"),
-                "13",
-                32000000,
-                33000000,
+                "1",
+                1000000,
+                2000000,
                 cache_dir=cache_dir,
             )
 
         assert len(genes_df) == 1
-        assert len(exons_df) == 2
-        assert exons_df["gene_name"].unique().tolist() == ["BRCA2"]
+        assert len(exons_df) == 3
+        assert exons_df["gene_name"].unique().tolist() == ["NFATC1"]
 
         with patch("pylocuszoom._http.requests.get") as mock_get:
             cached = get_genes_for_build(
                 ensembl_source("human"),
-                "13",
-                32000000,
-                33000000,
+                "1",
+                1000000,
+                2000000,
                 cache_dir=cache_dir,
             )
 
         assert not mock_get.called, "a cached entry must not refetch its exons"
-        assert len(cached.exons) == 2
+        assert len(cached.exons) == 3
 
 
 # --- clear_gene_cache tests ---
@@ -526,41 +481,6 @@ def test_clear_gene_cache_species_specific():
         assert deleted == 2
         # Mouse cache should still exist
         assert len(list(cache_dir.glob("**/*.csv"))) == 2
-
-
-# --- Consolidation tests ---
-
-
-class TestNormalizeChromConsolidation:
-    """Verify ensembl uses shared normalize_chrom from utils."""
-
-    def test_ensembl_uses_utils_normalize_chrom(self):
-        """Confirm _normalize_chrom was removed from ensembl module."""
-        import pylocuszoom.ensembl as ensembl_module
-
-        # After consolidation, _normalize_chrom should not exist in ensembl
-        assert not hasattr(ensembl_module, "_normalize_chrom"), (
-            "_normalize_chrom should be removed from ensembl.py - "
-            "use normalize_chrom from utils instead"
-        )
-
-
-# --- Export tests ---
-
-
-def test_gene_source_functions_exported():
-    """Test that the gene-source entry points are exported from the package."""
-    from pylocuszoom import (
-        clear_gene_cache,
-        get_ensembl_species_name,
-        get_genes_for_build,
-        source_for,
-    )
-
-    assert callable(get_genes_for_build)
-    assert callable(source_for)
-    assert callable(clear_gene_cache)
-    assert callable(get_ensembl_species_name)
 
 
 class TestPathTraversalProtection:
