@@ -13,6 +13,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from ._plotter_utils import add_significance_line
 from .backends.base import (
     PlotBackend,
     SupportsHeatmap,
@@ -47,6 +48,8 @@ from .gene_track import (
     plot_gene_track_generic,
 )
 from .logging import logger
+
+REGIONAL_LINE_ALPHA = 0.65
 
 
 @dataclass(frozen=True)
@@ -166,20 +169,19 @@ class HeatmapPanel:
         region: RegionConfig,
         height: float,
         metric: str,
-    ) -> Optional["HeatmapPanel"]:
+    ) -> "HeatmapPanel":
         """Map heatmap SNP ids to positions through the source panel's frame.
 
-        Returns None, after a warning, when the source has no SNP id column or
-        no heatmap SNP falls inside the region. The lead SNP id is resolved
-        from ``source.lead_pos`` and stays None when that position is absent.
+        Raises:
+            ValueError: If the source frame has no SNP id column, or no
+                heatmap SNP falls inside the region.
         """
         df = source.data
         rs_col, pos_col = source.columns.rs_col, source.columns.pos_col
         if rs_col not in df.columns:
-            logger.warning(
+            raise ValueError(
                 f"Cannot map heatmap to genomic coords: column '{rs_col}' not in GWAS data"
             )
-            return None
 
         snp_to_pos = dict(zip(df[rs_col], df[pos_col]))
         kept = [
@@ -188,10 +190,9 @@ class HeatmapPanel:
             if snp_id in snp_to_pos and region.start <= snp_to_pos[snp_id] <= region.end
         ]
         if not kept:
-            logger.warning(
+            raise ValueError(
                 "No SNPs from LD heatmap overlap with region - heatmap not rendered"
             )
-            return None
         indices, kept_ids, x_positions = (list(column) for column in zip(*kept))
 
         lead_snp_id = None
@@ -236,10 +237,10 @@ class RegionalPlotComposer:
     def __init__(
         self,
         backend: PlotBackend,
-        genomewide_line: float,
+        genomewide_threshold: float,
     ):
         self._backend = backend
-        self._genomewide_line = genomewide_line
+        self._genomewide_threshold = genomewide_threshold
 
     def render(self, plan: RegionalFigurePlan) -> Any:
         """Render every panel in one figure plan and finalize its layout."""
@@ -283,14 +284,8 @@ class RegionalPlotComposer:
             columns.rs_col,
             columns.p_col,
         )
-        self._backend.axhline(
-            ax,
-            y=self._genomewide_line,
-            color="red",
-            linestyle="--",
-            linewidth=1,
-            alpha=0.65,
-            zorder=1,
+        add_significance_line(
+            self._backend, ax, self._genomewide_threshold, alpha=REGIONAL_LINE_ALPHA
         )
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
         y_max = df["neglog10p"].max()
@@ -342,14 +337,14 @@ class RegionalPlotComposer:
         pos_col: str,
         ld_col: Optional[str],
         lead_pos: Optional[int],
-        rs_col: Optional[str] = None,
-        p_col: Optional[str] = None,
+        rs_col: str,
+        p_col: str,
     ) -> None:
         """Render association points, including LD and lead-SNP styling."""
         hover_config = HoverConfig(
-            snp_col=rs_col if rs_col and rs_col in df.columns else None,
+            snp_col=rs_col if rs_col in df.columns else None,
             pos_col=pos_col if pos_col in df.columns else None,
-            p_col=p_col if p_col and p_col in df.columns else None,
+            p_col=p_col if p_col in df.columns else None,
             ld_col=ld_col if ld_col and ld_col in df.columns else None,
         )
         hover_builder = HoverDataBuilder(hover_config)
@@ -560,5 +555,5 @@ class RegionalPlotComposer:
             color="red",
             linestyle="--",
             linewidth=1,
-            alpha=0.65,
+            alpha=REGIONAL_LINE_ALPHA,
         )

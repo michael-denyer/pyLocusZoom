@@ -18,7 +18,7 @@ flowchart TB
 
     subgraph Layer2["⚙️ Validation"]
         VD["ColumnSpec + check()<br/><small>2a</small>"]
-        SCH["schemas.validate_*<br/><small>2b</small>"]
+        SCH["schemas: spec(family, tier)<br/><small>2b</small>"]
         CFG["Pydantic PlotConfig<br/><small>2c</small>"]
     end
 
@@ -163,19 +163,20 @@ Each static format is a `LoaderSpec` constant plus a thin public wrapper. `load_
 
 ## [2] Validation
 
-One validation engine, driven declaratively. Each family states its rules as a frozen `ColumnSpec` and runs it through the `check(df, spec)` function; `DataFrameValidator` is the rule runner `check` drives internally, and no production module builds one directly. The strict load-time schemas live in `schemas.py`; plot-time validation in `utils` is deliberately more permissive. Plot options validate via Pydantic.
+One validation engine, driven declaratively. `validation.py` holds the rule vocabulary, a frozen `ColumnSpec` and the `check(df, spec)` function that runs it, and knows no family. `schemas.py` holds every family contract at both tiers in one table, looked up with `spec(family, tier)`: `Tier.LOAD` is the strict contract a loader applies, `Tier.PLOT` the permissive one a plotter applies. Plot options validate via Pydantic.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 2a | ColumnSpec | Frozen per-family validation contract (required, numeric, not-null, ranges, p-value, ordering) | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | RangeRule | One numeric-range constraint inside a `ColumnSpec` | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | check | Runs a `ColumnSpec` against a DataFrame in fixed rule order | [validation.py](../src/pylocuszoom/validation.py) |
-| 2a | DataFrameValidator | Fluent rule runner behind `check` | [validation.py](../src/pylocuszoom/validation.py) |
-| 2b | validate_gwas_dataframe | GWAS column/type/range checks | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | validate_eqtl_dataframe | eQTL schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | validate_finemapping_dataframe | Fine-mapping schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | Family, Tier | The DataFrame family and the validation tier a contract is looked up by | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | spec | Returns the `ColumnSpec` for one family at one tier | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | validate_gwas_df, validate_genes_df | Plot-time GWAS and gene-annotation checks | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | validate_phewas_df, validate_forest_df, validate_coloc_df | Plot-time checks for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2c | PlotConfig | Pydantic model for `plot()` kwargs | [config.py](../src/pylocuszoom/config.py) |
 | 2c | StackedPlotConfig | Pydantic model for `plot_stacked()` | [config.py](../src/pylocuszoom/config.py) |
+| 2c | PanelInputs | Optional-panel data carried on `PlotConfig.panels` | [config.py](../src/pylocuszoom/config.py) |
 
 ---
 
@@ -206,9 +207,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and merges it into the GWAS frame under one recovery policy | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
 | 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
 | 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
-| 3j | prepare_phewas_for_plotting | PheWAS panel prep | [phewas.py](../src/pylocuszoom/phewas.py) |
-| 3j | prepare_forest_data | Forest-plot prep | [forest.py](../src/pylocuszoom/forest.py) |
-| 3j | calculate_colocalization_overlap | Colocalisation overlap between two association frames | [coloc.py](../src/pylocuszoom/coloc.py) |
+| 3j | calculate_colocalization_overlap | Colocalisation overlap between two association frames | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | add_snp_labels | SNP label placement and lead-proximity filtering | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |

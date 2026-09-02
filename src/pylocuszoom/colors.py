@@ -108,32 +108,18 @@ EQTL_NEGATIVE_BINS: tuple[EQTLBin, ...] = (
 def _find_eqtl_bin(effect: float) -> EQTLBin:
     """Find the eQTL bin for a given effect size.
 
-    Shared lookup used by both get_eqtl_color and get_eqtl_bin to avoid
-    duplicating the bin-matching logic.
-
     Args:
         effect: Effect size (beta coefficient). Must not be None/NaN.
 
     Returns:
-        Matching EQTLBin. Falls back to the smallest-magnitude bin
-        if no range matches.
+        The first bin the effect reaches, so an effect beyond the outermost
+        boundary lands in the outermost bin.
     """
     if effect >= 0:
-        for b in EQTL_POSITIVE_BINS:
-            if b.min_val <= effect < b.max_val or (
-                b.max_val == _EQTL_EFFECT_BOUNDARY and effect >= b.max_val
-            ):
-                return b
-        # Fallback: smallest-magnitude positive bin (last in list, 0.0-0.1)
-        return EQTL_POSITIVE_BINS[-1]
-    else:
-        for b in EQTL_NEGATIVE_BINS:
-            if b.min_val < effect <= b.max_val or (
-                b.min_val == -_EQTL_EFFECT_BOUNDARY and effect <= b.min_val
-            ):
-                return b
-        # Fallback: smallest-magnitude negative bin (first in list, -0.1-0.0)
-        return EQTL_NEGATIVE_BINS[0]
+        return next(b for b in EQTL_POSITIVE_BINS if b.min_val <= effect)
+    return next(
+        (b for b in EQTL_NEGATIVE_BINS if effect > b.min_val), EQTL_NEGATIVE_BINS[-1]
+    )
 
 
 def get_eqtl_color(effect: Optional[float]) -> str:
@@ -148,20 +134,6 @@ def get_eqtl_color(effect: Optional[float]) -> str:
     if _is_missing(effect):
         return LD_NA_COLOR
     return _find_eqtl_bin(effect).color
-
-
-def get_eqtl_bin(effect: Optional[float]) -> str:
-    """Get eQTL effect bin label.
-
-    Args:
-        effect: Effect size (beta coefficient).
-
-    Returns:
-        Bin label string.
-    """
-    if _is_missing(effect):
-        return LD_NA_LABEL
-    return _find_eqtl_bin(effect).label
 
 
 def _find_ld_bin(r2: float) -> LDBin:
@@ -264,23 +236,6 @@ def get_credible_set_color(cs_id: int) -> str:
     return _cyclic_color(CREDIBLE_SET_COLORS, cs_id - 1)
 
 
-def get_credible_set_color_palette(n_sets: int = 10) -> dict[int, str]:
-    """Get color palette for credible sets.
-
-    Args:
-        n_sets: Number of credible sets to include.
-
-    Returns:
-        Dictionary mapping credible set IDs (1-indexed) to hex colors.
-
-    Example:
-        >>> palette = get_credible_set_color_palette(3)
-        >>> palette[1]
-        '#FF7F00'
-    """
-    return {i + 1: get_credible_set_color(i + 1) for i in range(n_sets)}
-
-
 # PheWAS category colors - distinct colors for phenotype categories
 PHEWAS_CATEGORY_COLORS: List[str] = [
     "#E41A1C",  # red
@@ -326,14 +281,8 @@ def get_phewas_category_palette(categories: List[str]) -> dict[str, str]:
 # LD Heatmap Colors
 # =============================================================================
 
-# Custom colormap name for LD heatmaps
-LD_HEATMAP_CMAP_NAME = "ld_heatmap"
-
 # White-to-red gradient for R² heatmaps (0 = white, 1 = red)
 LD_HEATMAP_COLORS: List[str] = ["#FFFFFF", "#FF0000"]
-
-# Color for missing/NaN LD values in heatmaps
-LD_HEATMAP_MISSING_COLOR = "#808080"  # grey
 
 # Highlight colors for lead and secondary SNPs in heatmaps
 LEAD_SNP_HIGHLIGHT_COLOR = "#FF0000"  # red border/outline for lead SNP

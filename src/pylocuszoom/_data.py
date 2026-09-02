@@ -8,8 +8,8 @@ import pandas as pd
 from .logging import logger
 
 P_VALUE_FLOOR = 1e-300
-# Upper bound of the p-value domain, shared with DataFrameValidator.require_pvalue
-# so strict validation and plot-time intake cannot drift apart.
+# Upper bound of the p-value domain, shared with ColumnSpec.pvalue so strict
+# validation and plot-time intake cannot drift apart.
 P_VALUE_MAX = 1.0
 
 

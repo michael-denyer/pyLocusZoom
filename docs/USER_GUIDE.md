@@ -882,7 +882,7 @@ fig = plotter.plot(
 | `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
 | `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel when supplied. |
-| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. |
+| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. Ids must match the GWAS SNP id column, and at least one must fall inside the region, or the call raises. |
 | `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
 | `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
 
@@ -951,7 +951,7 @@ fig = plotter.plot_stacked(
 | `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
 | `recomb_df` | DataFrame | None | Custom recombination data. |
 | `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel at bottom. |
-| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. |
+| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. Ids must match the GWAS SNP id column, and at least one must fall inside the region, or the call raises. |
 | `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
 | `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
 

@@ -1,5 +1,6 @@
 """Each regional panel type builds itself and renders through the composer."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -55,7 +56,7 @@ def _render(panel, backend=None):
         panels=[panel],
         figsize=(8.0, panel.height),
     )
-    RegionalPlotComposer(backend, genomewide_line=7.3).render(plan)
+    RegionalPlotComposer(backend, genomewide_threshold=5e-8).render(plan)
     return backend
 
 
@@ -172,19 +173,34 @@ def test_heatmap_panel_from_matrix_keeps_region_snps_and_lead():
     assert panel.matrix.shape == (3, 3)
 
 
-def test_heatmap_panel_from_matrix_is_none_without_overlap():
+def test_heatmap_panel_from_matrix_raises_without_overlap():
     ids = ["rs8", "rs9"]
 
-    panel = HeatmapPanel.from_matrix(
-        _ld_matrix(ids),
-        ids,
-        source=_association(),
-        region=REGION,
-        height=1.0,
-        metric="r2",
-    )
+    with pytest.raises(ValueError, match="No SNPs from LD heatmap overlap"):
+        HeatmapPanel.from_matrix(
+            _ld_matrix(ids),
+            ids,
+            source=_association(),
+            region=REGION,
+            height=1.0,
+            metric="r2",
+        )
 
-    assert panel is None
+
+def test_heatmap_panel_from_matrix_raises_without_snp_id_column():
+    ids = ["rs1", "rs2"]
+    source = _association()
+    source = replace(source, data=source.data.drop(columns=[source.columns.rs_col]))
+
+    with pytest.raises(ValueError, match="not in GWAS data"):
+        HeatmapPanel.from_matrix(
+            _ld_matrix(ids),
+            ids,
+            source=source,
+            region=REGION,
+            height=1.0,
+            metric="r2",
+        )
 
 
 def test_heatmap_panel_renders_on_a_capable_backend():
@@ -205,7 +221,7 @@ def test_heatmap_panel_renders_on_a_capable_backend():
 
 
 def test_render_panel_rejects_unknown_panel_types():
-    composer = RegionalPlotComposer(RecordingBackend(), genomewide_line=7.3)
+    composer = RegionalPlotComposer(RecordingBackend(), genomewide_threshold=5e-8)
     plan = RegionalFigurePlan(chrom=1, start=1, end=2, panels=[], figsize=(1.0, 1.0))
 
     with pytest.raises(TypeError, match="No renderer for str"):

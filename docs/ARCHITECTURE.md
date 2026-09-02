@@ -26,7 +26,7 @@ graph TD
 
     subgraph Validate["Validation Layer"]
         SCHEMA[schemas.py / validation.py]
-        EQTLV[eqtl.py / phewas.py / forest.py / finemapping.py]
+        EQTLV[eqtl.py / finemapping.py]
         UTILS[utils.py: to_pandas, PySpark support]
     end
 
@@ -140,10 +140,12 @@ stages:
    lazily imports and registers the concrete backend class.
 2. **Validation and intake.** The input DataFrame is normalized through
    `utils.to_pandas()` (supports PySpark input) and validated against expected
-   columns using `validation.py` and `schemas.py`. P-value-bearing plot paths
+   columns. `schemas.spec(family, tier)` names the contract and
+   `validation.check` runs it, strictly at `Tier.LOAD` for a frame a loader
+   just parsed and permissively at `Tier.PLOT` for one the caller assembled.
+   P-value-bearing plot paths
    then share `_data.prepare_pvalue_data()` for null/range filtering and finite
-   `-log10` transformation; specialized inputs (eQTL, PheWAS, forest,
-   fine-mapping) retain their domain-specific column and range checks.
+   `-log10` transformation.
 3. **Region filtering and LD.** Rows are filtered to `[start, end]` on the
    requested chromosome. If `ld_reference_file` is supplied, `ld.py` shells
    out to PLINK via a wrapper to compute R² against the lead variant; if
@@ -160,14 +162,18 @@ stages:
    are loaded via `recombination.py`, which handles download of bundled canine
    maps and CanFam3.1 → CanFam4 liftover through pyliftover.
 6. **Regional composition and backend dispatch.** `plot()` and
-   `plot_stacked()` share one private pipeline, `_render_regional`, which
+   `plot_stacked()` validate every keyword through `PlotConfig`, whose
+   `panels` field (`PanelInputs`) carries the optional-panel data, then
+   share one private pipeline, `_render_regional`, which
    builds each optional panel through its own constructor
    (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
    `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and hands an ordered
    `RegionalFigurePlan` to `RegionalPlotComposer`. The composer creates the
    figure and dispatches each panel by type through
    `render_panel`, a `singledispatchmethod`, owning shared axes, labels,
-   significance line, LD legend, SNP-label, and recombination policy
+   LD legend, SNP-label, and recombination policy, and drawing the
+   significance line through the same `add_significance_line` the Manhattan
+   family uses
    ([ADR-0006](adr/0006-one-regional-pipeline.md)). Manhattan and QQ
    plotters hand prepared data and
    figure intent to semantic renderers: `ManhattanQQRenderer`,
@@ -231,7 +237,6 @@ pyLocusZoom/
 │   ├── miami_plotter.py       # Miami (mirrored Manhattan) plotter
 │   ├── ld_heatmap_plotter.py  # Pairwise LD heatmap plotter
 │   ├── coloc_plotter.py       # Colocalization plotter
-│   ├── coloc.py               # Colocalization statistics
 │   ├── _data.py               # Shared p-value intake and transformation policy
 │   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
 │   ├── _regional.py           # Shared single/stacked regional composition
@@ -266,11 +271,9 @@ pyLocusZoom/
 │   ├── _http.py               # Retrying JSON GET and file download
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
-│   ├── phewas.py              # PheWAS validation
-│   ├── forest.py              # Forest-plot validation
 │   ├── finemapping.py         # SuSiE / fine-mapping validation + plot_finemapping()
 │   ├── loaders.py             # Format adapters (PLINK, REGENIE, GTEx, SuSiE, GTF, BED, …)
-│   ├── schemas.py             # Canonical DataFrame column schemas
+│   ├── schemas.py             # Every family's column contract, at both tiers
 │   ├── validation.py          # Shared validation primitives
 │   ├── utils.py               # DataFrame helpers; to_pandas() handles PySpark
 │   ├── config.py              # Internal PlotConfig / StackedPlotConfig (not public)

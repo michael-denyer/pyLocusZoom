@@ -1,262 +1,31 @@
-"""DataFrame validation builder for pyLocusZoom.
+"""DataFrame validation engine for pyLocusZoom.
 
-Provides a fluent API for validating pandas DataFrames with composable
-validation rules. Accumulates all validation errors before raising.
+Declares the rule vocabulary (:class:`ColumnSpec`, :class:`RangeRule`) and
+runs it against a frame with :func:`check`, accumulating every fault before
+raising. The families the rules describe live in ``schemas.py``.
 """
 
+import operator
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Type
+from typing import List, Optional, Set, Tuple, Type
 
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
 from ._data import P_VALUE_MAX
-from .exceptions import LoaderValidationError, ValidationError
+from .exceptions import ValidationError
 
-
-class DataFrameValidator:
-    """Builder for composable DataFrame validation.
-
-    Validates DataFrames with method chaining and accumulates all errors
-    before raising. This enables clear, readable validation code with
-    comprehensive error messages.
-
-    Example:
-        >>> validator = DataFrameValidator(df, name="gwas_df")
-        >>> validator.require_columns(["chr", "pos", "p"])
-        ...     .require_numeric(["pos", "p"])
-        ...     .require_range("p", min_val=0, max_val=1)
-        ...     .validate()
-    """
-
-    def __init__(
-        self,
-        df: pd.DataFrame,
-        name: str = "DataFrame",
-        error_class: Type[ValidationError] = ValidationError,
-    ):
-        """Initialize validator.
-
-        Args:
-            df: DataFrame to validate.
-            name: Name for error messages (e.g., "gwas_df", "genes_df").
-            error_class: Exception class to raise on failure. Must be a
-                subclass of ValidationError. Default: ValidationError.
-        """
-        self._df = df
-        self._name = name
-        self._error_class = error_class
-        self._errors: List[str] = []
-        self._non_numeric_cols: set[str] = set()
-
-    def require_non_empty(self) -> "DataFrameValidator":
-        """Check that the DataFrame has at least one row.
-
-        Returns:
-            Self for method chaining.
-        """
-        if self._df.empty:
-            self._errors.append("is empty — no rows to plot")
-
-        return self
-
-    def require_columns(self, columns: List[str]) -> "DataFrameValidator":
-        """Check that required columns exist in DataFrame.
-
-        Args:
-            columns: List of required column names.
-
-        Returns:
-            Self for method chaining.
-        """
-        if not columns:
-            return self
-
-        missing = [col for col in columns if col not in self._df.columns]
-        if missing:
-            available = list(self._df.columns)
-            self._errors.append(f"Missing columns: {missing}. Available: {available}")
-
-        return self
-
-    def require_numeric(self, columns: List[str]) -> "DataFrameValidator":
-        """Check that columns have numeric dtype.
-
-        Skips columns that don't exist (checked separately by require_columns).
-
-        Args:
-            columns: List of column names that should be numeric.
-
-        Returns:
-            Self for method chaining.
-        """
-        for col in columns:
-            # Skip missing columns - let require_columns handle that
-            if col not in self._df.columns:
-                continue
-
-            if not is_numeric_dtype(self._df[col]):
-                actual_dtype = self._df[col].dtype
-                self._errors.append(
-                    f"Column '{col}' must be numeric, got {actual_dtype}"
-                )
-                self._non_numeric_cols.add(col)
-
-        return self
-
-    def require_range(
-        self,
-        column: str,
-        min_val: Optional[float] = None,
-        max_val: Optional[float] = None,
-        exclusive_min: bool = False,
-        exclusive_max: bool = False,
-    ) -> "DataFrameValidator":
-        """Check that column values are within specified range.
-
-        Args:
-            column: Column name to check.
-            min_val: Minimum allowed value (inclusive by default).
-            max_val: Maximum allowed value (inclusive by default).
-            exclusive_min: If True, minimum is exclusive (values must be > min_val).
-            exclusive_max: If True, maximum is exclusive (values must be < max_val).
-
-        Returns:
-            Self for method chaining.
-        """
-        # Skip missing columns
-        if column not in self._df.columns:
-            return self
-
-        # Short-circuit if require_numeric already flagged this column as
-        # non-numeric — comparing strings against numeric bounds would raise
-        # TypeError and mask the structured ValidationError.
-        if column in self._non_numeric_cols:
-            return self
-
-        col_data = self._df[column].dropna()
-
-        # Check minimum bound
-        if min_val is not None:
-            if exclusive_min:
-                invalid_count = (col_data <= min_val).sum()
-                if invalid_count > 0:
-                    self._errors.append(
-                        f"Column '{column}': {invalid_count} values <= {min_val}"
-                    )
-            else:
-                invalid_count = (col_data < min_val).sum()
-                if invalid_count > 0:
-                    self._errors.append(
-                        f"Column '{column}': {invalid_count} values < {min_val}"
-                    )
-
-        # Check maximum bound
-        if max_val is not None:
-            if exclusive_max:
-                invalid_count = (col_data >= max_val).sum()
-                if invalid_count > 0:
-                    self._errors.append(
-                        f"Column '{column}': {invalid_count} values >= {max_val}"
-                    )
-            else:
-                invalid_count = (col_data > max_val).sum()
-                if invalid_count > 0:
-                    self._errors.append(
-                        f"Column '{column}': {invalid_count} values > {max_val}"
-                    )
-
-        return self
-
-    def require_pvalue(self, column: str) -> "DataFrameValidator":
-        """Check that a column holds p-values in the canonical ``(0, 1]`` domain.
-
-        The single owner of the strict p-value range. Plot-time intake in
-        ``_data.prepare_pvalue_data`` shares the same ``P_VALUE_MAX`` upper
-        bound and relaxes only the lower bound, under ``allow_zero``, for the
-        Manhattan convention that an exact zero is a clipped p-value.
-
-        Null policy is left to the caller: load-time and plot-time validation
-        deliberately differ on it.
-
-        Args:
-            column: Column name holding p-values.
-
-        Returns:
-            Self for method chaining.
-        """
-        return self.require_range(
-            column, min_val=0, max_val=P_VALUE_MAX, exclusive_min=True
-        )
-
-    def require_not_null(self, columns: List[str]) -> "DataFrameValidator":
-        """Check that columns have no null (NaN or None) values.
-
-        Args:
-            columns: List of column names to check for nulls.
-
-        Returns:
-            Self for method chaining.
-        """
-        for col in columns:
-            # Skip missing columns
-            if col not in self._df.columns:
-                continue
-
-            null_count = self._df[col].isna().sum()
-            if null_count > 0:
-                self._errors.append(f"Column '{col}' has {null_count} null values")
-
-        return self
-
-    def require_ordering(
-        self,
-        lower_col: str,
-        upper_col: str,
-    ) -> "DataFrameValidator":
-        """Check that one column never exceeds another, row-wise.
-
-        Skips the check when either column is missing or was already flagged
-        non-numeric, on the same grounds as require_range.
-
-        Args:
-            lower_col: Column name expected to hold the smaller value.
-            upper_col: Column name expected to hold the larger value.
-
-        Returns:
-            Self for method chaining.
-        """
-        for col in (lower_col, upper_col):
-            if col not in self._df.columns or col in self._non_numeric_cols:
-                return self
-
-        inverted = (self._df[lower_col] > self._df[upper_col]).sum()
-        if inverted > 0:
-            self._errors.append(f"{inverted} rows have {lower_col} > {upper_col}")
-
-        return self
-
-    def validate(self) -> None:
-        """Raise ValidationError (or subclass) if any validation rules failed.
-
-        Raises:
-            ValidationError: If any validation errors were accumulated.
-                The actual exception type is determined by the error_class
-                parameter passed to __init__. Error message includes all
-                accumulated errors.
-        """
-        if self._errors:
-            error_msg = f"{self._name} validation failed:\n"
-            error_msg += "\n".join(f"  - {error}" for error in self._errors)
-            raise self._error_class(error_msg)
+_COMPARE = {
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
+}
 
 
 @dataclass(frozen=True)
 class RangeRule:
-    """A single numeric-range constraint on one column.
-
-    Mirrors the arguments of :meth:`DataFrameValidator.require_range`.
-    """
+    """A single numeric-range constraint on one column."""
 
     column: str
     min_val: Optional[float] = None
@@ -270,10 +39,7 @@ class ColumnSpec:
     """Declarative validation contract for one DataFrame family.
 
     Each field names the columns a rule applies to. :func:`check` runs the
-    rules against a :class:`DataFrameValidator` in a fixed order (columns,
-    numeric, not-null, ranges, p-value, ordering) and raises ``error_class``
-    if any rule fails. Building a spec instead of hand-writing a chain keeps
-    the ordering and error semantics in one place.
+    rules in a fixed order and raises ``error_class`` if any fails.
 
     Args:
         name: Dataset name used in error messages (e.g. "GWAS").
@@ -281,7 +47,9 @@ class ColumnSpec:
         numeric: Columns that must have a numeric dtype.
         not_null: Columns that must contain no nulls.
         ranges: Numeric-range constraints applied in order.
-        pvalue: Column checked against the canonical ``(0, 1]`` p-value domain.
+        pvalue: Column checked against the canonical ``(0, 1]`` p-value
+            domain, the single owner of that range; ``_data.P_VALUE_MAX`` is
+            the shared upper bound. Null policy is left to ``not_null``.
         ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
         non_empty: Reject a frame with no rows, before any column rule runs.
         error_class: Exception raised on failure.
@@ -298,81 +66,27 @@ class ColumnSpec:
     error_class: Type[ValidationError] = ValidationError
 
 
-def gwas_spec(
-    pos_col: str,
-    p_col: str,
-    rs_col: Optional[str] = None,
-    *,
-    strict: bool,
-) -> ColumnSpec:
-    """Build the GWAS contract for one of the two validation tiers.
+def _range_errors(
+    df: pd.DataFrame, rule: RangeRule, non_numeric: Set[str]
+) -> List[str]:
+    """Report the range faults in one column, skipping what cannot be compared.
 
-    Args:
-        pos_col: Column name for position.
-        p_col: Column name for p-values.
-        rs_col: Column name for SNP IDs, required when given.
-        strict: Load-time tier. Adds dtype, null, position-range and p-value
-            rules on top of the permissive plot-time column check, and reports
-            failures as ``LoaderValidationError``. The permissive tier instead
-            rejects an empty frame, which load-time does not.
-
-    Returns:
-        The matching :class:`ColumnSpec`.
+    pandas raises ``TypeError`` comparing a non-numeric column to a numeric
+    bound, which would mask the structured error.
     """
-    required = (pos_col, p_col) if rs_col is None else (pos_col, p_col, rs_col)
-    if not strict:
-        return ColumnSpec(name="gwas_df", required=required, non_empty=True)
-    return ColumnSpec(
-        name="GWAS",
-        required=required,
-        numeric=(pos_col, p_col),
-        not_null=(pos_col, p_col),
-        ranges=(RangeRule(pos_col, min_val=0, exclusive_min=True),),
-        pvalue=p_col,
-        error_class=LoaderValidationError,
+    if rule.column not in df.columns or rule.column in non_numeric:
+        return []
+
+    values = df[rule.column].dropna()
+    bounds = (
+        (rule.min_val, "<=" if rule.exclusive_min else "<"),
+        (rule.max_val, ">=" if rule.exclusive_max else ">"),
     )
-
-
-GENES_SPEC = ColumnSpec(name="genes_df", required=("chr", "start", "end", "gene_name"))
-
-
-def validate_gwas_df(
-    df: pd.DataFrame,
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: Optional[str] = None,
-) -> None:
-    """Validate a GWAS DataFrame at the permissive plot-time tier.
-
-    Columns and non-emptiness only. The p-value policy is deferred to
-    ``_data.prepare_pvalue_data``, which keeps an exact zero under the
-    Manhattan convention. The strict ``(0, 1]`` tier is
-    ``schemas.validate_gwas_dataframe`` and runs at load time. The split is
-    deliberate: tightening this function would reject Manhattan input that
-    plots correctly today.
-
-    Args:
-        df: GWAS results DataFrame.
-        pos_col: Column name for position.
-        p_col: Column name for p-values.
-        rs_col: Column name for SNP IDs (optional).
-
-    Raises:
-        ValidationError: If required columns are missing or the frame is empty.
-    """
-    check(df, gwas_spec(pos_col, p_col, rs_col, strict=False))
-
-
-def validate_genes_df(df: pd.DataFrame) -> None:
-    """Validate a gene annotations DataFrame at the plot-time tier.
-
-    Args:
-        df: Gene annotations DataFrame.
-
-    Raises:
-        ValidationError: If required columns are missing.
-    """
-    check(df, GENES_SPEC)
+    return [
+        f"Column '{rule.column}': {count} values {symbol} {bound}"
+        for bound, symbol in bounds
+        if bound is not None and (count := _COMPARE[symbol](values, bound).sum()) > 0
+    ]
 
 
 def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
@@ -386,22 +100,48 @@ def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
         ValidationError: If any rule fails. The concrete type is
             ``spec.error_class``.
     """
-    validator = DataFrameValidator(df, spec.name, error_class=spec.error_class)
-    if spec.non_empty:
-        validator.require_non_empty()
-    validator.require_columns(list(spec.required))
-    validator.require_numeric(list(spec.numeric))
-    validator.require_not_null(list(spec.not_null))
-    for rule in spec.ranges:
-        validator.require_range(
-            rule.column,
-            min_val=rule.min_val,
-            max_val=rule.max_val,
-            exclusive_min=rule.exclusive_min,
-            exclusive_max=rule.exclusive_max,
-        )
+    errors: List[str] = []
+    non_numeric: Set[str] = set()
+
+    if spec.non_empty and df.empty:
+        errors.append("is empty — no rows to plot")
+
+    missing = [col for col in spec.required if col not in df.columns]
+    if missing:
+        errors.append(f"Missing columns: {missing}. Available: {list(df.columns)}")
+
+    for col in spec.numeric:
+        if col in df.columns and not is_numeric_dtype(df[col]):
+            errors.append(f"Column '{col}' must be numeric, got {df[col].dtype}")
+            non_numeric.add(col)
+
+    for col in spec.not_null:
+        if col in df.columns:
+            null_count = df[col].isna().sum()
+            if null_count > 0:
+                errors.append(f"Column '{col}' has {null_count} null values")
+
+    rules = spec.ranges
     if spec.pvalue is not None:
-        validator.require_pvalue(spec.pvalue)
+        rules = (
+            *rules,
+            RangeRule(spec.pvalue, min_val=0, max_val=P_VALUE_MAX, exclusive_min=True),
+        )
+    for rule in rules:
+        errors.extend(_range_errors(df, rule, non_numeric))
+
     for lower_col, upper_col in spec.ordering:
-        validator.require_ordering(lower_col, upper_col)
-    validator.validate()
+        if any(
+            col not in df.columns or col in non_numeric
+            for col in (lower_col, upper_col)
+        ):
+            continue
+        inverted = (df[lower_col] > df[upper_col]).sum()
+        if inverted > 0:
+            errors.append(f"{inverted} rows have {lower_col} > {upper_col}")
+
+    if errors:
+        raise spec.error_class(
+            f"{spec.name} validation failed:\n"
+            + "\n".join(f"  - {error}" for error in errors)
+        )

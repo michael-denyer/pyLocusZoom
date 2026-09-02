@@ -13,7 +13,6 @@ import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
-import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
@@ -39,11 +38,8 @@ from .recombination import (
     get_recombination_rate_for_region,
 )
 from .reference_genes import get_genes_for_build, source_for
+from .schemas import validate_genes_df, validate_gwas_df
 from .utils import filter_by_region
-from .validation import validate_genes_df, validate_gwas_df
-
-# Precomputed significance line value (used for plotting)
-DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
 class LocusZoomPlotter:
@@ -117,10 +113,9 @@ class LocusZoomPlotter:
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
-        self._genomewide_line = -np.log10(genomewide_threshold)
         self._regional_composer = RegionalPlotComposer(
             self._backend,
-            self._genomewide_line,
+            genomewide_threshold,
         )
         self._auto_genes = auto_genes
         self._recomb_cache = {}
@@ -138,7 +133,12 @@ class LocusZoomPlotter:
     def _get_recomb_for_region(
         self, chrom: int, start: int, end: int
     ) -> Optional[pd.DataFrame]:
-        """Get recombination rate data for a region, with caching."""
+        """Get recombination rate data for a region, with caching.
+
+        The pyliftover check reads the message because
+        ``get_recombination_rate_for_region`` raises a bare ``ImportError``
+        for it; any other one is a broken environment, not a missing overlay.
+        """
         cache_key = (chrom, start, end, self.genome_build)
         if cache_key in self._recomb_cache:
             return self._recomb_cache[cache_key]
@@ -158,19 +158,11 @@ class LocusZoomPlotter:
             )
             self._recomb_cache[cache_key] = recomb_df
             return recomb_df
-        except FileNotFoundError as e:
-            logger.warning(
-                f"Recombination data file not found: {e}. "
-                f"Recombination overlay will be skipped."
-            )
+        except (FileNotFoundError, ImportError) as e:
+            if isinstance(e, ImportError) and "pyliftover" not in str(e):
+                raise
+            warnings.warn(f"Recombination overlay skipped; {e}", stacklevel=2)
             return None
-        except ImportError as e:
-            if "pyliftover" in str(e):
-                import warnings
-
-                warnings.warn(str(e), stacklevel=2)
-                return None
-            raise
 
     def plot(
         self,
@@ -221,12 +213,22 @@ class LocusZoomPlotter:
             end: Region end position (bp, inclusive).
             lead_pos: Genomic position of the lead SNP (``>= 1``). Required
                 when ``ld_reference_file`` is supplied and ``ld_col`` is not.
+            genes_df: Gene annotations; adds a gene track. ``exons_df`` draws
+                exon structure within it. Both are filtered to the region.
+            recomb_df: Recombination rates to overlay on the first
+                association panel, replacing the species map lookup.
             eqtl_df: eQTL results with ``pos`` and ``p_value`` columns; adds
                 an eQTL panel. ``eqtl_gene`` filters it to one gene and
                 requires a ``gene`` column; ``eqtl_threshold`` places its
                 significance line.
             finemapping_df: Fine-mapping results with ``pos`` and ``pip``
                 columns; adds a PIP panel coloured by ``finemapping_cs_col``.
+                Pass ``finemapping_cs_col=None`` for no credible-set colouring.
+            ld_heatmap_df: Square LD matrix; adds a heatmap panel.
+                ``ld_heatmap_snp_ids`` names its rows and columns and is
+                required with it. ``ld_heatmap_height`` scales the panel
+                against the association panel and ``ld_heatmap_metric``
+                (``"r2"`` or ``"dprime"``) labels the colour bar.
 
         Returns:
             Backend-specific figure object (``matplotlib.figure.Figure``,
@@ -256,16 +258,6 @@ class LocusZoomPlotter:
             lead_pos=lead_pos,
             ld_reference_file=ld_reference_file,
             ld_col=ld_col,
-        )
-        return self._render_regional(
-            config,
-            [gwas_df],
-            leads=[config.ld.lead_pos],
-            reference_files=[config.ld.ld_reference_file],
-            panel_labels=None,
-            association_height=config.display.figsize[1] * 0.6,
-            min_figure_height=0.0,
-            auto_genes=self._auto_genes,
             genes_df=genes_df,
             exons_df=exons_df,
             recomb_df=recomb_df,
@@ -278,6 +270,16 @@ class LocusZoomPlotter:
             ld_heatmap_snp_ids=ld_heatmap_snp_ids,
             ld_heatmap_height=ld_heatmap_height,
             ld_heatmap_metric=ld_heatmap_metric,
+        )
+        return self._render_regional(
+            config,
+            [gwas_df],
+            leads=[config.ld.lead_pos],
+            reference_files=[config.ld.ld_reference_file],
+            panel_labels=None,
+            association_height=config.display.figsize[1] * 0.6,
+            min_figure_height=0.0,
+            auto_genes=self._auto_genes,
         )
 
     def plot_stacked(
@@ -324,13 +326,18 @@ class LocusZoomPlotter:
             gwas_dfs: One GWAS summary-statistics frame per panel.
             auto_genes: Fetch the gene track when ``genes_df`` is not given.
                 ``None`` inherits the plotter's constructor setting.
+            genes_df: Gene annotations. This and every other optional-panel
+                argument behaves as documented on :meth:`plot`.
 
         Raises:
             ValueError: If ``gwas_dfs`` is empty or a per-panel list
                 (``lead_positions``, ``panel_labels``,
                 ``ld_reference_files``) has a different length.
         """
+        if not gwas_dfs:
+            raise ValueError("At least one GWAS DataFrame required")
         config = StackedPlotConfig.from_kwargs(
+            n_panels=len(gwas_dfs),
             chrom=chrom,
             start=start,
             end=end,
@@ -346,46 +353,6 @@ class LocusZoomPlotter:
             lead_positions=lead_positions,
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
-        )
-        n_gwas = len(gwas_dfs)
-        if n_gwas == 0:
-            raise ValueError("At least one GWAS DataFrame required")
-
-        if config.lead_positions is not None and len(config.lead_positions) != n_gwas:
-            raise ValueError(
-                f"lead_positions length ({len(config.lead_positions)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-        if config.panel_labels is not None and len(config.panel_labels) != n_gwas:
-            raise ValueError(
-                f"panel_labels length ({len(config.panel_labels)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-        if (
-            config.ld_reference_files is not None
-            and len(config.ld_reference_files) != n_gwas
-        ):
-            raise ValueError(
-                "ld_reference_files length "
-                f"({len(config.ld_reference_files)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-
-        leads = (
-            list(config.lead_positions)
-            if config.lead_positions is not None
-            else _auto_lead_positions(gwas_dfs, config.region, config.columns)
-        )
-        files = config.ld_reference_files or [config.ld.ld_reference_file] * n_gwas
-        return self._render_regional(
-            config,
-            gwas_dfs,
-            leads=leads,
-            reference_files=files,
-            panel_labels=config.panel_labels,
-            association_height=2.5,
-            min_figure_height=config.display.figsize[1],
-            auto_genes=self._auto_genes if auto_genes is None else auto_genes,
             genes_df=genes_df,
             exons_df=exons_df,
             recomb_df=recomb_df,
@@ -399,30 +366,31 @@ class LocusZoomPlotter:
             ld_heatmap_height=ld_heatmap_height,
             ld_heatmap_metric=ld_heatmap_metric,
         )
+        files = (
+            config.ld_reference_files or [config.ld.ld_reference_file] * config.n_panels
+        )
+        return self._render_regional(
+            config,
+            gwas_dfs,
+            leads=config.lead_positions,
+            reference_files=files,
+            panel_labels=config.panel_labels,
+            association_height=2.5,
+            min_figure_height=config.display.figsize[1],
+            auto_genes=self._auto_genes if auto_genes is None else auto_genes,
+        )
 
     def _render_regional(
         self,
         config: PlotConfig,
         gwas_dfs: List[pd.DataFrame],
         *,
-        leads: List[Optional[int]],
+        leads: Optional[List[Optional[int]]],
         reference_files: List[Optional[str]],
         panel_labels: Optional[List[str]],
         association_height: float,
         min_figure_height: float,
         auto_genes: bool,
-        genes_df: Optional[pd.DataFrame],
-        exons_df: Optional[pd.DataFrame],
-        recomb_df: Optional[pd.DataFrame],
-        eqtl_df: Optional[pd.DataFrame],
-        eqtl_gene: Optional[str],
-        eqtl_threshold: float,
-        finemapping_df: Optional[pd.DataFrame],
-        finemapping_cs_col: Optional[str],
-        ld_heatmap_df: Optional[pd.DataFrame],
-        ld_heatmap_snp_ids: Optional[List[str]],
-        ld_heatmap_height: float,
-        ld_heatmap_metric: str,
     ) -> Any:
         """Build the panel plan for one regional figure and render it.
 
@@ -431,20 +399,21 @@ class LocusZoomPlotter:
         height and the floor on the figure height. Everything else is here.
 
         Args:
-            config: Validated region, column, display, and LD settings.
+            config: Validated region, column, display, LD, and panel settings.
             gwas_dfs: One frame per association panel.
-            leads: Lead position per panel, parallel to ``gwas_dfs``.
+            leads: Lead position per panel, parallel to ``gwas_dfs``, or
+                None to take each panel's strongest in-region signal.
             reference_files: PLINK fileset per panel, parallel to ``gwas_dfs``.
             panel_labels: Label per panel, or None for none.
             association_height: Height-ratio units for each association panel.
             min_figure_height: Floor on the figure height in inches.
-            auto_genes: Fetch the gene track when ``genes_df`` is None.
+            auto_genes: Fetch the gene track when ``config.panels.genes_df``
+                is None.
         """
         region, columns, display = config.region, config.columns, config.display
-        if ld_heatmap_df is not None and ld_heatmap_snp_ids is None:
-            raise ValueError(
-                "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
-            )
+        inputs = config.panels
+        genes_df, exons_df = inputs.genes_df, inputs.exons_df
+        recomb_df = inputs.recomb_df
         for gwas_df in gwas_dfs:
             validate_gwas_df(gwas_df, pos_col=columns.pos_col, p_col=columns.p_col)
 
@@ -479,13 +448,17 @@ class LocusZoomPlotter:
             validate_genes_df(genes_df)
 
         finemap = (
-            FinemappingPanel.from_frame(finemapping_df, region, finemapping_cs_col)
-            if finemapping_df is not None
+            FinemappingPanel.from_frame(
+                inputs.finemapping_df, region, inputs.finemapping_cs_col
+            )
+            if inputs.finemapping_df is not None
             else None
         )
         eqtl = (
-            EqtlPanel.from_frame(eqtl_df, region, eqtl_gene, eqtl_threshold)
-            if eqtl_df is not None
+            EqtlPanel.from_frame(
+                inputs.eqtl_df, region, inputs.eqtl_gene, inputs.eqtl_threshold
+            )
+            if inputs.eqtl_df is not None
             else None
         )
         genes = (
@@ -500,11 +473,17 @@ class LocusZoomPlotter:
             )
 
         association: List[AssociationPanel] = []
-        for index, (gwas_df, lead_pos, reference_file) in enumerate(
-            zip(gwas_dfs, leads, reference_files)
+        for index, (gwas_df, reference_file) in enumerate(
+            zip(gwas_dfs, reference_files)
         ):
+            prepared = prepare_pvalue_data(gwas_df, columns.p_col)
+            lead_pos = (
+                leads[index]
+                if leads is not None
+                else _strongest_position(prepared, region, columns)
+            )
             df, ld_col = enrich_with_ld(
-                prepare_pvalue_data(gwas_df, columns.p_col),
+                prepared,
                 reference_file=reference_file,
                 lead_pos=lead_pos,
                 ld_col=config.ld.ld_col,
@@ -532,14 +511,14 @@ class LocusZoomPlotter:
 
         heatmap = (
             HeatmapPanel.from_matrix(
-                ld_heatmap_df,
-                ld_heatmap_snp_ids,
+                inputs.ld_heatmap_df,
+                inputs.ld_heatmap_snp_ids,
                 source=association[0],
                 region=region,
-                height=association_height * ld_heatmap_height,
-                metric=ld_heatmap_metric,
+                height=association_height * inputs.ld_heatmap_height,
+                metric=inputs.ld_heatmap_metric,
             )
-            if ld_heatmap_df is not None
+            if inputs.ld_heatmap_df is not None
             else None
         )
 
@@ -566,32 +545,24 @@ class LocusZoomPlotter:
         )
 
 
-def _auto_lead_positions(
-    gwas_dfs: List[pd.DataFrame], region: RegionConfig, columns: ColumnConfig
-) -> List[Optional[int]]:
-    """Pick each panel's lead as its strongest valid in-region p-value.
+def _strongest_position(
+    df: pd.DataFrame, region: RegionConfig, columns: ColumnConfig
+) -> Optional[int]:
+    """Return the position of the strongest in-region signal in a prepared frame.
 
-    Filters on a ``chrom`` or ``chr`` column when one exists, so a
-    whole-genome frame cannot anchor the lead to another chromosome.
-    Returns None for a panel with no valid in-region p-value.
+    ``df`` has been through ``prepare_pvalue_data``, so the p-value domain rule
+    has already been applied and ``neglog10p`` is finite. Filters on a ``chrom``
+    or ``chr`` column when one exists, so a whole-genome frame cannot anchor the
+    lead to another chromosome.
     """
-    leads: List[Optional[int]] = []
-    for df in gwas_dfs:
-        chrom_col = next((c for c in ("chrom", "chr") if c in df.columns), "chrom")
-        region_df = filter_by_region(
-            df,
-            region=(region.chrom, region.start, region.end),
-            chrom_col=chrom_col,
-            pos_col=columns.pos_col,
-        )
-        if region_df.empty:
-            leads.append(None)
-            continue
-        valid_p = region_df[columns.p_col].dropna()
-        valid_p = valid_p[(valid_p >= 0) & (valid_p <= 1)]
-        if valid_p.empty:
-            logger.warning("No valid p-values in region, cannot determine lead SNP")
-            leads.append(None)
-        else:
-            leads.append(int(region_df.loc[valid_p.idxmin(), columns.pos_col]))
-    return leads
+    chrom_col = next((c for c in ("chrom", "chr") if c in df.columns), "chrom")
+    region_df = filter_by_region(
+        df,
+        region=(region.chrom, region.start, region.end),
+        chrom_col=chrom_col,
+        pos_col=columns.pos_col,
+    )
+    if region_df.empty:
+        logger.warning("No valid p-values in region, cannot determine lead SNP")
+        return None
+    return int(region_df.loc[region_df["neglog10p"].idxmax(), columns.pos_col])

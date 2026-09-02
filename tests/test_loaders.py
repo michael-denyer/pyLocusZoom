@@ -25,13 +25,8 @@ from pylocuszoom.loaders import (
     load_saige,
     load_susie,
 )
-from pylocuszoom.schemas import (
-    LoaderValidationError,
-    validate_eqtl_dataframe,
-    validate_finemapping_dataframe,
-    validate_genes_dataframe,
-    validate_gwas_dataframe,
-)
+from pylocuszoom.schemas import Family, LoaderValidationError, Tier, spec
+from pylocuszoom.validation import check
 
 # =============================================================================
 # Fixtures for test data files
@@ -1083,8 +1078,7 @@ class TestGWASValidation:
             }
         )
 
-        result = validate_gwas_dataframe(df)
-        assert result is not None
+        check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_missing_position_column_fails(self):
         """Test that missing position column raises error."""
@@ -1096,7 +1090,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match="Missing columns"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_missing_pvalue_column_fails(self):
         """Test that missing p-value column raises error."""
@@ -1108,7 +1102,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match="Missing columns"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_negative_position_fails(self):
         """Test that negative positions raise error."""
@@ -1120,7 +1114,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"values <= 0"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_pvalue_out_of_range_fails(self):
         """Test that p-values outside (0, 1] raise error."""
@@ -1132,7 +1126,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"values > 1"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_zero_pvalue_fails(self):
         """Test that p-value of 0 raises error."""
@@ -1144,7 +1138,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"values <= 0"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_nan_position_fails(self):
         """Test that NaN positions raise error."""
@@ -1156,7 +1150,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"null values"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_non_numeric_pvalue_fails(self):
         """Test that non-numeric p-values raise clear validation error."""
@@ -1168,7 +1162,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match="must be numeric"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
     def test_non_numeric_position_fails(self):
         """Test that non-numeric positions raise clear validation error."""
@@ -1180,7 +1174,7 @@ class TestGWASValidation:
         )
 
         with pytest.raises(LoaderValidationError, match="must be numeric"):
-            validate_gwas_dataframe(df)
+            check(df, spec(Family.GWAS, Tier.LOAD))
 
 
 class TestEQTLValidation:
@@ -1197,8 +1191,7 @@ class TestEQTLValidation:
             }
         )
 
-        result = validate_eqtl_dataframe(df)
-        assert result is not None
+        check(df, spec(Family.EQTL, Tier.LOAD))
 
     def test_missing_gene_column_fails(self):
         """Test that missing gene column raises error."""
@@ -1210,7 +1203,7 @@ class TestEQTLValidation:
         )
 
         with pytest.raises(LoaderValidationError, match="Missing columns"):
-            validate_eqtl_dataframe(df)
+            check(df, spec(Family.EQTL, Tier.LOAD))
 
 
 class TestFinemappingValidation:
@@ -1226,8 +1219,7 @@ class TestFinemappingValidation:
             }
         )
 
-        result = validate_finemapping_dataframe(df)
-        assert result is not None
+        check(df, spec(Family.FINEMAPPING, Tier.LOAD))
 
     def test_pip_out_of_range_fails(self):
         """Test that PIP outside [0, 1] raises error."""
@@ -1239,7 +1231,7 @@ class TestFinemappingValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"values > 1"):
-            validate_finemapping_dataframe(df)
+            check(df, spec(Family.FINEMAPPING, Tier.LOAD))
 
     def test_negative_pip_fails(self):
         """Test that negative PIP raises error."""
@@ -1251,7 +1243,7 @@ class TestFinemappingValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"values < 0"):
-            validate_finemapping_dataframe(df)
+            check(df, spec(Family.FINEMAPPING, Tier.LOAD))
 
 
 class TestGenesValidation:
@@ -1268,8 +1260,7 @@ class TestGenesValidation:
             }
         )
 
-        result = validate_genes_dataframe(df)
-        assert result is not None
+        check(df, spec(Family.GENES, Tier.LOAD))
 
     def test_end_before_start_fails(self):
         """Test that end < start raises error."""
@@ -1283,7 +1274,7 @@ class TestGenesValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"rows have start > end"):
-            validate_genes_dataframe(df)
+            check(df, spec(Family.GENES, Tier.LOAD))
 
     def test_negative_start_fails(self):
         """Test that negative start raises error."""
@@ -1297,7 +1288,7 @@ class TestGenesValidation:
         )
 
         with pytest.raises(LoaderValidationError, match=r"values < 0"):
-            validate_genes_dataframe(df)
+            check(df, spec(Family.GENES, Tier.LOAD))
 
 
 # =============================================================================

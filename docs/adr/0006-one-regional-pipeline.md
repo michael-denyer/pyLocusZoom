@@ -63,7 +63,10 @@ the nested models already declare.
 - A `RegionalRequest` dataclass wrapping the twenty arguments
   `_render_regional` takes: rejected for now. It would have two builders and
   one reader, and wrapping a keyword list in a frozen dataclass later is
-  mechanical. It can be added when a third caller appears.
+  mechanical. It can be added when a third caller appears. Superseded: the
+  panel arguments now live on `PlotConfig.panels` as a `PanelInputs` model,
+  so they reach `_render_regional` inside the config it already took rather
+  than in a second wrapper beside it.
 - A `render(composer, ax, plan)` method on each panel dataclass instead of
   dispatch in the composer: rejected. It is five pass-throughs that couple
   value types to the composer, and a reader looking for "how is an eQTL

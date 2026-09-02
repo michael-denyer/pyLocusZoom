@@ -37,9 +37,11 @@ visualization concepts the library renders. Settled decisions live in
 - **`RegionalPlotComposer` + `RegionalFigurePlan`** (`_regional.py`) — the deep
   renderer for regional figures; accepts a typed, ordered panel plan and owns
   figure creation, axis assignment, and dispatch.
-- **`DataFrameValidator`** (`validation.py`) — the fluent validation engine
-  (`require_columns`/`require_numeric`/`require_range`/`require_not_null`/
-  `require_ci_ordering`). Per-family `error_class`.
+- **`ColumnSpec` + `check`** (`validation.py`) — the validation engine: a
+  frozen contract of column, dtype, null, range, p-value and ordering rules,
+  run in fixed order with every fault accumulated. Per-family `error_class`.
+- **`spec(family, tier)`** (`schemas.py`) — the one table of family contracts,
+  strict at `Tier.LOAD` and permissive at `Tier.PLOT`.
 - **`prepare_pvalue_data`** (`_data.py`) — the p-value intake owner: filters
   invalid p-values and produces `neglog10p`, with `allow_zero` distinguishing the
   Manhattan convention (0 allowed, clipped) from the strict eQTL `(0, 1]` domain.
@@ -84,7 +86,7 @@ engine/spec split have all shipped.
 - **`CoordinateLifter` port** (`_liftover.py`) — liftover seam with a production
   `pyliftover` adapter and an in-memory test adapter; pure `liftover_positions`.
   Plus pure `ensure_recomb_header` for header detection.
-- **Validation engine/spec split** (outstanding) — `schemas.py` becomes per-family specs
-  expressed on `DataFrameValidator` (deleting the parallel hand-rolled
-  implementation), with a single `require_pvalue` domain helper so the strict
-  `(0, 1]` policy has one owner shared with `prepare_pvalue_data`.
+- **Validation engine/spec split** (done) — `validation.py` is the engine and
+  knows no family; `schemas.py` is the one table of per-family specs at both
+  tiers. `ColumnSpec.pvalue` is the single owner of the strict `(0, 1]` policy,
+  sharing `P_VALUE_MAX` with `prepare_pvalue_data`.
