@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom._regional_panels import GenePanel, RegionalFigurePlan, draw_genes
+from pylocuszoom._regional_panels import GenePanel
 from pylocuszoom.config import RegionConfig
 from pylocuszoom.gene_track import (
     STRAND_COLORS,
@@ -191,15 +191,11 @@ class TestGetNearestGene:
 def _draw(backend, ax, genes_df, chrom, start, end):
     """Draw a gene track for the region straight from a raw gene frame."""
     region = RegionConfig(chrom=str(chrom), start=start, end=end)
-    panel = GenePanel.from_genes(genes_df, region, None)
-    plan = RegionalFigurePlan(
-        chrom=chrom, start=start, end=end, panels=[panel], figsize=(8.0, 1.0)
-    )
-    draw_genes(backend, ax, panel, plan)
+    GenePanel.from_genes(genes_df, region, None).draw(backend, ax)
 
 
 class TestStrandColors:
-    """Strand color constants are used by draw_genes."""
+    """Strand color constants are used by GenePanel.draw."""
 
     def test_strand_color_constants(self):
         assert "+" in STRAND_COLORS
@@ -261,8 +257,8 @@ class TestGeneTrackProperties:
 
     @hyp_settings(max_examples=10, deadline=None)
     @given(gene_dataframes(min_genes=1, max_genes=15))
-    def test_draw_genes_renders(self, genes_df):
-        """draw_genes should render without crashing."""
+    def test_gene_panel_draws(self, genes_df):
+        """GenePanel.draw should render without crashing."""
         if len(genes_df) == 0:
             return
 

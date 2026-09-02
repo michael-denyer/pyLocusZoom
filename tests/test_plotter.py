@@ -19,6 +19,20 @@ from tests.reference_mocks import (
 )
 
 
+def _captured_association_leads(call):
+    """Run ``call`` and return the lead position of each association panel drawn."""
+    captured = []
+    original = AssociationPanel.draw
+
+    def spy(panel, backend, ax):
+        captured.append(panel.lead_pos)
+        return original(panel, backend, ax)
+
+    with patch.object(AssociationPanel, "draw", spy):
+        call()
+    return captured
+
+
 class TestLocusZoomPlotterInit:
     """Tests for LocusZoomPlotter initialization."""
 
@@ -557,19 +571,8 @@ class TestStackedPlotLeadDetectionCrossChrom:
             }
         )
 
-        # Patch the lead-aware code to capture what got computed.
-        captured = {}
-        composer = canine_plotter._regional_composer
-        original = composer.render_panel
-
-        def spy(panel, *args, **kwargs):
-            if isinstance(panel, AssociationPanel):
-                captured.setdefault("lead_positions", []).append(panel.lead_pos)
-            return original(panel, *args, **kwargs)
-
-        composer.render_panel = spy
-        try:
-            canine_plotter.plot_stacked(
+        captured = _captured_association_leads(
+            lambda: canine_plotter.plot_stacked(
                 [gwas_df],
                 chrom=1,
                 start=1_000_000,
@@ -578,10 +581,9 @@ class TestStackedPlotLeadDetectionCrossChrom:
                 p_col="p_wald",
                 show_recombination=False,
             )
-        finally:
-            composer.render_panel = original
+        )
 
-        assert captured["lead_positions"] == [1_200_000], (
+        assert captured == [1_200_000], (
             "Lead must be chr1's strongest hit (1_200_000), not chr2's (1_500_000)"
         )
 
@@ -589,24 +591,6 @@ class TestStackedPlotLeadDetectionCrossChrom:
 class TestLeadAutoDetectionAgreesAcrossEntryPoints:
     """With no lead given, plot() and plot_stacked([df]) pick the same lead:
     the strongest in-region p-value."""
-
-    @staticmethod
-    def _captured_leads(plotter, call):
-        captured = []
-        composer = plotter._regional_composer
-        original = composer.render_panel
-
-        def spy(panel, *args, **kwargs):
-            if isinstance(panel, AssociationPanel):
-                captured.append(panel.lead_pos)
-            return original(panel, *args, **kwargs)
-
-        composer.render_panel = spy
-        try:
-            call()
-        finally:
-            composer.render_panel = original
-        return captured
 
     def test_plot_auto_detects_the_strongest_hit(self, canine_plotter):
         gwas_df = pd.DataFrame(
@@ -618,11 +602,11 @@ class TestLeadAutoDetectionAgreesAcrossEntryPoints:
             }
         )
         kwargs = dict(chrom=1, start=1_000_000, end=2_000_000, show_recombination=False)
-        single = self._captured_leads(
-            canine_plotter, lambda: canine_plotter.plot(gwas_df, **kwargs)
+        single = _captured_association_leads(
+            lambda: canine_plotter.plot(gwas_df, **kwargs)
         )
-        stacked = self._captured_leads(
-            canine_plotter, lambda: canine_plotter.plot_stacked([gwas_df], **kwargs)
+        stacked = _captured_association_leads(
+            lambda: canine_plotter.plot_stacked([gwas_df], **kwargs)
         )
         assert single == stacked == [1_500_000]
 
@@ -645,18 +629,8 @@ class TestLeadPosBoundary:
             }
         )
 
-        captured = {}
-        composer = plotter._regional_composer
-        original = composer.render_panel
-
-        def spy(panel, *args, **kwargs):
-            if isinstance(panel, AssociationPanel):
-                captured["lead_pos"] = panel.lead_pos
-            return original(panel, *args, **kwargs)
-
-        composer.render_panel = spy
-        try:
-            plotter.plot(
+        captured = _captured_association_leads(
+            lambda: plotter.plot(
                 gwas_df,
                 chrom=1,
                 start=1,
@@ -666,10 +640,9 @@ class TestLeadPosBoundary:
                 lead_pos=1,
                 show_recombination=False,
             )
-        finally:
-            composer.render_panel = original
+        )
 
-        assert captured["lead_pos"] == 1, (
+        assert captured == [1], (
             "lead_pos=1 must pass through; falsy-check regression would drop it to None"
         )
 
