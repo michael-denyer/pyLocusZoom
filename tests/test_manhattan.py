@@ -170,10 +170,37 @@ class TestPrepareManhattanData:
         from pylocuszoom.manhattan import prepare_manhattan_data
 
         result = prepare_manhattan_data(manhattan_snp_df, species="human")
-        assert "chrom_centers" in result.attrs
-        centers = result.attrs["chrom_centers"]
+        assert "layout" in result.attrs
+        centers = result.attrs["layout"].centers
         assert "1" in centers
         assert "2" in centers
+
+    def test_frames_share_one_layout(self):
+        """Frames prepared together place a variant at the same x.
+
+        chr2's offset depends on how far chr1 reaches, so two frames with
+        different chr1 extents used to disagree about where chr2 starts.
+        """
+        from pylocuszoom.manhattan import prepare_manhattan_frames
+
+        first = pd.DataFrame(
+            {"chrom": [1, 1, 2], "pos": [1000, 9_000_000, 5000], "p": [0.1, 0.2, 0.3]}
+        )
+        second = pd.DataFrame(
+            {"chrom": [1, 1, 2], "pos": [1000, 2_000_000, 5000], "p": [0.4, 0.5, 0.6]}
+        )
+
+        prepared_first, prepared_second = prepare_manhattan_frames(
+            [first, second], species="human"
+        )
+
+        assert prepared_first.attrs["layout"] is prepared_second.attrs["layout"]
+        chr2_first = prepared_first.loc[prepared_first["_chrom_str"] == "2"]
+        chr2_second = prepared_second.loc[prepared_second["_chrom_str"] == "2"]
+        assert (
+            chr2_first["_cumulative_pos"].iloc[0]
+            == chr2_second["_cumulative_pos"].iloc[0]
+        )
 
     def test_validates_required_columns(self):
         """Should raise on missing required columns."""
@@ -318,7 +345,7 @@ class TestPrepareCategoricalData:
             category_col="phenotype",
             category_order=["BMI", "Weight", "Height"],
         )
-        assert result.attrs["category_order"] == ["BMI", "Weight", "Height"]
+        assert result.attrs["layout"].order == ("BMI", "Weight", "Height")
 
 
 # =============================================================================

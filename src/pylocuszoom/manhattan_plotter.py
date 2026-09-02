@@ -19,7 +19,11 @@ from ._plotter_utils import (
 )
 from ._rendering import ManhattanQQRenderer
 from .backends import BackendType, get_backend
-from .manhattan import prepare_categorical_data, prepare_manhattan_data
+from .manhattan import (
+    prepare_categorical_data,
+    prepare_manhattan_data,
+    prepare_manhattan_frames,
+)
 from .qq import prepare_qq_data
 
 
@@ -257,18 +261,14 @@ class ManhattanPlotter:
                 f"number of GWAS DataFrames ({n_gwas})"
             )
 
-        # Prepare all data first to get consistent x-axis
-        prepared_dfs = []
-        for df in gwas_dfs:
-            prepared_df = prepare_manhattan_data(
-                df=df,
-                chrom_col=chrom_col,
-                pos_col=pos_col,
-                p_col=p_col,
-                species=self.species,
-                custom_order=custom_chrom_order,
-            )
-            prepared_dfs.append(prepared_df)
+        prepared_dfs = prepare_manhattan_frames(
+            gwas_dfs,
+            chrom_col=chrom_col,
+            pos_col=pos_col,
+            p_col=p_col,
+            species=self.species,
+            custom_order=custom_chrom_order,
+        )
         return self._renderer.render_manhattan_stacked(
             prepared_dfs,
             figsize=figsize,
@@ -392,21 +392,15 @@ class ManhattanPlotter:
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
 
-        # Prepare all data
-        manhattan_dfs = []
-        qq_dfs = []
-        for df in gwas_dfs:
-            manhattan_dfs.append(
-                prepare_manhattan_data(
-                    df=df,
-                    chrom_col=chrom_col,
-                    pos_col=pos_col,
-                    p_col=p_col,
-                    species=self.species,
-                    custom_order=custom_chrom_order,
-                )
-            )
-            qq_dfs.append(prepare_qq_data(df, p_col=p_col))
+        manhattan_dfs = prepare_manhattan_frames(
+            gwas_dfs,
+            chrom_col=chrom_col,
+            pos_col=pos_col,
+            p_col=p_col,
+            species=self.species,
+            custom_order=custom_chrom_order,
+        )
+        qq_dfs = [prepare_qq_data(df, p_col=p_col) for df in gwas_dfs]
         return self._renderer.render_manhattan_qq_stacked(
             manhattan_dfs,
             qq_dfs,

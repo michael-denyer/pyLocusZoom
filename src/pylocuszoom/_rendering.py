@@ -12,10 +12,8 @@ import pandas as pd
 
 from ._manhattan_panel import (
     ManhattanPanelSpec,
-    chromosome_ticks,
     manhattan_spec,
     render_manhattan_panel,
-    shared_manhattan_limits,
 )
 from ._plotter_utils import (
     MANHATTAN_CATEGORICAL_POINT_SIZE,
@@ -82,8 +80,6 @@ class ManhattanQQRenderer:
             height_ratios=[1.0],
             figsize=figsize,
         )
-        cat_order = prepared_df.attrs["category_order"]
-        category_centers = prepared_df.attrs["category_centers"]
         render_manhattan_panel(
             self._backend,
             axes[0],
@@ -91,10 +87,7 @@ class ManhattanQQRenderer:
                 prepared_df=prepared_df,
                 x_col="_x_pos",
                 group_col="_cat_str",
-                group_order=cat_order,
-                x_limits=(-0.5, len(cat_order) - 0.5),
-                tick_positions=[category_centers[category] for category in cat_order],
-                tick_labels=cat_order,
+                layout=prepared_df.attrs["layout"],
                 significance_threshold=significance_threshold,
                 point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
                 tick_fontsize=10,
@@ -269,13 +262,14 @@ class ManhattanQQRenderer:
         significance_threshold: Optional[float],
         panel_labels: Optional[List[str]],
     ) -> List[ManhattanPanelSpec]:
-        """Build specs for vertically stacked panels sharing x limits and ticks.
+        """Build specs for vertically stacked panels sharing one genome layout.
 
         Only the bottom panel carries the x-axis label, since the panels share
         one x axis.
 
         Args:
-            prepared_dfs: Frames from ``prepare_manhattan_data``, top to bottom.
+            prepared_dfs: Frames from ``prepare_manhattan_frames``, top to
+                bottom.
             significance_threshold: P-value for the significance line, or None.
             panel_labels: Corner label per panel, or None.
 
@@ -283,16 +277,9 @@ class ManhattanQQRenderer:
             One spec per frame, in the same order.
         """
         n_panels = len(prepared_dfs)
-        x_limits = shared_manhattan_limits(prepared_dfs)
-        ticks = chromosome_ticks(
-            prepared_dfs[0].attrs["chrom_order"],
-            prepared_dfs[0].attrs["chrom_centers"],
-        )
         return [
             manhattan_spec(
                 prepared_df,
-                x_limits=x_limits,
-                ticks=ticks,
                 significance_threshold=significance_threshold,
                 y_label_fontsize=10,
                 x_label="Chromosome" if index == n_panels - 1 else None,

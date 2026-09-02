@@ -200,6 +200,7 @@ stages:
 | `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsBarCharts` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and QQ panel policy, and builds `ManhattanPanelSpec` values for the Manhattan panels |
 | `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
+| `GenomeLayout`, `CategoryLayout` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_manhattan_frames` computes one layout from every frame of a figure and gives it to all of them, so Miami and stacked panels share offsets and ticks instead of deriving their own |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
 | `BUILTIN_BACKENDS` | Constant | `src/pylocuszoom/backends/__init__.py` | The backend names shipped with the library, derived from `BackendType` so the two cannot drift; contract tests parametrize over it |
@@ -223,7 +224,7 @@ pyLocusZoom/
 │   ├── __init__.py            # Public API re-exports (stable surface)
 │   ├── plotter.py             # LocusZoomPlotter — regional plot orchestration
 │   ├── manhattan_plotter.py   # Manhattan/QQ plotter class
-│   ├── manhattan.py           # Lower-level Manhattan helpers
+│   ├── manhattan.py           # GenomeLayout and Manhattan frame preparation
 │   ├── qq.py                  # QQ plot primitives
 │   ├── stats_plotter.py       # StatsPlotter — PheWAS and forest plots
 │   ├── miami_plotter.py       # Miami (mirrored Manhattan) plotter

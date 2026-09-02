@@ -194,7 +194,8 @@ Data transformation between validated input and backend-ready primitives.
 | 3c | plot_gene_track_generic | Backend-agnostic gene rendering | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
-| 3e | prepare_manhattan_data | Cumulative-position Manhattan prep | [manhattan.py](../src/pylocuszoom/manhattan.py) |
+| 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
+| 3e | GenomeLayout | Chromosome order, offsets, colours, ticks, and x limits for every panel of a figure | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
 | 3h | GeneSource, GeneAnnotations, GENE_COLUMNS | The value types and frame schema both sources produce, in a leaf neither imports back | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |
@@ -212,7 +213,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
-| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request and the function that draws it, shared by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
+| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, and the function that draws it, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
 
 ### LD Colour Bins [3b]
 

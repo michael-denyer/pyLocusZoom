@@ -8,6 +8,13 @@ from pylocuszoom.miami_plotter import MiamiPlotter
 from tests.conftest import FIGURE_TYPES
 
 
+def _max_scatter_x(ax) -> float:
+    """Return the largest scatter x coordinate drawn on a matplotlib axis."""
+    return max(
+        float(offset[0]) for coll in ax.collections for offset in coll.get_offsets()
+    )
+
+
 class TestMiamiPlotter:
     """Tests for the MiamiPlotter class."""
 
@@ -74,6 +81,63 @@ class TestMiamiPlotter:
         top_ax, bottom_ax = axes
         assert top_ax is not None
         assert bottom_ax is not None
+
+    def test_panels_share_chromosome_offsets(self):
+        """Both panels place a chromosome at the same x, whatever their extent.
+
+        The offset of chr2 depends on how far chr1 reaches. When the two
+        studies stop at different points on chr1 the panels must still agree,
+        because they share one x axis and one set of ticks.
+        """
+        plotter = MiamiPlotter(species="human")
+        top_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 2],
+                "pos": [1000, 9_000_000, 5000],
+                "p": [0.01, 0.001, 1e-6],
+            }
+        )
+        bottom_df = pd.DataFrame(
+            {
+                "chrom": [1, 1, 2],
+                "pos": [1000, 2_000_000, 5000],
+                "p": [0.02, 0.003, 1e-5],
+            }
+        )
+
+        fig = plotter.plot_miami(top_df, bottom_df)
+
+        top_ax, bottom_ax = fig.get_axes()
+        assert _max_scatter_x(top_ax) == _max_scatter_x(bottom_ax)
+
+    def test_unknown_species_raises(self, miami_panel_dfs):
+        """An unrecognised species is rejected, as it is for Manhattan plots."""
+        top_df, bottom_df = miami_panel_dfs
+        plotter = MiamiPlotter(species="nonsense")
+
+        with pytest.raises(ValueError, match="Unknown species"):
+            plotter.plot_miami(top_df, bottom_df)
+
+    def test_species_order_drives_chromosome_ticks(self):
+        """The species table orders the axis, not an alphabetic sort.
+
+        The feline table ends X, Y, MT. Sorting the chromosome names instead
+        would put MT first of the three.
+        """
+        plotter = MiamiPlotter(species="feline")
+        panel_df = pd.DataFrame(
+            {
+                "chrom": ["A1", "MT", "X", "Y"],
+                "pos": [1000, 1000, 1000, 1000],
+                "p": [0.01, 0.001, 0.02, 0.03],
+            }
+        )
+
+        fig = plotter.plot_miami(panel_df, panel_df)
+
+        bottom_ax = fig.get_axes()[1]
+        labels = [tick.get_text() for tick in bottom_ax.get_xticklabels()]
+        assert labels == ["A1", "X", "Y", "MT"]
 
     def test_empty_dataframe_raises(self, miami_plotter):
         """Test that empty DataFrame raises appropriate error."""

@@ -1,12 +1,16 @@
 """Manhattan plot data preparation and chromosome ordering."""
 
-from typing import Literal
+from dataclasses import dataclass
+from typing import Literal, Mapping, Sequence, Tuple, Union
 
 import colorcet as cc
 import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
+
+# Blank x space between one chromosome's last base and the next one's first.
+CHROMOSOME_GAP = 1_000_000
 
 # Species aliases
 SPECIES_ALIASES: dict[str, str] = {
@@ -92,6 +96,139 @@ def get_chromosome_colors(n_chromosomes: int) -> list[str]:
     return [palette[i % len(palette)] for i in range(n_chromosomes)]
 
 
+@dataclass(frozen=True)
+class GenomeLayout:
+    """Where each chromosome sits on a shared Manhattan x axis.
+
+    Every frame drawn against one layout puts a given ``(chrom, pos)`` at the
+    same x, which is what lets a Miami or stacked figure share x limits and one
+    set of ticks.
+
+    Attributes:
+        order: Chromosomes in display order, including any the frames do not
+            carry. A chromosome's colour is its position in this list.
+        offsets: X coordinate of each chromosome's first base. Only the
+            chromosomes the frames carry appear.
+        colors: Hex colour per chromosome in ``order``.
+        centers: Mean x of the points on each chromosome, its tick position.
+        x_limits: Padded x span covering every point in every frame.
+        total_length: X coordinate one gap past the last chromosome's end.
+    """
+
+    order: Tuple[str, ...]
+    offsets: Mapping[str, int]
+    colors: Mapping[str, str]
+    centers: Mapping[str, float]
+    x_limits: Tuple[float, float]
+    total_length: int
+
+    @property
+    def tick_labels(self) -> list[str]:
+        """Return the label of every chromosome that carries data."""
+        return [chrom for chrom in self.order if chrom in self.centers]
+
+    @property
+    def tick_positions(self) -> list[float]:
+        """Return the tick position of every chromosome that carries data."""
+        return [self.centers[chrom] for chrom in self.tick_labels]
+
+    @classmethod
+    def from_frames(
+        cls,
+        frames: Sequence[pd.DataFrame],
+        *,
+        chrom_col: str,
+        pos_col: str,
+        order: Sequence[str],
+    ) -> "GenomeLayout":
+        """Lay out the genome axis once for every frame that shares it.
+
+        Args:
+            frames: Frames already filtered to plottable rows.
+            chrom_col: Column name for chromosome.
+            pos_col: Column name for position.
+            order: Display order of the known chromosomes. Chromosomes the
+                frames carry but this order omits are appended sorted.
+
+        Returns:
+            The shared layout.
+        """
+        pooled = pd.DataFrame(
+            {
+                "_chrom_str": pd.concat(
+                    [frame[chrom_col].astype(str) for frame in frames],
+                    ignore_index=True,
+                ),
+                "_pos": pd.concat(
+                    [frame[pos_col] for frame in frames], ignore_index=True
+                ),
+            }
+        )
+        max_by_chrom = pooled.groupby("_chrom_str", sort=False)["_pos"].max()
+
+        offsets: dict[str, int] = {}
+        cumulative = 0
+        unknown = sorted(set(max_by_chrom.index) - set(order))
+        for chrom in list(order) + unknown:
+            if chrom in max_by_chrom.index:
+                offsets[chrom] = cumulative
+                cumulative += int(max_by_chrom[chrom]) + CHROMOSOME_GAP
+
+        full_order = tuple(order) + tuple(unknown)
+        chrom_to_idx = {chrom: i for i, chrom in enumerate(full_order)}
+        pooled["_chrom_idx"] = pooled["_chrom_str"].map(
+            lambda x: chrom_to_idx.get(x, len(full_order))
+        )
+        pooled = pooled.sort_values(["_chrom_idx", "_pos"])
+        pooled["_cumulative_pos"] = pooled["_chrom_str"].map(offsets) + pooled["_pos"]
+
+        x_min = pooled["_cumulative_pos"].min()
+        x_max = pooled["_cumulative_pos"].max()
+        padding = (x_max - x_min) * 0.01
+        return cls(
+            order=full_order,
+            offsets=offsets,
+            colors=dict(zip(full_order, get_chromosome_colors(len(full_order)))),
+            centers=pooled.groupby("_chrom_str", sort=False)["_cumulative_pos"]
+            .mean()
+            .to_dict(),
+            x_limits=(x_min - padding, x_max + padding),
+            total_length=cumulative,
+        )
+
+
+@dataclass(frozen=True)
+class CategoryLayout:
+    """Where each category sits on a categorical (PheWAS-style) x axis.
+
+    Attributes:
+        order: Categories in display order.
+        colors: Hex colour per category.
+    """
+
+    order: Tuple[str, ...]
+    colors: Mapping[str, str]
+
+    @property
+    def x_limits(self) -> Tuple[float, float]:
+        """Return the x span, half a slot either side of the categories."""
+        return (-0.5, len(self.order) - 0.5)
+
+    @property
+    def tick_labels(self) -> list[str]:
+        """Return one label per category."""
+        return list(self.order)
+
+    @property
+    def tick_positions(self) -> list[float]:
+        """Return one tick per category, at its slot index."""
+        return [float(index) for index in range(len(self.order))]
+
+
+# A Manhattan-style panel's x-axis layout, genomic or categorical.
+PanelLayout = Union[GenomeLayout, CategoryLayout]
+
+
 def _prepare_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
     """Apply the shared p-value intake, writing the Manhattan ``_neg_log_p``."""
     return prepare_pvalue_data(
@@ -105,6 +242,71 @@ def _prepare_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
     )
 
 
+def prepare_manhattan_frames(
+    dfs: Sequence[pd.DataFrame],
+    *,
+    chrom_col: str = "chrom",
+    pos_col: str = "pos",
+    p_col: str = "p",
+    species: Literal["canine", "feline", "human", "dog", "cat"] | None = None,
+    custom_order: list[str] | None = None,
+) -> list[pd.DataFrame]:
+    """Prepare several GWAS frames against one shared genome layout.
+
+    Every returned frame carries the same layout in ``attrs["layout"]``, so a
+    given ``(chrom, pos)`` lands at the same x in all of them.
+
+    Args:
+        dfs: GWAS results DataFrames, in panel order.
+        chrom_col: Column name for chromosome.
+        pos_col: Column name for position.
+        p_col: Column name for p-value.
+        species: Species for chromosome ordering.
+        custom_order: Custom chromosome order.
+
+    Returns:
+        One prepared frame per input, in the same order.
+
+    Raises:
+        ValueError: If a required column is missing, or if neither species nor
+            custom_order names a chromosome order.
+    """
+    for df in dfs:
+        for col, name in [(chrom_col, "chrom"), (pos_col, "pos"), (p_col, "p")]:
+            if col not in df.columns:
+                raise ValueError(f"Column '{col}' not found in DataFrame (for {name})")
+
+    order = get_chromosome_order(species, custom_order)
+    filtered = [_prepare_pvalues(df, p_col) for df in dfs]
+    layout = GenomeLayout.from_frames(
+        filtered, chrom_col=chrom_col, pos_col=pos_col, order=order
+    )
+    return [
+        _apply_genome_layout(frame, chrom_col, pos_col, layout) for frame in filtered
+    ]
+
+
+def _apply_genome_layout(
+    result: pd.DataFrame,
+    chrom_col: str,
+    pos_col: str,
+    layout: GenomeLayout,
+) -> pd.DataFrame:
+    """Place one filtered frame on the shared genome axis."""
+    result["_chrom_str"] = result[chrom_col].astype(str)
+    chrom_to_idx = {chrom: i for i, chrom in enumerate(layout.order)}
+    result["_chrom_idx"] = result["_chrom_str"].map(
+        lambda x: chrom_to_idx.get(x, len(layout.order))
+    )
+    result = result.sort_values(["_chrom_idx", pos_col])
+    result["_cumulative_pos"] = (
+        result["_chrom_str"].map(layout.offsets) + result[pos_col]
+    )
+    result["_color"] = result["_chrom_str"].map(layout.colors)
+    result.attrs["layout"] = layout
+    return result
+
+
 def prepare_manhattan_data(
     df: pd.DataFrame,
     chrom_col: str = "chrom",
@@ -113,9 +315,9 @@ def prepare_manhattan_data(
     species: Literal["canine", "feline", "human", "dog", "cat"] | None = None,
     custom_order: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Prepare DataFrame for Manhattan plot rendering.
+    """Prepare one DataFrame for Manhattan plot rendering.
 
-    Computes cumulative positions for x-axis and assigns chromosome colors.
+    The single-frame case of :func:`prepare_manhattan_frames`.
 
     Args:
         df: GWAS results DataFrame.
@@ -132,71 +334,17 @@ def prepare_manhattan_data(
         - _cumulative_pos: X-axis position
         - _neg_log_p: -log10(p-value)
         - _color: Hex color for chromosome
+
+        The shared :class:`GenomeLayout` is in ``attrs["layout"]``.
     """
-    # Validate required columns
-    for col, name in [(chrom_col, "chrom"), (pos_col, "pos"), (p_col, "p")]:
-        if col not in df.columns:
-            raise ValueError(f"Column '{col}' not found in DataFrame (for {name})")
-
-    # Get chromosome order
-    chrom_order = get_chromosome_order(species, custom_order)
-
-    result = _prepare_pvalues(df, p_col)
-
-    # Normalize chromosome names (handle int vs str)
-    result["_chrom_str"] = result[chrom_col].astype(str)
-
-    # Map chromosomes to order index (len(chrom_order) for unknown)
-    chrom_to_idx = {chrom: i for i, chrom in enumerate(chrom_order)}
-    result["_chrom_idx"] = result["_chrom_str"].map(
-        lambda x: chrom_to_idx.get(x, len(chrom_order))
-    )
-
-    # Sort by chromosome index then position
-    result = result.sort_values(["_chrom_idx", pos_col])
-
-    # Calculate cumulative positions. Single groupby pass replaces repeated
-    # boolean masking per chromosome, which was O(N·C) on GWAS-scale data.
-    max_by_chrom = result.groupby("_chrom_str", sort=False)[pos_col].max()
-    chrom_offsets = {}
-    cumulative = 0
-    for chrom in chrom_order:
-        if chrom in max_by_chrom.index:
-            chrom_offsets[chrom] = cumulative
-            cumulative += int(max_by_chrom[chrom]) + 1_000_000  # 1Mb gap
-
-    # Handle chromosomes not in order
-    unknown_chroms = sorted(set(max_by_chrom.index) - set(chrom_order))
-    for chrom in unknown_chroms:
-        chrom_offsets[chrom] = cumulative
-        cumulative += int(max_by_chrom[chrom]) + 1_000_000
-
-    # Calculate cumulative position (vectorized — avoids apply(axis=1))
-    result["_cumulative_pos"] = (
-        result["_chrom_str"].map(chrom_offsets).fillna(0) + result[pos_col]
-    )
-
-    # Assign colors
-    all_chroms = chrom_order + sorted(unknown_chroms)
-    colors = get_chromosome_colors(len(all_chroms))
-    chrom_to_color = {chrom: colors[i] for i, chrom in enumerate(all_chroms)}
-    result["_color"] = result["_chrom_str"].map(chrom_to_color)
-
-    # Calculate chromosome centers for x-axis labels. Single groupby.mean()
-    # replaces a per-chromosome boolean mask (O(N·C) -> O(N)).
-    centers_by_chrom = result.groupby("_chrom_str", sort=False)[
-        "_cumulative_pos"
-    ].mean()
-    chrom_centers = {
-        chrom: centers_by_chrom[chrom]
-        for chrom in all_chroms
-        if chrom in centers_by_chrom.index
-    }
-
-    result.attrs["chrom_centers"] = chrom_centers
-    result.attrs["chrom_order"] = all_chroms
-
-    return result
+    return prepare_manhattan_frames(
+        [df],
+        chrom_col=chrom_col,
+        pos_col=pos_col,
+        p_col=p_col,
+        species=species,
+        custom_order=custom_order,
+    )[0]
 
 
 def prepare_categorical_data(
@@ -244,12 +392,11 @@ def prepare_categorical_data(
     rng = np.random.default_rng(42)  # Local RNG for reproducible jitter
     result["_x_pos"] = result["_cat_idx"] + rng.uniform(-0.3, 0.3, size=len(result))
 
-    # Assign colors (use string values for lookup)
-    colors = get_chromosome_colors(len(category_order))
-    cat_to_color = {cat: colors[i] for i, cat in enumerate(category_order)}
-    result["_color"] = result["_cat_str"].map(cat_to_color)
-
-    result.attrs["category_order"] = category_order
-    result.attrs["category_centers"] = {cat: i for i, cat in enumerate(category_order)}
+    layout = CategoryLayout(
+        order=tuple(category_order),
+        colors=dict(zip(category_order, get_chromosome_colors(len(category_order)))),
+    )
+    result["_color"] = result["_cat_str"].map(layout.colors)
+    result.attrs["layout"] = layout
 
     return result
