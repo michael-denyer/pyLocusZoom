@@ -8,7 +8,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import pandas as pd
 
@@ -185,7 +185,7 @@ def filter_by_region(
         Filtered DataFrame (copy, not view).
 
     Raises:
-        KeyError: If pos_col is not found in DataFrame.
+        ValidationError: If pos_col is not found in DataFrame.
 
     Example:
         >>> filtered = filter_by_region(df, region=(1, 1000000, 2000000))
@@ -195,7 +195,7 @@ def filter_by_region(
 
     # Validate position column exists
     if pos_col not in df.columns:
-        raise KeyError(
+        raise ValidationError(
             f"Position column '{pos_col}' not found in DataFrame. "
             f"Available columns: {list(df.columns)}"
         )
@@ -212,75 +212,3 @@ def filter_by_region(
         mask = mask & (df_chrom_normalized == chrom_normalized)
 
     return df[mask].copy()
-
-
-def validate_dataframe(
-    df: pd.DataFrame,
-    required_cols: List[str],
-    name: str = "DataFrame",
-) -> None:
-    """Validate that a DataFrame has required columns.
-
-    Args:
-        df: DataFrame to validate.
-        required_cols: List of required column names.
-        name: Name for error messages (e.g., "gwas_df", "genes_df").
-
-    Raises:
-        ValidationError: If required columns are missing.
-
-    Example:
-        >>> validate_dataframe(df, ["chr", "start", "end"], "genes_df")
-    """
-    missing = [col for col in required_cols if col not in df.columns]
-    if missing:
-        available = list(df.columns)
-        raise ValidationError(
-            f"{name} missing required columns: {missing}. "
-            f"Available columns: {available}"
-        )
-
-
-def validate_gwas_df(
-    df: pd.DataFrame,
-    pos_col: str = "ps",
-    p_col: str = "p_wald",
-    rs_col: Optional[str] = None,
-) -> None:
-    """Validate GWAS results DataFrame.
-
-    This is the permissive plot-time tier: columns and non-emptiness only. The
-    p-value policy is deferred to ``_data.prepare_pvalue_data``, which keeps an
-    exact zero under the Manhattan convention. The strict ``(0, 1]`` tier lives
-    in ``schemas.validate_gwas_dataframe`` and runs at load time. The split is
-    deliberate: tightening this function would reject Manhattan input that
-    plots correctly today.
-
-    Args:
-        df: GWAS results DataFrame.
-        pos_col: Column name for position.
-        p_col: Column name for p-values.
-        rs_col: Column name for SNP IDs (optional).
-
-    Raises:
-        ValidationError: If required columns are missing or DataFrame is empty.
-    """
-    if df.empty:
-        raise ValidationError("gwas_df is empty — no rows to plot")
-
-    required = [pos_col, p_col]
-    if rs_col:
-        required.append(rs_col)
-    validate_dataframe(df, required, "gwas_df")
-
-
-def validate_genes_df(df: pd.DataFrame) -> None:
-    """Validate gene annotations DataFrame.
-
-    Args:
-        df: Gene annotations DataFrame.
-
-    Raises:
-        ValidationError: If required columns are missing.
-    """
-    validate_dataframe(df, ["chr", "start", "end", "gene_name"], "genes_df")

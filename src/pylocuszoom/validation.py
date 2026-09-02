@@ -11,7 +11,7 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
 from ._data import P_VALUE_MAX
-from .utils import ValidationError
+from .exceptions import LoaderValidationError, ValidationError
 
 
 class DataFrameValidator:
@@ -48,6 +48,17 @@ class DataFrameValidator:
         self._error_class = error_class
         self._errors: List[str] = []
         self._non_numeric_cols: set[str] = set()
+
+    def require_non_empty(self) -> "DataFrameValidator":
+        """Check that the DataFrame has at least one row.
+
+        Returns:
+            Self for method chaining.
+        """
+        if self._df.empty:
+            self._errors.append("is empty — no rows to plot")
+
+        return self
 
     def require_columns(self, columns: List[str]) -> "DataFrameValidator":
         """Check that required columns exist in DataFrame.
@@ -272,6 +283,7 @@ class ColumnSpec:
         ranges: Numeric-range constraints applied in order.
         pvalue: Column checked against the canonical ``(0, 1]`` p-value domain.
         ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
+        non_empty: Reject a frame with no rows, before any column rule runs.
         error_class: Exception raised on failure.
     """
 
@@ -282,7 +294,85 @@ class ColumnSpec:
     ranges: Tuple[RangeRule, ...] = ()
     pvalue: Optional[str] = None
     ordering: Tuple[Tuple[str, str], ...] = ()
+    non_empty: bool = False
     error_class: Type[ValidationError] = ValidationError
+
+
+def gwas_spec(
+    pos_col: str,
+    p_col: str,
+    rs_col: Optional[str] = None,
+    *,
+    strict: bool,
+) -> ColumnSpec:
+    """Build the GWAS contract for one of the two validation tiers.
+
+    Args:
+        pos_col: Column name for position.
+        p_col: Column name for p-values.
+        rs_col: Column name for SNP IDs, required when given.
+        strict: Load-time tier. Adds dtype, null, position-range and p-value
+            rules on top of the permissive plot-time column check, and reports
+            failures as ``LoaderValidationError``. The permissive tier instead
+            rejects an empty frame, which load-time does not.
+
+    Returns:
+        The matching :class:`ColumnSpec`.
+    """
+    required = (pos_col, p_col) if rs_col is None else (pos_col, p_col, rs_col)
+    if not strict:
+        return ColumnSpec(name="gwas_df", required=required, non_empty=True)
+    return ColumnSpec(
+        name="GWAS",
+        required=required,
+        numeric=(pos_col, p_col),
+        not_null=(pos_col, p_col),
+        ranges=(RangeRule(pos_col, min_val=0, exclusive_min=True),),
+        pvalue=p_col,
+        error_class=LoaderValidationError,
+    )
+
+
+GENES_SPEC = ColumnSpec(name="genes_df", required=("chr", "start", "end", "gene_name"))
+
+
+def validate_gwas_df(
+    df: pd.DataFrame,
+    pos_col: str = "ps",
+    p_col: str = "p_wald",
+    rs_col: Optional[str] = None,
+) -> None:
+    """Validate a GWAS DataFrame at the permissive plot-time tier.
+
+    Columns and non-emptiness only. The p-value policy is deferred to
+    ``_data.prepare_pvalue_data``, which keeps an exact zero under the
+    Manhattan convention. The strict ``(0, 1]`` tier is
+    ``schemas.validate_gwas_dataframe`` and runs at load time. The split is
+    deliberate: tightening this function would reject Manhattan input that
+    plots correctly today.
+
+    Args:
+        df: GWAS results DataFrame.
+        pos_col: Column name for position.
+        p_col: Column name for p-values.
+        rs_col: Column name for SNP IDs (optional).
+
+    Raises:
+        ValidationError: If required columns are missing or the frame is empty.
+    """
+    check(df, gwas_spec(pos_col, p_col, rs_col, strict=False))
+
+
+def validate_genes_df(df: pd.DataFrame) -> None:
+    """Validate a gene annotations DataFrame at the plot-time tier.
+
+    Args:
+        df: Gene annotations DataFrame.
+
+    Raises:
+        ValidationError: If required columns are missing.
+    """
+    check(df, GENES_SPEC)
 
 
 def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
@@ -297,6 +387,8 @@ def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
             ``spec.error_class``.
     """
     validator = DataFrameValidator(df, spec.name, error_class=spec.error_class)
+    if spec.non_empty:
+        validator.require_non_empty()
     validator.require_columns(list(spec.required))
     validator.require_numeric(list(spec.numeric))
     validator.require_not_null(list(spec.not_null))

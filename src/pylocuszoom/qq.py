@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from ._data import prepare_pvalue_data
+
 
 def calculate_lambda_gc(p_values: np.ndarray) -> float:
     """Calculate genomic inflation factor (lambda GC).
@@ -89,13 +91,13 @@ def prepare_qq_data(
     if p_col not in df.columns:
         raise ValueError(f"Column '{p_col}' not found in DataFrame")
 
-    # Get p-values and filter invalid
-    p_values = df[p_col].values
-    valid_mask = ~np.isnan(p_values) & (p_values > 0) & (p_values <= 1)
-    p_valid = p_values[valid_mask]
-
-    if len(p_valid) == 0:
-        raise ValueError("No valid p-values found (must be > 0 and <= 1)")
+    prepared = prepare_pvalue_data(
+        df,
+        p_col,
+        allow_zero=False,
+        on_empty="No valid p-values found (must be > 0 and <= 1)",
+    )
+    p_valid = pd.to_numeric(prepared[p_col]).to_numpy()
 
     # Sort p-values (smallest first -> largest -log10 last)
     p_sorted = np.sort(p_valid)

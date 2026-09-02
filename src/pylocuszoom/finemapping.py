@@ -16,8 +16,6 @@ from .logging import logger
 from .utils import filter_by_region
 from .validation import ColumnSpec, RangeRule, check
 
-# Required columns for fine-mapping data (default column names)
-
 
 def validate_finemapping_df(
     df: pd.DataFrame,

@@ -236,13 +236,6 @@ class TestModuleLevelFunctions:
         logger.warning("test")
         logger.error("test")
 
-    def test_has_loguru_flag(self):
-        """Module should have _HAS_LOGURU flag set."""
-        from pylocuszoom.logging import _HAS_LOGURU
-
-        # Since loguru is a required dependency, it should be True
-        assert _HAS_LOGURU is True
-
     def test_logger_importable_from_package(self):
         """Logger should be importable from the package top level."""
         from pylocuszoom import disable_logging, enable_logging

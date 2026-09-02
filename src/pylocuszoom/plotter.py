@@ -39,7 +39,8 @@ from .recombination import (
     get_recombination_rate_for_region,
 )
 from .reference_genes import get_genes_for_build
-from .utils import filter_by_region, validate_genes_df, validate_gwas_df
+from .utils import filter_by_region
+from .validation import validate_genes_df, validate_gwas_df
 
 # Precomputed significance line value (used for plotting)
 DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
