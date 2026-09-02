@@ -195,6 +195,22 @@ class TestUCSCCaching:
             )
         assert after["gene_name"].tolist() == ["NFATC1"]
 
+    def test_exons_share_the_gene_request(self, tmp_path):
+        """ncbiRefSeq rows carry exons, so one track request serves both."""
+        from pylocuszoom.ucsc import get_genes_for_region_ucsc
+
+        with patch(
+            "pylocuszoom._http.requests.get",
+            return_value=ok_response(_refseq_payload()),
+        ) as mock_get:
+            genes, exons = get_genes_for_region_ucsc(
+                "canFam3", "1", 1_000_000, 1_200_000, tmp_path, include_exons=True
+            )
+
+        assert mock_get.call_count == 1
+        assert genes["gene_name"].tolist() == ["NFATC1"]
+        assert set(exons["gene_name"]) == {"NFATC1", "LOC111090558"}
+
     def test_two_genomes_do_not_share_an_entry(self, tmp_path):
         from pylocuszoom.ucsc import get_genes_for_region_ucsc
 

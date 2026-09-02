@@ -236,14 +236,15 @@ pyLocusZoom/
 │   │   └── hover.py           # Hover tooltip helpers for interactive backends
 │   ├── colors.py              # LD bins, eQTL, credible-set, PheWAS palettes
 │   ├── ld.py                  # PLINK wrapper for R² calculation
+│   ├── _ld_plotting.py        # LD intake and merge for the regional plot
 │   ├── recombination.py       # Recomb map loading + CanFam4 liftover
-│   ├── reference_data/        # Bundled reference datasets (auto-populated)
+│   ├── _liftover.py           # pyliftover adapter behind a Lifter protocol
 │   ├── gene_track.py          # Gene/exon rendering with overlap resolution
 │   ├── ensembl.py             # Ensembl REST client with caching
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired
-│   ├── reference_genes.py     # Routes a genome build to its gene source
+│   ├── reference_genes.py     # GeneSource, and the one fetch-and-cache orchestrator
 │   ├── _gene_cache.py         # Disk cache shared by both gene sources
-│   ├── _http.py               # Retrying JSON GET shared by both gene sources
+│   ├── _http.py               # Retrying JSON GET and file download
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
 │   ├── phewas.py              # PheWAS validation
@@ -267,10 +268,10 @@ pyLocusZoom/
 The `backends/` subpackage is the single point of extensibility for new
 renderers — adding a backend means writing one module that implements
 `PlotBackend` and decorating it with `@register_backend("name")`. No plotter
-class needs to change. The `reference_data/` directory is populated lazily at
-runtime by `recombination.ensure_recomb_maps()` and
-`download_canine_recombination_maps()` rather than shipping ~50 MB of maps in
-the wheel.
+class needs to change. Recombination maps are downloaded lazily at runtime by
+`recombination.ensure_recomb_maps()` and `download_canine_recombination_maps()`
+into the platform cache directory (`utils._platform_cache_base()`), rather than
+shipping ~50 MB of maps in the wheel.
 
 ### Custom backends in 2.0
 

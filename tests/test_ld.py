@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pylocuszoom.exceptions import EmptyLDOutputError, PlinkError
+from pylocuszoom.exceptions import EmptyLDOutputError, PlinkError, ValidationError
 from pylocuszoom.ld import (
     _add_species_flags,
     build_ld_command,
@@ -17,7 +17,68 @@ from pylocuszoom.ld import (
     find_plink,
     parse_ld_output,
     parse_pairwise_ld_output,
+    validate_plink_files,
 )
+
+
+class TestValidatePlinkFiles:
+    """Tests for validate_plink_files function."""
+
+    def test_valid_plink_files(self, tmp_path):
+        """Valid PLINK fileset passes."""
+        # Create all required files
+        (tmp_path / "test.bed").touch()
+        (tmp_path / "test.bim").touch()
+        (tmp_path / "test.fam").touch()
+
+        result = validate_plink_files(tmp_path / "test")
+        assert result == tmp_path / "test"
+
+    def test_missing_bed_raises(self, tmp_path):
+        """Missing .bed file raises error."""
+        (tmp_path / "test.bim").touch()
+        (tmp_path / "test.fam").touch()
+
+        with pytest.raises(ValidationError, match=".bed"):
+            validate_plink_files(tmp_path / "test")
+
+    def test_missing_multiple_files(self, tmp_path):
+        """Missing multiple files lists all in error."""
+        (tmp_path / "test.bed").touch()
+        # Missing .bim and .fam
+
+        with pytest.raises(ValidationError) as exc_info:
+            validate_plink_files(tmp_path / "test")
+
+        assert ".bim" in str(exc_info.value)
+        assert ".fam" in str(exc_info.value)
+
+    def test_prefix_with_dots_preserved(self, tmp_path):
+        """Prefixes containing dots (e.g. 'ukbb.v3') must not be truncated.
+
+        Regression: an earlier implementation used Path.with_suffix(),
+        which would rewrite 'ukbb.v3' -> 'ukbb.bed', checking the wrong
+        file on disk. Real files with the full prefix would appear
+        missing, and the existence check would pass only against files
+        that don't exist.
+        """
+        prefix = tmp_path / "ukbb.v3"
+        (tmp_path / "ukbb.v3.bed").touch()
+        (tmp_path / "ukbb.v3.bim").touch()
+        (tmp_path / "ukbb.v3.fam").touch()
+
+        result = validate_plink_files(prefix)
+        assert result == prefix
+
+    def test_prefix_with_dots_missing_raises(self, tmp_path):
+        """Dot-containing prefix with missing files raises (not silently passes)."""
+        prefix = tmp_path / "ukbb.v3"
+        (tmp_path / "ukbb.bed").touch()
+        (tmp_path / "ukbb.bim").touch()
+        (tmp_path / "ukbb.fam").touch()
+
+        with pytest.raises(ValidationError):
+            validate_plink_files(prefix)
 
 
 class TestFindPlink:

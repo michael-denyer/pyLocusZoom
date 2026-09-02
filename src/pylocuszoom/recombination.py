@@ -16,13 +16,12 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-import requests
-from tqdm import tqdm
 
+from ._http import download_file
 from ._liftover import PyLiftOverLifter, liftover_positions
 from .exceptions import DataDownloadError
 from .logging import logger
-from .utils import _platform_cache_base, filter_by_region
+from .utils import _platform_cache_base, assembly_token, filter_by_region
 
 # Recombination overlay color
 RECOMB_COLOR = "#7FCDFF"  # Light blue
@@ -81,80 +80,9 @@ def ensure_recomb_header(content: str, source_name: str) -> str:
     return content
 
 
-def _normalize_build(build: Optional[str]) -> Optional[str]:
-    """Normalize genome build name to canonical form.
-
-    Args:
-        build: Build name (e.g., "canfam4", "CanFam4.0", "UU_Cfam_GSD_1.0")
-
-    Returns:
-        Normalized build name ("canfam3", "canfam4", or the input lowercased
-        for unrecognized builds). None if not specified.
-    """
-    if build is None:
-        return None
-    build_lower = build.lower().replace(".", "").replace("_", "")
-    if any(x in build_lower for x in ("canfam4", "uucfamgsd")):
-        return "canfam4"
-    if "canfam3" in build_lower:
-        return "canfam3"
-    normalized = build.lower()
-    logger.debug(
-        f"Genome build '{build}' not recognized as canine; using as-is: '{normalized}'"
-    )
-    return normalized
-
-
 def get_chain_file_path() -> Path:
     """Get path to the CanFam3 to CanFam4 liftover chain file."""
     return get_default_data_dir() / "canFam3ToCanFam4.over.chain.gz"
-
-
-def _download_with_progress(
-    url: str, dest_path: Path, desc: str = "Downloading"
-) -> None:
-    """Download a file with a progress bar.
-
-    Streams into a ``.part`` sibling and renames it onto ``dest_path`` only
-    once the stream completes, so an interrupted download never leaves a
-    truncated file where a later ``exists()`` check would trust it.
-
-    Args:
-        url: URL to download from.
-        dest_path: Destination file path.
-        desc: Description for the progress bar.
-
-    Raises:
-        DataDownloadError: If the request or the stream fails.
-    """
-    partial_path = dest_path.with_name(dest_path.name + ".part")
-
-    try:
-        response = requests.get(url, stream=True, timeout=60)
-        response.raise_for_status()
-        total_size = int(response.headers.get("content-length", 0))
-        with (
-            open(partial_path, "wb") as f,
-            tqdm(
-                total=total_size,
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                desc=desc,
-                disable=total_size == 0,  # Disable if size unknown
-            ) as pbar,
-        ):
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-                    pbar.update(len(chunk))
-        os.replace(partial_path, dest_path)
-    except requests.RequestException as e:
-        partial_path.unlink(missing_ok=True)
-        raise DataDownloadError(f"Failed to download {url}: {e}") from e
-    except BaseException:
-        partial_path.unlink(missing_ok=True)
-        raise
 
 
 def download_liftover_chain(force: bool = False) -> Path:
@@ -179,7 +107,7 @@ def download_liftover_chain(force: bool = False) -> Path:
     logger.info("Downloading CanFam3 to CanFam4 liftover chain...")
     logger.debug(f"Source: {CANFAM3_TO_CANFAM4_CHAIN_URL}")
 
-    _download_with_progress(
+    download_file(
         CANFAM3_TO_CANFAM4_CHAIN_URL,
         chain_path,
         desc="Liftover chain",
@@ -344,7 +272,7 @@ def download_canine_recombination_maps(
         # Download tar.gz file with progress bar
         tar_path = Path(tmpdir) / "dog_genetic_maps.tar.gz"
 
-        _download_with_progress(
+        download_file(
             CANINE_RECOMB_URL,
             tar_path,
             desc="Recombination maps",
@@ -507,8 +435,11 @@ def get_recombination_rate_for_region(
     df = load_recombination_map(chrom, species=species, data_dir=data_dir)
 
     # Liftover if needed
-    build = _normalize_build(genome_build)
-    if species == "canine" and build == "canfam4":
+    if (
+        species == "canine"
+        and genome_build
+        and assembly_token(genome_build) == "canfam4"
+    ):
         logger.debug(f"Lifting over recombination map for chr{chrom} to CanFam4")
         df = liftover_recombination_map(
             df, from_build="canfam3", to_build="canfam4", chrom=chrom

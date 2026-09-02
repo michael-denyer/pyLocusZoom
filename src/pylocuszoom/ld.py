@@ -9,13 +9,15 @@ import re
 import shutil
 import subprocess
 import tempfile
-from typing import Optional
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Optional, Union
 
 import pandas as pd
 
 from .exceptions import EmptyLDOutputError, PlinkError, ValidationError
 from .logging import logger
-from .utils import validate_plink_files
 
 
 def _log_rmtree_error(func, path, exc_info):
@@ -112,6 +114,112 @@ def find_plink() -> Optional[str]:
     return None
 
 
+def validate_plink_files(bfile_path: Union[str, Path]) -> Path:
+    """Validate that PLINK binary fileset exists.
+
+    Checks for .bed, .bim, and .fam files.
+
+    Args:
+        bfile_path: Path prefix for PLINK files (without extension).
+
+    Returns:
+        Path object if files exist.
+
+    Raises:
+        ValidationError: If any PLINK files are missing.
+    """
+    path = Path(bfile_path)
+    missing = []
+    # Use string concatenation rather than with_suffix() — PLINK prefixes
+    # frequently contain dots (e.g. "ukbb.v3"), which with_suffix would
+    # truncate, causing validation to check the wrong file.
+    for ext in [".bed", ".bim", ".fam"]:
+        if not Path(str(path) + ext).exists():
+            missing.append(ext)
+
+    if missing:
+        raise ValidationError(
+            f"PLINK files missing for {path}: {missing}. "
+            f"Expected: {path}.bed, {path}.bim, {path}.fam"
+        )
+    return path
+
+
+def _resolve_plink(plink_path: Optional[str]) -> str:
+    """Return the PLINK executable to run.
+
+    Args:
+        plink_path: Caller-supplied path, or None to search PATH.
+
+    Returns:
+        Path to the PLINK executable.
+
+    Raises:
+        FileNotFoundError: If PLINK is neither supplied nor on PATH.
+    """
+    resolved = plink_path or find_plink()
+    if resolved is None:
+        raise FileNotFoundError(
+            "PLINK not found. Install PLINK 1.9 or specify plink_path."
+        )
+    logger.debug(f"Using PLINK at {resolved}")
+    return resolved
+
+
+@contextmanager
+def _plink_workdir(working_dir: Optional[str], prefix: str) -> Iterator[str]:
+    """Yield a directory for PLINK output, removing it if we created it.
+
+    Args:
+        working_dir: Caller-supplied directory, or None for a temp directory.
+        prefix: Temp-directory name prefix, used only when one is created.
+
+    Yields:
+        Path to a directory that exists for the duration of the block.
+    """
+    created = working_dir is None
+    if working_dir is None:
+        working_dir = tempfile.mkdtemp(prefix=prefix)
+    try:
+        os.makedirs(working_dir, exist_ok=True)
+        yield working_dir
+    finally:
+        if created and os.path.exists(working_dir):
+            shutil.rmtree(working_dir, onerror=_log_rmtree_error)
+
+
+def _run_plink(cmd: list[str], working_dir: str, what: str, hint: str) -> None:
+    """Run a PLINK command, raising PlinkError on a timeout or a non-zero exit.
+
+    Args:
+        cmd: Command arguments, as built by one of the build_*_command helpers.
+        working_dir: Directory to run in.
+        what: Name of the calculation, used in error messages.
+        hint: What the caller can try after a timeout.
+
+    Raises:
+        PlinkError: If PLINK times out or exits non-zero.
+    """
+    logger.debug(f"Running PLINK command: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=working_dir,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        raise PlinkError(f"PLINK {what} timed out after 300s. {hint}")
+
+    if result.returncode != 0:
+        raise PlinkError(
+            f"PLINK {what} failed (exit code {result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
+
+
 def build_ld_command(
     plink_path: str,
     bfile_path: str,
@@ -119,7 +227,7 @@ def build_ld_command(
     output_path: str,
     window_kb: int = 500,
     ld_window_r2: float = 0.0,
-    species: str = "canine",
+    species: Optional[str] = "canine",
     threads: Optional[int] = None,
 ) -> list:
     """Build PLINK command for LD calculation.
@@ -268,7 +376,7 @@ def calculate_ld(
     window_kb: int = 500,
     plink_path: Optional[str] = None,
     working_dir: Optional[str] = None,
-    species: str = "canine",
+    species: Optional[str] = "canine",
     threads: Optional[int] = None,
 ) -> pd.DataFrame:
     """Calculate LD (R²) between a lead SNP and all SNPs in a region.
@@ -302,36 +410,18 @@ def calculate_ld(
         >>> # Merge with GWAS results for plotting
         >>> gwas_with_ld = gwas_df.merge(ld_df, left_on="rs", right_on="SNP")
     """
-    # Find PLINK first (tests mock this to return None)
-    if plink_path is None:
-        plink_path = find_plink()
-    if plink_path is None:
-        raise FileNotFoundError(
-            "PLINK not found. Install PLINK 1.9 or specify plink_path."
-        )
-
-    logger.debug(f"Using PLINK at {plink_path}")
-
-    # Validate PLINK files exist
+    plink_path = _resolve_plink(plink_path)
     validate_plink_files(bfile_path)
 
-    # Use temp directory if working_dir not specified
-    cleanup_working_dir = False
-    if working_dir is None:
-        working_dir = tempfile.mkdtemp(prefix="pylocuszoom_ld_")
-        cleanup_working_dir = True
-
-    try:
-        os.makedirs(working_dir, exist_ok=True)
+    with _plink_workdir(working_dir, "pylocuszoom_ld_") as workdir:
         # Sanitize SNP ID for safe use in file paths (e.g., chr1:12345 contains ':')
         safe_snp_id = re.sub(r"[^\w\-.]", "_", lead_snp)
         if safe_snp_id != lead_snp:
             logger.debug(
                 f"Sanitized SNP ID for file path: {lead_snp!r} -> {safe_snp_id!r}"
             )
-        output_prefix = os.path.join(working_dir, f"ld_{safe_snp_id}")
+        output_prefix = os.path.join(workdir, f"ld_{safe_snp_id}")
 
-        # Build and run PLINK command
         cmd = build_ld_command(
             plink_path=plink_path,
             bfile_path=bfile_path,
@@ -341,36 +431,14 @@ def calculate_ld(
             species=species,
             threads=threads,
         )
+        _run_plink(
+            cmd,
+            workdir,
+            "LD calculation",
+            "Consider reducing window_kb or checking PLINK installation.",
+        )
 
-        logger.debug(f"Running PLINK command: {' '.join(cmd)}")
-
-        try:
-            result = subprocess.run(
-                cmd,
-                cwd=working_dir,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-        except subprocess.TimeoutExpired:
-            raise PlinkError(
-                "PLINK LD calculation timed out after 300s. "
-                "Consider reducing window_kb or checking PLINK installation."
-            )
-
-        if result.returncode != 0:
-            raise PlinkError(
-                f"PLINK LD calculation failed (exit code {result.returncode}): "
-                f"{result.stderr.strip()}"
-            )
-
-        # Parse output
-        ld_file = f"{output_prefix}.ld"
-        return parse_ld_output(ld_file, lead_snp)
-
-    finally:
-        if cleanup_working_dir and os.path.exists(working_dir):
-            shutil.rmtree(working_dir, onerror=_log_rmtree_error)
+        return parse_ld_output(f"{output_prefix}.ld", lead_snp)
 
 
 def calculate_pairwise_ld(
@@ -381,7 +449,7 @@ def calculate_pairwise_ld(
     end: int | None = None,
     plink_path: str | None = None,
     working_dir: str | None = None,
-    species: str = "canine",
+    species: str | None = "canine",
     metric: str = "r2",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Calculate pairwise LD matrix for a set of variants.
@@ -418,38 +486,19 @@ def calculate_pairwise_ld(
         >>> # matrix is 3x3 DataFrame with LD values
         >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2
     """
-    # Find PLINK
-    if plink_path is None:
-        plink_path = find_plink()
-    if plink_path is None:
-        raise FileNotFoundError(
-            "PLINK not found. Install PLINK 1.9 or specify plink_path."
-        )
-
-    logger.debug(f"Using PLINK at {plink_path}")
-
-    # Validate PLINK files exist
+    plink_path = _resolve_plink(plink_path)
     validate_plink_files(bfile_path)
 
-    # Use temp directory if working_dir not specified
-    cleanup_working_dir = False
-    if working_dir is None:
-        working_dir = tempfile.mkdtemp(prefix="pylocuszoom_pairwise_ld_")
-        cleanup_working_dir = True
+    with _plink_workdir(working_dir, "pylocuszoom_pairwise_ld_") as workdir:
+        output_prefix = os.path.join(workdir, "pairwise_ld")
 
-    try:
-        os.makedirs(working_dir, exist_ok=True)
-        output_prefix = os.path.join(working_dir, "pairwise_ld")
-
-        # Write SNP list to file if provided
         snp_list_file = None
         if snp_list:
-            snp_list_file = os.path.join(working_dir, "snp_list.txt")
+            snp_list_file = os.path.join(workdir, "snp_list.txt")
             with open(snp_list_file, "w") as f:
                 for snp in snp_list:
                     f.write(f"{snp}\n")
 
-        # Build and run PLINK command
         cmd = build_pairwise_ld_command(
             plink_path=plink_path,
             bfile_path=bfile_path,
@@ -461,34 +510,16 @@ def calculate_pairwise_ld(
             species=species,
             metric=metric,
         )
+        _run_plink(
+            cmd,
+            workdir,
+            "pairwise LD calculation",
+            "Consider reducing the region size or SNP count.",
+        )
 
-        logger.debug(f"Running PLINK command: {' '.join(cmd)}")
-
-        try:
-            result = subprocess.run(
-                cmd,
-                cwd=working_dir,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-        except subprocess.TimeoutExpired:
-            raise PlinkError(
-                "PLINK pairwise LD calculation timed out after 300s. "
-                "Consider reducing the region size or SNP count."
-            )
-
-        if result.returncode != 0:
-            raise PlinkError(
-                f"PLINK pairwise LD calculation failed (exit code {result.returncode}): "
-                f"{result.stderr.strip()}"
-            )
-
-        # Parse output
-        ld_file = f"{output_prefix}.ld"
-        snplist_file = f"{output_prefix}.snplist"
-
-        matrix, found_snps = parse_pairwise_ld_output(ld_file, snplist_file)
+        matrix, found_snps = parse_pairwise_ld_output(
+            f"{output_prefix}.ld", f"{output_prefix}.snplist"
+        )
 
         # Validate all requested SNPs were found
         if snp_list:
@@ -499,7 +530,3 @@ def calculate_pairwise_ld(
                 )
 
         return matrix, found_snps
-
-    finally:
-        if cleanup_working_dir and os.path.exists(working_dir):
-            shutil.rmtree(working_dir, onerror=_log_rmtree_error)
