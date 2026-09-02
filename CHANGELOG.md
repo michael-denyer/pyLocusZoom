@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The recombination downloads retry.** `download_liftover_chain()` and `download_canine_recombination_maps()` had their own HTTP transport with no retry, so the 50 MB tarball the first canine plot depends on got one attempt while a 5 KB JSON payload got three. Both now stream through the shared transport in `_http.py`, which retries a dropped connection and a 429 or 503 with doubling backoff. A 404 still fails on the first attempt.
 - **Internal helpers moved to where their callers are.** `validate_plink_files()` moved from `utils.py` to `ld.py`, its only caller; `_normalize_build()` is deleted in favour of `utils.assembly_token()`, which does the same job for every build name the library recognises; and the empty `reference_data/` package is removed, along with the `ARCHITECTURE.md` claim that recombination maps were written into it. Maps have always gone to the platform cache directory.
 
+- **`start=0` is rejected by `plot()` and `plot_stacked()` (breaking).** Genomic coordinates are 1-based, which `lead_pos` already enforced; `RegionConfig.start` now carries the same `>= 1` bound instead of `>= 0`.
 - **The Ensembl gene cache key includes the genome build.** Two builds of the same region no longer share an entry. Every entry written before this release is orphaned rather than reused, because the assembly its coordinates are in cannot be recovered. Call `clear_ensembl_cache()` to reclaim the disk.
 
 ## [2.1.1] - 2026-07-25

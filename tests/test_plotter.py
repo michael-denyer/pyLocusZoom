@@ -1442,7 +1442,7 @@ class TestPlotterDelegation:
             fig = plotter.plot_stacked(
                 [gwas_df],
                 chrom=1,
-                start=0,
+                start=1,
                 end=3000,
                 finemapping_df=fm_df,
             )

@@ -59,7 +59,7 @@ options and their defaults.
 | Field   | Type          | Default  | Validation                                     |
 | ------- | ------------- | -------- | ---------------------------------------------- |
 | `chrom` | `int \| str`  | required | Integer `>= 1`, or non-empty string            |
-| `start` | `int`         | required | `>= 0`                                         |
+| `start` | `int`         | required | `>= 1` (1-based coordinates)                   |
 | `end`   | `int`         | required | `> 0` and strictly greater than `start`        |
 
 ### `ColumnConfig` — GWAS DataFrame column names

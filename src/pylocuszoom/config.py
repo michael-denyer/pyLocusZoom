@@ -13,7 +13,7 @@ Example:
     >>> config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
 """
 
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -23,14 +23,14 @@ class RegionConfig(BaseModel):
 
     Attributes:
         chrom: Chromosome number or name (e.g., 1, "A1", "X").
-        start: Start position in base pairs (must be >= 0).
+        start: Start position in base pairs (1-based, must be >= 1).
         end: End position in base pairs (must be > start).
     """
 
     model_config = ConfigDict(frozen=True)
 
     chrom: Union[int, str] = Field(..., description="Chromosome number or name")
-    start: int = Field(..., ge=0, description="Start position (bp)")
+    start: int = Field(..., ge=1, description="Start position (bp)")
     end: int = Field(..., gt=0, description="End position (bp)")
 
     @field_validator("chrom")
@@ -171,81 +171,37 @@ class PlotConfig(BaseModel):
         return self
 
     @classmethod
-    def from_kwargs(
-        cls,
-        *,
-        # Region params (required)
-        chrom: Union[int, str],
-        start: int,
-        end: int,
-        # Column params
-        pos_col: str = "ps",
-        p_col: str = "p_wald",
-        rs_col: str = "rs",
-        # Display params
-        snp_labels: bool = True,
-        label_top_n: int = 5,
-        show_recombination: bool = True,
-        figsize: Tuple[float, float] = (12.0, 8.0),
-        # LD params
-        lead_pos: Optional[int] = None,
-        ld_reference_file: Optional[str] = None,
-        ld_col: Optional[str] = None,
-    ) -> "PlotConfig":
-        """Create PlotConfig from flat keyword arguments.
+    def from_kwargs(cls, **kwargs: Any) -> "PlotConfig":
+        """Create a config from the flat keyword arguments a plot method accepts.
 
-        Factory method that accepts parameters matching the plot() method
-        signature, enabling backward compatibility with existing code.
-
-        Args:
-            chrom: Chromosome number or name.
-            start: Start position (bp).
-            end: End position (bp).
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            rs_col: Column name for SNP ID.
-            snp_labels: Whether to show SNP labels.
-            label_top_n: Number of top SNPs to label.
-            show_recombination: Whether to show recombination overlay.
-            figsize: Figure size (width, height).
-            lead_pos: Position of lead SNP.
-            ld_reference_file: PLINK binary fileset path.
-            ld_col: Pre-computed LD column name.
-
-        Returns:
-            PlotConfig with nested config objects.
+        Each keyword is routed to the nested model that declares it; whatever
+        remains is a field of ``cls`` itself.
 
         Raises:
             ValidationError: If parameters are invalid.
         """
-        return cls(
-            region=RegionConfig(chrom=chrom, start=start, end=end),
-            columns=ColumnConfig(pos_col=pos_col, p_col=p_col, rs_col=rs_col),
-            display=DisplayConfig(
-                snp_labels=snp_labels,
-                label_top_n=label_top_n,
-                show_recombination=show_recombination,
-                figsize=figsize,
-            ),
-            ld=LDConfig(
-                lead_pos=lead_pos,
-                ld_reference_file=ld_reference_file,
-                ld_col=ld_col,
-            ),
+        nested = (
+            ("region", RegionConfig),
+            ("columns", ColumnConfig),
+            ("display", DisplayConfig),
+            ("ld", LDConfig),
         )
+        parts = {
+            name: model(
+                **{k: kwargs.pop(k) for k in list(kwargs) if k in model.model_fields}
+            )
+            for name, model in nested
+        }
+        return cls(**parts, **kwargs)
 
 
-class StackedPlotConfig(BaseModel):
+class StackedPlotConfig(PlotConfig):
     """Composite configuration for plot_stacked() method.
 
-    Extends PlotConfig pattern with list-based parameters for stacked plots.
+    Extends PlotConfig with list-based parameters for stacked plots.
     Supports multiple lead positions, panel labels, and LD reference files.
 
     Attributes:
-        region: Genomic region specification (required).
-        columns: DataFrame column name mappings.
-        display: Display and visual options.
-        ld: Linkage disequilibrium configuration (single file for broadcast).
         lead_positions: List of lead SNP positions (one per panel).
         panel_labels: List of panel labels (one per panel).
         ld_reference_files: List of PLINK filesets (one per panel).
@@ -258,14 +214,6 @@ class StackedPlotConfig(BaseModel):
         ... )
     """
 
-    model_config = ConfigDict(frozen=True)
-
-    region: RegionConfig
-    columns: ColumnConfig = Field(default_factory=ColumnConfig)
-    display: DisplayConfig = Field(default_factory=DisplayConfig)
-    ld: LDConfig = Field(default_factory=LDConfig)
-
-    # Stacked-specific list parameters
     lead_positions: Optional[List[int]] = Field(
         default=None, description="Lead SNP positions (one per panel)"
     )
@@ -277,92 +225,22 @@ class StackedPlotConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_broadcast_ld(self) -> "StackedPlotConfig":
+    def validate_ld_requires_lead_pos(self) -> "StackedPlotConfig":
         """Validate broadcast LD configuration for stacked plots.
 
         When ld_reference_file is provided for broadcast, lead_positions must
         be provided to specify the reference SNP for each panel.
         """
-        if self.ld.ld_reference_file is not None and self.ld.lead_pos is None:
-            # Broadcast mode: ld_reference_file without lead_pos in LDConfig
-            # Requires lead_positions list instead
-            if self.lead_positions is None:
-                raise ValueError(
-                    "lead_positions is required when ld_reference_file is provided "
-                    "for broadcast (one lead position per panel)"
-                )
+        if (
+            self.ld.ld_reference_file is not None
+            and self.ld.lead_pos is None
+            and self.lead_positions is None
+        ):
+            raise ValueError(
+                "lead_positions is required when ld_reference_file is provided "
+                "for broadcast (one lead position per panel)"
+            )
         return self
-
-    @classmethod
-    def from_kwargs(
-        cls,
-        *,
-        # Region params (required)
-        chrom: Union[int, str],
-        start: int,
-        end: int,
-        # Column params
-        pos_col: str = "ps",
-        p_col: str = "p_wald",
-        rs_col: str = "rs",
-        # Display params
-        snp_labels: bool = True,
-        label_top_n: int = 3,  # Default for stacked is 3 (less crowded)
-        show_recombination: bool = True,
-        figsize: Tuple[float, float] = (12.0, 8.0),
-        # LD params (single for broadcast)
-        ld_reference_file: Optional[str] = None,
-        ld_col: Optional[str] = None,
-        # Stacked-specific list params
-        lead_positions: Optional[List[int]] = None,
-        panel_labels: Optional[List[str]] = None,
-        ld_reference_files: Optional[List[str]] = None,
-    ) -> "StackedPlotConfig":
-        """Create StackedPlotConfig from flat keyword arguments.
-
-        Factory method that accepts parameters matching the plot_stacked()
-        method signature, enabling backward compatibility.
-
-        Args:
-            chrom: Chromosome number or name.
-            start: Start position (bp).
-            end: End position (bp).
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            rs_col: Column name for SNP ID.
-            snp_labels: Whether to show SNP labels.
-            label_top_n: Number of top SNPs to label (default 3 for stacked).
-            show_recombination: Whether to show recombination overlay.
-            figsize: Figure size (width, height).
-            ld_reference_file: Single PLINK fileset (broadcast to all panels).
-            ld_col: Pre-computed LD column name.
-            lead_positions: List of lead SNP positions.
-            panel_labels: List of panel labels.
-            ld_reference_files: List of PLINK filesets.
-
-        Returns:
-            StackedPlotConfig with nested config objects.
-
-        Raises:
-            ValidationError: If parameters are invalid.
-        """
-        return cls(
-            region=RegionConfig(chrom=chrom, start=start, end=end),
-            columns=ColumnConfig(pos_col=pos_col, p_col=p_col, rs_col=rs_col),
-            display=DisplayConfig(
-                snp_labels=snp_labels,
-                label_top_n=label_top_n,
-                show_recombination=show_recombination,
-                figsize=figsize,
-            ),
-            ld=LDConfig(
-                ld_reference_file=ld_reference_file,
-                ld_col=ld_col,
-            ),
-            lead_positions=lead_positions,
-            panel_labels=panel_labels,
-            ld_reference_files=ld_reference_files,
-        )
 
 
 class ColocConfig(BaseModel):
