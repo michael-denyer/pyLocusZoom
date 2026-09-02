@@ -50,6 +50,13 @@ _AXIS_STYLE = dict(
     zeroline=False,
 )
 
+# Side and bottom margins, as fractions of the figure. No caller has ever
+# varied them, so they are this backend's own layout policy rather than part
+# of the finalize_layout contract.
+_LEFT_MARGIN = 0.08
+_RIGHT_MARGIN = 0.95
+_BOTTOM_MARGIN = 0.1
+
 
 @register_backend("plotly")
 class PlotlyBackend:
@@ -69,12 +76,12 @@ class PlotlyBackend:
 
     def create_figure(
         self,
-        n_panels: int,
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[go.Figure, List[_Panel]]:
-        """Create a figure with multiple panels."""
+        """Create a figure with one panel per height ratio."""
+        n_panels = len(height_ratios)
         width_px, height_px = pixels(figsize)
         row_heights = normalize_ratios(height_ratios)
 
@@ -695,32 +702,34 @@ class PlotlyBackend:
     def finalize_layout(
         self,
         fig: go.Figure,
-        left: float = 0.08,
-        right: float = 0.95,
         top: float = 0.95,
-        bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust layout margins."""
+        """Adjust layout margins.
+
+        ``hspace`` is ignored: panel spacing is fixed when the subplots are
+        created.
+        """
+        width, height = fig.layout.width, fig.layout.height
         fig.update_layout(
             margin=dict(
-                l=int(left * fig.layout.width) if fig.layout.width else 80,
-                r=int((1 - right) * fig.layout.width) if fig.layout.width else 50,
-                t=int((1 - top) * fig.layout.height) if fig.layout.height else 50,
-                b=int(bottom * fig.layout.height) if fig.layout.height else 80,
+                l=int(_LEFT_MARGIN * width) if width else 80,
+                r=int((1 - _RIGHT_MARGIN) * width) if width else 50,
+                t=int((1 - top) * height) if height else 50,
+                b=int(_BOTTOM_MARGIN * height) if height else 80,
             )
         )
 
     def add_region_highlight(
         self,
-        fig: go.Figure,
-        axes: List[Any],
+        axes: List[_Panel],
         x_start: float,
         x_end: float,
         color: str = "yellow",
         alpha: float = 0.3,
     ) -> None:
         """Highlight an x-range across multiple plotly subplot rows."""
+        fig = axes[0].fig
         for row in range(1, len(axes) + 1):
             fig.add_vrect(
                 x0=x_start,

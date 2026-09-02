@@ -16,6 +16,13 @@ from . import register_backend
 from .base import Mappable
 from .composition import LegendEntry
 
+# Side and bottom margins, as fractions of the figure. No caller has ever
+# varied them, so they are this backend's own layout policy rather than part
+# of the finalize_layout contract.
+_LEFT_MARGIN = 0.08
+_RIGHT_MARGIN = 0.95
+_BOTTOM_MARGIN = 0.1
+
 
 @register_backend("matplotlib")
 class MatplotlibBackend:
@@ -41,19 +48,18 @@ class MatplotlibBackend:
 
     def create_figure(
         self,
-        n_panels: int,
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Figure, List[Axes]]:
-        """Create a figure with multiple panels."""
-        if n_panels == 1:
+        """Create a figure with one panel per height ratio."""
+        if len(height_ratios) == 1:
             fig, ax = plt.subplots(figsize=figsize)
             self._hide_top_right(ax)
             return fig, [ax]
 
         fig, axes = plt.subplots(
-            n_panels,
+            len(height_ratios),
             1,
             figsize=figsize,
             height_ratios=height_ratios,
@@ -470,20 +476,20 @@ class MatplotlibBackend:
     def finalize_layout(
         self,
         fig: Figure,
-        left: float = 0.08,
-        right: float = 0.95,
         top: float = 0.95,
-        bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
         """Adjust subplot layout parameters."""
         fig.subplots_adjust(
-            left=left, right=right, top=top, bottom=bottom, hspace=hspace
+            left=_LEFT_MARGIN,
+            right=_RIGHT_MARGIN,
+            top=top,
+            bottom=_BOTTOM_MARGIN,
+            hspace=hspace,
         )
 
     def add_region_highlight(
         self,
-        fig: Figure,
         axes: List[Axes],
         x_start: float,
         x_end: float,

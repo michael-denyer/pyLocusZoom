@@ -51,7 +51,7 @@ def render_ld_heatmap(backend: SupportsHeatmap, req: LDHeatmapRequest) -> Any:
     """Draw the lower-triangle heatmap, its highlights, ticks, and title."""
     n_snps = len(req.snp_ids)
     fig, axes = backend.create_figure(
-        n_panels=1, height_ratios=[1.0], figsize=req.figsize, sharex=False
+        height_ratios=[1.0], figsize=req.figsize, sharex=False
     )
     ax = axes[0]
     mappable = backend.add_heatmap(

@@ -33,7 +33,6 @@ class SupportsRegionHighlight(Protocol):
 
     def add_region_highlight(
         self,
-        fig: Any,
         axes: List[Any],
         x_start: float,
         x_end: float,
@@ -222,16 +221,15 @@ class PlotBackend(Protocol):
 
     def create_figure(
         self,
-        n_panels: int,
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Any, List[Any]]:
-        """Create a figure with multiple panels (subplots).
+        """Create a figure with one vertical panel per height ratio.
 
         Args:
-            n_panels: Number of vertical panels.
-            height_ratios: Relative heights for each panel.
+            height_ratios: Relative height of each panel; its length is the
+                panel count.
             figsize: Figure size as (width, height).
             sharex: Whether panels share the x-axis.
 
@@ -243,21 +241,21 @@ class PlotBackend(Protocol):
     def finalize_layout(
         self,
         fig: Any,
-        left: float = 0.08,
-        right: float = 0.95,
         top: float = 0.95,
-        bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
         """Finalize figure layout with margins and spacing.
 
+        Both fractions are advisory, in the same sense as ``zorder``: a backend
+        that lays panels out itself ignores them. The side and bottom margins
+        are not on the contract because no caller ever varied them; each
+        backend holds its own.
+
         Args:
             fig: Figure object.
-            left: Left margin fraction.
-            right: Right margin fraction.
-            top: Top margin fraction.
-            bottom: Bottom margin fraction.
-            hspace: Vertical space between subplots.
+            top: Top margin fraction, lowered to leave room for a suptitle.
+            hspace: Vertical space between panels, as a fraction of panel
+                height.
         """
         ...
 

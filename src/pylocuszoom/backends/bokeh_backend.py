@@ -122,12 +122,11 @@ class BokehBackend:
 
     def create_figure(
         self,
-        n_panels: int,
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Any, List[figure]]:
-        """Create a layout with multiple panels."""
+        """Create a layout with one panel per height ratio."""
         width_px, total_height = pixels(figsize)
         heights = split_pixels(total_height, height_ratios, len(height_ratios))
 
@@ -668,22 +667,13 @@ class BokehBackend:
     def finalize_layout(
         self,
         fig: Any,
-        left: float = 0.08,
-        right: float = 0.95,
         top: float = 0.95,
-        bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust layout (limited support in bokeh).
-
-        Bokeh layouts are mostly automatic.
-        """
-        # Bokeh handles layout differently - column spacing is fixed
-        pass
+        """Do nothing: a Bokeh column sizes and spaces its own panels."""
 
     def add_region_highlight(
         self,
-        fig: Any,
         axes: List[figure],
         x_start: float,
         x_end: float,

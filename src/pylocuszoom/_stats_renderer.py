@@ -73,9 +73,7 @@ class StatsRenderer:
     ) -> Any:
         df, palette = _phewas_groups(df, category_col, p_col)
         df["y_pos"] = range(len(df))
-        fig, axes = self._backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=figsize
-        )
+        fig, axes = self._backend.create_figure(height_ratios=[1.0], figsize=figsize)
         ax = axes[0]
         for group, group_data in df.groupby("_group", sort=False):
             for mask, marker in _effect_subsets(group_data, effect_col):
@@ -151,9 +149,7 @@ class StatsRenderer:
             )
         else:
             sizes = 80
-        fig, axes = self._backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=figsize
-        )
+        fig, axes = self._backend.create_figure(height_ratios=[1.0], figsize=figsize)
         ax = axes[0]
         self._backend.errorbar_h(
             ax,

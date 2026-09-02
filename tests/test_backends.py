@@ -212,7 +212,7 @@ class TestSetXticks:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
         # Verify ticks were set
         ticks = list(axes[0].get_xticks())
@@ -225,7 +225,7 @@ class TestSetXticks:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
         # Verify via layout
         xaxis = fig.layout.xaxis
@@ -237,7 +237,7 @@ class TestSetXticks:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
         # Access ticks via the ticker's ticks property
         assert list(axes[0].xaxis.ticker.ticks) == [0, 1, 2]
@@ -370,7 +370,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -388,7 +388,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
             lower_triangle(ld_matrix_array),
@@ -403,7 +403,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -422,7 +422,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         trace = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -438,7 +438,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         trace = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -458,7 +458,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         trace = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -477,7 +477,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         mapper = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -495,7 +495,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         mapper = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -519,7 +519,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
         # Use blue-to-yellow gradient
         mappable = backend.add_heatmap(
             axes[0],
@@ -538,7 +538,7 @@ class TestHeatmapMethods:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 6))
+        fig, axes = backend.create_figure([1.0], (6, 6))
 
         mappable = backend.add_heatmap(
             axes[0],
@@ -633,7 +633,7 @@ class TestLegendPlacement:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="lower left")
         legend = axes[0].get_legend()
         assert legend._get_loc() == Legend.codes["lower left"]
@@ -645,7 +645,7 @@ class TestLegendPlacement:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="upper right")
         marker_handle = axes[0].get_legend().legend_handles[0]
         assert to_hex(marker_handle.get_markeredgecolor()) == "#00ff00"
@@ -655,7 +655,7 @@ class TestLegendPlacement:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="lower left")
         legend = fig.layout.legend
         assert legend.xanchor == "left"
@@ -666,7 +666,7 @@ class TestLegendPlacement:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="upper right")
         legend_traces = [t for t in fig.data if t.name == "Lead SNP"]
         assert legend_traces[0].marker.line.color == "#00FF00"
@@ -678,7 +678,7 @@ class TestLegendPlacement:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="lower left")
         legends = axes[0].select(Legend)
         assert list(legends)[0].location == "bottom_left"
@@ -690,7 +690,7 @@ class TestLegendPlacement:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="upper right")
         legend = list(axes[0].select(Legend))[0]
         lead_item = legend.items[0]
@@ -702,12 +702,12 @@ class TestLegendPlacement:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         plotly_backend = PlotlyBackend()
-        plotly_fig, plotly_axes = plotly_backend.create_figure(1, [1.0], (6, 4))
+        plotly_fig, plotly_axes = plotly_backend.create_figure([1.0], (6, 4))
         plotly_backend.add_legend(plotly_axes[0], self._entries(), loc="nonsense")
         assert plotly_fig.layout.legend.xanchor == "right"
 
         bokeh_backend = BokehBackend()
-        _, bokeh_axes = bokeh_backend.create_figure(1, [1.0], (6, 4))
+        _, bokeh_axes = bokeh_backend.create_figure([1.0], (6, 4))
         bokeh_backend.add_legend(bokeh_axes[0], self._entries(), loc="nonsense")
 
 
@@ -725,7 +725,7 @@ class TestLegendTitleMathtext:
         assert LD_LEGEND_TITLE == r"$r^2$"
 
         backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(1, [1.0], (6, 4))
+        fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(
             axes[0], ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
         )
@@ -743,14 +743,14 @@ class TestLegendTitleMathtext:
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         plotly_backend = PlotlyBackend()
-        plotly_fig, plotly_axes = plotly_backend.create_figure(1, [1.0], (6, 4))
+        plotly_fig, plotly_axes = plotly_backend.create_figure([1.0], (6, 4))
         plotly_backend.add_legend(
             plotly_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
         )
         assert plotly_fig.layout.legend.title.text == "r²"
 
         bokeh_backend = BokehBackend()
-        _, bokeh_axes = bokeh_backend.create_figure(1, [1.0], (6, 4))
+        _, bokeh_axes = bokeh_backend.create_figure([1.0], (6, 4))
         bokeh_backend.add_legend(
             bokeh_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
         )

@@ -30,7 +30,8 @@ class RecordingBackend:
 
     def create_figure(self, **kwargs):
         self._record("create_figure", **kwargs)
-        return SimpleNamespace(), [SimpleNamespace() for _ in range(kwargs["n_panels"])]
+        n_panels = len(kwargs["height_ratios"])
+        return SimpleNamespace(), [SimpleNamespace() for _ in range(n_panels)]
 
     def create_figure_grid(self, **kwargs):
         self._record("create_figure_grid", **kwargs)

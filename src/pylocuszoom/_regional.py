@@ -43,7 +43,6 @@ class RegionalPlotComposer:
             raise ValueError("Regional figure plan must contain at least one panel")
 
         fig, axes = self._backend.create_figure(
-            n_panels=len(plan.panels),
             height_ratios=[panel.height for panel in plan.panels],
             figsize=plan.figsize,
             sharex=True,
