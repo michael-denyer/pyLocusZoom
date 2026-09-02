@@ -105,13 +105,11 @@ class TestMiamiPlotter:
         top_ax, bottom_ax = fig.get_axes()
         assert _max_scatter_x(top_ax) == _max_scatter_x(bottom_ax)
 
-    def test_unknown_species_raises(self, miami_panel_dfs_with_rs):
-        """An unrecognised species is rejected, as it is for Manhattan plots."""
-        top_df, bottom_df = miami_panel_dfs_with_rs
-        plotter = MiamiPlotter(species="nonsense")
-
-        with pytest.raises(ValueError, match="Unknown species"):
-            plotter.plot_miami(top_df, bottom_df)
+    def test_species_without_chromosome_order_raises(self):
+        """A species with no built-in chromosome order cannot lay out the axis."""
+        panel_df = pd.DataFrame({"chrom": ["1"], "pos": [1000], "p": [0.01]})
+        with pytest.raises(ValueError, match="No built-in chromosome order"):
+            MiamiPlotter(species="nonsense").plot_miami(panel_df, panel_df)
 
     def test_species_order_drives_chromosome_ticks(self):
         """The species table orders the axis, not an alphabetic sort."""

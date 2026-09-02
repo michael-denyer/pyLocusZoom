@@ -25,6 +25,7 @@ from .manhattan import (
     prepare_manhattan_frames,
 )
 from .qq import prepare_qq_data
+from .species import Species, resolve_species
 
 
 class ManhattanPlotter:
@@ -39,7 +40,8 @@ class ManhattanPlotter:
     - bokeh: Interactive HTML for dashboards
 
     Args:
-        species: Species name ('canine', 'feline', 'human', or None).
+        species: Species name, alias or record ('canine', 'dog', 'feline',
+            'human', or None). An unknown name raises ValidationError.
             Used to determine chromosome order.
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
         genomewide_threshold: P-value threshold for significance line.
@@ -52,12 +54,12 @@ class ManhattanPlotter:
 
     def __init__(
         self,
-        species: str = "canine",
+        species: str | Species | None = "canine",
         backend: BackendType = "matplotlib",
         genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
     ):
         """Initialize the Manhattan plotter."""
-        self.species = species
+        self.species = resolve_species(species)
         self._backend = get_backend(backend)
         self._renderer = ManhattanQQRenderer(self._backend)
         self.genomewide_threshold = genomewide_threshold

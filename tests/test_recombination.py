@@ -2,7 +2,6 @@
 
 import io
 import tarfile
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -14,8 +13,10 @@ from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
     RECOMB_COLOR,
-    RECOMB_SOURCES,
+    RecombStatus,
+    _extract_archive,
     _publish_map_generation,
+    _stage_maps,
     download_canine_recombination_maps,
     download_liftover_chain,
     ensure_recomb_header,
@@ -24,6 +25,7 @@ from pylocuszoom.recombination import (
     get_recombination_rate_for_region,
     liftover_recombination_map,
     load_recombination_map,
+    recomb_for_region,
 )
 
 
@@ -447,6 +449,101 @@ class TestDownloadCanineRecombinationMaps:
             download_canine_recombination_maps(output_dir=str(tmp_path), force=False)
 
 
+class TestExtractArchive:
+    """_extract_archive: tar handling and the path-traversal guard, no network."""
+
+    @staticmethod
+    def _tar(path: Path, members: dict[str, str]) -> None:
+        with tarfile.open(path, "w:gz") as tar:
+            for name, content in members.items():
+                data = content.encode()
+                info = tarfile.TarInfo(name=name)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+
+    def test_extracts_every_safe_member(self, tmp_path):
+        archive = tmp_path / "maps.tar.gz"
+        self._tar(archive, {"chr1.txt": "a", "nested/chr2.txt": "b"})
+        into = tmp_path / "out"
+        into.mkdir()
+
+        result = _extract_archive(archive, into, "http://example/maps.tar.gz")
+
+        assert result == into
+        assert (into / "chr1.txt").read_text() == "a"
+        assert (into / "nested" / "chr2.txt").read_text() == "b"
+
+    def test_a_member_escaping_the_target_is_skipped(self, tmp_path):
+        archive = tmp_path / "maps.tar.gz"
+        self._tar(archive, {"../escaped.txt": "no", "chr1.txt": "yes"})
+        into = tmp_path / "out"
+        into.mkdir()
+
+        _extract_archive(archive, into, "http://example/maps.tar.gz")
+
+        assert not (tmp_path / "escaped.txt").exists()
+        assert (into / "chr1.txt").read_text() == "yes"
+
+    def test_a_file_that_is_not_a_tarball_names_its_source(self, tmp_path):
+        archive = tmp_path / "maps.tar.gz"
+        archive.write_bytes(b"not a gzip archive")
+        into = tmp_path / "out"
+        into.mkdir()
+
+        with pytest.raises(DataDownloadError, match="http://example/maps.tar.gz"):
+            _extract_archive(archive, into, "http://example/maps.tar.gz")
+
+
+class TestStageMaps:
+    """_stage_maps: canonical naming and header repair, no network."""
+
+    def test_names_each_map_after_the_chromosome_in_its_filename(self, tmp_path):
+        source_dir = tmp_path / "src"
+        source_dir.mkdir()
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        body = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        files = []
+        for name in ("chr7_average_canFam3.1.txt", "chrX.txt"):
+            path = source_dir / name
+            path.write_text(body)
+            files.append(path)
+
+        _stage_maps(files, CANINE_SOURCE, staging)
+
+        assert {p.name for p in staging.iterdir()} == {
+            "chr7_recomb.tsv",
+            "chrX_recomb.tsv",
+        }
+
+    def test_a_headerless_map_gains_the_canonical_header(self, tmp_path):
+        source_dir = tmp_path / "src"
+        source_dir.mkdir()
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        map_file = source_dir / "chr1_average_canFam3.1.txt"
+        map_file.write_text("1\t1000\t0.5\t0.1\n")
+
+        _stage_maps([map_file], CANINE_SOURCE, staging)
+
+        staged = (staging / "chr1_recomb.tsv").read_text()
+        assert staged.startswith("chr\tpos\trate\tcM\n")
+
+    def test_a_filename_without_a_chromosome_is_an_error(self, tmp_path):
+        """The old four-stage peel wrote this out silently as chr_recomb.tsv."""
+        source_dir = tmp_path / "src"
+        source_dir.mkdir()
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        notes = source_dir / "chr_notes.txt"
+        notes.write_text("chr\tpos\trate\tcM\n1\t1\t1\t1\n")
+
+        with pytest.raises(DataDownloadError, match="does not name a chromosome"):
+            _stage_maps([notes], CANINE_SOURCE, staging)
+
+        assert list(staging.iterdir()) == []
+
+
 class TestPublishMapGeneration:
     """Atomic publication tests for the recombination map set."""
 
@@ -510,9 +607,10 @@ class TestEnsureRecombMaps:
 
     @staticmethod
     def _patched_download(mock_download):
-        """Swap the canine source for one whose downloader is a mock."""
-        source = replace(CANINE_SOURCE, download=mock_download)
-        return patch.dict(RECOMB_SOURCES, {source.species: source})
+        """Stand in for the network-facing download step."""
+        return patch(
+            "pylocuszoom.recombination.download_recombination_maps", mock_download
+        )
 
     @patch("pylocuszoom.recombination.get_default_data_dir")
     def test_ensure_recomb_maps_downloads_if_missing(self, mock_get_dir, tmp_path):
@@ -550,48 +648,115 @@ class TestEnsureRecombMaps:
         assert result is None
 
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_warns_and_returns_none_on_download_error(
+    def test_ensure_recomb_maps_propagates_a_download_error(
         self, mock_get_dir, tmp_path
     ):
+        """The data layer raises; recomb_for_region is what degrades."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download = Mock(side_effect=DataDownloadError("Network error"))
 
-        with (
-            self._patched_download(mock_download),
-            pytest.warns(UserWarning, match="recombination maps.*Network error"),
-        ):
-            result = ensure_recomb_maps(species="canine")
-
-        assert result is None
+        with self._patched_download(mock_download):
+            with pytest.raises(DataDownloadError, match="Network error"):
+                ensure_recomb_maps(species="canine")
 
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_warns_and_returns_none_on_io_error(
-        self, mock_get_dir, tmp_path
-    ):
+    def test_ensure_recomb_maps_propagates_an_io_error(self, mock_get_dir, tmp_path):
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download = Mock(side_effect=OSError("Disk full"))
 
-        with (
-            self._patched_download(mock_download),
-            pytest.warns(UserWarning, match="recombination maps.*Disk full"),
-        ):
-            result = ensure_recomb_maps(species="canine")
+        with self._patched_download(mock_download):
+            with pytest.raises(OSError, match="Disk full"):
+                ensure_recomb_maps(species="canine")
 
-        assert result is None
+
+class TestRecombForRegion:
+    """One status per way the overlay can be unavailable, and no warnings."""
+
+    @staticmethod
+    def _failing_download(exc):
+        return patch(
+            "pylocuszoom.recombination.download_recombination_maps",
+            Mock(side_effect=exc),
+        )
+
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_a_download_failure_is_a_status_with_the_cause_in_it(
+        self, mock_get_dir, tmp_path
+    ):
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+
+        with self._failing_download(DataDownloadError("Network error")):
+            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        assert "Network error" in result.detail
+        assert result.frame is None
+
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_an_os_error_is_also_a_download_failure(self, mock_get_dir, tmp_path):
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+
+        with self._failing_download(OSError("Disk full")):
+            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        assert "Disk full" in result.detail
+
+    def test_a_species_with_no_built_in_maps_says_so_instead_of_going_quiet(self):
+        """This case used to reach the user as a debug log and nothing else."""
+        result = recomb_for_region(1, 1_000_000, 2_000_000, species="human")
+
+        assert result.status is RecombStatus.NO_MAPS_FOR_SPECIES
+        assert "human" in result.detail
+
+    def test_a_chromosome_the_map_set_does_not_cover_is_its_own_status(self, tmp_path):
+        with patch(
+            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+        ):
+            result = recomb_for_region(41, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.NO_MAP_FOR_CHROMOSOME
+
+    def test_a_region_that_resolves_carries_its_frame(self, tmp_path):
+        (tmp_path / "chr1_recomb.tsv").write_text(
+            "chr\tpos\trate\tcM\n1\t1500000\t0.5\t0.1\n"
+        )
+
+        with patch(
+            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+        ):
+            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert result.status is RecombStatus.OK
+        assert result.detail == ""
+        assert list(result.frame["pos"]) == [1500000]
+
+    @patch("pylocuszoom.recombination.get_default_data_dir")
+    def test_no_outcome_warns(self, mock_get_dir, tmp_path, recwarn):
+        """The caller renders one policy; this layer only reports."""
+        mock_get_dir.return_value = tmp_path / "recomb_data"
+
+        with self._failing_download(DataDownloadError("Network error")):
+            recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+        assert list(recwarn) == []
+
+
+class TestEnsureRecombMapsCorruptArchive:
+    """A corrupt archive surfaces as a status, not a crash, through the plotter."""
 
     @patch("pylocuszoom.recombination.download_file")
-    def test_ensure_recomb_maps_warns_and_returns_none_on_corrupt_archive(
-        self, mock_download, tmp_path
-    ):
+    def test_a_corrupt_archive_is_a_download_failure(self, mock_download, tmp_path):
         def write_garbage(url, dest_path, desc=None):
             dest_path.write_bytes(b"not a gzip archive")
 
         mock_download.side_effect = write_garbage
 
-        with pytest.warns(UserWarning, match="recombination maps"):
-            result = ensure_recomb_maps(species="canine", data_dir=str(tmp_path / "x"))
+        result = recomb_for_region(
+            1, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path / "x")
+        )
 
-        assert result is None
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
 
 
 class TestDownloadLiftoverChainDownloadError:

@@ -61,11 +61,11 @@ class TestChromosomeOrdering:
         order = get_chromosome_order(species="canine", custom_order=custom)
         assert order == custom
 
-    def test_unknown_species_raises_error(self):
-        """Unknown species without custom order should raise."""
+    def test_species_without_order_raises_error(self):
+        """A species with no built-in order and no custom order should raise."""
         from pylocuszoom.manhattan import get_chromosome_order
 
-        with pytest.raises(ValueError, match="Unknown species"):
+        with pytest.raises(ValueError, match="No built-in chromosome order"):
             get_chromosome_order(species="unknown")
 
     def test_no_species_or_custom_raises_error(self):

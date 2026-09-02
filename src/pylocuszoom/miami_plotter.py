@@ -20,6 +20,7 @@ from ._plotter_utils import (
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig
 from .manhattan import prepare_manhattan_frames
+from .species import Species, resolve_species
 
 
 class MiamiPlotter:
@@ -35,7 +36,8 @@ class MiamiPlotter:
     - bokeh: Interactive HTML for dashboards
 
     Args:
-        species: Species name ('canine', 'feline', 'human', or None).
+        species: Species name, alias or record ('canine', 'dog', 'feline',
+            'human', or None). An unknown name raises ValidationError.
             Used to determine chromosome order.
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
         genomewide_threshold: P-value threshold for significance line.
@@ -48,12 +50,12 @@ class MiamiPlotter:
 
     def __init__(
         self,
-        species: str = "canine",
+        species: str | Species | None = "canine",
         backend: BackendType = "matplotlib",
         genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
     ):
         """Initialize the Miami plotter."""
-        self.species = species
+        self.species = resolve_species(species)
         self._backend = get_backend(backend)
         self.genomewide_threshold = genomewide_threshold
 

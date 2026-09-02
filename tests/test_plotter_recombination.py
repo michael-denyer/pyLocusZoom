@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.recombination import RecombResult, RecombStatus
 
 
 class TestLocusZoomPlotterRecombination:
@@ -26,12 +27,14 @@ class TestLocusZoomPlotterRecombination:
         assert plotter._recomb_cache == {}
 
         # Manually add to cache (key includes genome_build)
-        plotter._recomb_cache[(1, 1000000, 2000000, plotter.genome_build)] = recomb_df
+        plotter._recomb_cache[(1, 1000000, 2000000, plotter.genome_build)] = (
+            RecombResult(RecombStatus.OK, frame=recomb_df)
+        )
 
         # Should return cached data
         result = plotter._get_recomb_for_region(1, 1000000, 2000000)
-        assert result is not None
-        assert len(result) == 3
+        assert result.status is RecombStatus.OK
+        assert len(result.frame) == 3
 
     def test_recombination_overlay_does_not_distort_primary_ylim(self):
         """Primary y-axis limits should be unchanged when recombination is enabled.
@@ -94,7 +97,7 @@ class TestRecombinationDownloadErrors:
     plotting to continue without recombination overlay.
 
     Note: Detailed error handling (network, I/O, OS errors) is tested
-    in test_recombination.py at the ensure_recomb_maps level.
+    in test_recombination.py at the recomb_for_region level.
     """
 
     @pytest.fixture
@@ -102,29 +105,65 @@ class TestRecombinationDownloadErrors:
         """Create a plotter instance for testing download errors."""
         return LocusZoomPlotter(species="canine", log_level="DEBUG")
 
-    def test_ensure_recomb_maps_returns_none_propagates(self, debug_canine_plotter):
-        """When ensure_recomb_maps returns None, the plotter returns None."""
-        with patch(
-            "pylocuszoom.plotter.ensure_recomb_maps", return_value=None
-        ) as mock_ensure:
-            result = debug_canine_plotter._ensure_recomb_maps()
-            assert result is None
-            mock_ensure.assert_called_once_with(species="canine", data_dir=None)
+    @staticmethod
+    def _download_failed():
+        return patch(
+            "pylocuszoom.plotter.recomb_for_region",
+            return_value=RecombResult(
+                RecombStatus.DOWNLOAD_FAILED, detail="could not download maps"
+            ),
+        )
 
     def test_plotting_continues_without_recomb_maps(
         self, debug_canine_plotter, tiny_regional_gwas_df
     ):
         """Plotting should succeed even when recombination maps are unavailable."""
-        with patch("pylocuszoom.plotter.ensure_recomb_maps", return_value=None):
-            # Should not raise, just skip recombination overlay
-            fig = debug_canine_plotter.plot(
+        with self._download_failed():
+            with pytest.warns(UserWarning, match="could not download maps"):
+                fig = debug_canine_plotter.plot(
+                    tiny_regional_gwas_df,
+                    chrom=1,
+                    start=1000000,
+                    end=2000000,
+                    show_recombination=True,
+                )
+            assert fig is not None
+
+    def test_a_skipped_overlay_warns_once(
+        self, debug_canine_plotter, tiny_regional_gwas_df
+    ):
+        """Three layers used to decide this; only one of them speaks now."""
+        with self._download_failed(), pytest.warns(UserWarning) as caught:
+            debug_canine_plotter.plot(
                 tiny_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
                 show_recombination=True,
             )
-            assert fig is not None
+
+        skipped = [
+            w for w in caught if "Recombination overlay skipped" in str(w.message)
+        ]
+        assert len(skipped) == 1
+
+    def test_the_warning_points_at_the_caller_not_the_library(
+        self, debug_canine_plotter, tiny_regional_gwas_df
+    ):
+        """A file:line inside pylocuszoom tells the user nothing actionable."""
+        with self._download_failed(), pytest.warns(UserWarning) as caught:
+            debug_canine_plotter.plot(
+                tiny_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                show_recombination=True,
+            )
+
+        skipped = next(
+            w for w in caught if "Recombination overlay skipped" in str(w.message)
+        )
+        assert skipped.filename == __file__
 
 
 class TestRecombinationOptionalDependency:
@@ -133,23 +172,30 @@ class TestRecombinationOptionalDependency:
 
     @pytest.fixture
     def plotter(self, tmp_path):
-        p = LocusZoomPlotter(species="canine", log_level=None)
-        p._ensure_recomb_maps = lambda: tmp_path
-        return p
+        return LocusZoomPlotter(species="canine", log_level=None)
 
-    def test_missing_optional_dependency_skips_overlay_with_warning(self, plotter):
+    @pytest.fixture(autouse=True)
+    def _maps_are_present(self, tmp_path):
+        with patch(
+            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+        ):
+            yield
+
+    def test_missing_optional_dependency_is_reported_as_a_status(self, plotter):
         from pylocuszoom.exceptions import OptionalDependencyMissing
 
         with patch(
-            "pylocuszoom.plotter.get_recombination_rate_for_region",
+            "pylocuszoom.recombination.get_recombination_rate_for_region",
             side_effect=OptionalDependencyMissing("no liftover here"),
         ):
-            with pytest.warns(UserWarning, match="no liftover here"):
-                assert plotter._get_recomb_for_region(1, 1_000_000, 2_000_000) is None
+            result = plotter._get_recomb_for_region(1, 1_000_000, 2_000_000)
+
+        assert result.status is RecombStatus.LIFTOVER_UNAVAILABLE
+        assert "no liftover here" in result.detail
 
     def test_other_import_error_propagates(self, plotter):
         with patch(
-            "pylocuszoom.plotter.get_recombination_rate_for_region",
+            "pylocuszoom.recombination.get_recombination_rate_for_region",
             side_effect=ImportError("pyliftover mentioned but unrelated"),
         ):
             with pytest.raises(ImportError):

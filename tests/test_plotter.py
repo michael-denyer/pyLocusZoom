@@ -1,6 +1,5 @@
 """Tests for LocusZoomPlotter class."""
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import matplotlib.pyplot as plt
@@ -12,6 +11,7 @@ from matplotlib.figure import Figure
 from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom._regional_panels import AssociationPanel
 from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.recombination import RecombResult, RecombStatus
 from tests.reference_mocks import (
     gene_transcript_exon_payload,
     ok_response,
@@ -25,12 +25,12 @@ class TestLocusZoomPlotterInit:
     def test_default_species_is_canine(self):
         """Default species should be canine."""
         plotter = LocusZoomPlotter()
-        assert plotter.species == "canine"
+        assert plotter.species.key == "canine"
 
     def test_custom_species(self):
         """Should accept custom species."""
         plotter = LocusZoomPlotter(species="feline")
-        assert plotter.species == "feline"
+        assert plotter.species.key == "feline"
 
     def test_custom_plink_path(self):
         """Should accept custom PLINK path."""
@@ -482,7 +482,11 @@ class TestPlotterDelegation:
         gwas_df = pd.DataFrame({"ps": [1000, 2000], "p_wald": [0.01, 0.001]})
         fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
 
-        with patch.object(plotter, "_get_recomb_for_region", return_value=None):
+        no_maps = RecombResult(RecombStatus.NO_MAPS_FOR_SPECIES, detail="none here")
+        with (
+            patch.object(plotter, "_get_recomb_for_region", return_value=no_maps),
+            pytest.warns(UserWarning, match="Recombination overlay skipped"),
+        ):
             fig = plotter.plot_stacked(
                 [gwas_df],
                 chrom=1,
@@ -497,19 +501,26 @@ class TestPlotterDelegation:
         assert plotted == [[1000.0, 0.5], [2000.0, 0.3]]
 
 
-def test_plotter_uses_ensure_recomb_maps():
-    """Test that LocusZoomPlotter._ensure_recomb_maps delegates to module function."""
+def test_plotter_delegates_the_recombination_decision_to_one_function():
+    """The plotter asks recomb_for_region and renders whatever it says."""
+    frame = pd.DataFrame({"pos": [1000], "rate": [0.5]})
     with patch(
-        "pylocuszoom.plotter.ensure_recomb_maps",
-        return_value=Path("/mock/recomb"),
-    ) as mock_ensure:
+        "pylocuszoom.plotter.recomb_for_region",
+        return_value=RecombResult(RecombStatus.OK, frame=frame),
+    ) as mock_recomb:
         plotter = LocusZoomPlotter(species="canine", log_level=None)
+        result = plotter._get_recomb_for_region(1, 1_000_000, 2_000_000)
 
-        # Call the method that should delegate to ensure_recomb_maps
-        result = plotter._ensure_recomb_maps()
-
-        mock_ensure.assert_called_once_with(species="canine", data_dir=None)
-        assert result == Path("/mock/recomb")
+    mock_recomb.assert_called_once_with(
+        chrom=1,
+        start=1_000_000,
+        end=2_000_000,
+        species=plotter.species,
+        data_dir=None,
+        genome_build="canfam3.1",
+    )
+    assert result.status is RecombStatus.OK
+    assert result.frame is frame
 
 
 # =============================================================================

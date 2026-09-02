@@ -188,6 +188,7 @@ Data transformation between validated input and backend-ready primitives.
 |----|-----------|-------------|-----------|
 | 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | find_plink | Locate PLINK executable | [ld.py](../src/pylocuszoom/ld.py) |
+| 3a | Species, resolve_species | The one record a species resolves to, and the boundary parser every entry point calls | [species.py](../src/pylocuszoom/species.py) |
 | 3b | get_ld_color | Map R² → hex colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
@@ -195,6 +196,8 @@ Data transformation between validated input and backend-ready primitives.
 | 3c | compute_arrow_geometry | Strand-arrow tip positions and dimensions | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | recomb_for_region, RecombResult | The one place the skip-the-overlay decision is made, reported as a value | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | download_recombination_maps, RecombSource | Species-generic download, extract and publish; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | GenomeLayout | Chromosome order, offsets, colours, ticks, and x limits for every panel of a figure | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
@@ -536,6 +539,9 @@ complete reference; this table is the complete one.
 | `ensure_recomb_maps` | Ensure recombination maps are available, downloading if needed. |
 | `get_recombination_rate_for_region` | Get recombination rate data for a genomic region. |
 | `load_recombination_map` | Load recombination map for a specific chromosome. |
+| `recomb_for_region` | Get a region's recombination rates, or a `RecombStatus` saying why there are none. |
+| `RecombResult` | The outcome of one region's recombination query: status, frame, detail. |
+| `RecombStatus` | Why a region does or does not have recombination rates to draw. |
 
 ### Gene reference routing
 
@@ -550,6 +556,13 @@ complete reference; this table is the complete one.
 | Name | Purpose |
 |------|---------|
 | `get_ensembl_species_name` | Convert species alias to Ensembl species name. |
+
+### Species
+
+| Name | Purpose |
+|------|---------|
+| `Species` | Everything pyLocusZoom knows about one species: Ensembl name, PLINK flags, default build, chromosome order. |
+| `resolve_species` | Resolve a species name or alias to its record; an unknown name becomes an Ensembl-only record. |
 
 ### Backends
 
@@ -625,6 +638,7 @@ complete reference; this table is the complete one.
 | Colour scheme | [colors.py](../src/pylocuszoom/colors.py) |
 | LD / PLINK | [ld.py](../src/pylocuszoom/ld.py) |
 | Gene track layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
+| Species records | [species.py](../src/pylocuszoom/species.py) |
 | Recombination maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | Gene reference routing | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
 | Gene source value type | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |
