@@ -3,19 +3,21 @@
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.miami_plotter import MiamiPlotter
+from tests.conftest import FIGURE_TYPES
 
 
 class TestMiamiPlotter:
     """Tests for the MiamiPlotter class."""
 
     @pytest.fixture
-    def plotter(self):
+    def miami_plotter(self):
         """Create a MiamiPlotter instance."""
         return MiamiPlotter(species="canine")
 
     @pytest.fixture
-    def gwas_data(self):
+    def miami_panel_dfs(self):
         """Create sample GWAS data for top and bottom panels.
 
         Returns tuple of (top_df, bottom_df) for Miami plot comparison.
@@ -38,50 +40,30 @@ class TestMiamiPlotter:
         )
         return top_df, bottom_df
 
-    def test_plot_miami_returns_figure(self, plotter, gwas_data):
+    def test_plot_miami_returns_figure(self, miami_plotter, miami_panel_dfs):
         """Test that plot_miami returns a figure object."""
-        top_df, bottom_df = gwas_data
-        fig = plotter.plot_miami(top_df, bottom_df)
+        top_df, bottom_df = miami_panel_dfs
+        fig = miami_plotter.plot_miami(top_df, bottom_df)
         assert fig is not None
 
-    def test_matplotlib_backend(self, gwas_data):
-        """Test MiamiPlotter with matplotlib backend."""
-        from matplotlib.figure import Figure
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_returns_the_backends_figure_type(self, backend, miami_panel_dfs):
+        """Each backend returns its own figure type."""
+        plotter = MiamiPlotter(species="canine", backend=backend)
+        top_df, bottom_df = miami_panel_dfs
 
-        plotter = MiamiPlotter(species="canine", backend="matplotlib")
-        top_df, bottom_df = gwas_data
         fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
-        assert isinstance(fig, Figure)
 
-    def test_plotly_backend(self, gwas_data):
-        """Test MiamiPlotter with plotly backend."""
-        import plotly.graph_objects as go
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
-        plotter = MiamiPlotter(species="canine", backend="plotly")
-        top_df, bottom_df = gwas_data
-        fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
-        assert isinstance(fig, go.Figure)
-
-    def test_bokeh_backend(self, gwas_data):
-        """Test MiamiPlotter with bokeh backend."""
-        from bokeh.models.layouts import LayoutDOM
-
-        plotter = MiamiPlotter(species="canine", backend="bokeh")
-        top_df, bottom_df = gwas_data
-        fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
-        assert isinstance(fig, LayoutDOM)
-
-    def test_chromosome_colors_match(self, plotter, gwas_data):
+    def test_chromosome_colors_match(self, miami_plotter, miami_panel_dfs):
         """Test that same chromosome has same color in both panels.
 
         Verifies that chromosome colors are consistent between top and bottom
         panels - critical for visual comparison in Miami plots.
         """
-        top_df, bottom_df = gwas_data
-        fig = plotter.plot_miami(top_df, bottom_df)
+        top_df, bottom_df = miami_panel_dfs
+        fig = miami_plotter.plot_miami(top_df, bottom_df)
 
         # Get the figure axes (matplotlib-specific verification)
         axes = fig.get_axes()
@@ -93,41 +75,41 @@ class TestMiamiPlotter:
         assert top_ax is not None
         assert bottom_ax is not None
 
-    def test_empty_dataframe_raises(self, plotter):
+    def test_empty_dataframe_raises(self, miami_plotter):
         """Test that empty DataFrame raises appropriate error."""
         empty_df = pd.DataFrame(columns=["chrom", "pos", "p"])
         valid_df = pd.DataFrame({"chrom": [1], "pos": [1000], "p": [0.01]})
 
         # Empty top_df should raise
         with pytest.raises((ValueError, KeyError)):
-            plotter.plot_miami(empty_df, valid_df)
+            miami_plotter.plot_miami(empty_df, valid_df)
 
         # Empty bottom_df should raise
         with pytest.raises((ValueError, KeyError)):
-            plotter.plot_miami(valid_df, empty_df)
+            miami_plotter.plot_miami(valid_df, empty_df)
 
-    def test_missing_columns_raises(self, plotter):
+    def test_missing_columns_raises(self, miami_plotter):
         """Test that missing required columns raises ValidationError or ValueError."""
         # DataFrame missing 'p' column
         missing_p_df = pd.DataFrame({"chrom": [1], "pos": [1000]})
         valid_df = pd.DataFrame({"chrom": [1], "pos": [1000], "p": [0.01]})
 
         with pytest.raises((ValueError, KeyError)):
-            plotter.plot_miami(missing_p_df, valid_df)
+            miami_plotter.plot_miami(missing_p_df, valid_df)
 
         # DataFrame missing 'chrom' column
         missing_chrom_df = pd.DataFrame({"pos": [1000], "p": [0.01]})
         with pytest.raises((ValueError, KeyError)):
-            plotter.plot_miami(valid_df, missing_chrom_df)
+            miami_plotter.plot_miami(valid_df, missing_chrom_df)
 
-    def test_inverted_bottom_panel(self, plotter, gwas_data):
+    def test_inverted_bottom_panel(self, miami_plotter, miami_panel_dfs):
         """Test that bottom panel y-axis is inverted.
 
         The bottom panel should display with y-axis inverted (max at top/0 at bottom)
         to create the characteristic Miami plot mirror effect.
         """
-        top_df, bottom_df = gwas_data
-        fig = plotter.plot_miami(top_df, bottom_df)
+        top_df, bottom_df = miami_panel_dfs
+        fig = miami_plotter.plot_miami(top_df, bottom_df)
 
         # Get the figure axes
         axes = fig.get_axes()
@@ -150,7 +132,7 @@ class TestMiamiPlotterOptions:
     """Tests for MiamiPlotter configuration options."""
 
     @pytest.fixture
-    def gwas_data(self):
+    def miami_panel_dfs(self):
         """Create sample GWAS data."""
         top_df = pd.DataFrame(
             {
@@ -168,10 +150,10 @@ class TestMiamiPlotterOptions:
         )
         return top_df, bottom_df
 
-    def test_custom_figsize(self, gwas_data):
+    def test_custom_figsize(self, miami_panel_dfs):
         """Test that custom figsize is respected."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(top_df, bottom_df, figsize=(15, 10))
 
         # Check figure size
@@ -179,20 +161,20 @@ class TestMiamiPlotterOptions:
         assert width == 15
         assert height == 10
 
-    def test_custom_title(self, gwas_data):
+    def test_custom_title(self, miami_panel_dfs):
         """Test that custom title is set."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(top_df, bottom_df, title="Custom Miami Title")
 
         # Check that title was set (matplotlib-specific)
         title_text = fig._suptitle
         assert title_text is not None
 
-    def test_panel_labels(self, gwas_data):
+    def test_panel_labels(self, miami_panel_dfs):
         """Test that panel labels are applied."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(
             top_df,
             bottom_df,
@@ -278,7 +260,7 @@ class TestMiamiSignificance:
     """Tests for Miami plot significance lines."""
 
     @pytest.fixture
-    def gwas_data(self):
+    def miami_panel_dfs(self):
         """Create sample GWAS data for significance line testing."""
 
         top_df = pd.DataFrame(
@@ -297,11 +279,11 @@ class TestMiamiSignificance:
         )
         return top_df, bottom_df
 
-    def test_significance_lines_both_panels(self, gwas_data):
+    def test_significance_lines_both_panels(self, miami_panel_dfs):
         """Test that significance lines are drawn on both panels by default."""
 
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(top_df, bottom_df)
 
         # Check figure was created
@@ -322,12 +304,12 @@ class TestMiamiSignificance:
         assert len(top_lines) >= 1, "Top panel should have significance line"
         assert len(bottom_lines) >= 1, "Bottom panel should have significance line"
 
-    def test_different_thresholds(self, gwas_data):
+    def test_different_thresholds(self, miami_panel_dfs):
         """Test that different thresholds create lines at different positions."""
         import numpy as np
 
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(
             top_df,
             bottom_df,
@@ -357,10 +339,10 @@ class TestMiamiSignificance:
             assert np.isclose(top_y, expected_top_y, rtol=0.01)
             assert np.isclose(bottom_y, expected_bottom_y, rtol=0.01)
 
-    def test_no_significance_line(self, gwas_data):
+    def test_no_significance_line(self, miami_panel_dfs):
         """Test that threshold=None suppresses significance line on that panel."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(
             top_df,
             bottom_df,
@@ -385,7 +367,7 @@ class TestMiamiLabels:
     """Tests for Miami plot panel labels and SNP annotations."""
 
     @pytest.fixture
-    def gwas_data(self):
+    def miami_panel_dfs(self):
         """Create GWAS data with RS IDs for annotation testing."""
         top_df = pd.DataFrame(
             {
@@ -405,10 +387,10 @@ class TestMiamiLabels:
         )
         return top_df, bottom_df
 
-    def test_panel_labels(self, gwas_data):
+    def test_panel_labels(self, miami_panel_dfs):
         """Test that panel labels are correctly displayed."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(
             top_df,
             bottom_df,
@@ -436,10 +418,10 @@ class TestMiamiLabels:
             "Bottom panel should have 'Replication' label"
         )
 
-    def test_snp_annotations_top_panel(self, gwas_data):
+    def test_snp_annotations_top_panel(self, miami_panel_dfs):
         """Test SNP annotations on top panel only."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         # Annotate rs3 (most significant on top panel - 1e-9) on top only
         fig = plotter.plot_miami(
@@ -463,10 +445,10 @@ class TestMiamiLabels:
         # rs3 should NOT be annotated on bottom panel (only panel labels if any)
         assert "rs3" not in bottom_texts, "Bottom panel should not have rs3 annotation"
 
-    def test_snp_annotations_both_panels(self, gwas_data):
+    def test_snp_annotations_both_panels(self, miami_panel_dfs):
         """Test independent SNP annotations on each panel."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         # Different SNPs annotated on each panel
         fig = plotter.plot_miami(
@@ -497,7 +479,7 @@ class TestMiamiHighlight:
     """Tests for Miami plot region highlighting."""
 
     @pytest.fixture
-    def gwas_data(self):
+    def miami_panel_dfs(self):
         """Create GWAS data spanning multiple chromosomes."""
         top_df = pd.DataFrame(
             {
@@ -515,10 +497,10 @@ class TestMiamiHighlight:
         )
         return top_df, bottom_df
 
-    def test_highlight_single_region(self, gwas_data):
+    def test_highlight_single_region(self, miami_panel_dfs):
         """Test highlighting a single region on both panels."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         fig = plotter.plot_miami(
             top_df,
@@ -542,10 +524,10 @@ class TestMiamiHighlight:
         assert len(top_patches) >= 1, "Top panel should have highlight patch"
         assert len(bottom_patches) >= 1, "Bottom panel should have highlight patch"
 
-    def test_highlight_multiple_regions(self, gwas_data):
+    def test_highlight_multiple_regions(self, miami_panel_dfs):
         """Test highlighting multiple regions."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         fig = plotter.plot_miami(
             top_df,
@@ -568,10 +550,10 @@ class TestMiamiHighlight:
         assert len(top_patches) >= 2, "Top panel should have 2 highlight patches"
         assert len(bottom_patches) >= 2, "Bottom panel should have 2 highlight patches"
 
-    def test_highlight_with_custom_color(self, gwas_data):
+    def test_highlight_with_custom_color(self, miami_panel_dfs):
         """Test that custom highlight color is applied."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         fig = plotter.plot_miami(
             top_df,
@@ -595,10 +577,10 @@ class TestMiamiHighlight:
         # facecolor is RGBA tuple - red should have high R value
         assert facecolor[0] >= 0.9, f"Expected red color, got {facecolor}"
 
-    def test_highlight_plotly_backend(self, gwas_data):
+    def test_highlight_plotly_backend(self, miami_panel_dfs):
         """Test region highlighting works with plotly backend."""
         plotter = MiamiPlotter(species="canine", backend="plotly")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         fig = plotter.plot_miami(
             top_df,
@@ -610,12 +592,12 @@ class TestMiamiHighlight:
         # Plotly should have shapes added for the highlights
         assert hasattr(fig.layout, "shapes") or len(fig.layout.shapes or []) >= 0
 
-    def test_highlight_bokeh_backend(self, gwas_data):
+    def test_highlight_bokeh_backend(self, miami_panel_dfs):
         """Test region highlighting works with bokeh backend."""
         from bokeh.models.layouts import LayoutDOM
 
         plotter = MiamiPlotter(species="canine", backend="bokeh")
-        top_df, bottom_df = gwas_data
+        top_df, bottom_df = miami_panel_dfs
 
         fig = plotter.plot_miami(
             top_df,

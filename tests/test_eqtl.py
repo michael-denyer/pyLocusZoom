@@ -63,7 +63,7 @@ class TestFilterEqtlByGene:
     """Tests for filter_eqtl_by_gene function."""
 
     @pytest.fixture
-    def eqtl_df(self):
+    def multi_gene_eqtl_df(self):
         """Sample eQTL data with multiple genes."""
         return pd.DataFrame(
             {
@@ -73,17 +73,17 @@ class TestFilterEqtlByGene:
             }
         )
 
-    def test_filters_to_single_gene(self, eqtl_df):
+    def test_filters_to_single_gene(self, multi_gene_eqtl_df):
         """Filters to single gene correctly."""
-        result = filter_eqtl_by_gene(eqtl_df, gene="BRCA1")
+        result = filter_eqtl_by_gene(multi_gene_eqtl_df, gene="BRCA1")
         assert len(result) == 2
         assert all(result["gene"] == "BRCA1")
 
-    def test_returns_copy(self, eqtl_df):
+    def test_returns_copy(self, multi_gene_eqtl_df):
         """Returns a copy, not a view."""
-        result = filter_eqtl_by_gene(eqtl_df, gene="BRCA1")
+        result = filter_eqtl_by_gene(multi_gene_eqtl_df, gene="BRCA1")
         result.loc[result.index[0], "p_value"] = 0.99
-        assert eqtl_df["p_value"].iloc[0] == 1e-6
+        assert multi_gene_eqtl_df["p_value"].iloc[0] == 1e-6
 
     def test_missing_gene_column_raises_error(self):
         """Missing gene column raises EQTLValidationError."""
@@ -108,9 +108,9 @@ class TestFilterEqtlByGene:
         result = filter_eqtl_by_gene(df, gene="BRCA1", gene_col="gene_name")
         assert len(result) == 1
 
-    def test_no_matching_gene_returns_empty(self, eqtl_df):
+    def test_no_matching_gene_returns_empty(self, multi_gene_eqtl_df):
         """No matching gene returns empty DataFrame."""
-        result = filter_eqtl_by_gene(eqtl_df, gene="NONEXISTENT")
+        result = filter_eqtl_by_gene(multi_gene_eqtl_df, gene="NONEXISTENT")
         assert len(result) == 0
         assert isinstance(result, pd.DataFrame)
 
@@ -119,7 +119,7 @@ class TestFilterEqtlByRegion:
     """Tests for filter_eqtl_by_region function."""
 
     @pytest.fixture
-    def eqtl_df(self):
+    def multi_chrom_eqtl_df(self):
         """Sample eQTL data spanning a region."""
         return pd.DataFrame(
             {
@@ -129,15 +129,19 @@ class TestFilterEqtlByRegion:
             }
         )
 
-    def test_filters_to_region(self, eqtl_df):
+    def test_filters_to_region(self, multi_chrom_eqtl_df):
         """Filters to genomic region correctly."""
-        result = filter_eqtl_by_region(eqtl_df, chrom=1, start=1200000, end=1800000)
+        result = filter_eqtl_by_region(
+            multi_chrom_eqtl_df, chrom=1, start=1200000, end=1800000
+        )
         assert len(result) == 1
         assert result["pos"].iloc[0] == 1500000
 
-    def test_filters_by_chromosome(self, eqtl_df):
+    def test_filters_by_chromosome(self, multi_chrom_eqtl_df):
         """Filters by chromosome when chr column present."""
-        result = filter_eqtl_by_region(eqtl_df, chrom=1, start=0, end=3000000)
+        result = filter_eqtl_by_region(
+            multi_chrom_eqtl_df, chrom=1, start=0, end=3000000
+        )
         assert len(result) == 3
         assert all(result["chr"] == 1)
 
@@ -193,7 +197,7 @@ class TestCalculateColocalizationOverlap:
     """Tests for calculate_colocalization_overlap function."""
 
     @pytest.fixture
-    def gwas_df(self):
+    def coloc_overlap_gwas_df(self):
         """Sample GWAS data."""
         return pd.DataFrame(
             {
@@ -203,7 +207,7 @@ class TestCalculateColocalizationOverlap:
         )
 
     @pytest.fixture
-    def eqtl_df(self):
+    def positions_only_eqtl_df(self):
         """Sample eQTL data with some overlap."""
         return pd.DataFrame(
             {
@@ -212,15 +216,19 @@ class TestCalculateColocalizationOverlap:
             }
         )
 
-    def test_finds_overlapping_significant_snps(self, gwas_df, eqtl_df):
+    def test_finds_overlapping_significant_snps(
+        self, coloc_overlap_gwas_df, positions_only_eqtl_df
+    ):
         """Finds SNPs significant in both datasets."""
-        result = calculate_colocalization_overlap(gwas_df, eqtl_df, p_threshold=1e-5)
+        result = calculate_colocalization_overlap(
+            coloc_overlap_gwas_df, positions_only_eqtl_df, p_threshold=1e-5
+        )
         # Only 1000000 and 1002000 are significant in both
         assert len(result) == 2
         assert 1000000 in result["ps"].values
         assert 1002000 in result["ps"].values
 
-    def test_no_overlap_returns_empty(self, gwas_df):
+    def test_no_overlap_returns_empty(self, coloc_overlap_gwas_df):
         """No overlapping positions returns empty DataFrame."""
         eqtl_no_overlap = pd.DataFrame(
             {
@@ -229,7 +237,7 @@ class TestCalculateColocalizationOverlap:
             }
         )
         result = calculate_colocalization_overlap(
-            gwas_df, eqtl_no_overlap, p_threshold=1e-5
+            coloc_overlap_gwas_df, eqtl_no_overlap, p_threshold=1e-5
         )
         assert len(result) == 0
 

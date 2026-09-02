@@ -4,16 +4,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.stats_plotter import StatsPlotter
 
 
 class TestStatsPlotter:
     """Tests for the StatsPlotter class."""
-
-    @pytest.fixture
-    def plotter(self):
-        """Create a StatsPlotter instance."""
-        return StatsPlotter()
 
     @pytest.fixture
     def phewas_data(self):
@@ -38,15 +34,15 @@ class TestStatsPlotter:
             }
         )
 
-    def test_plot_phewas_returns_figure(self, plotter, phewas_data):
+    def test_plot_phewas_returns_figure(self, stats_plotter, phewas_data):
         """Test that plot_phewas returns a figure object."""
-        fig = plotter.plot_phewas(phewas_data, variant_id="rs12345")
+        fig = stats_plotter.plot_phewas(phewas_data, variant_id="rs12345")
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_forest_returns_figure(self, plotter, forest_data):
+    def test_plot_forest_returns_figure(self, stats_plotter, forest_data):
         """Test that plot_forest returns a figure object."""
-        fig = plotter.plot_forest(forest_data, variant_id="rs12345")
+        fig = stats_plotter.plot_forest(forest_data, variant_id="rs12345")
         assert fig is not None
         plt.close(fig)
 
@@ -76,12 +72,7 @@ class TestStatsPlotterBackends:
 class TestPheWASEdgeCases:
     """Tests for PheWAS plot edge cases."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create a StatsPlotter instance."""
-        return StatsPlotter()
-
-    def test_phewas_without_category_column(self, plotter):
+    def test_phewas_without_category_column(self, stats_plotter):
         """PheWAS plot should work without category column."""
         df = pd.DataFrame(
             {
@@ -90,7 +81,7 @@ class TestPheWASEdgeCases:
             }
         )
         # Remove category column entirely - test the else branch at line 92-94
-        fig = plotter.plot_phewas(
+        fig = stats_plotter.plot_phewas(
             df,
             variant_id="rs12345",
             phenotype_col="phenotype",
@@ -100,7 +91,7 @@ class TestPheWASEdgeCases:
         assert fig is not None
         plt.close(fig)
 
-    def test_phewas_with_effect_column_positive(self, plotter):
+    def test_phewas_with_effect_column_positive(self, stats_plotter):
         """PheWAS plot with positive effects should show upward triangles."""
         df = pd.DataFrame(
             {
@@ -110,11 +101,11 @@ class TestPheWASEdgeCases:
                 "beta": [0.5, 0.3],  # All positive effects
             }
         )
-        fig = plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
+        fig = stats_plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
         assert fig is not None
         plt.close(fig)
 
-    def test_phewas_with_effect_column_negative(self, plotter):
+    def test_phewas_with_effect_column_negative(self, stats_plotter):
         """PheWAS plot with negative effects should show downward triangles."""
         df = pd.DataFrame(
             {
@@ -124,11 +115,11 @@ class TestPheWASEdgeCases:
                 "beta": [-0.5, -0.3],  # All negative effects
             }
         )
-        fig = plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
+        fig = stats_plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
         assert fig is not None
         plt.close(fig)
 
-    def test_phewas_with_mixed_effects(self, plotter):
+    def test_phewas_with_mixed_effects(self, stats_plotter):
         """PheWAS plot with mixed effects should show both markers."""
         df = pd.DataFrame(
             {
@@ -138,11 +129,11 @@ class TestPheWASEdgeCases:
                 "beta": [0.5, -0.3, 0.2, -0.4],  # Mixed effects
             }
         )
-        fig = plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
+        fig = stats_plotter.plot_phewas(df, variant_id="rs12345", effect_col="beta")
         assert fig is not None
         plt.close(fig)
 
-    def test_phewas_with_multiple_categories(self, plotter):
+    def test_phewas_with_multiple_categories(self, stats_plotter):
         """PheWAS plot with multiple categories should color correctly."""
         df = pd.DataFrame(
             {
@@ -151,11 +142,11 @@ class TestPheWASEdgeCases:
                 "p_value": [0.01, 0.001, 1e-5, 1e-6, 1e-4],
             }
         )
-        fig = plotter.plot_phewas(df, variant_id="rs12345")
+        fig = stats_plotter.plot_phewas(df, variant_id="rs12345")
         assert fig is not None
         plt.close(fig)
 
-    def test_phewas_with_nan_category(self, plotter):
+    def test_phewas_with_nan_category(self, stats_plotter):
         """PheWAS plot should handle NaN category values."""
         df = pd.DataFrame(
             {
@@ -164,7 +155,7 @@ class TestPheWASEdgeCases:
                 "p_value": [0.01, 0.001, 1e-5],
             }
         )
-        fig = plotter.plot_phewas(df, variant_id="rs12345")
+        fig = stats_plotter.plot_phewas(df, variant_id="rs12345")
         assert fig is not None
         plt.close(fig)
 
@@ -172,12 +163,7 @@ class TestPheWASEdgeCases:
 class TestForestPlotEdgeCases:
     """Tests for forest plot edge cases."""
 
-    @pytest.fixture
-    def plotter(self):
-        """Create a StatsPlotter instance."""
-        return StatsPlotter()
-
-    def test_forest_with_weight_column(self, plotter):
+    def test_forest_with_weight_column(self, stats_plotter):
         """Forest plot with weight column should size markers."""
         df = pd.DataFrame(
             {
@@ -188,11 +174,11 @@ class TestForestPlotEdgeCases:
                 "weight": [10.0, 30.0, 20.0],  # Different weights
             }
         )
-        fig = plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
+        fig = stats_plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
         assert fig is not None
         plt.close(fig)
 
-    def test_forest_with_equal_weights(self, plotter):
+    def test_forest_with_equal_weights(self, stats_plotter):
         """Forest plot with equal weights should have uniform marker sizes."""
         df = pd.DataFrame(
             {
@@ -203,11 +189,11 @@ class TestForestPlotEdgeCases:
                 "weight": [20.0, 20.0, 20.0],  # Equal weights - triggers line 257-258
             }
         )
-        fig = plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
+        fig = stats_plotter.plot_forest(df, variant_id="rs12345", weight_col="weight")
         assert fig is not None
         plt.close(fig)
 
-    def test_forest_with_odds_ratio(self, plotter):
+    def test_forest_with_odds_ratio(self, stats_plotter):
         """Forest plot with odds ratio should use null_value=1.0."""
         df = pd.DataFrame(
             {
@@ -217,7 +203,7 @@ class TestForestPlotEdgeCases:
                 "ci_upper": [2.0, 1.2, 1.6],
             }
         )
-        fig = plotter.plot_forest(
+        fig = stats_plotter.plot_forest(
             df,
             variant_id="rs12345",
             null_value=1.0,
@@ -226,7 +212,7 @@ class TestForestPlotEdgeCases:
         assert fig is not None
         plt.close(fig)
 
-    def test_forest_with_custom_figsize(self, plotter):
+    def test_forest_with_custom_figsize(self, stats_plotter):
         """Forest plot should accept custom figure size."""
         df = pd.DataFrame(
             {
@@ -236,7 +222,7 @@ class TestForestPlotEdgeCases:
                 "ci_upper": [0.8, 0.5],
             }
         )
-        fig = plotter.plot_forest(df, variant_id="rs12345", figsize=(12, 10))
+        fig = stats_plotter.plot_forest(df, variant_id="rs12345", figsize=(12, 10))
         assert fig is not None
         plt.close(fig)
 
@@ -254,14 +240,10 @@ class TestStatsPlotterInit:
         plotter = StatsPlotter(genomewide_threshold=1e-5)
         assert plotter.genomewide_threshold == 1e-5
 
-    def test_plotly_backend(self):
-        """StatsPlotter should work with plotly backend."""
-        plotter = StatsPlotter(backend="plotly")
-        assert plotter._backend is not None
-
-    def test_bokeh_backend(self):
-        """StatsPlotter should work with bokeh backend."""
-        plotter = StatsPlotter(backend="bokeh")
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_accepts_every_builtin_backend(self, backend):
+        """StatsPlotter constructs against any built-in backend."""
+        plotter = StatsPlotter(backend=backend)
         assert plotter._backend is not None
 
 
@@ -384,3 +366,42 @@ class TestConstructorThresholdIsTheDefault:
         )
 
         assert self._dashed_x(fig) == []
+
+
+class TestPheWASManyCategories:
+    """Test PheWAS plot with many categories cycles colors correctly."""
+
+    def test_phewas_15_categories_succeeds(self, stats_plotter):
+        """PheWAS with >12 categories should cycle colors without error.
+
+        The PHEWAS_CATEGORY_COLORS palette has 12 colors, so 15 categories
+        requires color cycling. This tests that modulo indexing works.
+        """
+        # Create 15 unique categories
+        categories = [f"Category_{i}" for i in range(15)]
+        phenotypes = [f"Phenotype_{i}" for i in range(15)]
+
+        phewas_df = pd.DataFrame(
+            {
+                "phenotype": phenotypes,
+                "p_value": [10 ** (-i - 1) for i in range(15)],  # varying p-values
+                "category": categories,
+            }
+        )
+
+        fig = stats_plotter.plot_phewas(
+            phewas_df,
+            variant_id="rs12345",
+            phenotype_col="phenotype",
+            p_col="p_value",
+            category_col="category",
+        )
+
+        assert fig is not None
+        # Verify all 15 points are plotted
+        ax = fig.axes[0]
+        total_points = sum(
+            len(collection.get_offsets()) for collection in ax.collections
+        )
+        assert total_points == 15
+        plt.close(fig)

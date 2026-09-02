@@ -7,6 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom.manhattan import prepare_categorical_data
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from tests.strategies import gwas_dataframes_multichrom
 
@@ -125,8 +126,8 @@ class TestPrepareManhattanData:
     """Tests for Manhattan data preparation."""
 
     @pytest.fixture
-    def sample_gwas_df(self):
-        """Create sample GWAS data for testing."""
+    def manhattan_snp_df(self):
+        """Five variants across three chromosomes, with SNP IDs."""
         return pd.DataFrame(
             {
                 "chrom": ["1", "1", "2", "2", "X"],
@@ -136,39 +137,39 @@ class TestPrepareManhattanData:
             }
         )
 
-    def test_adds_neg_log_p_column(self, sample_gwas_df):
+    def test_adds_neg_log_p_column(self, manhattan_snp_df):
         """Should compute -log10(p) for plotting."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
-        result = prepare_manhattan_data(sample_gwas_df, species="human")
+        result = prepare_manhattan_data(manhattan_snp_df, species="human")
         assert "_neg_log_p" in result.columns
         # Check calculation for first row
         expected = -np.log10(0.05)
         assert np.isclose(result["_neg_log_p"].iloc[0], expected, rtol=0.01)
 
-    def test_adds_cumulative_position(self, sample_gwas_df):
+    def test_adds_cumulative_position(self, manhattan_snp_df):
         """Should compute cumulative x positions across chromosomes."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
-        result = prepare_manhattan_data(sample_gwas_df, species="human")
+        result = prepare_manhattan_data(manhattan_snp_df, species="human")
         assert "_cumulative_pos" in result.columns
         # Positions should be monotonically increasing when sorted
         sorted_result = result.sort_values("_cumulative_pos")
         assert sorted_result["_cumulative_pos"].is_monotonic_increasing
 
-    def test_adds_color_column(self, sample_gwas_df):
+    def test_adds_color_column(self, manhattan_snp_df):
         """Should assign colors to each variant."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
-        result = prepare_manhattan_data(sample_gwas_df, species="human")
+        result = prepare_manhattan_data(manhattan_snp_df, species="human")
         assert "_color" in result.columns
         assert all(c.startswith("#") for c in result["_color"])
 
-    def test_stores_chrom_centers_in_attrs(self, sample_gwas_df):
+    def test_stores_chrom_centers_in_attrs(self, manhattan_snp_df):
         """Should store chromosome center positions for axis labels."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
-        result = prepare_manhattan_data(sample_gwas_df, species="human")
+        result = prepare_manhattan_data(manhattan_snp_df, species="human")
         assert "chrom_centers" in result.attrs
         centers = result.attrs["chrom_centers"]
         assert "1" in centers
@@ -476,3 +477,51 @@ class TestCategoricalManhattanIntegerCategories:
         result = prepare_categorical_data(df, category_col="cat")
         assert len(result) == 5
         assert "_neg_log_p" in result.columns
+
+
+class TestCategoricalManhattanNaNHandling:
+    """Medium: Categorical Manhattan prep raises TypeError on NaN categories.
+
+    Bug: prepare_categorical_data uses sorted() on category values directly.
+    If category column contains NaN or mixed types, sorted() raises TypeError.
+    """
+
+    def test_categorical_manhattan_handles_nan_categories(self):
+        """prepare_categorical_data should handle NaN values in category column."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["A", "B", None, "C", np.nan],
+                "p": [0.001, 0.01, 0.1, 0.05, 0.02],
+            }
+        )
+
+        # Bug: sorted(result[category_col].unique()) fails with:
+        # TypeError: '<' not supported between instances of 'str' and 'float'
+        # because np.nan is float and other values are str
+
+        # This should not raise
+        try:
+            result = prepare_categorical_data(df, category_col="phenotype", p_col="p")
+        except TypeError as e:
+            pytest.fail(f"prepare_categorical_data raised TypeError on NaN values: {e}")
+
+        # Should have valid output
+        assert "_cat_idx" in result.columns
+        assert "_neg_log_p" in result.columns
+
+    def test_categorical_manhattan_handles_mixed_types(self):
+        """prepare_categorical_data should handle mixed types in category column."""
+        df = pd.DataFrame(
+            {
+                "category": ["A", 1, "B", 2, "C"],  # Mixed str and int
+                "p": [0.001, 0.01, 0.1, 0.05, 0.02],
+            }
+        )
+
+        # Bug: sorted() fails on mixed types
+        try:
+            prepare_categorical_data(df, category_col="category", p_col="p")
+        except TypeError as e:
+            pytest.fail(
+                f"prepare_categorical_data raised TypeError on mixed types: {e}"
+            )

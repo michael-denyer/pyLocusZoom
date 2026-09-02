@@ -15,7 +15,9 @@ pyLocusZoom uses **pytest** (`>=7.0.0`) along with several plugins configured in
 | `pytest-timeout` | `>=2.0.0` | Per-test timeout of 30s (catches hung tests and accidental network calls) |
 | `hypothesis` | `>=6.0.0` | Property-based testing |
 
-Shared fixtures (`sample_gwas_df`, `sample_genes_df`, `sample_exons_df`, `sample_recomb_df`) and Hypothesis profiles (`ci`, `dev`, `debug`) are defined in `tests/conftest.py`. The active Hypothesis profile is controlled by the `HYPOTHESIS_PROFILE` environment variable and defaults to `dev` (20 examples); CI typically sets `HYPOTHESIS_PROFILE=ci` (100 examples).
+The suite asserts on plotter and renderer call sequences, not on serialised backend output, so a change to a backend or a renderer must also pass `scripts/example_diff.sh`. It regenerates `examples/`, normalises plotly UUIDs and bokeh element ids, and prints `NO REAL DIFFS` or one `REAL DIFF:` line per export whose content changed. Matplotlib PNGs are deterministic, so any PNG diff is a real rendering change.
+
+Shared fixtures and Hypothesis profiles (`ci`, `dev`, `debug`) are defined in `tests/conftest.py`. The active Hypothesis profile is controlled by the `HYPOTHESIS_PROFILE` environment variable and defaults to `dev` (20 examples). CI sets `HYPOTHESIS_PROFILE=ci` (100 examples), which costs under a second on the full suite.
 
 ### Installing Test Dependencies
 
@@ -27,13 +29,11 @@ The `all` extra pulls in `pyspark` so PySpark-dependent tests can run.
 
 ## Running Tests
 
-The `[tool.pytest.ini_options]` section of `pyproject.toml` sets default options:
-
-```toml
-addopts = "-n 3 --timeout=30 --cov=pylocuszoom --cov-report=term-missing -v -m 'not integration'"
-```
-
-That means `uv run pytest` already runs with three parallel workers, a 30-second per-test timeout, coverage reporting, verbose output, and integration tests deselected.
+Defaults come from `[tool.pytest.ini_options].addopts` in
+[`pyproject.toml`](../pyproject.toml), which is the only place they are
+written down. `uv run pytest` already runs with parallel workers, a per-test
+timeout, coverage reporting, verbose output, and integration tests deselected,
+so none of those flags belong on a command line or in a CI step.
 
 | Command | What It Runs |
 |---------|--------------|
@@ -58,20 +58,34 @@ Currently a single custom marker is registered in `pyproject.toml`:
 
 Tests live under `tests/`. Files follow the `test_*.py` naming convention and map 1:1 onto source modules where possible. Examples:
 
-- `tests/test_plotter.py` — regional `LocusZoomPlotter` tests
+- `tests/test_plotter.py` — the regional `LocusZoomPlotter` API
+- `tests/test_plotter_ld.py` — LD calculation and the LD heatmap panel
+- `tests/test_plotter_recombination.py` — the recombination overlay and its download errors
+- `tests/test_plotter_backends.py` — regional plots rendered through each backend
+- `tests/test_data_intake.py` — the shared p-value intake policy
 - `tests/test_manhattan_plotter.py`, `tests/test_qq.py`, `tests/test_manhattan.py` — Manhattan/QQ coverage
 - `tests/test_stats_plotter.py`, `tests/test_phewas.py`, `tests/test_forest.py` — statistical plots
 - `tests/test_ld.py` — PLINK wrapper (PLINK calls are mocked; no real PLINK binary required)
-- `tests/test_notebook_backends.py` — Plotly/Bokeh backend parity checks
+- `tests/test_backends.py` — the shared `PlotBackend` surface and the matplotlib backend
+- `tests/test_plotly_backend.py`, `tests/test_bokeh_backend.py` — the interactive backends
+- `tests/test_notebook_backends.py` — Plotly/Bokeh notebook compatibility
 - `tests/test_recombination.py` — recombination map loading and CanFam4 liftover
 - `tests/test_ucsc.py` — the UCSC gene client and the build-to-source routing (HTTP mocked)
+- `tests/test_fixture_hygiene.py` — fails if one fixture name gains a second schema
 - `tests/test_gene_track.py`, `tests/test_labels.py`, `tests/test_colors.py`, etc.
+
+Do not name a file after a batch of bugs. A maintainer editing `bokeh_backend.py`
+must be able to find its tests from the module name alone.
 
 Test classes use `TestThing` and test functions use `test_behavior_when_condition`.
 
 ### Fixtures
 
-Prefer the shared fixtures in `tests/conftest.py` (`sample_gwas_df`, `sample_genes_df`, `sample_exons_df`, `sample_recomb_df`) over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.
+Prefer the shared fixtures in `tests/conftest.py` over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.
+
+One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`ps`/`p_wald` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chrom`/`pos`/`p` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow.
+
+`warning_records` collects `pylocuszoom` warnings. loguru does not feed pytest's `caplog`, so a test that takes `caplog` and asserts on it will pass no matter what the code logs.
 
 Hypothesis strategies shared across tests live in `tests/strategies.py`.
 

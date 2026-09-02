@@ -1,11 +1,13 @@
 """Tests for QQ plot functionality."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from pylocuszoom.qq import calculate_confidence_band, calculate_lambda_gc
 from tests.strategies import pvalues
 
@@ -203,3 +205,54 @@ class TestQQProperties:
         # Allow small floating point tolerance
         assert np.all(lower <= expected + 1e-10)
         assert np.all(expected <= upper + 1e-10)
+
+
+class TestQQWithVariousPvalueDistributions:
+    """Test QQ plot with various p-value distributions."""
+
+    @pytest.fixture
+    def default_manhattan_plotter(self):
+        """Create plotter instance for testing."""
+        return ManhattanPlotter()
+
+    def test_qq_uniform_pvalues(self, default_manhattan_plotter):
+        """QQ plot with uniform p-values should show lambda ~ 1."""
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame({"p": rng.uniform(0, 1, 1000)})
+
+        fig = default_manhattan_plotter.plot_qq(df, p_col="p", show_lambda=True)
+        assert fig is not None
+
+        # Check title contains lambda close to 1
+        ax = fig.axes[0]
+        title = ax.get_title()
+        assert "λ" in title
+        plt.close(fig)
+
+    def test_qq_extreme_pvalues(self, default_manhattan_plotter):
+        """QQ plot with very small p-values should not produce inf."""
+        df = pd.DataFrame(
+            {
+                "p": [1e-300, 1e-200, 1e-100, 1e-50, 0.001, 0.01, 0.1, 0.5],
+            }
+        )
+
+        fig = default_manhattan_plotter.plot_qq(df, p_col="p")
+        assert fig is not None
+        plt.close(fig)
+
+
+class TestEmptyQQInput:
+    """Empty input has no valid p-values to rank."""
+
+    def test_qq_with_empty_df_raises(self):
+        """QQ plot with empty DataFrame raises ValueError.
+
+        The QQ plot requires valid p-values (>0 and <=1) to compute
+        expected quantiles. Empty data fails this validation.
+        """
+        plotter = ManhattanPlotter()
+        empty_df = pd.DataFrame({"p": pd.Series([], dtype=float)})
+
+        with pytest.raises(ValueError, match="No valid p-values"):
+            plotter.plot_qq(empty_df, p_col="p")

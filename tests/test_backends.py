@@ -2,6 +2,8 @@
 
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
+
 
 class TestRegisterBackend:
     """Tests for the @register_backend decorator."""
@@ -385,7 +387,7 @@ class TestBackendTypeLiteral:
         from pylocuszoom.backends import get_backend
 
         # These should all work without type errors at runtime
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             # Type checkers would verify BackendType compatibility
             backend = get_backend(backend_name)
             assert backend is not None
@@ -395,7 +397,7 @@ class TestHeatmapMethods:
     """Tests for heatmap rendering methods across backends."""
 
     @pytest.fixture
-    def sample_ld_matrix(self):
+    def ld_matrix_array(self):
         """Create a sample 5x5 LD matrix for testing."""
         import numpy as np
 
@@ -408,7 +410,7 @@ class TestHeatmapMethods:
                 data[i, j] = 1.0 - dist * 0.2
         return data
 
-    def test_matplotlib_add_heatmap_returns_mappable(self, sample_ld_matrix):
+    def test_matplotlib_add_heatmap_returns_mappable(self, ld_matrix_array):
         """Matplotlib add_heatmap should return AxesImage object."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
@@ -416,7 +418,7 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
@@ -424,7 +426,7 @@ class TestHeatmapMethods:
         # Should have a colormap
         assert hasattr(mappable, "get_cmap")
 
-    def test_matplotlib_add_heatmap_lower_triangle(self, sample_ld_matrix):
+    def test_matplotlib_add_heatmap_lower_triangle(self, ld_matrix_array):
         """Matplotlib add_heatmap should accept a lower-triangle matrix."""
         from pylocuszoom.backends.composition import lower_triangle
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
@@ -433,13 +435,13 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
-            lower_triangle(sample_ld_matrix),
+            lower_triangle(ld_matrix_array),
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
         assert mappable is not None
 
-    def test_matplotlib_add_colorbar(self, sample_ld_matrix):
+    def test_matplotlib_add_colorbar(self, ld_matrix_array):
         """Matplotlib add_colorbar should not raise."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
@@ -447,14 +449,14 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         mappable = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
         cbar = backend.add_colorbar(axes[0], mappable, label="R²")
         assert cbar is not None
 
-    def test_plotly_add_heatmap_returns_trace(self, sample_ld_matrix):
+    def test_plotly_add_heatmap_returns_trace(self, ld_matrix_array):
         """Plotly add_heatmap should return Heatmap trace."""
         import plotly.graph_objects as go
 
@@ -464,14 +466,14 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         trace = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
         assert trace is not None
         assert isinstance(trace, go.Heatmap)
 
-    def test_plotly_add_colorbar_enables_the_trace_scale(self, sample_ld_matrix):
+    def test_plotly_add_colorbar_enables_the_trace_scale(self, ld_matrix_array):
         """Plotly's colorbar is the trace's own scale, off until asked for."""
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
@@ -479,7 +481,7 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         trace = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
@@ -491,7 +493,7 @@ class TestHeatmapMethods:
         assert trace.showscale is True
         assert trace.colorbar.title.text == "D'"
 
-    def test_plotly_add_colorbar_honours_orientation(self, sample_ld_matrix):
+    def test_plotly_add_colorbar_honours_orientation(self, ld_matrix_array):
         """Horizontal orientation maps to Plotly's 'h'."""
         from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
@@ -499,7 +501,7 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         trace = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
@@ -507,7 +509,7 @@ class TestHeatmapMethods:
 
         assert trace.colorbar.orientation == "h"
 
-    def test_bokeh_add_heatmap_returns_mapper(self, sample_ld_matrix):
+    def test_bokeh_add_heatmap_returns_mapper(self, ld_matrix_array):
         """Bokeh add_heatmap should return LinearColorMapper."""
         from bokeh.models import LinearColorMapper
 
@@ -517,14 +519,14 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         mapper = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
         assert mapper is not None
         assert isinstance(mapper, LinearColorMapper)
 
-    def test_bokeh_add_colorbar_adds_to_layout(self, sample_ld_matrix):
+    def test_bokeh_add_colorbar_adds_to_layout(self, ld_matrix_array):
         """Bokeh add_colorbar should add ColorBar to figure."""
         from bokeh.models import ColorBar
 
@@ -534,7 +536,7 @@ class TestHeatmapMethods:
         fig, axes = backend.create_figure(1, [1.0], (6, 6))
         mapper = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
@@ -548,7 +550,7 @@ class TestHeatmapMethods:
         """All backends should have add_heatmap and add_colorbar methods."""
         from pylocuszoom.backends import get_backend
 
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             backend = get_backend(backend_name)
             assert hasattr(backend, "add_heatmap"), (
                 f"{backend_name} missing add_heatmap"
@@ -557,7 +559,7 @@ class TestHeatmapMethods:
                 f"{backend_name} missing add_colorbar"
             )
 
-    def test_matplotlib_custom_colors(self, sample_ld_matrix):
+    def test_matplotlib_custom_colors(self, ld_matrix_array):
         """Matplotlib add_heatmap should accept custom color gradient."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
@@ -566,14 +568,14 @@ class TestHeatmapMethods:
         # Use blue-to-yellow gradient
         mappable = backend.add_heatmap(
             axes[0],
-            sample_ld_matrix,
+            ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
             cmap_colors=["#0000FF", "#FFFF00"],
         )
         assert mappable is not None
 
-    def test_heatmap_lower_triangle_masks_upper(self, sample_ld_matrix):
+    def test_heatmap_lower_triangle_masks_upper(self, ld_matrix_array):
         """A lower_triangle matrix should reach matplotlib still masked."""
         import numpy as np
 
@@ -585,7 +587,7 @@ class TestHeatmapMethods:
 
         mappable = backend.add_heatmap(
             axes[0],
-            lower_triangle(sample_ld_matrix),
+            lower_triangle(ld_matrix_array),
             x_coords=list(range(5)),
             y_coords=list(range(5)),
         )
@@ -645,7 +647,7 @@ class TestCustomBackendCompatibility:
         assert not isinstance(MinimalBackend(), SupportsBarCharts)
         assert isinstance(BarBackend(), SupportsBarCharts)
 
-    @pytest.mark.parametrize("backend_name", ["matplotlib", "plotly", "bokeh"])
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
     def test_bundled_backends_declare_every_optional_capability(self, backend_name):
         """The three shipped backends opt into heatmaps and bar charts."""
         from pylocuszoom.backends import (

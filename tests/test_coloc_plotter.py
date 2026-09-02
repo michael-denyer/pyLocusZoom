@@ -8,7 +8,7 @@ from pylocuszoom import ValidationError
 
 
 @pytest.fixture
-def gwas_data():
+def coloc_gwas_df():
     """Create sample GWAS data with 5 SNPs."""
     return pd.DataFrame(
         {
@@ -47,12 +47,12 @@ def gwas_data_with_ld():
 class TestPlotColoc:
     """Tests for plot_coloc method."""
 
-    def test_returns_figure(self, gwas_data, eqtl_data):
+    def test_returns_figure(self, coloc_gwas_df, eqtl_data):
         """Test that basic plot returns non-None figure."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(gwas_data, eqtl_data)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
         assert fig is not None
 
     def test_ld_coloring(self, gwas_data_with_ld, eqtl_data):
@@ -84,22 +84,22 @@ class TestPlotColoc:
         fig = plotter.plot_coloc(gwas_data_with_ld, eqtl_data, ld_col="ld")
         assert fig is not None
 
-    def test_significance_lines(self, gwas_data, eqtl_data):
+    def test_significance_lines(self, coloc_gwas_df, eqtl_data):
         """Test custom significance thresholds."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
         fig = plotter.plot_coloc(
-            gwas_data, eqtl_data, gwas_threshold=1e-5, eqtl_threshold=1e-3
+            coloc_gwas_df, eqtl_data, gwas_threshold=1e-5, eqtl_threshold=1e-3
         )
         assert fig is not None
 
-    def test_correlation_displayed(self, gwas_data, eqtl_data):
+    def test_correlation_displayed(self, coloc_gwas_df, eqtl_data):
         """Test correlation is displayed when show_correlation=True."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, show_correlation=True)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, show_correlation=True)
         assert fig is not None
 
     def test_correlation_skipped_small_n(self):
@@ -124,12 +124,12 @@ class TestPlotColoc:
         fig = plotter.plot_coloc(gwas_small, eqtl_small, show_correlation=True)
         assert fig is not None
 
-    def test_no_ld_uses_na_color(self, gwas_data, eqtl_data):
+    def test_no_ld_uses_na_color(self, coloc_gwas_df, eqtl_data):
         """Test that all points are grey when no ld_col provided."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, ld_col=None)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, ld_col=None)
         assert fig is not None
 
     def test_custom_column_names(self):
@@ -161,22 +161,22 @@ class TestPlotColoc:
         )
         assert fig is not None
 
-    def test_custom_figsize(self, gwas_data, eqtl_data):
+    def test_custom_figsize(self, coloc_gwas_df, eqtl_data):
         """Test figsize parameter is respected."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, figsize=(10, 10))
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, figsize=(10, 10))
         width, height = fig.get_size_inches()
         assert width == 10
         assert height == 10
 
-    def test_title_displayed(self, gwas_data, eqtl_data):
+    def test_title_displayed(self, coloc_gwas_df, eqtl_data):
         """Test title parameter sets plot title."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, title="Test Coloc Plot")
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, title="Test Coloc Plot")
         axes = fig.get_axes()
         assert len(axes) >= 1
         title_text = axes[0].get_title()
@@ -223,7 +223,7 @@ class TestColocPlotterValidation:
         with pytest.raises(ValidationError, match="Missing columns"):
             plotter.plot_coloc(gwas_missing, eqtl_data)
 
-    def test_missing_eqtl_columns_raises(self, gwas_data):
+    def test_missing_eqtl_columns_raises(self, coloc_gwas_df):
         """Test missing required columns in eQTL df raises ValidationError."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
@@ -236,9 +236,9 @@ class TestColocPlotterValidation:
         )
         plotter = ColocPlotter()
         with pytest.raises(ValidationError, match="Missing columns"):
-            plotter.plot_coloc(gwas_data, eqtl_missing)
+            plotter.plot_coloc(coloc_gwas_df, eqtl_missing)
 
-    def test_invalid_p_value_raises(self, gwas_data):
+    def test_invalid_p_value_raises(self, coloc_gwas_df):
         """Test p-values outside (0, 1] range raises ValidationError."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
@@ -251,30 +251,30 @@ class TestColocPlotterValidation:
         )
         plotter = ColocPlotter()
         with pytest.raises(ValidationError, match="values <= 0"):
-            plotter.plot_coloc(gwas_data, eqtl_bad_p)
+            plotter.plot_coloc(coloc_gwas_df, eqtl_bad_p)
 
 
 class TestColocPlotterBackends:
     """Tests for ColocPlotter with different backends."""
 
-    def test_plotly_backend(self, gwas_data, eqtl_data):
+    def test_plotly_backend(self, coloc_gwas_df, eqtl_data):
         """Test plotly backend returns plotly Figure."""
         import plotly.graph_objects as go
 
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter(backend="plotly")
-        fig = plotter.plot_coloc(gwas_data, eqtl_data)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
         assert isinstance(fig, go.Figure)
 
-    def test_bokeh_backend(self, gwas_data, eqtl_data):
+    def test_bokeh_backend(self, coloc_gwas_df, eqtl_data):
         """Test bokeh backend returns bokeh layout."""
         from bokeh.models.layouts import LayoutDOM
 
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter(backend="bokeh")
-        fig = plotter.plot_coloc(gwas_data, eqtl_data)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
         assert isinstance(fig, LayoutDOM)
 
     def test_matplotlib_ld_legend(self, gwas_data_with_ld, eqtl_data):
@@ -432,7 +432,7 @@ class TestEffectDirectionColoring:
         # Negative GWAS, positive eQTL
         assert _get_effect_agreement_color(-0.3, 0.4) == EFFECT_INCONGRUENT_COLOR
 
-    def test_color_by_effect_without_cols_raises(self, gwas_data, eqtl_data):
+    def test_color_by_effect_without_cols_raises(self, coloc_gwas_df, eqtl_data):
         """Test color_by_effect=True without effect cols raises ValueError."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
@@ -441,7 +441,7 @@ class TestEffectDirectionColoring:
         # Missing both columns
         with pytest.raises(ValueError, match="color_by_effect.*requires"):
             plotter.plot_coloc(
-                gwas_data,
+                coloc_gwas_df,
                 eqtl_data,
                 color_by_effect=True,
             )
@@ -449,7 +449,7 @@ class TestEffectDirectionColoring:
         # Missing eqtl_effect_col
         with pytest.raises(ValueError, match="color_by_effect.*requires"):
             plotter.plot_coloc(
-                gwas_data,
+                coloc_gwas_df,
                 eqtl_data,
                 color_by_effect=True,
                 gwas_effect_col="beta_gwas",
@@ -513,15 +513,15 @@ class TestEffectDirectionColoring:
 class TestH4PosteriorDisplay:
     """Tests for H4 posterior probability display."""
 
-    def test_h4_displayed(self, gwas_data, eqtl_data):
+    def test_h4_displayed(self, coloc_gwas_df, eqtl_data):
         """Test H4 posterior is displayed when provided."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=0.95)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0.95)
         assert fig is not None
 
-    def test_h4_range_validation(self, gwas_data, eqtl_data):
+    def test_h4_range_validation(self, coloc_gwas_df, eqtl_data):
         """Test h4_posterior must be in [0, 1]."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
@@ -529,18 +529,18 @@ class TestH4PosteriorDisplay:
 
         # Invalid: < 0
         with pytest.raises(ValueError, match="h4_posterior"):
-            plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=-0.1)
+            plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=-0.1)
 
         # Invalid: > 1
         with pytest.raises(ValueError, match="h4_posterior"):
-            plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=1.5)
+            plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=1.5)
 
-    def test_h4_formatting(self, gwas_data, eqtl_data):
+    def test_h4_formatting(self, coloc_gwas_df, eqtl_data):
         """Test H4 is formatted to 3 decimal places."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter(backend="matplotlib")
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=0.95123456)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0.95123456)
         # Check that text annotation exists
         axes = fig.get_axes()
         assert len(axes) >= 1
@@ -550,13 +550,13 @@ class TestH4PosteriorDisplay:
         assert len(h4_texts) == 1
         assert "H4 PP = 0.951" in h4_texts[0]
 
-    def test_h4_with_correlation(self, gwas_data, eqtl_data):
+    def test_h4_with_correlation(self, coloc_gwas_df, eqtl_data):
         """Test both H4 and correlation are displayed together."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter(backend="matplotlib")
         fig = plotter.plot_coloc(
-            gwas_data, eqtl_data, h4_posterior=0.95, show_correlation=True
+            coloc_gwas_df, eqtl_data, h4_posterior=0.95, show_correlation=True
         )
         axes = fig.get_axes()
         texts = [child.get_text() for child in axes[0].texts]
@@ -566,18 +566,18 @@ class TestH4PosteriorDisplay:
         assert len(h4_texts) >= 1
         assert len(corr_texts) >= 1
 
-    def test_h4_boundary_values(self, gwas_data, eqtl_data):
+    def test_h4_boundary_values(self, coloc_gwas_df, eqtl_data):
         """Test H4 boundary values are accepted."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
 
         # H4 = 0 (valid)
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=0)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0)
         assert fig is not None
 
         # H4 = 1 (valid)
-        fig = plotter.plot_coloc(gwas_data, eqtl_data, h4_posterior=1)
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=1)
         assert fig is not None
 
 

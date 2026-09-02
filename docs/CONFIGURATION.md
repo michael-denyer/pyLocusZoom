@@ -164,7 +164,7 @@ only affect contributors working on pyLocusZoom itself (not library users):
 | --------------------------------- | ----------------------------------------------------------------------- |
 | `requires-python`                 | `>= 3.10`                                                               |
 | `build-system.requires`           | `hatchling==1.29.0`                                                     |
-| `tool.pytest.ini_options.addopts` | `-n 3 --timeout=30 --cov=pylocuszoom --cov-report=term-missing -v -m 'not integration'` |
+| `tool.pytest.ini_options.addopts` | Parallel workers, per-test timeout, coverage, verbose, integration deselected. See [`pyproject.toml`](../pyproject.toml) for the exact string. |
 | `tool.ruff.line-length`           | `88`                                                                    |
 | `tool.ruff.target-version`        | `py310`                                                                 |
 | `tool.ruff.lint.select`           | `["E", "F", "I", "W"]`                                                  |

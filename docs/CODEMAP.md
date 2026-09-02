@@ -30,7 +30,8 @@ flowchart TB
         MHP["manhattan prep<br/><small>3e</small>"]
         QQP["qq prep<br/><small>3f</small>"]
         FM["finemapping<br/><small>3g</small>"]
-        ENS["ensembl REST<br/><small>3h</small>"]
+        GS["reference_genes.GeneSource<br/><small>3h</small>"]
+        HTTP["_http downloads<br/><small>5d</small>"]
         REND["Semantic family renderers<br/><small>3i</small>"]
     end
 
@@ -66,7 +67,8 @@ flowchart TB
     CFG --> MHP
     CFG --> QQP
     CFG --> FM
-    GT --> ENS
+    GT --> GS
+    GS --> HTTP
 
     LDP --> BP
     COL --> BP
@@ -112,7 +114,7 @@ flowchart TB
     style MHP fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style QQP fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style FM fill:#2e7d32,stroke:#66bb6a,color:#ffffff
-    style ENS fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style GS fill:#2e7d32,stroke:#66bb6a,color:#ffffff
 
     %% Backends — pink
     style BP fill:#ad1457,stroke:#f06292,color:#ffffff
@@ -126,6 +128,7 @@ flowchart TB
     style EX fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
     style LG fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
     style UT fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
+    style HTTP fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
 ```
 
 ---
@@ -194,7 +197,19 @@ Data transformation between validated input and backend-ready primitives.
 | 3e | prepare_manhattan_data | Cumulative-position Manhattan prep | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
-| 3h | get_genes_for_region | Ensembl REST with disk cache | [ensembl.py](../src/pylocuszoom/ensembl.py) |
+| 3h | GeneSource, source_for, get_genes_for_build | One value type naming where a build's genes come from, and the build-to-source routing that returns it | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
+| 3h | get_genes_for_region | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
+| 3h | fetch_ucsc_genes | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
+| 3h | gene cache | On-disk cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
+| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and merges it into the GWAS frame under one recovery policy | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
+| 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
+| 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
+| 3j | prepare_phewas_for_plotting | PheWAS panel prep | [phewas.py](../src/pylocuszoom/phewas.py) |
+| 3j | prepare_forest_data | Forest-plot prep | [forest.py](../src/pylocuszoom/forest.py) |
+| 3j | calculate_colocalization_overlap | Colocalisation overlap between two association frames | [coloc.py](../src/pylocuszoom/coloc.py) |
+| 3j | add_snp_labels | SNP label placement and lead-proximity filtering | [labels.py](../src/pylocuszoom/labels.py) |
+| 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
+| 3j | UNSET, resolve_threshold | The significance-threshold sentinel, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
 | 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request and the function that draws it, shared by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
 
@@ -232,15 +247,26 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 
 ### Backend Capabilities
 
-| Backend | Static Export | Hover | Recomb Overlay | Region Highlight | SNP Labels | Heatmap | Bar Charts |
-|---------|---------------|-------|----------------|------------------|------------|---------|------------|
-| matplotlib | PNG/PDF/SVG | ❌ | ✅ | ✅ | ✅ (adjustText) | ✅ | ✅ |
-| plotly | HTML | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| bokeh | HTML | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+One row per `@runtime_checkable` protocol in
+[base.py](../src/pylocuszoom/backends/base.py). These five are the whole
+optional set; gate on `isinstance(backend, Supports*)`, never on the backend
+name.
 
-Every column except Static Export and Hover is an optional `@runtime_checkable`
-capability. A custom backend opts in by implementing the methods and out by
-omitting them; see [ARCHITECTURE.md](ARCHITECTURE.md#optional-capabilities-in-21).
+| Protocol | matplotlib | plotly | bokeh |
+|----------|:----------:|:------:|:-----:|
+| `SupportsRegionHighlight` | ✅ | ✅ | ✅ |
+| `SupportsSecondaryAxis` | ✅ | ✅ | ✅ |
+| `SupportsHeatmap` | ✅ | ✅ | ✅ |
+| `SupportsBarCharts` | ✅ | ✅ | ✅ |
+| `SupportsSNPLabels` | ✅ | ❌ | ❌ |
+
+`SupportsSNPLabels` needs adjustText, which has no plotly or bokeh equivalent.
+The recombination overlay is not a protocol: it composes above the seam in
+`composition.py` on top of `SupportsSecondaryAxis`. Static export and hover are
+backend properties rather than capabilities (matplotlib writes PNG/PDF/SVG and
+has no hover; plotly and bokeh write HTML and do). A custom backend opts in by
+implementing the methods and out by omitting them; see
+[ARCHITECTURE.md](ARCHITECTURE.md#optional-capabilities-in-21).
 
 ---
 
@@ -252,6 +278,7 @@ omitting them; see [ARCHITECTURE.md](ARCHITECTURE.md#optional-capabilities-in-21
 | 5b | enable_logging | Loguru/stdlib logging facade | [logging.py](../src/pylocuszoom/logging.py) |
 | 5c | to_pandas | PySpark → pandas bridge | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
+| 5d | download_file | The one HTTP download path: retries, atomic writes, progress | [_http.py](../src/pylocuszoom/_http.py) |
 
 ### Exception Hierarchy [5a]
 
@@ -421,5 +448,8 @@ classDiagram
 | LD / PLINK | [ld.py](../src/pylocuszoom/ld.py) |
 | Gene track layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | Recombination maps | [recombination.py](../src/pylocuszoom/recombination.py) |
+| Gene reference routing | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
 | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
+| UCSC gene client | [ucsc.py](../src/pylocuszoom/ucsc.py) |
+| HTTP downloads | [_http.py](../src/pylocuszoom/_http.py) |
 | Exceptions | [exceptions.py](../src/pylocuszoom/exceptions.py) |
