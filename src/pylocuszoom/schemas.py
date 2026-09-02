@@ -4,7 +4,8 @@ Provides validation for GWAS, eQTL, fine-mapping, and gene annotation
 DataFrames to ensure data quality before plotting.
 
 These are the strict, load-time schemas. The permissive plot-time tier is
-``validation.gwas_spec(..., strict=False)`` and ``validation.GENES_SPEC``; see
+``validation.gwas_spec(..., strict=False)`` and ``validation.GENES_SPEC``
+(same name, permissive rules); see
 the two-tier note in ``CONTEXT.md``.
 """
 
@@ -44,7 +45,7 @@ def validate_gwas_dataframe(
 # eQTL Validation
 # =============================================================================
 
-_EQTL_SPEC = ColumnSpec(
+EQTL_SPEC = ColumnSpec(
     name="eQTL",
     required=("pos", "p_value", "gene"),
     numeric=("pos", "p_value"),
@@ -69,7 +70,7 @@ def validate_eqtl_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    check(df, _EQTL_SPEC)
+    check(df, EQTL_SPEC)
     return df
 
 
@@ -77,7 +78,7 @@ def validate_eqtl_dataframe(
 # Fine-mapping Validation
 # =============================================================================
 
-_FINEMAPPING_SPEC = ColumnSpec(
+FINEMAPPING_SPEC = ColumnSpec(
     name="Fine-mapping",
     required=("pos", "pip"),
     numeric=("pos", "pip"),
@@ -104,7 +105,7 @@ def validate_finemapping_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    check(df, _FINEMAPPING_SPEC)
+    check(df, FINEMAPPING_SPEC)
     return df
 
 
@@ -112,7 +113,7 @@ def validate_finemapping_dataframe(
 # Gene Annotation Validation
 # =============================================================================
 
-_GENES_SPEC = ColumnSpec(
+GENES_SPEC = ColumnSpec(
     name="Gene annotation",
     required=("chr", "start", "end", "gene_name"),
     numeric=("start", "end"),
@@ -137,5 +138,5 @@ def validate_genes_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    check(df, _GENES_SPEC)
+    check(df, GENES_SPEC)
     return df

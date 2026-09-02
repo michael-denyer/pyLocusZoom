@@ -846,29 +846,12 @@ class TestPolyFunLoader:
         assert df[df["pos"] == 1000000]["cs"].iloc[0] == 1
         assert df[df["pos"] == 1002000]["cs"].iloc[0] == 0
 
-    def test_load_polyfun_unmappable_pip_warns_and_skips_validation(
-        self, polyfun_file_no_pip
-    ):
-        """Test that an unmappable pip column warns and returns unvalidated rows."""
-        import io
+    def test_load_polyfun_unmappable_pip_raises(self, polyfun_file_no_pip):
+        """An unmappable pip column fails at load time, naming the column."""
+        with pytest.raises(LoaderValidationError) as exc_info:
+            load_polyfun(polyfun_file_no_pip)
 
-        from pylocuszoom.logging import enable_logging
-
-        log_capture = io.StringIO()
-        enable_logging("WARNING", sink=log_capture)
-        try:
-            df = load_polyfun(polyfun_file_no_pip)
-        finally:
-            enable_logging("INFO")  # Restore the module's import-time default
-
-        assert "pip" not in df.columns
-        assert len(df) == 3
-        assert df[df["pos"] == 1001000]["cs"].iloc[0] == 1
-        assert df[df["pos"] == 1002000]["rs"].iloc[0] == "rs789"
-
-        log_output = log_capture.getvalue()
-        assert "PolyFun loader could not map columns: ['pip']" in log_output
-        assert "Validation skipped" in log_output
+        assert "pip" in str(exc_info.value)
 
 
 # =============================================================================
