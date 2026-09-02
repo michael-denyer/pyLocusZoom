@@ -9,8 +9,6 @@ CODEMAP.md to ``pylocuszoom.__all__``.
 import re
 from pathlib import Path
 
-import tomllib
-
 import pylocuszoom
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -36,14 +34,9 @@ REDUNDANT_FLAGS = [
 ]
 
 
-def _addopts() -> str:
-    config = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
-    return config["tool"]["pytest"]["ini_options"]["addopts"]
-
-
-def test_addopts_still_supplies_every_flag_this_guard_strips():
+def test_addopts_still_supplies_every_flag_this_guard_strips(pytestconfig):
     """The flags this test bans are exactly the ones addopts sets."""
-    addopts = _addopts()
+    addopts = " ".join(pytestconfig.getini("addopts"))
 
     for flag in (
         "-n 3",
