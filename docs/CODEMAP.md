@@ -30,7 +30,7 @@ flowchart TB
         MHP["manhattan prep<br/><small>3e</small>"]
         QQP["qq prep<br/><small>3f</small>"]
         FM["finemapping<br/><small>3g</small>"]
-        GS["reference_genes.GeneSource<br/><small>3h</small>"]
+        GS["_gene_source.GeneSource<br/><small>3h</small>"]
         HTTP["_http downloads<br/><small>5d</small>"]
         REND["Semantic family renderers<br/><small>3i</small>"]
     end
@@ -197,9 +197,10 @@ Data transformation between validated input and backend-ready primitives.
 | 3e | prepare_manhattan_data | Cumulative-position Manhattan prep | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
-| 3h | GeneSource, source_for, get_genes_for_build | One value type naming where a build's genes come from, and the build-to-source routing that returns it | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
-| 3h | get_genes_for_region | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
-| 3h | fetch_ucsc_genes | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
+| 3h | GeneSource, GeneAnnotations, GENE_COLUMNS | The value types and frame schema both sources produce, in a leaf neither imports back | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |
+| 3h | source_for, get_genes_for_build | The build-to-source routing and the one fetch-and-cache orchestration | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
+| 3h | ensembl_source, fetch_overlap_frames | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
+| 3h | ucsc_source, fetch_track_frames | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
 | 3h | gene cache | On-disk cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
 | 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and merges it into the GWAS frame under one recovery policy | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
 | 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
@@ -448,6 +449,7 @@ classDiagram
 | Gene track layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | Recombination maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | Gene reference routing | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
+| Gene source value type | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |
 | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 | UCSC gene client | [ucsc.py](../src/pylocuszoom/ucsc.py) |
 | HTTP downloads | [_http.py](../src/pylocuszoom/_http.py) |

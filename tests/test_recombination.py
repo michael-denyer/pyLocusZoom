@@ -2,8 +2,9 @@
 
 import io
 import tarfile
+from dataclasses import replace
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
@@ -11,7 +12,9 @@ import pytest
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
 from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
+    CANINE_SOURCE,
     RECOMB_COLOR,
+    RECOMB_SOURCES,
     _publish_map_generation,
     download_canine_recombination_maps,
     download_liftover_chain,
@@ -84,6 +87,16 @@ class TestLoadRecombinationMap:
         """Should raise FileNotFoundError when map file doesn't exist."""
         with pytest.raises(FileNotFoundError, match="Recombination map not found"):
             load_recombination_map(chrom=1, data_dir=str(tmp_path))
+
+    def test_missing_map_names_the_function_that_downloads_it(self, tmp_path):
+        """The remedy in the message has to be a function that exists."""
+        with pytest.raises(FileNotFoundError, match=r"ensure_recomb_maps\(species="):
+            load_recombination_map(1, species="canine", data_dir=str(tmp_path))
+
+    def test_missing_map_for_a_species_without_maps_says_so(self, tmp_path):
+        """A species with no built-in source is told to supply its own maps."""
+        with pytest.raises(FileNotFoundError, match="no built-in recombination maps"):
+            load_recombination_map(1, species="feline", data_dir=str(tmp_path))
 
     def test_loads_valid_map_file(self, tmp_path):
         """Should load and parse valid recombination map file."""
@@ -181,9 +194,7 @@ class TestDownloadLiftoverChain:
     def test_returns_existing_file(self, tmp_path, monkeypatch):
         """Returns existing chain file without re-downloading."""
         # Create mock chain file
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.get_chain_dir", lambda: tmp_path)
         chain_file = tmp_path / "canFam3ToCanFam4.over.chain.gz"
         chain_file.write_bytes(b"mock chain data")
 
@@ -193,9 +204,7 @@ class TestDownloadLiftoverChain:
     @patch("pylocuszoom.recombination.download_file")
     def test_downloads_when_missing(self, mock_download, tmp_path, monkeypatch):
         """Downloads chain file when not present."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.get_chain_dir", lambda: tmp_path)
 
         # Mock the download to create the file
         def create_file(url, dest, desc):
@@ -210,9 +219,7 @@ class TestDownloadLiftoverChain:
     @patch("pylocuszoom.recombination.download_file")
     def test_force_redownload(self, mock_download, tmp_path, monkeypatch):
         """Force=True re-downloads even if file exists."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.get_chain_dir", lambda: tmp_path)
 
         # Create existing file
         chain_file = tmp_path / "canFam3ToCanFam4.over.chain.gz"
@@ -446,29 +453,40 @@ class TestPublishMapGeneration:
         for chrom in range(1, stop):
             (path / f"chr{chrom}_recomb.tsv").write_text(content)
 
-    def test_switches_complete_generations_and_preserves_ancillary_files(
-        self, tmp_path
-    ):
+    def test_switches_complete_generations(self, tmp_path):
         output = tmp_path / "maps"
         self._write_maps(output, "old")
-        (output / "canFam3ToCanFam4.over.chain.gz").write_text("chain")
 
         first_staging = tmp_path / "first-staging"
         self._write_maps(first_staging, "first")
-        _publish_map_generation(first_staging, output)
+        _publish_map_generation(first_staging, output, CANINE_SOURCE)
 
-        first_generation = output.resolve()
-        assert output.is_symlink()
+        assert not output.is_symlink(), "the published set is a plain directory"
         assert (output / "chr1_recomb.tsv").read_text() == "first"
-        assert (output / "canFam3ToCanFam4.over.chain.gz").read_text() == "chain"
 
         second_staging = tmp_path / "second-staging"
         self._write_maps(second_staging, "second")
-        _publish_map_generation(second_staging, output)
+        _publish_map_generation(second_staging, output, CANINE_SOURCE)
 
-        assert output.resolve() != first_generation
         assert (output / "chr1_recomb.tsv").read_text() == "second"
-        assert not first_generation.exists()
+        assert list(tmp_path.glob(".maps.previous-*")) == [], (
+            "the replaced set must not be left behind"
+        )
+
+    def test_replaces_a_legacy_symlinked_generation(self, tmp_path):
+        """Releases before this one published the maps behind a symlink."""
+        generation = tmp_path / ".maps.generation-old"
+        self._write_maps(generation, "old")
+        output = tmp_path / "maps"
+        output.symlink_to(generation.name, target_is_directory=True)
+
+        staging = tmp_path / "staging"
+        self._write_maps(staging, "new")
+        _publish_map_generation(staging, output, CANINE_SOURCE)
+
+        assert not output.is_symlink()
+        assert (output / "chr1_recomb.tsv").read_text() == "new"
+        assert not generation.exists(), "the linked-to generation must be removed too"
 
     def test_incomplete_generation_leaves_active_maps_unchanged(self, tmp_path):
         output = tmp_path / "maps"
@@ -477,9 +495,8 @@ class TestPublishMapGeneration:
         self._write_maps(staging, "new", complete=False)
 
         with pytest.raises(DataDownloadError, match="complete canine map set"):
-            _publish_map_generation(staging, output)
+            _publish_map_generation(staging, output, CANINE_SOURCE)
 
-        assert not output.is_symlink()
         assert (output / "chr1_recomb.tsv").read_text() == "old"
         assert (output / "chr38_recomb.tsv").read_text() == "old"
 
@@ -487,25 +504,26 @@ class TestPublishMapGeneration:
 class TestEnsureRecombMaps:
     """Tests for ensure_recomb_maps function."""
 
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
+    @staticmethod
+    def _patched_download(mock_download):
+        """Swap the canine source for one whose downloader is a mock."""
+        source = replace(CANINE_SOURCE, download=mock_download)
+        return patch.dict(RECOMB_SOURCES, {source.species: source})
+
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_downloads_if_missing(
-        self, mock_get_dir, mock_download, tmp_path
-    ):
+    def test_ensure_recomb_maps_downloads_if_missing(self, mock_get_dir, tmp_path):
         """Test that ensure_recomb_maps triggers download when maps missing."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.return_value = tmp_path / "recomb_data"
+        mock_download = Mock(return_value=tmp_path / "recomb_data")
 
-        result = ensure_recomb_maps(species="canine")
+        with self._patched_download(mock_download):
+            result = ensure_recomb_maps(species="canine")
 
         mock_download.assert_called_once()
         assert result == tmp_path / "recomb_data"
 
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
     @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_skips_download_if_exists(
-        self, mock_get_dir, mock_download, tmp_path
-    ):
+    def test_ensure_recomb_maps_skips_download_if_exists(self, mock_get_dir, tmp_path):
         """Test that ensure_recomb_maps skips download when maps exist."""
         data_dir = tmp_path / "recomb_data"
         data_dir.mkdir()
@@ -514,8 +532,10 @@ class TestEnsureRecombMaps:
             (data_dir / f"chr{i}_recomb.tsv").touch()
 
         mock_get_dir.return_value = data_dir
+        mock_download = Mock()
 
-        result = ensure_recomb_maps(species="canine")
+        with self._patched_download(mock_download):
+            result = ensure_recomb_maps(species="canine")
 
         mock_download.assert_not_called()
         assert result == data_dir
@@ -525,28 +545,32 @@ class TestEnsureRecombMaps:
         result = ensure_recomb_maps(species="human")
         assert result is None
 
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
     @patch("pylocuszoom.recombination.get_default_data_dir")
     def test_ensure_recomb_maps_warns_and_returns_none_on_download_error(
-        self, mock_get_dir, mock_download, tmp_path
+        self, mock_get_dir, tmp_path
     ):
         mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = DataDownloadError("Network error")
+        mock_download = Mock(side_effect=DataDownloadError("Network error"))
 
-        with pytest.warns(UserWarning, match="recombination maps.*Network error"):
+        with (
+            self._patched_download(mock_download),
+            pytest.warns(UserWarning, match="recombination maps.*Network error"),
+        ):
             result = ensure_recomb_maps(species="canine")
 
         assert result is None
 
-    @patch("pylocuszoom.recombination.download_canine_recombination_maps")
     @patch("pylocuszoom.recombination.get_default_data_dir")
     def test_ensure_recomb_maps_warns_and_returns_none_on_io_error(
-        self, mock_get_dir, mock_download, tmp_path
+        self, mock_get_dir, tmp_path
     ):
         mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download.side_effect = OSError("Disk full")
+        mock_download = Mock(side_effect=OSError("Disk full"))
 
-        with pytest.warns(UserWarning, match="recombination maps.*Disk full"):
+        with (
+            self._patched_download(mock_download),
+            pytest.warns(UserWarning, match="recombination maps.*Disk full"),
+        ):
             result = ensure_recomb_maps(species="canine")
 
         assert result is None

@@ -38,7 +38,7 @@ from .recombination import (
     ensure_recomb_maps,
     get_recombination_rate_for_region,
 )
-from .reference_genes import get_genes_for_build
+from .reference_genes import get_genes_for_build, source_for
 from .utils import filter_by_region
 from .validation import validate_genes_df, validate_gwas_df
 
@@ -456,13 +456,11 @@ class LocusZoomPlotter:
                 region.end,
             )
             try:
-                genes_df = get_genes_for_build(
-                    species=self.species,
-                    chrom=region.chrom,
-                    start=region.start,
-                    end=region.end,
-                    genome_build=self.genome_build,
-                    raise_on_error=True,
+                annotations = get_genes_for_build(
+                    source_for(self.species, self.genome_build),
+                    region.chrom,
+                    region.start,
+                    region.end,
                 )
             except ReferenceAPIError as e:
                 warnings.warn(
@@ -470,11 +468,13 @@ class LocusZoomPlotter:
                     f"{region.end}; the gene source failed: {e}",
                     stacklevel=3,
                 )
-                genes_df = None
             else:
-                if genes_df.empty:
+                if annotations.genes.empty:
                     logger.debug("No genes found in region")
-                    genes_df = None
+                else:
+                    genes_df = annotations.genes
+                    if exons_df is None:
+                        exons_df = annotations.exons
         if genes_df is not None:
             validate_genes_df(genes_df)
 

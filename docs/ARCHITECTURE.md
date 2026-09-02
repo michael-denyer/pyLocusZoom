@@ -154,7 +154,9 @@ stages:
 5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py`, or
    fetched through `reference_genes.py`, which routes the plotter's
    `genome_build` to whichever source can serve it: `ucsc.py` for CanFam3.1,
-   CanFam4 and FelCat9, `ensembl.py` for everything else. Recombination rates
+   CanFam4 and FelCat9, `ensembl.py` for everything else. Each source answers
+   with genes and exons from one request, so an automatic gene track carries
+   exon structure. Recombination rates
    are loaded via `recombination.py`, which handles download of bundled canine
    maps and CanFam3.1 → CanFam4 liftover through pyliftover.
 6. **Regional composition and backend dispatch.** `plot()` and
@@ -255,7 +257,8 @@ pyLocusZoom/
 │   ├── gene_track.py          # Gene/exon rendering with overlap resolution
 │   ├── ensembl.py             # Ensembl REST client with caching
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired
-│   ├── reference_genes.py     # GeneSource, and the one fetch-and-cache orchestrator
+│   ├── reference_genes.py     # Build-to-source routing and the one fetch-and-cache orchestrator
+│   ├── _gene_source.py        # GeneSource, GeneAnnotations, and the frame schema
 │   ├── _gene_cache.py         # Disk cache shared by both gene sources
 │   ├── _http.py               # Retrying JSON GET and file download
 │   ├── labels.py              # adjustText-based SNP label placement

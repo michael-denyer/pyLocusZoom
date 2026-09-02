@@ -823,7 +823,7 @@ plotter = LocusZoomPlotter(
 | `recomb_data_dir` | str | Auto | Directory with recombination maps. |
 | `genomewide_threshold` | float | `5e-8` | P-value for significance line. |
 | `log_level` | str | `"INFO"` | Logging verbosity or `None` to disable. |
-| `auto_genes` | bool | `False` | If `True`, fetch gene track from Ensembl when `genes_df` is not supplied. |
+| `auto_genes` | bool | `False` | If `True`, fetch the gene track with exon structure when `genes_df` is not supplied. |
 
 ### plot() Method
 
@@ -934,7 +934,7 @@ fig = plotter.plot_stacked(
 | `ld_reference_file` | str | None | Single PLINK fileset (broadcast to all panels with lead_positions). |
 | `ld_reference_files` | list | None | Per-panel PLINK filesets. |
 | `ld_col` | str | None | Pre-computed LD column name. |
-| `auto_genes` | bool | None | Fetch the gene track when `genes_df` is not supplied; `None` inherits the constructor setting. |
+| `auto_genes` | bool | None | Fetch the gene track with exon structure when `genes_df` is not supplied; `None` inherits the constructor setting. |
 | `show_recombination` | bool | True | Whether to show recombination overlay. |
 | `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
 | `label_top_n` | int | 3 | Number of top SNPs to label per panel. |
@@ -1203,9 +1203,16 @@ plotter = LocusZoomPlotter(species="canine")
 plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 ```
 
-Recombination maps are automatically downloaded on first use (~50MB).
+Recombination maps are automatically downloaded on first use (~50MB), into
+`recombination_maps` under the platform cache. The CanFam3.1 to CanFam4
+liftover chain downloads into a `liftover` directory beside it, so replacing a
+map set never touches the chain.
 
 ### Feline
+
+Canine is the only species with built-in maps. Any other species plots its
+recombination overlay from data you supply, either per plot with `recomb_df` or
+from a directory of `chr{N}_recomb.tsv` files with `recomb_data_dir`.
 
 ```python
 plotter = LocusZoomPlotter(species="feline")
@@ -1238,6 +1245,10 @@ fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
 # Gene track populated automatically from Ensembl
 ```
 
+Genes come back with their exons, so the automatic track draws intron and exon
+structure rather than a plain rectangle per gene. Passing your own `exons_df`
+overrides the fetched one.
+
 **Supported Species:**
 
 | Alias | Ensembl Name |
@@ -1269,19 +1280,44 @@ UCSC's `ncbiRefSeq` is a transcript-level track, so transcripts sharing a symbol
 
 `genome_build` also selects the recombination map, where CanFam3.1 and CanFam4 are both supported.
 
-**Error Handling:** By default, API errors result in warnings and an empty gene track. Use `raise_on_error=True` in low-level functions to get exceptions instead.
+**Error Handling:** A source failure raises `EnsemblAPIError` or `UCSCAPIError`, both catchable as `ReferenceAPIError`. Under `auto_genes=True` the plotter catches it, warns, and draws the plot without the gene track.
 
-**Cache Location:**
+**Cache Location:** each source caches under its own leaf, so a region fetched from Ensembl and the same region fetched from UCSC never collide.
 
-- Linux/macOS: `~/.cache/pylocuszoom/ensembl/{species}/`
-- Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{species}/`
+- Linux/macOS: `~/.cache/pylocuszoom/ensembl/{ensembl_species}/` and `~/.cache/pylocuszoom/ucsc/{ucsc_genome}/`
+- Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{ensembl_species}/` and `%LOCALAPPDATA%/pylocuszoom/ucsc/{ucsc_genome}/`
+
+A CanFam3.1 or FelCat9 plot caches under `ucsc/canFam3/` or `ucsc/felCat9/`, not under `ensembl/`.
 
 ```python
 # Clear cache when needed
-from pylocuszoom import clear_ensembl_cache
-clear_ensembl_cache()  # Clear all
-clear_ensembl_cache(species="human")  # Clear specific species
+from pylocuszoom import clear_gene_cache, get_ensembl_species_name
+
+clear_gene_cache("ensembl")  # Every species cached from Ensembl
+clear_gene_cache("ensembl", cache_species=get_ensembl_species_name("human"))
+clear_gene_cache("ucsc", cache_species="canFam3")
 ```
+
+The species subdirectory is named the way the source names it, so an Ensembl
+one is `homo_sapiens` rather than `human`; `get_ensembl_species_name` resolves
+an alias to it.
+
+**Fetching genes without plotting:** `get_genes_for_build` returns the genes
+and the exons for a region, going through the same cache the plotter uses.
+`source_for` turns a species and a build into the source that can serve them,
+and is the one place either is interpreted.
+
+```python
+from pylocuszoom import get_genes_for_build, source_for
+
+genes_df, exons_df = get_genes_for_build(
+    source_for("canine", "canfam3.1"), chrom=1, start=1_000_000, end=2_000_000
+)
+```
+
+The result is a named tuple, so `annotations.genes` and `annotations.exons`
+also work. Both frames are cached together, so a second call for the same
+region makes no request at all.
 
 **Note:** Recombination rates are NOT available from Ensembl for most species. Continue to provide recombination maps separately.
 

@@ -8,7 +8,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.reference_mocks import (
+    gene_transcript_exon_payload,
+    ok_response,
+    refseq_payload,
+)
 
 
 class TestLocusZoomPlotterInit:
@@ -76,7 +82,10 @@ class TestAutoGenes:
 
         plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
 
-        with patch("pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes):
+        with patch(
+            "pylocuszoom.plotter.get_genes_for_build",
+            return_value=GeneAnnotations(mock_genes, pd.DataFrame()),
+        ):
             fig = plotter.plot(
                 small_regional_gwas_df,
                 chrom=1,
@@ -86,6 +95,45 @@ class TestAutoGenes:
 
         assert fig is not None
 
+    @pytest.mark.parametrize(
+        "species,payload",
+        [
+            ("human", gene_transcript_exon_payload()),
+            ("canine", refseq_payload()),
+        ],
+    )
+    def test_auto_genes_draws_exons(
+        self, small_regional_gwas_df, tmp_path, species, payload
+    ):
+        """auto_genes draws exon structure, whichever source served the genes."""
+        from matplotlib.patches import Rectangle
+
+        from pylocuszoom.gene_track import INTRON_HEIGHT
+
+        plotter = LocusZoomPlotter(species=species, log_level=None, auto_genes=True)
+
+        with (
+            patch("pylocuszoom.reference_genes.cache_root", return_value=tmp_path),
+            patch("pylocuszoom._http.requests.get", return_value=ok_response(payload)),
+        ):
+            fig = plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1_000_000,
+                end=2_000_000,
+                show_recombination=False,
+            )
+
+        introns = [
+            rect
+            for ax in fig.get_axes()
+            for rect in ax.patches
+            if isinstance(rect, Rectangle)
+            and abs(rect.get_height() - INTRON_HEIGHT) < 1e-9
+        ]
+        assert introns, "no intron line drawn, so the gene track has no exons"
+        plt.close(fig)
+
     def test_plot_auto_genes_warns_when_source_fails(
         self, small_regional_gwas_df, tmp_path
     ):
@@ -94,7 +142,7 @@ class TestAutoGenes:
         unavailable = Mock(ok=False, status_code=503, text="Service Unavailable")
 
         with (
-            patch("pylocuszoom.ucsc.get_ucsc_cache_dir", return_value=tmp_path),
+            patch("pylocuszoom.reference_genes.cache_root", return_value=tmp_path),
             patch("pylocuszoom._http.time.sleep"),
             patch("pylocuszoom._http.requests.get", return_value=unavailable),
             pytest.warns(UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"),
@@ -125,7 +173,8 @@ class TestAutoGenes:
         plotter = LocusZoomPlotter(species="human", log_level=None)
 
         with patch(
-            "pylocuszoom.plotter.get_genes_for_build", return_value=mock_genes
+            "pylocuszoom.plotter.get_genes_for_build",
+            return_value=GeneAnnotations(mock_genes, pd.DataFrame()),
         ) as mock_fetch:
             fig = plotter.plot_stacked(
                 [small_regional_gwas_df],
