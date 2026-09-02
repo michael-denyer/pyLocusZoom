@@ -263,27 +263,23 @@ class TestLDHeatmapIntegration:
         assert fig is not None
         plt.close(fig)
 
-    def test_ld_heatmap_empty_overlap_logs_warning(
-        self, ld_heatmap_gwas_df, sample_ld_heatmap_data, capfd
+    def test_ld_heatmap_empty_overlap_raises(
+        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """When no SNPs in heatmap overlap with region, warning logged and no heatmap panel added."""
+        """A heatmap whose SNPs all fall outside the region is a caller fault."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level="WARNING")
 
-        # Region that doesn't overlap with any GWAS SNP positions
-        fig = plotter.plot(
-            ld_heatmap_gwas_df,
-            chrom=1,
-            start=5000000,  # Far outside GWAS positions
-            end=6000000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
-        )
-
-        # Should complete without error - heatmap simply not added
-        assert fig is not None
-        plt.close(fig)
+        with pytest.raises(ValueError, match="No SNPs from LD heatmap overlap"):
+            plotter.plot(
+                ld_heatmap_gwas_df,
+                chrom=1,
+                start=5000000,
+                end=6000000,
+                show_recombination=False,
+                ld_heatmap_df=ld_matrix,
+                ld_heatmap_snp_ids=snp_ids,
+            )
 
     def test_ld_heatmap_height_parameter(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data

@@ -138,7 +138,13 @@ class LocusZoomPlotter:
     def _get_recomb_for_region(
         self, chrom: int, start: int, end: int
     ) -> Optional[pd.DataFrame]:
-        """Get recombination rate data for a region, with caching."""
+        """Get recombination rate data for a region, with caching.
+
+        Returns None through one skip path, warning as ``ensure_recomb_maps``
+        does, whenever the overlay is unavailable. A missing dependency that is
+        not pyliftover is a broken environment, not a missing overlay, and
+        propagates.
+        """
         cache_key = (chrom, start, end, self.genome_build)
         if cache_key in self._recomb_cache:
             return self._recomb_cache[cache_key]
@@ -158,19 +164,11 @@ class LocusZoomPlotter:
             )
             self._recomb_cache[cache_key] = recomb_df
             return recomb_df
-        except FileNotFoundError as e:
-            logger.warning(
-                f"Recombination data file not found: {e}. "
-                f"Recombination overlay will be skipped."
-            )
+        except (FileNotFoundError, ImportError) as e:
+            if isinstance(e, ImportError) and "pyliftover" not in str(e):
+                raise
+            warnings.warn(f"Recombination overlay skipped; {e}", stacklevel=2)
             return None
-        except ImportError as e:
-            if "pyliftover" in str(e):
-                import warnings
-
-                warnings.warn(str(e), stacklevel=2)
-                return None
-            raise
 
     def plot(
         self,

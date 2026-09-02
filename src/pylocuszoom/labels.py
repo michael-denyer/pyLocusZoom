@@ -48,9 +48,8 @@ def add_snp_labels(
             than ``min_label_distance * region_span`` base pairs are skipped.
             The lead SNP is identified by exact position match.
         region_span: Width of the visible region in base pairs. Must be
-            positive for filtering to take effect. If not provided when
-            ``lead_pos`` is set, a warning is logged and filtering is
-            skipped.
+            positive for filtering to take effect; filtering is skipped
+            without it.
         min_label_distance: Minimum distance from lead SNP as a fraction
             of ``region_span``. Non-lead SNPs closer than this are not
             labeled. Defaults to 0.05 (5%). Must be between 0 and 1.
@@ -83,11 +82,6 @@ def add_snp_labels(
             (df[pos_col] - lead_pos).abs() >= min_dist_bp
         )
         eligible = df[mask]
-    elif lead_pos is not None and (region_span is None or region_span <= 0):
-        logger.warning(
-            "lead_pos provided without valid region_span — "
-            "proximity filtering disabled. Pass region_span=(end - start) to enable."
-        )
 
     top_snps = eligible.nlargest(label_top_n, neglog10p_col)
 

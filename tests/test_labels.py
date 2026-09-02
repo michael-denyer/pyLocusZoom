@@ -248,8 +248,8 @@ class TestAddSnpLabels:
         assert len(texts) == 3
         plt.close(fig)
 
-    def test_warns_when_lead_pos_without_region_span(self, warning_records):
-        """Warning logged when lead_pos set but region_span missing."""
+    def test_no_proximity_filtering_without_region_span(self):
+        """Without a region span there is no distance to filter against."""
         df = pd.DataFrame(
             {
                 "rs": ["a", "b"],
@@ -265,7 +265,6 @@ class TestAddSnpLabels:
         )
 
         assert len(texts) == 2
-        assert any("region_span" in message for message in warning_records)
         plt.close(fig)
 
     def test_custom_min_label_distance(self):

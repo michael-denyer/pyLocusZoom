@@ -166,20 +166,24 @@ class HeatmapPanel:
         region: RegionConfig,
         height: float,
         metric: str,
-    ) -> Optional["HeatmapPanel"]:
+    ) -> "HeatmapPanel":
         """Map heatmap SNP ids to positions through the source panel's frame.
 
-        Returns None, after a warning, when the source has no SNP id column or
-        no heatmap SNP falls inside the region. The lead SNP id is resolved
-        from ``source.lead_pos`` and stays None when that position is absent.
+        The lead SNP id is resolved from ``source.lead_pos`` and stays None
+        when that position is absent.
+
+        Raises:
+            ValueError: If the source frame has no SNP id column, or no
+                heatmap SNP falls inside the region. Both are faults in what
+                the caller supplied, like an ``ld_heatmap_df`` with no
+                ``ld_heatmap_snp_ids``.
         """
         df = source.data
         rs_col, pos_col = source.columns.rs_col, source.columns.pos_col
         if rs_col not in df.columns:
-            logger.warning(
+            raise ValueError(
                 f"Cannot map heatmap to genomic coords: column '{rs_col}' not in GWAS data"
             )
-            return None
 
         snp_to_pos = dict(zip(df[rs_col], df[pos_col]))
         kept = [
@@ -188,10 +192,9 @@ class HeatmapPanel:
             if snp_id in snp_to_pos and region.start <= snp_to_pos[snp_id] <= region.end
         ]
         if not kept:
-            logger.warning(
+            raise ValueError(
                 "No SNPs from LD heatmap overlap with region - heatmap not rendered"
             )
-            return None
         indices, kept_ids, x_positions = (list(column) for column in zip(*kept))
 
         lead_snp_id = None
@@ -342,14 +345,14 @@ class RegionalPlotComposer:
         pos_col: str,
         ld_col: Optional[str],
         lead_pos: Optional[int],
-        rs_col: Optional[str] = None,
-        p_col: Optional[str] = None,
+        rs_col: str,
+        p_col: str,
     ) -> None:
         """Render association points, including LD and lead-SNP styling."""
         hover_config = HoverConfig(
-            snp_col=rs_col if rs_col and rs_col in df.columns else None,
+            snp_col=rs_col if rs_col in df.columns else None,
             pos_col=pos_col if pos_col in df.columns else None,
-            p_col=p_col if p_col and p_col in df.columns else None,
+            p_col=p_col if p_col in df.columns else None,
             ld_col=ld_col if ld_col and ld_col in df.columns else None,
         )
         hover_builder = HoverDataBuilder(hover_config)
