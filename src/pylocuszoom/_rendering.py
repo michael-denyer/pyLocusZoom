@@ -12,21 +12,11 @@ import pandas as pd
 
 from ._manhattan_panel import (
     ManhattanPanelSpec,
-    chromosome_ticks,
     manhattan_spec,
     render_manhattan_panel,
-    shared_manhattan_limits,
 )
-from ._plotter_utils import (
-    MANHATTAN_CATEGORICAL_POINT_SIZE,
-    POINT_EDGE_COLOR,
-    QQ_CI_ALPHA,
-    QQ_CI_COLOR,
-    QQ_EDGE_WIDTH,
-    QQ_POINT_COLOR,
-    QQ_POINT_SIZE,
-    SIGNIFICANCE_LINE_COLOR,
-)
+from ._plotter_utils import MANHATTAN_CATEGORICAL_POINT_SIZE
+from ._qq_panel import QQPanelSpec, qq_title, render_qq_panel
 from .backends.base import PlotBackend
 
 
@@ -82,8 +72,6 @@ class ManhattanQQRenderer:
             height_ratios=[1.0],
             figsize=figsize,
         )
-        cat_order = prepared_df.attrs["category_order"]
-        category_centers = prepared_df.attrs["category_centers"]
         render_manhattan_panel(
             self._backend,
             axes[0],
@@ -91,10 +79,7 @@ class ManhattanQQRenderer:
                 prepared_df=prepared_df,
                 x_col="_x_pos",
                 group_col="_cat_str",
-                group_order=cat_order,
-                x_limits=(-0.5, len(cat_order) - 0.5),
-                tick_positions=[category_centers[category] for category in cat_order],
-                tick_labels=cat_order,
+                layout=prepared_df.attrs["layout"],
                 significance_threshold=significance_threshold,
                 point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
                 tick_fontsize=10,
@@ -122,15 +107,18 @@ class ManhattanQQRenderer:
             height_ratios=[1.0],
             figsize=figsize,
         )
-        ax = axes[0]
-        self._render_qq_panel(ax, qq_df, show_confidence_band)
-        self._set_qq_labels_and_title(
-            ax,
-            qq_df,
-            show_lambda=show_lambda,
-            title=title,
-            fontsize=12,
-            title_fontsize=14,
+        render_qq_panel(
+            self._backend,
+            axes[0],
+            QQPanelSpec(
+                qq_df=qq_df,
+                show_confidence_band=show_confidence_band,
+                title=title
+                or qq_title(
+                    qq_df.attrs["lambda_gc"], show_lambda=show_lambda, compact=False
+                ),
+                title_fontsize=14,
+            ),
         )
         self._backend.finalize_layout(fig)
         return fig
@@ -196,14 +184,17 @@ class ManhattanQQRenderer:
                 title_fontsize=12,
             ),
         )
-        self._render_qq_panel(axes[1], qq_df, show_confidence_band)
-        self._set_qq_labels_and_title(
+        render_qq_panel(
+            self._backend,
             axes[1],
-            qq_df,
-            show_lambda=show_lambda,
-            title=None,
-            fontsize=12,
-            title_fontsize=12,
+            QQPanelSpec(
+                qq_df=qq_df,
+                show_confidence_band=show_confidence_band,
+                title=qq_title(
+                    qq_df.attrs["lambda_gc"], show_lambda=show_lambda, compact=False
+                ),
+                title_fontsize=12,
+            ),
         )
 
         if title:
@@ -240,19 +231,22 @@ class ManhattanQQRenderer:
         )
 
         for index, (spec, qq_df) in enumerate(zip(specs, qq_dfs)):
-            qq_ax = axes[index * 2 + 1]
             render_manhattan_panel(self._backend, axes[index * 2], spec)
-            self._render_qq_panel(qq_ax, qq_df, show_confidence_band)
-            self._set_qq_labels_and_title(
-                qq_ax,
-                qq_df,
-                show_lambda=show_lambda,
-                title=None,
-                fontsize=10,
-                x_label="Expected $-\\log_{10}(p)$" if index == n_panels - 1 else None,
-                y_label="Observed $-\\log_{10}(p)$",
-                stacked=True,
-                title_fontsize=10,
+            render_qq_panel(
+                self._backend,
+                axes[index * 2 + 1],
+                QQPanelSpec(
+                    qq_df=qq_df,
+                    show_confidence_band=show_confidence_band,
+                    title=qq_title(
+                        qq_df.attrs["lambda_gc"], show_lambda=show_lambda, compact=True
+                    ),
+                    title_fontsize=10,
+                    label_fontsize=10,
+                    x_label="Expected $-\\log_{10}(p)$"
+                    if index == n_panels - 1
+                    else None,
+                ),
             )
 
         if title:
@@ -269,13 +263,14 @@ class ManhattanQQRenderer:
         significance_threshold: Optional[float],
         panel_labels: Optional[List[str]],
     ) -> List[ManhattanPanelSpec]:
-        """Build specs for vertically stacked panels sharing x limits and ticks.
+        """Build specs for vertically stacked panels sharing one genome layout.
 
         Only the bottom panel carries the x-axis label, since the panels share
         one x axis.
 
         Args:
-            prepared_dfs: Frames from ``prepare_manhattan_data``, top to bottom.
+            prepared_dfs: Frames from ``prepare_manhattan_frames``, top to
+                bottom.
             significance_threshold: P-value for the significance line, or None.
             panel_labels: Corner label per panel, or None.
 
@@ -283,16 +278,9 @@ class ManhattanQQRenderer:
             One spec per frame, in the same order.
         """
         n_panels = len(prepared_dfs)
-        x_limits = shared_manhattan_limits(prepared_dfs)
-        ticks = chromosome_ticks(
-            prepared_dfs[0].attrs["chrom_order"],
-            prepared_dfs[0].attrs["chrom_centers"],
-        )
         return [
             manhattan_spec(
                 prepared_df,
-                x_limits=x_limits,
-                ticks=ticks,
                 significance_threshold=significance_threshold,
                 y_label_fontsize=10,
                 x_label="Chromosome" if index == n_panels - 1 else None,
@@ -302,71 +290,3 @@ class ManhattanQQRenderer:
             )
             for index, prepared_df in enumerate(prepared_dfs)
         ]
-
-    def _render_qq_panel(
-        self,
-        ax: Any,
-        qq_df: pd.DataFrame,
-        show_confidence_band: bool,
-    ) -> None:
-        if show_confidence_band:
-            self._backend.fill_between(
-                ax,
-                x=qq_df["_expected"],
-                y1=qq_df["_ci_lower"],
-                y2=qq_df["_ci_upper"],
-                color=QQ_CI_COLOR,
-                alpha=QQ_CI_ALPHA,
-                zorder=1,
-            )
-
-        max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
-        self._backend.line(
-            ax,
-            x=pd.Series([0, max_val]),
-            y=pd.Series([0, max_val]),
-            color=SIGNIFICANCE_LINE_COLOR,
-            linestyle="--",
-            linewidth=1,
-            zorder=2,
-        )
-        self._backend.scatter(
-            ax,
-            qq_df["_expected"],
-            qq_df["_observed"],
-            colors=QQ_POINT_COLOR,
-            sizes=QQ_POINT_SIZE,
-            marker="o",
-            edgecolor=POINT_EDGE_COLOR,
-            linewidth=QQ_EDGE_WIDTH,
-            zorder=3,
-        )
-        self._backend.set_xlim(ax, 0, max_val * 1.05)
-        self._backend.set_ylim(ax, 0, max_val * 1.05)
-
-    def _set_qq_labels_and_title(
-        self,
-        ax: Any,
-        qq_df: pd.DataFrame,
-        *,
-        show_lambda: bool,
-        title: Optional[str],
-        fontsize: int,
-        title_fontsize: Optional[int] = None,
-        x_label: Optional[str] = r"Expected $-\log_{10}(p)$",
-        y_label: str = r"Observed $-\log_{10}(p)$",
-        stacked: bool = False,
-    ) -> None:
-        if x_label is not None:
-            self._backend.set_xlabel(ax, x_label, fontsize=fontsize)
-        self._backend.set_ylabel(ax, y_label, fontsize=fontsize)
-        if title:
-            plot_title = title
-        elif show_lambda:
-            lambda_gc = qq_df.attrs["lambda_gc"]
-            plot_title = (
-                f"λ = {lambda_gc:.3f}" if stacked else f"QQ Plot (λ = {lambda_gc:.3f})"
-            )
-        else:
-            plot_title = "QQ" if stacked else "QQ Plot"
-        self._backend.set_title(ax, plot_title, fontsize=title_fontsize or fontsize + 2)

@@ -28,8 +28,8 @@ class ColocRenderer:
         merged_rs_col: Optional[str],
         ld_col_merged: Optional[str],
         lead_idx: Optional[Any],
-        gwas_threshold: float,
-        eqtl_threshold: float,
+        gwas_threshold: Optional[float],
+        eqtl_threshold: Optional[float],
         show_correlation: bool,
         color_by_effect: bool,
         h4_posterior: Optional[float],
@@ -78,22 +78,24 @@ class ColocRenderer:
                     ha="center",
                     va="bottom",
                 )
-        self._backend.axvline(
-            ax,
-            x=-np.log10(gwas_threshold),
-            color="grey",
-            linestyle="--",
-            linewidth=1,
-            alpha=0.7,
-        )
-        self._backend.axhline(
-            ax,
-            y=-np.log10(eqtl_threshold),
-            color="grey",
-            linestyle="--",
-            linewidth=1,
-            alpha=0.7,
-        )
+        if gwas_threshold is not None:
+            self._backend.axvline(
+                ax,
+                x=-np.log10(gwas_threshold),
+                color="grey",
+                linestyle="--",
+                linewidth=1,
+                alpha=0.7,
+            )
+        if eqtl_threshold is not None:
+            self._backend.axhline(
+                ax,
+                y=-np.log10(eqtl_threshold),
+                color="grey",
+                linestyle="--",
+                linewidth=1,
+                alpha=0.7,
+            )
         x_min, x_max = merged["neglog10_gwas"].min(), merged["neglog10_gwas"].max()
         y_min, y_max = merged["neglog10_eqtl"].min(), merged["neglog10_eqtl"].max()
         x_range, y_range = x_max - x_min, y_max - y_min

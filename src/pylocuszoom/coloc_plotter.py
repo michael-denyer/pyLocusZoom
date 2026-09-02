@@ -7,11 +7,17 @@ with points colored by LD to the lead SNP.
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 from ._coloc_renderer import ColocRenderer
-from ._data import P_VALUE_FLOOR
+from ._data import prepare_pvalue_data
+from ._plotter_utils import (
+    DEFAULT_EQTL_THRESHOLD,
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+    UNSET,
+    ThresholdArg,
+    resolve_threshold,
+)
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
 from .colors import (
@@ -91,7 +97,7 @@ def _merge_and_transform(
     eqtl_df: pd.DataFrame,
     config: ColocConfig,
 ) -> _MergedColoc:
-    """Merge the two frames on position and -log10 both p-value columns.
+    """Transform both p-value columns through the shared intake, then merge.
 
     Args:
         gwas_df: Validated GWAS results.
@@ -102,31 +108,17 @@ def _merge_and_transform(
         The merged frame and its resolved column names.
 
     Raises:
-        ValueError: If the frames share no positions, or if every merged row
-            has a null p-value on either side.
+        ValueError: If the frames share no positions.
     """
     merged = pd.merge(
-        gwas_df,
-        eqtl_df,
+        prepare_pvalue_data(gwas_df, config.gwas_p_col, out_col="neglog10_gwas"),
+        prepare_pvalue_data(eqtl_df, config.eqtl_p_col, out_col="neglog10_eqtl"),
         on=config.pos_col,
         how="inner",
         suffixes=("_gwas", "_eqtl"),
     )
     if len(merged) == 0:
         raise ValueError("No overlapping positions between GWAS and eQTL DataFrames")
-
-    gwas_p = _resolve_merged_column(merged, config.gwas_p_col, "_gwas")
-    eqtl_p = _resolve_merged_column(merged, config.eqtl_p_col, "_eqtl")
-
-    # Coloc transforms two merged p-value columns at once, so it does its
-    # own -log10 here rather than the single-column prepare_pvalue_data
-    # intake; the p-value floor stays shared via P_VALUE_FLOOR.
-    merged["neglog10_gwas"] = -np.log10(merged[gwas_p].clip(lower=P_VALUE_FLOOR))
-    merged["neglog10_eqtl"] = -np.log10(merged[eqtl_p].clip(lower=P_VALUE_FLOOR))
-    merged = merged.dropna(subset=["neglog10_gwas", "neglog10_eqtl"])
-
-    if len(merged) == 0:
-        raise ValueError("No valid data points after removing NaN p-values")
 
     return _MergedColoc(
         data=merged,
@@ -219,6 +211,8 @@ class ColocPlotter:
 
     Args:
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
+        genomewide_threshold: P-value threshold for the GWAS significance line.
+        eqtl_threshold: P-value threshold for the eQTL significance line.
 
     Example:
         >>> plotter = ColocPlotter()
@@ -229,10 +223,14 @@ class ColocPlotter:
     def __init__(
         self,
         backend: BackendType = "matplotlib",
+        genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
+        eqtl_threshold: float = DEFAULT_EQTL_THRESHOLD,
     ):
         """Initialize the colocalization plotter."""
         self._backend = get_backend(backend)
         self._renderer = ColocRenderer(self._backend)
+        self.genomewide_threshold = genomewide_threshold
+        self.eqtl_threshold = eqtl_threshold
 
     def plot_coloc(
         self,
@@ -244,8 +242,8 @@ class ColocPlotter:
         rs_col: Optional[str] = "rs",
         ld_col: Optional[str] = None,
         lead_snp: Optional[str] = None,
-        gwas_threshold: float = 5e-8,
-        eqtl_threshold: float = 1e-5,
+        gwas_threshold: ThresholdArg = UNSET,
+        eqtl_threshold: ThresholdArg = UNSET,
         show_correlation: bool = True,
         color_by_effect: bool = False,
         gwas_effect_col: Optional[str] = None,
@@ -266,8 +264,11 @@ class ColocPlotter:
             ld_col: Column name for LD R² values in GWAS df (optional).
             lead_snp: SNP ID to highlight as lead variant. If None and ld_col
                 is provided, auto-selects SNP with highest combined -log10(p).
-            gwas_threshold: P-value threshold for GWAS significance line.
-            eqtl_threshold: P-value threshold for eQTL significance line.
+            gwas_threshold: Significance threshold for the GWAS line. Defaults
+                to the plotter's ``genomewide_threshold``; pass None to draw no
+                line.
+            eqtl_threshold: Significance threshold for the eQTL line. Defaults
+                to the plotter's ``eqtl_threshold``; pass None to draw no line.
             show_correlation: Whether to display Pearson correlation.
             color_by_effect: Whether to color points by effect direction agreement.
             gwas_effect_col: Column name for GWAS effect sizes (required if
@@ -308,8 +309,8 @@ class ColocPlotter:
             rs_col=rs_col,
             ld_col=ld_col,
             lead_snp=lead_snp,
-            gwas_threshold=gwas_threshold,
-            eqtl_threshold=eqtl_threshold,
+            gwas_threshold=resolve_threshold(gwas_threshold, self.genomewide_threshold),
+            eqtl_threshold=resolve_threshold(eqtl_threshold, self.eqtl_threshold),
             show_correlation=show_correlation,
             color_by_effect=color_by_effect,
             gwas_effect_col=gwas_effect_col,

@@ -44,6 +44,24 @@ def gwas_data_with_ld():
     )
 
 
+def _dashed_x(ax) -> list:
+    """Return the x position of every vertical dashed line on a matplotlib axis."""
+    return [
+        line.get_xdata()[0]
+        for line in ax.get_lines()
+        if line.get_linestyle() == "--" and len(set(line.get_xdata())) == 1
+    ]
+
+
+def _dashed_y(ax) -> list:
+    """Return the y position of every horizontal dashed line on a matplotlib axis."""
+    return [
+        line.get_ydata()[0]
+        for line in ax.get_lines()
+        if line.get_linestyle() == "--" and len(set(line.get_ydata())) == 1
+    ]
+
+
 class TestPlotColoc:
     """Tests for plot_coloc method."""
 
@@ -93,6 +111,32 @@ class TestPlotColoc:
             coloc_gwas_df, eqtl_data, gwas_threshold=1e-5, eqtl_threshold=1e-3
         )
         assert fig is not None
+
+    def test_thresholds_default_to_the_plotters_own(self, coloc_gwas_df, eqtl_data):
+        """An unsupplied threshold inherits the plotter's, not a module default."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter(genomewide_threshold=1e-3, eqtl_threshold=1e-2)
+
+        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
+
+        ax = fig.get_axes()[0]
+        assert _dashed_x(ax) == pytest.approx([3.0])
+        assert _dashed_y(ax) == pytest.approx([2.0])
+
+    def test_none_threshold_draws_no_line(self, coloc_gwas_df, eqtl_data):
+        """None means no line, and does not fall back to the plotter default."""
+        from pylocuszoom.coloc_plotter import ColocPlotter
+
+        plotter = ColocPlotter()
+
+        fig = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, gwas_threshold=None, eqtl_threshold=None
+        )
+
+        ax = fig.get_axes()[0]
+        assert _dashed_x(ax) == []
+        assert _dashed_y(ax) == []
 
     def test_correlation_displayed(self, coloc_gwas_df, eqtl_data):
         """Test correlation is displayed when show_correlation=True."""

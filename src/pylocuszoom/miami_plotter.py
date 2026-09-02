@@ -18,7 +18,7 @@ from ._plotter_utils import (
     resolve_threshold,
 )
 from .backends import BackendType, get_backend
-from .manhattan import prepare_manhattan_data
+from .manhattan import prepare_manhattan_frames
 
 
 class MiamiPlotter:
@@ -92,6 +92,7 @@ class MiamiPlotter:
             p_col: Column name for p-value.
             rs_col: Column name for SNP RS ID (for hover tooltips and annotations).
             custom_chrom_order: Custom chromosome order (overrides species).
+                Both panels are laid out against it.
             top_threshold: Significance threshold for the top panel. Defaults to
                 the plotter's ``genomewide_threshold``; pass None to draw no line.
             bottom_threshold: Significance threshold for the bottom panel. Same
@@ -113,7 +114,8 @@ class MiamiPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValueError: If required columns are missing from either DataFrame.
+            ValueError: If required columns are missing from either DataFrame,
+                or if the plotter's species is unknown.
 
         Example:
             >>> fig = plotter.plot_miami(
@@ -128,25 +130,8 @@ class MiamiPlotter:
             bottom_threshold, self.genomewide_threshold
         )
 
-        # Compute union of chromosomes to ensure consistent alignment
-        # This is critical to avoid Pitfall #3 from research
-        all_chroms = self._get_chromosome_union(top_df, bottom_df, chrom_col)
-
-        # Use custom order if provided, otherwise use chromosome union
-        if custom_chrom_order is None:
-            custom_chrom_order = all_chroms
-
-        # Prepare both datasets with consistent chromosome ordering
-        top_prepared = prepare_manhattan_data(
-            df=top_df,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )
-        bottom_prepared = prepare_manhattan_data(
-            df=bottom_df,
+        top_prepared, bottom_prepared = prepare_manhattan_frames(
+            [top_df, bottom_df],
             chrom_col=chrom_col,
             pos_col=pos_col,
             p_col=p_col,
@@ -172,35 +157,3 @@ class MiamiPlotter:
             figsize=figsize,
             title=title,
         )
-
-    def _get_chromosome_union(
-        self,
-        top_df: pd.DataFrame,
-        bottom_df: pd.DataFrame,
-        chrom_col: str,
-    ) -> List[str]:
-        """Get union of chromosomes from both DataFrames.
-
-        Ensures consistent chromosome ordering across both panels,
-        which is critical for x-axis alignment in Miami plots.
-
-        Args:
-            top_df: Top panel DataFrame.
-            bottom_df: Bottom panel DataFrame.
-            chrom_col: Chromosome column name.
-
-        Returns:
-            Sorted list of all unique chromosomes.
-        """
-        top_chroms = set(top_df[chrom_col].astype(str).unique())
-        bottom_chroms = set(bottom_df[chrom_col].astype(str).unique())
-        all_chroms = top_chroms | bottom_chroms
-
-        # Sort chromosomes: numeric first (by value), then alphabetic
-        def sort_key(chrom: str) -> tuple:
-            try:
-                return (0, int(chrom), "")
-            except ValueError:
-                return (1, 0, chrom)
-
-        return sorted(all_chroms, key=sort_key)

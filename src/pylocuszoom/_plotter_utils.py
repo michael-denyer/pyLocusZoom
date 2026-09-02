@@ -9,6 +9,7 @@ import numpy as np
 
 # Significance thresholds
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
+DEFAULT_EQTL_THRESHOLD = 1e-5
 
 
 class _Unset:

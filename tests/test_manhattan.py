@@ -137,15 +137,15 @@ class TestPrepareManhattanData:
             }
         )
 
-    def test_adds_neg_log_p_column(self, manhattan_snp_df):
+    def test_adds_neglog10p_column(self, manhattan_snp_df):
         """Should compute -log10(p) for plotting."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
         result = prepare_manhattan_data(manhattan_snp_df, species="human")
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
         # Check calculation for first row
         expected = -np.log10(0.05)
-        assert np.isclose(result["_neg_log_p"].iloc[0], expected, rtol=0.01)
+        assert np.isclose(result["neglog10p"].iloc[0], expected, rtol=0.01)
 
     def test_adds_cumulative_position(self, manhattan_snp_df):
         """Should compute cumulative x positions across chromosomes."""
@@ -170,10 +170,33 @@ class TestPrepareManhattanData:
         from pylocuszoom.manhattan import prepare_manhattan_data
 
         result = prepare_manhattan_data(manhattan_snp_df, species="human")
-        assert "chrom_centers" in result.attrs
-        centers = result.attrs["chrom_centers"]
+        assert "layout" in result.attrs
+        centers = result.attrs["layout"].centers
         assert "1" in centers
         assert "2" in centers
+
+    def test_frames_share_one_layout(self):
+        """Frames prepared together place a variant at the same x."""
+        from pylocuszoom.manhattan import prepare_manhattan_frames
+
+        first = pd.DataFrame(
+            {"chrom": [1, 1, 2], "pos": [1000, 9_000_000, 5000], "p": [0.1, 0.2, 0.3]}
+        )
+        second = pd.DataFrame(
+            {"chrom": [1, 1, 2], "pos": [1000, 2_000_000, 5000], "p": [0.4, 0.5, 0.6]}
+        )
+
+        prepared_first, prepared_second = prepare_manhattan_frames(
+            [first, second], species="human"
+        )
+
+        assert prepared_first.attrs["layout"] is prepared_second.attrs["layout"]
+        chr2_first = prepared_first.loc[prepared_first["_chrom_str"] == "2"]
+        chr2_second = prepared_second.loc[prepared_second["_chrom_str"] == "2"]
+        assert (
+            chr2_first["_cumulative_pos"].iloc[0]
+            == chr2_second["_cumulative_pos"].iloc[0]
+        )
 
     def test_validates_required_columns(self):
         """Should raise on missing required columns."""
@@ -274,14 +297,14 @@ class TestPrepareCategoricalData:
             }
         )
 
-    def test_adds_neg_log_p(self, sample_categorical_df):
+    def test_adds_neglog10p(self, sample_categorical_df):
         """Should compute -log10(p)."""
         from pylocuszoom.manhattan import prepare_categorical_data
 
         result = prepare_categorical_data(
             sample_categorical_df, category_col="phenotype"
         )
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
 
     def test_adds_x_position(self, sample_categorical_df):
         """Should compute x positions for categories."""
@@ -318,7 +341,7 @@ class TestPrepareCategoricalData:
             category_col="phenotype",
             category_order=["BMI", "Weight", "Height"],
         )
-        assert result.attrs["category_order"] == ["BMI", "Weight", "Height"]
+        assert result.attrs["layout"].order == ("BMI", "Weight", "Height")
 
 
 # =============================================================================
@@ -371,7 +394,7 @@ class TestInvalidPValueFiltering:
         result = prepare_manhattan_data(df, species="human")
         assert len(result) == 2
         assert set(result["pos"].tolist()) == {100, 300}
-        assert (result["_neg_log_p"] < 300).all()
+        assert (result["neglog10p"] < 300).all()
 
     def test_nan_p_values_dropped(self):
         """NaN p-values should be dropped from Manhattan data."""
@@ -431,7 +454,7 @@ class TestInvalidPValueFiltering:
         result = prepare_manhattan_data(df, species="human")
         # 0 passes the [0, 1] filter; -log10(clip(0, lower=1e-300)) = 300.0
         assert len(result) == 1
-        assert result["_neg_log_p"].iloc[0] == pytest.approx(300.0)
+        assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
 
     def test_all_invalid_p_values_raises(self):
         """All-invalid p-values should raise ValueError, not produce a blank plot."""
@@ -476,7 +499,7 @@ class TestCategoricalManhattanIntegerCategories:
         )
         result = prepare_categorical_data(df, category_col="cat")
         assert len(result) == 5
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
 
 
 class TestCategoricalManhattanNaNHandling:
@@ -507,7 +530,7 @@ class TestCategoricalManhattanNaNHandling:
 
         # Should have valid output
         assert "_cat_idx" in result.columns
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
 
     def test_categorical_manhattan_handles_mixed_types(self):
         """prepare_categorical_data should handle mixed types in category column."""

@@ -4,12 +4,7 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._manhattan_panel import (
-    chromosome_ticks,
-    manhattan_spec,
-    render_manhattan_panel,
-    shared_manhattan_limits,
-)
+from ._manhattan_panel import manhattan_spec, render_manhattan_panel
 from .backends.base import PlotBackend, SupportsRegionHighlight
 from .backends.hover import HoverConfig
 
@@ -52,17 +47,11 @@ class MiamiRenderer:
             if rs_col is not None
             else None
         )
-        x_limits = shared_manhattan_limits([top_df, bottom_df])
-        ticks = chromosome_ticks(
-            top_df.attrs["chrom_order"], top_df.attrs["chrom_centers"]
-        )
         render_manhattan_panel(
             self._backend,
             top_ax,
             manhattan_spec(
                 top_df,
-                x_limits=x_limits,
-                ticks=ticks,
                 significance_threshold=top_threshold,
                 panel_label=top_label,
                 hover=hover,
@@ -73,8 +62,6 @@ class MiamiRenderer:
             bottom_ax,
             manhattan_spec(
                 bottom_df,
-                x_limits=x_limits,
-                ticks=ticks,
                 significance_threshold=bottom_threshold,
                 x_label="Chromosome",
                 panel_label=bottom_label,
@@ -90,7 +77,7 @@ class MiamiRenderer:
                 bottom_ax, bottom_df, rs_col, bottom_snp_annotations
             )
         if highlight_regions:
-            offsets = self._chrom_offsets(top_df, pos_col)
+            offsets = top_df.attrs["layout"].offsets
             for chrom, start, end in highlight_regions:
                 self._add_region_highlight(
                     fig,
@@ -117,22 +104,12 @@ class MiamiRenderer:
             self._backend.add_text(
                 ax,
                 x=row["_cumulative_pos"],
-                y=row["_neg_log_p"],
+                y=row["neglog10p"],
                 text=str(row[rs_col]),
                 fontsize=8,
                 ha="center",
                 va="bottom",
             )
-
-    @staticmethod
-    def _chrom_offsets(prepared_df: pd.DataFrame, pos_col: str) -> dict[str, float]:
-        offsets = {}
-        for chrom in prepared_df.attrs.get("chrom_order", []):
-            chrom_data = prepared_df[prepared_df["_chrom_str"] == str(chrom)]
-            if not chrom_data.empty:
-                first_row = chrom_data.iloc[0]
-                offsets[str(chrom)] = first_row["_cumulative_pos"] - first_row[pos_col]
-        return offsets
 
     def _add_region_highlight(
         self,

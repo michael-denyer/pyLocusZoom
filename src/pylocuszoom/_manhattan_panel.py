@@ -8,7 +8,7 @@ single/stacked renderer (:mod:`._rendering`) and the Miami renderer
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -20,29 +20,12 @@ from ._plotter_utils import (
 )
 from .backends.base import PlotBackend
 from .backends.hover import HoverConfig, HoverDataBuilder
+from .manhattan import PanelLayout
 
 
 def padded_ymax(y_max: float) -> float:
     """Return a useful upper y-limit for a Manhattan panel."""
     return max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
-
-
-def shared_manhattan_limits(
-    prepared_dfs: Sequence[pd.DataFrame],
-) -> Tuple[float, float]:
-    """Return padded x-limits spanning the cumulative positions of every panel."""
-    x_min = min(df["_cumulative_pos"].min() for df in prepared_dfs)
-    x_max = max(df["_cumulative_pos"].max() for df in prepared_dfs)
-    x_padding = (x_max - x_min) * 0.01
-    return x_min - x_padding, x_max + x_padding
-
-
-def chromosome_ticks(
-    chrom_order: Sequence[str], chrom_centers: dict[str, float]
-) -> Tuple[List[float], List[str]]:
-    """Return tick positions and labels for the chromosomes that carry data."""
-    labels = [str(chrom) for chrom in chrom_order if chrom in chrom_centers]
-    return [chrom_centers[chrom] for chrom in labels], labels
 
 
 @dataclass(frozen=True)
@@ -54,10 +37,8 @@ class ManhattanPanelSpec:
             ``prepare_categorical_data``.
         x_col: Column holding each point's x coordinate.
         group_col: Column the scatter loop groups by, one colour per group.
-        group_order: Groups to draw, in order.
-        x_limits: Panel x-limits.
-        tick_positions: X tick positions.
-        tick_labels: X tick labels.
+        layout: Group order, x limits, and ticks, shared by every panel of
+            the figure.
         significance_threshold: P-value to draw the significance line at, or
             None to draw no line.
         point_size: Marker size.
@@ -79,10 +60,7 @@ class ManhattanPanelSpec:
     prepared_df: pd.DataFrame
     x_col: str
     group_col: str
-    group_order: Sequence[str]
-    x_limits: Tuple[float, float]
-    tick_positions: List[float]
-    tick_labels: List[str]
+    layout: PanelLayout
     significance_threshold: Optional[float] = None
     point_size: int = MANHATTAN_POINT_SIZE
     tick_fontsize: int = 8
@@ -101,36 +79,54 @@ class ManhattanPanelSpec:
 def manhattan_spec(
     prepared_df: pd.DataFrame,
     *,
-    x_limits: Optional[Tuple[float, float]] = None,
-    ticks: Optional[Tuple[List[float], List[str]]] = None,
-    **policy: Any,
+    significance_threshold: Optional[float] = None,
+    x_label: Optional[str] = None,
+    y_label_fontsize: int = 12,
+    title: Optional[str] = None,
+    title_fontsize: int = 14,
+    panel_label: Optional[str] = None,
+    panel_label_y_frac: float = 0.95,
+    invert_y: bool = False,
+    hover: Optional[HoverConfig] = None,
 ) -> ManhattanPanelSpec:
     """Build a genomic-position panel spec from a prepared Manhattan frame.
 
+    The keyword arguments are the :class:`ManhattanPanelSpec` fields the
+    single, stacked and Miami call sites vary; the tick styling fields keep
+    the spec's own defaults. ``test_manhattan_spec_defaults_match_the_spec``
+    fails if the two lists of defaults drift.
+
     Args:
-        prepared_df: Frame from ``prepare_manhattan_data``.
-        x_limits: Shared x-limits across sibling panels. Defaults to this
-            panel's own padded cumulative-position span.
-        ticks: Shared (positions, labels). Defaults to this panel's own
-            chromosome centres.
-        **policy: Any other :class:`ManhattanPanelSpec` field.
+        prepared_df: Frame from ``prepare_manhattan_data``, carrying the
+            shared :class:`~.manhattan.GenomeLayout` in ``attrs["layout"]``.
+        significance_threshold: P-value to draw the significance line at, or
+            None to draw no line.
+        x_label: X axis label, or None for none.
+        y_label_fontsize: Y axis label size.
+        title: Panel title, or None for none.
+        title_fontsize: Panel title size.
+        panel_label: Corner label, or None for none.
+        panel_label_y_frac: Fractional height of the corner label.
+        invert_y: Draw the y axis descending, as the lower Miami panel does.
+        hover: Hover column mapping, or None for no tooltips.
 
     Returns:
         The panel spec.
     """
-    chrom_order = prepared_df.attrs["chrom_order"]
-    if ticks is None:
-        ticks = chromosome_ticks(chrom_order, prepared_df.attrs["chrom_centers"])
-    positions, labels = ticks
     return ManhattanPanelSpec(
         prepared_df=prepared_df,
         x_col="_cumulative_pos",
         group_col="_chrom_str",
-        group_order=chrom_order,
-        x_limits=x_limits or shared_manhattan_limits([prepared_df]),
-        tick_positions=positions,
-        tick_labels=labels,
-        **policy,
+        layout=prepared_df.attrs["layout"],
+        significance_threshold=significance_threshold,
+        x_label=x_label,
+        y_label_fontsize=y_label_fontsize,
+        title=title,
+        title_fontsize=title_fontsize,
+        panel_label=panel_label,
+        panel_label_y_frac=panel_label_y_frac,
+        invert_y=invert_y,
+        hover=hover,
     )
 
 
@@ -145,7 +141,7 @@ def render_manhattan_panel(
         spec: The panel's data and presentation policy.
     """
     df = spec.prepared_df
-    for group in spec.group_order:
+    for group in spec.layout.order:
         group_data = df[df[spec.group_col] == group]
         if group_data.empty:
             continue
@@ -155,7 +151,7 @@ def render_manhattan_panel(
         backend.scatter(
             ax,
             group_data[spec.x_col],
-            group_data["_neg_log_p"],
+            group_data["neglog10p"],
             colors=group_data["_color"].iloc[0],
             sizes=spec.point_size,
             marker="o",
@@ -166,16 +162,16 @@ def render_manhattan_panel(
         )
 
     add_significance_line(backend, ax, spec.significance_threshold)
-    backend.set_xlim(ax, *spec.x_limits)
-    y_max = padded_ymax(df["_neg_log_p"].max())
+    backend.set_xlim(ax, *spec.layout.x_limits)
+    y_max = padded_ymax(df["neglog10p"].max())
     if spec.invert_y:
         backend.set_ylim(ax, y_max, 0)
     else:
         backend.set_ylim(ax, 0, y_max)
     backend.set_xticks(
         ax,
-        spec.tick_positions,
-        spec.tick_labels,
+        spec.layout.tick_positions,
+        spec.layout.tick_labels,
         fontsize=spec.tick_fontsize,
         rotation=spec.tick_rotation,
         ha=spec.tick_ha,
