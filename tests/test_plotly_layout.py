@@ -68,7 +68,7 @@ class TestPanelY:
 
 
 class TestXRange:
-    """A panel's x-range comes from the axis, or from the traces it holds."""
+    """A panel's x-range is its axis limits, shared across a matched group."""
 
     def test_an_explicit_axis_range_is_used(self):
         """A range set on the axis wins over the data extent."""
@@ -80,14 +80,24 @@ class TestXRange:
 
         assert tuple(plotly_layout.x_range(panel, "xaxis")) == (0, 10)
 
-    def test_the_trace_extent_is_the_fallback(self):
-        """Without an axis range the panel spans its own data."""
+    def test_a_matched_axis_takes_the_limits_of_its_group(self):
+        """A shared-x panel without limits of its own spans the shared range."""
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
+        fig.add_trace(go.Scatter(x=[4, 5], y=[1, 1]), row=1, col=1)
+        fig.update_xaxes(range=[0, 10], row=1, col=1)
+
+        lower = plotly_layout._Panel(fig, 2)
+
+        assert tuple(plotly_layout.x_range(lower, "xaxis2")) == (0, 10)
+
+    def test_the_traces_are_never_consulted(self):
+        """Without limits anywhere the panel has no range, whatever it holds."""
         fig = make_subplots(rows=1, cols=1)
         fig.add_trace(go.Scatter(x=[5, 1, 3], y=[1, 1, 1]), row=1, col=1)
 
         panel = plotly_layout._Panel(fig, 1)
 
-        assert plotly_layout.x_range(panel, "xaxis") == (1, 5)
+        assert plotly_layout.x_range(panel, "xaxis") is None
 
     def test_a_panel_with_no_x_data_has_no_range(self):
         """An empty panel reports no range rather than an invented one."""
