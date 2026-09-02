@@ -24,6 +24,7 @@ from ._gene_cache import cache_root, clear_cache, load_annotations, save_annotat
 from ._gene_source import GeneAnnotations, GeneSource
 from .ensembl import ensembl_source
 from .logging import logger
+from .species import Species
 from .ucsc import ucsc_source
 from .utils import assembly_token, normalize_chrom
 
@@ -44,11 +45,12 @@ def ucsc_genome_for_build(genome_build: str | None) -> str | None:
     return UCSC_BUILDS.get(assembly_token(genome_build))
 
 
-def source_for(species: str, genome_build: str | None = None) -> GeneSource:
+def source_for(species: str | Species, genome_build: str | None = None) -> GeneSource:
     """Pick the GeneSource that can serve this species and genome build.
 
     Args:
-        species: Species name or alias, used when Ensembl serves the build.
+        species: Species name, alias or record, used when Ensembl serves
+            the build.
         genome_build: Build the caller's data is in. A build only UCSC serves
             selects the UCSC source; anything else stays on Ensembl.
 

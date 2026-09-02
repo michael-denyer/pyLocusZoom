@@ -25,12 +25,12 @@ class TestLocusZoomPlotterInit:
     def test_default_species_is_canine(self):
         """Default species should be canine."""
         plotter = LocusZoomPlotter()
-        assert plotter.species == "canine"
+        assert plotter.species.key == "canine"
 
     def test_custom_species(self):
         """Should accept custom species."""
         plotter = LocusZoomPlotter(species="feline")
-        assert plotter.species == "feline"
+        assert plotter.species.key == "feline"
 
     def test_custom_plink_path(self):
         """Should accept custom PLINK path."""
@@ -508,7 +508,7 @@ def test_plotter_uses_ensure_recomb_maps():
         # Call the method that should delegate to ensure_recomb_maps
         result = plotter._ensure_recomb_maps()
 
-        mock_ensure.assert_called_once_with(species="canine", data_dir=None)
+        mock_ensure.assert_called_once_with(species=plotter.species, data_dir=None)
         assert result == Path("/mock/recomb")
 
 

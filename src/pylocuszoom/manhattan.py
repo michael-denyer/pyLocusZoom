@@ -1,13 +1,15 @@
 """Manhattan plot data preparation and chromosome ordering."""
 
 from dataclasses import dataclass
-from typing import Literal, Mapping, Sequence, Tuple, Union
+from typing import Mapping, Sequence, Tuple, Union
 
 import colorcet as cc
 import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
+from .exceptions import ValidationError
+from .species import Species, resolve_species
 
 CHROMOSOME_GAP = 1_000_000
 
@@ -16,72 +18,36 @@ ALL_PVALUES_INVALID = (
     "(NaN, negative, or > 1). Cannot create plot."
 )
 
-# Species aliases
-SPECIES_ALIASES: dict[str, str] = {
-    "dog": "canine",
-    "cat": "feline",
-}
-
-# Chromosome orders for supported species
-CHROMOSOME_ORDERS: dict[str, list[str]] = {
-    "canine": [str(i) for i in range(1, 39)] + ["X", "Y", "MT"],
-    "feline": [
-        "A1",
-        "A2",
-        "A3",
-        "B1",
-        "B2",
-        "B3",
-        "B4",
-        "C1",
-        "C2",
-        "D1",
-        "D2",
-        "D3",
-        "D4",
-        "E1",
-        "E2",
-        "E3",
-        "X",
-        "Y",
-        "MT",
-    ],
-    "human": [str(i) for i in range(1, 23)] + ["X", "Y", "MT"],
-}
-
 
 def get_chromosome_order(
-    species: Literal["canine", "feline", "human", "dog", "cat"] | None = None,
+    species: str | Species | None = None,
     custom_order: list[str] | None = None,
 ) -> list[str]:
     """Get chromosome order for a species.
 
     Args:
-        species: Species name for built-in order. Supports aliases:
-            'dog' -> 'canine', 'cat' -> 'feline'.
+        species: Species name, alias or record carrying a built-in order.
         custom_order: Custom chromosome order (overrides species).
 
     Returns:
         List of chromosome names in display order.
 
     Raises:
-        ValueError: If neither species nor custom_order provided,
-            or if species is unknown.
+        ValidationError: If the species is unknown, or is known but has no
+            built-in chromosome order.
+        ValueError: If neither species nor custom_order provided.
     """
     if custom_order is not None:
         return custom_order
-    if species is not None:
-        # Resolve aliases
-        resolved_species = SPECIES_ALIASES.get(species, species)
-        if resolved_species not in CHROMOSOME_ORDERS:
-            raise ValueError(
-                f"Unknown species '{species}'. "
-                f"Use one of {list(CHROMOSOME_ORDERS.keys())} "
-                f"(or aliases: {list(SPECIES_ALIASES.keys())}) "
-                f"or provide custom_order."
-            )
-        return CHROMOSOME_ORDERS[resolved_species]
-    raise ValueError("Must provide either species or custom_order")
+    record = resolve_species(species)
+    if record is None:
+        raise ValueError("Must provide either species or custom_order")
+    if not record.chromosomes:
+        raise ValidationError(
+            f"No built-in chromosome order for species {record.key!r}; "
+            f"pass custom_order."
+        )
+    return list(record.chromosomes)
 
 
 def get_chromosome_colors(n_chromosomes: int) -> list[str]:
@@ -238,7 +204,7 @@ def prepare_manhattan_frames(
     chrom_col: str = "chrom",
     pos_col: str = "pos",
     p_col: str = "p",
-    species: Literal["canine", "feline", "human", "dog", "cat"] | None = None,
+    species: str | Species | None = None,
     custom_order: list[str] | None = None,
 ) -> list[pd.DataFrame]:
     """Prepare several GWAS frames against one shared genome layout.
@@ -305,7 +271,7 @@ def prepare_manhattan_data(
     chrom_col: str = "chrom",
     pos_col: str = "pos",
     p_col: str = "p",
-    species: Literal["canine", "feline", "human", "dog", "cat"] | None = None,
+    species: str | Species | None = None,
     custom_order: list[str] | None = None,
 ) -> pd.DataFrame:
     """Prepare one DataFrame for Manhattan plot rendering.

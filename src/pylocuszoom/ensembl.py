@@ -31,28 +31,11 @@ from ._gene_source import (
 from ._http import request_json
 from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
+from .species import Species, ensembl_species_name
 from .utils import assembly_token, normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
-
-
-# Species name aliases -> Ensembl species names
-SPECIES_ALIASES: dict[str, str] = {
-    # Canine
-    "canine": "canis_lupus_familiaris",
-    "dog": "canis_lupus_familiaris",
-    "canis_familiaris": "canis_lupus_familiaris",
-    # Feline
-    "feline": "felis_catus",
-    "cat": "felis_catus",
-    # Human
-    "human": "homo_sapiens",
-    # Mouse
-    "mouse": "mus_musculus",
-    # Rat
-    "rat": "rattus_norvegicus",
-}
 
 
 ENSEMBL_REST_URL = "https://rest.ensembl.org"
@@ -129,16 +112,21 @@ def _validate_region_size(start: int, end: int) -> None:
         )
 
 
-def get_ensembl_species_name(species: str) -> str:
-    """Convert species alias to Ensembl species name.
+def get_ensembl_species_name(species: str | Species) -> str:
+    """Convert a species name, alias or record to its Ensembl species name.
+
+    A name the package's species table does not carry passes through
+    lowercased, because Ensembl serves many more species than pyLocusZoom
+    models and the gene track works for all of them.
 
     Args:
-        species: Species name or alias (e.g., "canine", "dog", "human").
+        species: Species name, alias or record (e.g., "canine", "dog",
+            "human", "sus_scrofa").
 
     Returns:
         Ensembl-compatible species name (e.g., "canis_lupus_familiaris").
     """
-    return SPECIES_ALIASES.get(species.lower(), species.lower())
+    return ensembl_species_name(species)
 
 
 def _gene_record(feature: dict, chrom_str: str) -> dict:
@@ -179,7 +167,7 @@ def _by_feature_type(data: list[dict]) -> dict[str, list[dict]]:
 
 
 def fetch_overlap_frames(
-    species: str,
+    species: str | Species,
     chrom: str | int,
     start: int,
     end: int,
@@ -195,7 +183,7 @@ def fetch_overlap_frames(
     is dropped rather than returned unattached.
 
     Args:
-        species: Species name or alias.
+        species: Species name, alias or record.
         chrom: Chromosome name or number.
         start: Region start position (1-based).
         end: Region end position (1-based).
@@ -258,7 +246,9 @@ def fetch_overlap_frames(
     )
 
 
-def ensembl_source(species: str, genome_build: str | None = None) -> GeneSource:
+def ensembl_source(
+    species: str | Species, genome_build: str | None = None
+) -> GeneSource:
     """Build the GeneSource for one species on Ensembl's current assembly."""
     ensembl_species = get_ensembl_species_name(species)
     return GeneSource(

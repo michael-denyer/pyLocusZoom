@@ -137,7 +137,14 @@ stages:
 1. **Entry.** The user constructs `LocusZoomPlotter(species=..., backend=...)`
    from `src/pylocuszoom/plotter.py` and calls `plot()` or `plot_stacked()`.
    The plotter resolves the backend via `backends.get_backend(name)`, which
-   lazily imports and registers the concrete backend class.
+   lazily imports and registers the concrete backend class. It also resolves
+   `species` once, through `species.resolve_species`, and stores the `Species`
+   record rather than the caller's string. Everything downstream (PLINK's
+   chromosome-set flags, the default genome build, the recombination source,
+   the Ensembl species name, the whole-genome chromosome order) reads that one
+   record, so an alias cannot mean one species to one subsystem and another to
+   the next. An unknown name raises `ValidationError` here rather than
+   degrading silently three layers down.
 2. **Validation and intake.** The input DataFrame is normalized through
    `utils.to_pandas()` (supports PySpark input) and validated against expected
    columns. `schemas.spec(family, tier)` names the contract and

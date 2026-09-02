@@ -23,6 +23,7 @@ from ._http import download_file
 from ._liftover import PyLiftOverLifter, liftover_positions
 from .exceptions import DataDownloadError, OptionalDependencyMissing
 from .logging import logger
+from .species import Species, resolve_species
 from .utils import _platform_cache_base, assembly_token, filter_by_region
 
 # Recombination overlay color
@@ -43,7 +44,7 @@ class RecombSource:
     """Where one species' built-in recombination maps come from.
 
     Attributes:
-        species: Species name callers pass.
+        species: Canonical Species.key this source serves.
         filenames: The complete map set. A directory holding exactly these is
             a cache hit; anything else is downloaded again.
         native_build: Build the published maps are in.
@@ -378,14 +379,15 @@ RECOMB_SOURCES: dict[str, RecombSource] = {CANINE_SOURCE.species: CANINE_SOURCE}
 
 def load_recombination_map(
     chrom: int,
-    species: str = "canine",
+    species: str | Species | None = "canine",
     data_dir: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load recombination map for a specific chromosome.
 
     Args:
         chrom: Chromosome number (1-38 for canine, 1-18 for feline) or 'X'.
-        species: Species name ('canine', 'feline').
+        species: Species name, alias or record, or None for a caller
+            supplying its own maps.
         data_dir: Directory containing recombination maps.
 
     Returns:
@@ -393,7 +395,9 @@ def load_recombination_map(
 
     Raises:
         FileNotFoundError: If map file not found.
+        ValidationError: If the species is not one this package knows.
     """
+    record = resolve_species(species)
     if data_dir is None:
         data_dir = get_default_data_dir()
 
@@ -402,10 +406,11 @@ def load_recombination_map(
     map_file = data_path / f"chr{chrom_str}_recomb.tsv"
 
     if not map_file.exists():
+        key = record.key if record else None
         remedy = (
-            f"Run ensure_recomb_maps(species={species!r}) first to download them."
-            if species in RECOMB_SOURCES
-            else f"There are no built-in recombination maps for {species!r}; "
+            f"Run ensure_recomb_maps(species={key!r}) first to download them."
+            if key in RECOMB_SOURCES
+            else f"There are no built-in recombination maps for {key!r}; "
             f"pass data_dir pointing at your own chr{{N}}_recomb.tsv files."
         )
         raise FileNotFoundError(f"Recombination map not found: {map_file}\n{remedy}")
@@ -432,7 +437,7 @@ def get_recombination_rate_for_region(
     chrom: int,
     start: int,
     end: int,
-    species: str = "canine",
+    species: str | Species | None = "canine",
     data_dir: Optional[str] = None,
     genome_build: Optional[str] = None,
 ) -> pd.DataFrame:
@@ -442,7 +447,8 @@ def get_recombination_rate_for_region(
         chrom: Chromosome number.
         start: Start position (bp).
         end: End position (bp).
-        species: Species name ('canine', 'feline').
+        species: Species name, alias or record, or None for a caller
+            supplying its own maps.
         data_dir: Directory containing recombination maps.
         genome_build: Target genome build (e.g., "canfam4"). If specified and
             different from source data (CanFam3.1), coordinates are lifted over.
@@ -455,9 +461,10 @@ def get_recombination_rate_for_region(
         If genome_build="canfam4", positions are automatically lifted over.
         This requires pyliftover: pip install pyliftover
     """
-    df = load_recombination_map(chrom, species=species, data_dir=data_dir)
+    record = resolve_species(species)
+    df = load_recombination_map(chrom, species=record, data_dir=data_dir)
 
-    source = RECOMB_SOURCES.get(species)
+    source = RECOMB_SOURCES.get(record.key) if record else None
     target_build = assembly_token(genome_build) if genome_build else ""
     if source is not None and target_build in source.liftover_chains:
         logger.debug(f"Lifting over recombination map for chr{chrom} to {target_build}")
@@ -480,21 +487,26 @@ def get_recombination_rate_for_region(
 
 
 def ensure_recomb_maps(
-    species: str = "canine",
+    species: str | Species | None = "canine",
     data_dir: Optional[str] = None,
 ) -> Optional[Path]:
     """Ensure recombination maps are available, downloading if needed.
 
     Args:
-        species: Species name ('canine', 'feline', etc.).
+        species: Species name, alias or record, or None for a caller
+            supplying its own maps.
         data_dir: Directory for recombination maps. Uses default if None.
 
     Returns:
         Path to recombination maps directory, or None if species not supported
         or the maps could not be downloaded. A failed download emits a
         UserWarning naming the cause so the missing overlay is not silent.
+
+    Raises:
+        ValidationError: If the species is not one this package knows.
     """
-    source = RECOMB_SOURCES.get(species)
+    record = resolve_species(species)
+    source = RECOMB_SOURCES.get(record.key) if record else None
     if source is None:
         logger.debug(f"No built-in recombination maps for species: {species}")
         return None

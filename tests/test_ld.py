@@ -962,6 +962,12 @@ class TestAddSpeciesFlags:
         _add_species_flags(cmd, "canine")
         assert cmd == ["plink", "--dog"]
 
+    def test_dog_alias_adds_the_same_flag(self):
+        """The alias the gene layer advertises reaches PLINK too."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "dog")
+        assert cmd == ["plink", "--dog"]
+
     def test_feline_adds_chr_set_18(self):
         """Should append --chr-set 18 for feline species."""
         cmd = ["plink"]
@@ -974,11 +980,10 @@ class TestAddSpeciesFlags:
         _add_species_flags(cmd, None)
         assert cmd == ["plink"]
 
-    def test_unknown_species_adds_no_flags(self):
-        """Should not add any flags for unrecognized species."""
-        cmd = ["plink"]
-        _add_species_flags(cmd, "bovine")
-        assert cmd == ["plink"]
+    def test_unknown_species_is_rejected(self):
+        """An unrecognised species is an error, not a silently human PLINK run."""
+        with pytest.raises(ValidationError, match="Unknown species 'bovine'"):
+            _add_species_flags(["plink"], "bovine")
 
     def test_build_ld_command_uses_shared_helper(self):
         """build_ld_command should produce same species flags as _add_species_flags."""

@@ -160,6 +160,9 @@ from .recombination import (
 from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
 from .schemas import validate_forest_df, validate_phewas_df
 
+# One record per species, resolved once at the API boundary
+from .species import Species, resolve_species
+
 # Statistical visualizations (PheWAS, forest plots)
 from .stats_plotter import StatsPlotter
 
@@ -265,4 +268,7 @@ __all__ = [
     "source_for",
     "clear_gene_cache",
     "get_ensembl_species_name",
+    # Species
+    "Species",
+    "resolve_species",
 ]

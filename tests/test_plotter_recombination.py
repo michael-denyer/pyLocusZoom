@@ -109,7 +109,9 @@ class TestRecombinationDownloadErrors:
         ) as mock_ensure:
             result = debug_canine_plotter._ensure_recomb_maps()
             assert result is None
-            mock_ensure.assert_called_once_with(species="canine", data_dir=None)
+            mock_ensure.assert_called_once_with(
+                species=debug_canine_plotter.species, data_dir=None
+            )
 
     def test_plotting_continues_without_recomb_maps(
         self, debug_canine_plotter, tiny_regional_gwas_df

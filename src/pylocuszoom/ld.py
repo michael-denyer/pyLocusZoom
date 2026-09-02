@@ -18,6 +18,7 @@ import pandas as pd
 
 from .exceptions import EmptyLDOutputError, PlinkError, ValidationError
 from .logging import logger
+from .species import Species, resolve_species
 
 
 def _log_rmtree_error(func, path, exc_info):
@@ -43,17 +44,20 @@ def _metric_flags(metric: str) -> tuple[str, ...]:
         ) from None
 
 
-def _add_species_flags(cmd: list[str], species: str | None) -> None:
-    """Add species-specific flags to PLINK command.
+def _add_species_flags(cmd: list[str], species: str | Species | None) -> None:
+    """Add the species' chromosome-set flags to a PLINK command.
 
     Args:
         cmd: Command list to append flags to (modified in-place).
-        species: Species name ("canine", "feline", or None for no species-specific flags).
+        species: Species name or record, or None for PLINK's default
+            (human) chromosome set.
+
+    Raises:
+        ValidationError: If the species name is not one this package knows.
     """
-    if species == "canine":
-        cmd.append("--dog")
-    elif species == "feline":
-        cmd.extend(["--chr-set", "18"])
+    record = resolve_species(species)
+    if record is not None:
+        cmd.extend(record.plink_flags)
 
 
 def build_pairwise_ld_command(
@@ -64,7 +68,7 @@ def build_pairwise_ld_command(
     chrom: Optional[int] = None,
     start: Optional[int] = None,
     end: Optional[int] = None,
-    species: Optional[str] = "canine",
+    species: str | Species | None = "canine",
     metric: LDMetric = "r2",
 ) -> list:
     """Build PLINK command for pairwise LD matrix computation.
@@ -80,7 +84,8 @@ def build_pairwise_ld_command(
         chrom: Chromosome number for region-based extraction.
         start: Start position (bp) for region-based extraction.
         end: End position (bp) for region-based extraction.
-        species: Species flag ('canine', 'feline', or None for human).
+        species: Species name or record, or None for PLINK's default
+            (human) chromosome set. An unknown name raises ValidationError.
         metric: LD metric ('r2' or 'dprime').
 
     Returns:
@@ -241,7 +246,7 @@ def build_ld_command(
     output_path: str,
     window_kb: int = 500,
     ld_window_r2: float = 0.0,
-    species: Optional[str] = "canine",
+    species: str | Species | None = "canine",
     threads: Optional[int] = None,
 ) -> list:
     """Build PLINK command for LD calculation.
@@ -253,7 +258,8 @@ def build_ld_command(
         output_path: Output prefix (creates .ld file).
         window_kb: Window size in kilobases.
         ld_window_r2: Minimum R² to report (0.0 reports all).
-        species: Species flag for PLINK ('canine', 'feline', or None for human).
+        species: Species name or record, or None for PLINK's default
+            (human) chromosome set. An unknown name raises ValidationError.
         threads: Number of threads (auto-detect if None).
 
     Returns:
@@ -390,7 +396,7 @@ def calculate_ld(
     window_kb: int = 500,
     plink_path: Optional[str] = None,
     working_dir: Optional[str] = None,
-    species: Optional[str] = "canine",
+    species: str | Species | None = "canine",
     threads: Optional[int] = None,
 ) -> pd.DataFrame:
     """Calculate LD (R²) between a lead SNP and all SNPs in a region.
@@ -404,7 +410,8 @@ def calculate_ld(
         window_kb: Window size in kilobases around lead SNP.
         plink_path: Path to PLINK executable. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
-        species: Species flag ('canine', 'feline', or None for human).
+        species: Species name or record, or None for PLINK's default
+            (human) chromosome set. An unknown name raises ValidationError.
         threads: Number of threads for PLINK.
 
     Returns:
@@ -463,7 +470,7 @@ def calculate_pairwise_ld(
     end: int | None = None,
     plink_path: str | None = None,
     working_dir: str | None = None,
-    species: str | None = "canine",
+    species: str | Species | None = "canine",
     metric: LDMetric = "r2",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Calculate pairwise LD matrix for a set of variants.
@@ -479,7 +486,8 @@ def calculate_pairwise_ld(
         end: End position (bp) for region-based extraction.
         plink_path: Path to PLINK executable. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
-        species: Species flag ('canine', 'feline', or None for human).
+        species: Species name or record, or None for PLINK's default
+            (human) chromosome set. An unknown name raises ValidationError.
         metric: LD metric ('r2' or 'dprime').
 
     Returns:

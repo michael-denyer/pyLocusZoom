@@ -40,6 +40,7 @@ from .recombination import (
 )
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import validate_genes_df, validate_gwas_df
+from .species import Species, resolve_species
 from .utils import filter_by_region
 
 
@@ -58,8 +59,9 @@ class LocusZoomPlotter:
     - bokeh: Interactive HTML for dashboards
 
     Args:
-        species: Species name ('canine', 'feline', or None for custom).
-            Canine has built-in recombination maps.
+        species: Species name, alias or record ('canine', 'dog', 'feline',
+            'human', ..., or None for custom). An unknown name raises
+            ValidationError. Canine has built-in recombination maps.
         genome_build: Genome build for coordinate system. For canine:
             "canfam3.1" (default) or "canfam4". If "canfam4", recombination
             maps are automatically lifted over from CanFam3.1.
@@ -93,7 +95,7 @@ class LocusZoomPlotter:
 
     def __init__(
         self,
-        species: str = "canine",
+        species: str | Species | None = "canine",
         genome_build: Optional[str] = None,
         backend: BackendType = "matplotlib",
         plink_path: Optional[str] = None,
@@ -106,9 +108,9 @@ class LocusZoomPlotter:
         if log_level is not None:
             enable_logging(log_level)
 
-        self.species = species
-        self.genome_build = (
-            genome_build if genome_build else self._default_build(species)
+        self.species = resolve_species(species)
+        self.genome_build = genome_build or (
+            self.species.default_build if self.species else None
         )
         self._backend = get_backend(backend)
         self.plink_path = plink_path or find_plink()
@@ -120,12 +122,6 @@ class LocusZoomPlotter:
         )
         self._auto_genes = auto_genes
         self._recomb_cache = {}
-
-    @staticmethod
-    def _default_build(species: str) -> Optional[str]:
-        """Get default genome build for species."""
-        builds = {"canine": "canfam3.1", "feline": "felCat9"}
-        return builds.get(species)
 
     def _ensure_recomb_maps(self) -> Optional[Path]:
         """Ensure recombination maps are available."""
