@@ -45,17 +45,7 @@ class MatplotlibBackend:
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Figure, List[Axes]]:
-        """Create a figure with multiple panels.
-
-        Args:
-            n_panels: Number of vertical panels.
-            height_ratios: Relative heights for each panel.
-            figsize: Figure size as (width, height).
-            sharex: Whether panels share the x-axis.
-
-        Returns:
-            Tuple of (figure, list of axes).
-        """
+        """Create a figure with multiple panels."""
         if n_panels == 1:
             fig, ax = plt.subplots(figsize=figsize)
             self._hide_top_right(ax)
@@ -81,18 +71,7 @@ class MatplotlibBackend:
         height_ratios: Optional[List[float]] = None,
         figsize: Tuple[float, float] = (12.0, 8.0),
     ) -> Tuple[Figure, List[Axes]]:
-        """Create a figure with a grid of subplots.
-
-        Args:
-            n_rows: Number of rows.
-            n_cols: Number of columns.
-            width_ratios: Relative widths for columns.
-            height_ratios: Relative heights for rows.
-            figsize: Figure size as (width, height).
-
-        Returns:
-            Tuple of (figure, flattened list of axes).
-        """
+        """Create a figure with a grid of subplots."""
         gridspec_kw = {}
         if width_ratios is not None:
             gridspec_kw["width_ratios"] = width_ratios
@@ -231,14 +210,7 @@ class MatplotlibBackend:
         x_frac: float = 0.02,
         y_frac: float = 0.95,
     ) -> None:
-        """Add label text at fractional position in panel.
-
-        Args:
-            ax: Matplotlib axes.
-            label: Label text (e.g., "A", "B").
-            x_frac: Horizontal position as fraction of axes (0-1).
-            y_frac: Vertical position as fraction of axes (0-1).
-        """
+        """Add label text at fractional position in panel."""
         ax.annotate(
             label,
             xy=(x_frac, y_frac),
@@ -261,24 +233,7 @@ class MatplotlibBackend:
         lead_pos: Optional[int] = None,
         region_span: Optional[int] = None,
     ) -> List[Any]:
-        """Add SNP labels using adjustText.
-
-        Args:
-            ax: Matplotlib axes.
-            df: DataFrame with SNP data.
-            pos_col: Column name for position.
-            neglog10p_col: Column name for -log10(p-value).
-            rs_col: Column name for SNP ID.
-            label_top_n: Number of top SNPs to label.
-            adjust: If True, run adjustText immediately. If False, caller
-                must call adjust_snp_labels() after setting axis limits.
-            lead_pos: Position of the lead SNP. Non-lead SNPs nearby are
-                excluded to avoid overlapping connector lines.
-            region_span: Width of the visible region in base pairs.
-
-        Returns:
-            List of text annotation objects.
-        """
+        """Add SNP labels using adjustText."""
         from ..labels import add_snp_labels as _add_snp_labels
 
         return _add_snp_labels(
@@ -409,21 +364,7 @@ class MatplotlibBackend:
         linestyle: str = "-",
         label: Optional[str] = None,
     ) -> Any:
-        """Create a line on the secondary (twin) axes.
-
-        Args:
-            secondary: Twin axes handle from create_twin_axis().
-            x: X-axis values.
-            y: Y-axis values.
-            color: Line color.
-            linewidth: Line width.
-            alpha: Transparency.
-            linestyle: Line style.
-            label: Legend label.
-
-        Returns:
-            The line object.
-        """
+        """Create a line on the secondary (twin) axes."""
         return self.line(
             secondary,
             x,
@@ -444,19 +385,7 @@ class MatplotlibBackend:
         color: str = "blue",
         alpha: float = 0.3,
     ) -> Any:
-        """Fill area on the secondary (twin) axes.
-
-        Args:
-            secondary: Twin axes handle from create_twin_axis().
-            x: X-axis values.
-            y1: Lower y boundary.
-            y2: Upper y boundary.
-            color: Fill color.
-            alpha: Transparency.
-
-        Returns:
-            The fill object.
-        """
+        """Fill area on the secondary (twin) axes."""
         return self.fill_between(secondary, x, y1, y2, color=color, alpha=alpha)
 
     def set_secondary_ylim(
@@ -465,13 +394,7 @@ class MatplotlibBackend:
         bottom: float,
         top: float,
     ) -> None:
-        """Set secondary y-axis limits.
-
-        Args:
-            secondary: Twin axes handle from create_twin_axis().
-            bottom: Minimum y value.
-            top: Maximum y value.
-        """
+        """Set secondary y-axis limits."""
         self.set_ylim(secondary, bottom, top)
 
     def set_secondary_ylabel(
@@ -481,14 +404,7 @@ class MatplotlibBackend:
         color: str = "black",
         fontsize: int = 10,
     ) -> None:
-        """Set secondary y-axis label.
-
-        Args:
-            secondary: Twin axes handle from create_twin_axis().
-            label: Label text.
-            color: Label color.
-            fontsize: Font size.
-        """
+        """Set secondary y-axis label."""
         secondary.set_ylabel(label, fontsize=fontsize, color=color)
         secondary.tick_params(axis="y", labelcolor=color, labelsize=fontsize - 1)
 
@@ -624,16 +540,7 @@ class MatplotlibBackend:
         bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust subplot layout parameters.
-
-        Args:
-            fig: Figure object.
-            left: Left margin.
-            right: Right margin.
-            top: Top margin.
-            bottom: Bottom margin.
-            hspace: Height space between subplots.
-        """
+        """Adjust subplot layout parameters."""
         fig.subplots_adjust(
             left=left, right=right, top=top, bottom=bottom, hspace=hspace
         )
@@ -660,16 +567,7 @@ class MatplotlibBackend:
         color: str = "#FF0000",
         linewidth: float = 2,
     ) -> None:
-        """Highlight a SNP's row and column in the heatmap.
-
-        Args:
-            ax: Matplotlib axes.
-            fig: Matplotlib figure (unused, for API compatibility).
-            snp_idx: Index of SNP to highlight.
-            n_snps: Total number of SNPs in matrix.
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
-        """
+        """Highlight a SNP's row and column in the heatmap."""
         for x, y in heatmap_highlight_cells(snp_idx, n_snps):
             ax.add_patch(
                 Rectangle(
@@ -693,20 +591,7 @@ class MatplotlibBackend:
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
-        """Render a heatmap of an already-shaped matrix.
-
-        Args:
-            ax: Matplotlib axes.
-            data: 2D array of values, masked or NaN where missing.
-            x_coords: X coordinates for cells.
-            y_coords: Y coordinates for cells.
-            cmap_colors: Color gradient endpoints [start, end].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-
-        Returns:
-            AxesImage object for colorbar attachment.
-        """
+        """Render a heatmap of an already-shaped matrix."""
         from matplotlib.colors import LinearSegmentedColormap
 
         # Default white-to-red gradient
@@ -746,17 +631,7 @@ class MatplotlibBackend:
         label: str = "R²",
         orientation: str = "vertical",
     ) -> Any:
-        """Add colorbar legend for heatmap.
-
-        Args:
-            ax: Matplotlib axes.
-            mappable: AxesImage from add_heatmap.
-            label: Colorbar label.
-            orientation: "vertical" or "horizontal".
-
-        Returns:
-            Colorbar object.
-        """
+        """Add colorbar legend for heatmap."""
         cbar = plt.colorbar(mappable, ax=ax, orientation=orientation)
         cbar.set_label(label)
         return cbar

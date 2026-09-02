@@ -98,17 +98,7 @@ class BokehBackend:
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Any, List[figure]]:
-        """Create a layout with multiple panels.
-
-        Args:
-            n_panels: Number of vertical panels.
-            height_ratios: Relative heights for each panel.
-            figsize: Figure size as (width, height) in inches.
-            sharex: Whether panels share the x-axis.
-
-        Returns:
-            Tuple of (layout, list of figure objects).
-        """
+        """Create a layout with multiple panels."""
         width_px, total_height = pixels(figsize)
         heights = split_pixels(total_height, height_ratios, len(height_ratios))
 
@@ -147,18 +137,7 @@ class BokehBackend:
         height_ratios: Optional[List[float]] = None,
         figsize: Tuple[float, float] = (12.0, 8.0),
     ) -> Tuple[Any, List[figure]]:
-        """Create a layout with a grid of subplots.
-
-        Args:
-            n_rows: Number of rows.
-            n_cols: Number of columns.
-            width_ratios: Relative widths for columns.
-            height_ratios: Relative heights for rows.
-            figsize: Figure size as (width, height).
-
-        Returns:
-            Tuple of (layout, flattened list of figure objects).
-        """
+        """Create a layout with a grid of subplots."""
         width_px, height_px = pixels(figsize)
         widths = split_pixels(width_px, width_ratios, n_cols)
         heights = split_pixels(height_px, height_ratios, n_rows)
@@ -824,14 +803,6 @@ class BokehBackend:
 
         Uses batched rect() calls for efficiency instead of one renderer
         per cell.
-
-        Args:
-            ax: Bokeh figure.
-            fig: Layout object (unused, for API compatibility).
-            snp_idx: Index of SNP to highlight.
-            n_snps: Total number of SNPs in matrix.
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
         """
         cells = heatmap_highlight_cells(snp_idx, n_snps)
         source = ColumnDataSource(
@@ -858,20 +829,7 @@ class BokehBackend:
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
-        """Render a heatmap of an already-shaped matrix.
-
-        Args:
-            ax: Bokeh figure.
-            data: 2D array of values, masked or NaN where missing.
-            x_coords: X coordinates for cells.
-            y_coords: Y coordinates for cells.
-            cmap_colors: Color gradient endpoints [start, end].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-
-        Returns:
-            LinearColorMapper for colorbar attachment.
-        """
+        """Render a heatmap of an already-shaped matrix."""
         if cmap_colors is None:
             cmap_colors = ["#FFFFFF", "#FF0000"]
 
@@ -943,17 +901,7 @@ class BokehBackend:
         label: str = "R²",
         orientation: str = "vertical",
     ) -> Any:
-        """Add colorbar legend for heatmap.
-
-        Args:
-            ax: Bokeh figure.
-            mappable: LinearColorMapper from add_heatmap.
-            label: Colorbar label.
-            orientation: "vertical" or "horizontal".
-
-        Returns:
-            ColorBar object.
-        """
+        """Add colorbar legend for heatmap."""
         color_bar = ColorBar(
             color_mapper=mappable,
             ticker=BasicTicker(),

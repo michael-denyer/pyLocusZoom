@@ -3,7 +3,7 @@
 Interactive backend with hover tooltips and zoom/pan capabilities.
 """
 
-from typing import Any, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -19,6 +19,12 @@ from ._coerce import (
 )
 from .composition import LegendEntry, heatmap_highlight_cells, mb_tick_positions
 from .hover import plotly_hovertemplate
+from .plotly_layout import (
+    _Panel,
+    configure_legend,
+    secondary_axis_key,
+    x_range,
+)
 
 # Style mappings (matplotlib -> Plotly)
 _MARKER_SYMBOLS = {
@@ -34,83 +40,6 @@ _DASH_MAP = {
     ":": "dot",
     "-.": "dashdot",
 }
-# Matplotlib legend `loc` vocabulary mapped to Plotly (xanchor, yanchor).
-# "best" has no Plotly equivalent, so it takes the upper-right default.
-_LEGEND_ANCHORS = {
-    "best": ("right", "top"),
-    "upper right": ("right", "top"),
-    "upper left": ("left", "top"),
-    "upper center": ("center", "top"),
-    "lower right": ("right", "bottom"),
-    "lower left": ("left", "bottom"),
-    "lower center": ("center", "bottom"),
-    "center right": ("right", "middle"),
-    "center left": ("left", "middle"),
-    "right": ("right", "middle"),
-    "center": ("center", "middle"),
-}
-_LEGEND_X = {"left": 0.01, "center": 0.5, "right": 0.99}
-
-
-class _Panel(NamedTuple):
-    """One subplot of a Plotly figure, resolved from a renderer's panel handle.
-
-    Plotly names axes by a linear subplot index: subplot (1,1) is ``xaxis`` and
-    ``x``, subplot (1,2) is ``xaxis2`` and ``x2``. Owning that arithmetic here
-    keeps the naming rule in one place instead of at every call site.
-    """
-
-    fig: go.Figure
-    row: int
-    col: int = 1
-    n_cols: int = 1
-
-    @classmethod
-    def of(cls, ax: Any) -> "_Panel":
-        """Build a panel from a ``(fig, row)`` or ``(fig, row, col, n_cols)`` handle.
-
-        Args:
-            ax: Panel handle as returned by ``create_figure`` or
-                ``create_figure_grid``.
-
-        Returns:
-            The resolved panel.
-
-        Raises:
-            ValueError: If the handle has an unexpected length.
-        """
-        if len(ax) == 2 or len(ax) == 4:
-            return cls(*ax)
-        raise ValueError(f"Expected ax tuple of length 2 or 4, got {len(ax)}")
-
-    @property
-    def subplot_idx(self) -> int:
-        """Plotly's linear index for this subplot, 1-based."""
-        return (self.row - 1) * self.n_cols + self.col
-
-    def axis(self, kind: str) -> str:
-        """Layout key for this subplot's axis, such as ``"xaxis3"``.
-
-        Args:
-            kind: Either ``"xaxis"`` or ``"yaxis"``.
-
-        Returns:
-            The layout key, unsuffixed for the first subplot.
-        """
-        idx = self.subplot_idx
-        return f"{kind}{idx}" if idx > 1 else kind
-
-    def ref(self, kind: str) -> str:
-        """Trace-level reference for this subplot's axis, such as ``"x3"``.
-
-        Args:
-            kind: Either ``"x"`` or ``"y"``.
-
-        Returns:
-            The axis reference, unsuffixed for the first subplot.
-        """
-        idx = self.subplot_idx
-        return f"{kind}{idx}" if idx > 1 else kind
 
 
 @register_backend("plotly")
@@ -136,17 +65,7 @@ class PlotlyBackend:
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[go.Figure, List[Any]]:
-        """Create a figure with multiple panels.
-
-        Args:
-            n_panels: Number of vertical panels.
-            height_ratios: Relative heights for each panel.
-            figsize: Figure size as (width, height) in inches.
-            sharex: Whether panels share the x-axis.
-
-        Returns:
-            Tuple of (figure, list of row indices for each panel).
-        """
+        """Create a figure with multiple panels."""
         width_px, height_px = pixels(figsize)
         row_heights = normalize_ratios(height_ratios)
 
@@ -193,18 +112,7 @@ class PlotlyBackend:
         height_ratios: Optional[List[float]] = None,
         figsize: Tuple[float, float] = (12.0, 8.0),
     ) -> Tuple[go.Figure, List[Any]]:
-        """Create a figure with a grid of subplots.
-
-        Args:
-            n_rows: Number of rows.
-            n_cols: Number of columns.
-            width_ratios: Relative widths for columns.
-            height_ratios: Relative heights for rows.
-            figsize: Figure size as (width, height).
-
-        Returns:
-            Tuple of (figure, flattened list of (fig, row, col) tuples).
-        """
+        """Create a figure with a grid of subplots."""
         width_px, height_px = pixels(figsize)
         column_widths = normalize_ratios(width_ratios)
         row_heights_norm = normalize_ratios(height_ratios)
@@ -613,31 +521,15 @@ class PlotlyBackend:
 
         Returns an opaque ``(ax, yaxis_name)`` handle for the ``*_secondary``
         primitives.
-
-        For Plotly subplots, we need unique axis names that don't conflict
-        with the subplot axes. We use a high number suffix to avoid conflicts.
         """
         panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-
-        # Calculate subplot index for proper axis naming
-        # Use a high offset to avoid collision with primary subplot axes.
-        # Plotly names primary axes yaxis, yaxis2, ..., yaxisN for N subplots.
-        # Offset of 100 supports up to 99 subplot rows without collision.
-        secondary_suffix = 100 + panel.subplot_idx - 1
-        secondary_y = f"y{secondary_suffix}"
-        yaxis_name = f"yaxis{secondary_suffix}"
-
-        primary_y = panel.ref("y")
-        xaxis_ref = panel.ref("x")
-
-        # Configure secondary y-axis to overlay the primary axis of this row
-        fig.update_layout(
+        secondary_y = panel.secondary_ref()
+        panel.fig.update_layout(
             **{
-                yaxis_name: dict(
-                    overlaying=primary_y,
+                secondary_axis_key(secondary_y): dict(
+                    overlaying=panel.ref("y"),
                     side="right",
-                    anchor=xaxis_ref,
+                    anchor=panel.ref("x"),
                     showgrid=False,
                     showline=False,
                     zeroline=False,
@@ -731,11 +623,9 @@ class PlotlyBackend:
     ) -> None:
         """Set secondary y-axis limits."""
         ax, yaxis_name = secondary
-        fig = _Panel.of(ax).fig
-        yaxis_key = (
-            "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
+        _Panel.of(ax).fig.update_layout(
+            **{secondary_axis_key(yaxis_name): dict(range=[bottom, top])}
         )
-        fig.update_layout(**{yaxis_key: dict(range=[bottom, top])})
 
     def set_secondary_ylabel(
         self,
@@ -746,33 +636,15 @@ class PlotlyBackend:
     ) -> None:
         """Set secondary y-axis label."""
         ax, yaxis_name = secondary
-        fig = _Panel.of(ax).fig
         label = convert_latex_to_unicode(label)
-        yaxis_key = (
-            "yaxis" + yaxis_name[1:] if yaxis_name.startswith("y") else yaxis_name
-        )
-        fig.update_layout(
+        _Panel.of(ax).fig.update_layout(
             **{
-                yaxis_key: dict(
+                secondary_axis_key(yaxis_name): dict(
                     title=dict(text=label, font=dict(size=fontsize, color=color)),
                     tickfont=dict(color=color),
                 )
             }
         )
-
-    def _get_panel_y(self, fig: go.Figure, row: int, vertical: str) -> float:
-        """Get a y-coordinate (in paper coords) within a subplot row's domain.
-
-        Plotly subplots have y-axis domains that define their vertical position.
-        ``vertical`` selects the top, bottom, or midpoint of that domain.
-        """
-        yaxis = getattr(fig.layout, _Panel(fig, row).axis("yaxis"), None)
-        domain = yaxis.domain if yaxis and yaxis.domain else (0.01, 0.99)
-        if vertical == "bottom":
-            return domain[0]
-        if vertical == "middle":
-            return (domain[0] + domain[1]) / 2
-        return domain[1]
 
     def _add_legend_item(
         self,
@@ -803,26 +675,6 @@ class PlotlyBackend:
             ),
             row=row,
             col=1,
-        )
-
-    def _configure_legend(
-        self, fig: go.Figure, row: int, legend_key: str, title: str, loc: str
-    ) -> None:
-        """Configure legend position and styling."""
-        horizontal, vertical = _LEGEND_ANCHORS.get(loc, _LEGEND_ANCHORS["upper right"])
-        fig.update_layout(
-            **{
-                legend_key: dict(
-                    title=dict(text=convert_latex_to_unicode(title)),
-                    x=_LEGEND_X[horizontal],
-                    y=self._get_panel_y(fig, row, vertical),
-                    xanchor=horizontal,
-                    yanchor=vertical,
-                    bgcolor="rgba(255,255,255,0.9)",
-                    bordercolor="black",
-                    borderwidth=1,
-                )
-            }
         )
 
     def add_panel_label(
@@ -882,7 +734,9 @@ class PlotlyBackend:
                 legend_key,
                 entry.edgecolor or "black",
             )
-        self._configure_legend(fig, row, legend_key, title or "", loc)
+        configure_legend(
+            fig, row, legend_key, convert_latex_to_unicode(title or ""), loc
+        )
 
     def hide_yaxis(self, ax: Tuple[go.Figure, int]) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
@@ -903,10 +757,10 @@ class PlotlyBackend:
         """Format x-axis to show megabase values."""
         panel = _Panel.of(ax)
         xaxis_name = panel.axis("xaxis")
-        x_range = self._x_range(panel, xaxis_name)
-        if not x_range:
+        panel_range = x_range(panel, xaxis_name)
+        if not panel_range:
             return
-        tickvals, ticktext = mb_tick_positions(x_range[0], x_range[1])
+        tickvals, ticktext = mb_tick_positions(panel_range[0], panel_range[1])
         panel.fig.update_layout(
             **{
                 xaxis_name: dict(
@@ -916,18 +770,6 @@ class PlotlyBackend:
                 )
             }
         )
-
-    @staticmethod
-    def _x_range(panel: _Panel, xaxis_name: str) -> Optional[Tuple[float, float]]:
-        """Resolve a panel's x-range, falling back to the extent of trace data."""
-        xaxis = getattr(panel.fig.layout, xaxis_name, None)
-        if xaxis and xaxis.range:
-            return xaxis.range
-        x_vals = []
-        for trace in panel.fig.data:
-            if getattr(trace, "x", None) is not None:
-                x_vals.extend([v for v in trace.x if v is not None])
-        return (min(x_vals), max(x_vals)) if x_vals else None
 
     def axvline(
         self,
@@ -1036,13 +878,7 @@ class PlotlyBackend:
         bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust layout margins.
-
-        Args:
-            fig: Figure object.
-            left, right, top, bottom: Margins as fractions.
-            hspace: Ignored for plotly (use vertical_spacing in make_subplots).
-        """
+        """Adjust layout margins."""
         fig.update_layout(
             margin=dict(
                 l=int(left * fig.layout.width) if fig.layout.width else 80,
@@ -1083,16 +919,7 @@ class PlotlyBackend:
         color: str = "#FF0000",
         linewidth: float = 2,
     ) -> None:
-        """Highlight a SNP's row and column in the heatmap.
-
-        Args:
-            ax: Tuple of (figure, row_number) (unused, shapes added to fig).
-            fig: Plotly figure for adding shapes.
-            snp_idx: Index of SNP to highlight.
-            n_snps: Total number of SNPs in matrix.
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
-        """
+        """Highlight a SNP's row and column in the heatmap."""
         for x, y in heatmap_highlight_cells(snp_idx, n_snps):
             fig.add_shape(
                 type="rect",
@@ -1114,20 +941,7 @@ class PlotlyBackend:
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
-        """Render a heatmap of an already-shaped matrix.
-
-        Args:
-            ax: Tuple of (figure, row_number).
-            data: 2D array of values, masked or NaN where missing.
-            x_coords: X coordinates for cells.
-            y_coords: Y coordinates for cells.
-            cmap_colors: Color gradient endpoints [start, end].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-
-        Returns:
-            Heatmap trace.
-        """
+        """Render a heatmap of an already-shaped matrix."""
         import numpy as np
 
         panel = _Panel.of(ax)
@@ -1172,15 +986,6 @@ class PlotlyBackend:
         separate artist, so this turns the trace's own scale on and titles it.
         ``add_heatmap`` leaves it off, which is what lets a caller skip this
         call to get a heatmap with no scale.
-
-        Args:
-            ax: Tuple of (figure, row_number) (unused, the trace carries it).
-            mappable: Heatmap trace returned by add_heatmap.
-            label: Colorbar label.
-            orientation: "vertical" or "horizontal".
-
-        Returns:
-            The heatmap trace whose scale was enabled.
         """
         mappable.update(
             showscale=True,
