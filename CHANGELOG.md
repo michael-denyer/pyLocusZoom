@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`validate_gwas_df` and `validate_genes_df` are exported.** Four of the six frame validators were already public, and the two missing ones are the two `LocusZoomPlotter` itself calls at its boundary, so a caller who wanted to check a frame before plotting had to import from `pylocuszoom.schemas`. Both join the toolbox tier of `__all__`.
+
 ### Changed
+
+- **`__all__` is written in two tiers, and `docs/USER_GUIDE.md` says which is which.** The package exports 90 names, of which about 20 appear in any example. Nothing is dead and nothing is deprecated, so the split is documentation rather than removal: a core tier of the six plotters, the config models, `Canonical`, every loader, `Species`, the two logging switches and the exception hierarchy, which follows semantic versioning; and a toolbox tier of internals that are useful on their own and may change shape or move between minor releases. A new "API Stability" section in the user guide tabulates both tiers, and `__all__` carries the same two blocks in the same order.
 
 - **Every panel type lives in `panels/`, one module each (breaking for direct panel imports).** `_regional_panels.py` was 692 lines and held five panel value types at roughly 120 lines each, so a sixth regional panel would have crossed 800. It is now `panels/association.py`, `panels/finemapping.py`, `panels/eqtl.py`, `panels/genes.py` and `panels/heatmap.py`, each holding its dataclass, its constructor and its `draw`, with the shared regional line alpha in `panels/_shared.py`. The other families join them, since every family is now a panel with `draw`: `_manhattan_panel.py`, `_qq_panel.py`, `_miami_panels.py`, `_stats_panels.py`, `_coloc_panel.py` and `_ld_heatmap_panel.py` are `panels/manhattan.py`, `panels/qq.py`, `panels/miami.py`, `panels/stats.py`, `panels/coloc.py` and `panels/ld_heatmap.py`. `panels/__init__.py` re-exports the five regional panels, `hover_for_association` and the `RegionalPanel` union, which is what the regional plotter imports; the other families are imported from their own module. No panel module imports a plotter, checked by an AST walk over the package. The seven old module paths no longer exist, which breaks code that built a panel by importing one of them directly. Nothing else moved, and rendered output is unchanged.
 

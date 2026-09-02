@@ -427,9 +427,11 @@ classDiagram
 ## Public API Surface
 
 Every name in `pylocuszoom.__all__`, grouped by the module that defines it.
-`tests/test_public_surface.py` fails when a name is added to `__all__` and not
+`tests/test_docs_contract.py` fails when a name is added to `__all__` and not
 listed here. [docs/USER_GUIDE.md](USER_GUIDE.md) is a curated guide, not a
-complete reference; this table is the complete one.
+complete reference; this table is the complete one. `__all__` is written in
+two tiers, core and toolbox, tabulated under
+[API Stability](USER_GUIDE.md#api-stability).
 
 ### Regional plots
 
@@ -500,6 +502,8 @@ complete reference; this table is the complete one.
 |------|---------|
 | `Canonical` | The column names every loader emits and every plotter defaults to: `chr`, `pos`, `p_value`, `rs`. |
 | `validate_forest_df` | Validate forest plot DataFrame has required columns and types. |
+| `validate_genes_df` | Validate a gene annotation DataFrame at the plot-time tier. |
+| `validate_gwas_df` | Validate a GWAS DataFrame at the plot-time tier, over the caller's column names. |
 | `validate_phewas_df` | Validate PheWAS DataFrame has required columns and types. |
 
 ### eQTL helpers
