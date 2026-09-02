@@ -205,7 +205,7 @@ class PlotlyBackend:
 
     def line(
         self,
-        ax: _Panel,
+        ax: Union[_Panel, _SecondaryAxis],
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -215,8 +215,7 @@ class PlotlyBackend:
         zorder: int = 1,
         label: Optional[str] = None,
     ) -> Any:
-        """Create a line plot on the given panel."""
-        fig, row, col = ax.fig, ax.row, ax.col
+        """Create a line plot on the given panel or secondary axis."""
         dash = _DASH_MAP.get(linestyle, "solid")
 
         trace = go.Scatter(
@@ -227,14 +226,19 @@ class PlotlyBackend:
             opacity=alpha,
             name=label or "",
             showlegend=label is not None,
+            xaxis=ax.xref,
+            yaxis=ax.yref,
+            # A secondary trace is a decoration over the panel's own data, so
+            # it does not answer the hover.
+            hoverinfo="skip" if isinstance(ax, _SecondaryAxis) else None,
         )
 
-        fig.add_trace(trace, row=row, col=col)
+        ax.fig.add_trace(trace)
         return trace
 
     def fill_between(
         self,
-        ax: _Panel,
+        ax: Union[_Panel, _SecondaryAxis],
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
@@ -243,8 +247,6 @@ class PlotlyBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
-        fig, row, col = ax.fig, ax.row, ax.col
-
         y1 = pd.Series(broadcast(y1, len(x)))
 
         trace = go.Scatter(
@@ -256,9 +258,11 @@ class PlotlyBackend:
             line=dict(width=0),
             showlegend=False,
             hoverinfo="skip",
+            xaxis=ax.xref,
+            yaxis=ax.yref,
         )
 
-        fig.add_trace(trace, row=row, col=col)
+        ax.fig.add_trace(trace)
         return trace
 
     def axhline(
@@ -491,75 +495,6 @@ class PlotlyBackend:
         )
 
         return _SecondaryAxis(ax, secondary_y)
-
-    def line_secondary(
-        self,
-        secondary: _SecondaryAxis,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Create a line plot on secondary y-axis."""
-        dash = _DASH_MAP.get(linestyle, "solid")
-
-        # For secondary axes, we need to set both xaxis and yaxis explicitly
-        # and NOT use row/col which would override these references
-        xaxis_ref = secondary.panel.ref("x")
-
-        trace = go.Scatter(
-            x=x,
-            y=y,
-            mode="lines",
-            line=dict(color=color, width=linewidth, dash=dash),
-            opacity=alpha,
-            name=label or "",
-            showlegend=label is not None,
-            xaxis=xaxis_ref,
-            yaxis=secondary.yref,
-            hoverinfo="skip",
-        )
-
-        # Add trace directly without row/col to preserve axis references
-        secondary.fig.add_trace(trace)
-        return trace
-
-    def fill_between_secondary(
-        self,
-        secondary: _SecondaryAxis,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill area between two y-values on secondary y-axis."""
-        if isinstance(y1, (int, float)):
-            y1 = pd.Series([y1] * len(x))
-
-        # For secondary axes, we need to set both xaxis and yaxis explicitly
-        # and NOT use row/col which would override these references
-        xaxis_ref = secondary.panel.ref("x")
-
-        trace = go.Scatter(
-            x=pd.concat([x, x[::-1]]),
-            y=pd.concat([y2, y1[::-1]]),
-            fill="toself",
-            fillcolor=color,
-            opacity=alpha,
-            line=dict(width=0),
-            showlegend=False,
-            hoverinfo="skip",
-            xaxis=xaxis_ref,
-            yaxis=secondary.yref,
-        )
-
-        # Add trace directly without row/col to preserve axis references
-        secondary.fig.add_trace(trace)
-        return trace
 
     def set_secondary_ylim(
         self,

@@ -354,41 +354,6 @@ class MatplotlibBackend:
         secondary.spines["top"].set_visible(False)
         return secondary
 
-    def line_secondary(
-        self,
-        secondary: Axes,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Create a line on the secondary (twin) axes."""
-        return self.line(
-            secondary,
-            x,
-            y,
-            color=color,
-            linewidth=linewidth,
-            alpha=alpha,
-            linestyle=linestyle,
-            label=label,
-        )
-
-    def fill_between_secondary(
-        self,
-        secondary: Axes,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill area on the secondary (twin) axes."""
-        return self.fill_between(secondary, x, y1, y2, color=color, alpha=alpha)
-
     def set_secondary_ylim(
         self,
         secondary: Axes,

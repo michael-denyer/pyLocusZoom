@@ -102,11 +102,11 @@ class _RecordingSecondaryBackend:
         self.calls.append("create_twin_axis")
         return ("secondary-handle", "y2")
 
-    def fill_between_secondary(self, secondary, *args, **kwargs):
-        self.calls.append("fill_between_secondary")
+    def fill_between(self, ax, *args, **kwargs):
+        self.calls.append("fill_between")
 
-    def line_secondary(self, secondary, *args, **kwargs):
-        self.calls.append("line_secondary")
+    def line(self, ax, *args, **kwargs):
+        self.calls.append("line")
 
     def set_secondary_ylim(self, secondary, *args, **kwargs):
         self.calls.append("set_secondary_ylim")
@@ -126,8 +126,8 @@ class TestRecombinationOverlay:
         render_recombination_overlay(backend, "AX", recomb, start=150, end=300)
         assert backend.calls == [
             "create_twin_axis",
-            "fill_between_secondary",
-            "line_secondary",
+            "fill_between",
+            "line",
             "set_secondary_ylim",
             "set_secondary_ylabel",
         ]

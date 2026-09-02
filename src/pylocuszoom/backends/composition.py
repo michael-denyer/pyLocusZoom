@@ -40,7 +40,7 @@ if TYPE_CHECKING:
         """A backend carrying both the required primitives and a secondary axis.
 
         ``render_recombination_overlay`` needs the intersection: the
-        ``*_secondary`` methods from the optional protocol plus the required
+        secondary-axis methods from the optional protocol plus the required
         primitives. Python has no intersection type, so callers state it by
         narrowing with ``isinstance(backend, SupportsSecondaryAxis)``.
         """
@@ -117,9 +117,10 @@ def render_recombination_overlay(
     """Draw a recombination-rate track on a backend's secondary axis.
 
     Filters ``recomb_df`` to ``[start, end]`` and drives the backend's
-    secondary-axis primitives. ``create_twin_axis`` returns an opaque handle
-    that is passed straight back to each ``*_secondary`` primitive, so the
-    composition is identical across backends.
+    secondary axis. ``create_twin_axis`` returns a handle that is both a
+    drawing target for ``fill_between`` and ``line`` and the subject of the
+    two ``*_secondary`` axis calls, so the composition is identical across
+    backends.
     """
     from ..recombination import RECOMB_COLOR
 
@@ -127,10 +128,10 @@ def render_recombination_overlay(
     if region.empty:
         return
     secondary = backend.create_twin_axis(ax)
-    backend.fill_between_secondary(
+    backend.fill_between(
         secondary, region["pos"], 0, region["rate"], color=RECOMB_COLOR, alpha=0.15
     )
-    backend.line_secondary(
+    backend.line(
         secondary,
         region["pos"],
         region["rate"],

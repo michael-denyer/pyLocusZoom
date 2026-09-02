@@ -339,7 +339,7 @@ sequenceDiagram
     G->>B: add_rectangle(), add_polygon(), add_text()
     opt Recombination
         P->>O: render_recombination_overlay()
-        O->>B: create_twin_axis(), fill_between_secondary()
+        O->>B: create_twin_axis(), fill_between(), line()
     end
     B-->>U: figure
     deactivate B
@@ -363,8 +363,8 @@ classDiagram
     class SupportsSecondaryAxis {
         <<Protocol>>
         +create_twin_axis()
-        +line_secondary()
-        +fill_between_secondary()
+        +set_secondary_ylim()
+        +set_secondary_ylabel()
     }
     class SupportsHeatmap {
         <<Protocol>>

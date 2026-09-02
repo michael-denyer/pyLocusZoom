@@ -83,6 +83,16 @@ class _Panel(NamedTuple):
         idx = self.subplot_idx
         return f"{kind}{idx}" if idx > 1 else kind
 
+    @property
+    def xref(self) -> str:
+        """Trace-level reference for this subplot's x-axis."""
+        return self.ref("x")
+
+    @property
+    def yref(self) -> str:
+        """Trace-level reference for this subplot's y-axis."""
+        return self.ref("y")
+
 
 class _SecondaryAxis(NamedTuple):
     """A panel's secondary y-axis, as returned by ``create_twin_axis``.
@@ -98,6 +108,11 @@ class _SecondaryAxis(NamedTuple):
     def fig(self) -> go.Figure:
         """The figure the panel belongs to."""
         return self.panel.fig
+
+    @property
+    def xref(self) -> str:
+        """Trace-level reference for the panel's x-axis, which is shared."""
+        return self.panel.xref
 
 
 def secondary_axis_key(secondary_ref: str) -> str:

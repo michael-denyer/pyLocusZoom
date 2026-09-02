@@ -62,33 +62,12 @@ class SupportsSecondaryAxis(Protocol):
     """Optional capability: a twin/secondary y-axis (recombination overlay)."""
 
     def create_twin_axis(self, ax: Any) -> Any:
-        """Create a secondary y-axis and return an opaque handle."""
-        ...
+        """Create a secondary y-axis and return a handle.
 
-    def line_secondary(
-        self,
-        secondary: Any,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Draw a line on the secondary axis."""
-        ...
-
-    def fill_between_secondary(
-        self,
-        secondary: Any,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill an area on the secondary axis."""
+        The handle is a drawing target: pass it to ``line`` or
+        ``fill_between`` in place of a panel to draw against the secondary
+        scale.
+        """
         ...
 
     def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
@@ -380,7 +359,7 @@ class PlotBackend(Protocol):
         """Create a line plot on the given axes.
 
         Args:
-            ax: Axes or panel to plot on.
+            ax: Axes or panel to plot on, or a ``create_twin_axis`` handle.
             x: X-axis values.
             y: Y-axis values.
             color: Line color.
@@ -408,7 +387,7 @@ class PlotBackend(Protocol):
         """Fill area between two y-values.
 
         Args:
-            ax: Axes or panel to plot on.
+            ax: Axes or panel to plot on, or a ``create_twin_axis`` handle.
             x: X-axis values.
             y1: Lower y boundary.
             y2: Upper y boundary.

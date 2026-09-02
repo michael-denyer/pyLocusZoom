@@ -76,7 +76,8 @@ _BASELINE_MAP = {"center": "middle", "baseline": "alphabetic"}
 # Namespaces hover columns in a ColumnDataSource so a hover column named "x"
 # or "size" cannot shadow the keys scatter() sets for geometry and styling.
 _HOVER_KEY_PREFIX = "hover_"
-# Name of the extra y-range a twin axis draws against.
+# Names of the y-ranges a glyph can be drawn against.
+_DEFAULT_RANGE = "default"
 _SECONDARY_RANGE = "secondary"
 
 
@@ -91,6 +92,13 @@ class _SecondaryAxis(NamedTuple):
     axis: LinearAxis
     y_range: Range1d
     name: str = _SECONDARY_RANGE
+
+
+def _draw_target(ax: Union[figure, _SecondaryAxis]) -> Tuple[figure, str]:
+    """The figure to draw on and the y-range to draw against."""
+    if isinstance(ax, _SecondaryAxis):
+        return ax.figure, ax.name
+    return ax, _DEFAULT_RANGE
 
 
 @register_backend("bokeh")
@@ -247,7 +255,7 @@ class BokehBackend:
 
     def line(
         self,
-        ax: figure,
+        ax: Union[figure, _SecondaryAxis],
         x: pd.Series,
         y: pd.Series,
         color: str = "blue",
@@ -257,7 +265,8 @@ class BokehBackend:
         zorder: int = 1,
         label: Optional[str] = None,
     ) -> Any:
-        """Create a line plot on the given figure."""
+        """Create a line plot on the given figure or secondary axis."""
+        target, y_range_name = _draw_target(ax)
         line_dash = _DASH_MAP.get(linestyle, "solid")
 
         line_kwargs = {
@@ -265,15 +274,16 @@ class BokehBackend:
             "line_width": linewidth,
             "line_alpha": alpha,
             "line_dash": line_dash,
+            "y_range_name": y_range_name,
         }
         if label:
             line_kwargs["legend_label"] = label
 
-        return ax.line(x.values, y.values, **line_kwargs)
+        return target.line(x.values, y.values, **line_kwargs)
 
     def fill_between(
         self,
-        ax: figure,
+        ax: Union[figure, _SecondaryAxis],
         x: pd.Series,
         y1: Union[float, pd.Series],
         y2: Union[float, pd.Series],
@@ -282,13 +292,15 @@ class BokehBackend:
         zorder: int = 0,
     ) -> Any:
         """Fill area between two y-values."""
+        target, y_range_name = _draw_target(ax)
         x_arr = x.values
-        return ax.varea(
+        return target.varea(
             x=x_arr,
             y1=broadcast(y1, len(x_arr)),
             y2=broadcast(y2, len(x_arr)),
             fill_color=color,
             fill_alpha=alpha,
+            y_range_name=y_range_name,
         )
 
     def axhline(
@@ -476,50 +488,6 @@ class BokehBackend:
         ax.add_layout(secondary_axis, "right")
 
         return _SecondaryAxis(ax, secondary_axis, y_range)
-
-    def line_secondary(
-        self,
-        secondary: _SecondaryAxis,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Create a line plot on secondary y-axis."""
-        line_dash = _DASH_MAP.get(linestyle, "solid")
-
-        return secondary.figure.line(
-            x.values,
-            y.values,
-            line_color=color,
-            line_width=linewidth,
-            line_alpha=alpha,
-            line_dash=line_dash,
-            y_range_name=secondary.name,
-        )
-
-    def fill_between_secondary(
-        self,
-        secondary: _SecondaryAxis,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill area between two y-values on secondary y-axis."""
-        x_arr = x.values
-        return secondary.figure.varea(
-            x=x_arr,
-            y1=broadcast(y1, len(x_arr)),
-            y2=broadcast(y2, len(x_arr)),
-            fill_color=color,
-            fill_alpha=alpha,
-            y_range_name=secondary.name,
-        )
 
     def set_secondary_ylim(
         self,

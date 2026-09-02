@@ -309,9 +309,9 @@ Backends must honour `loc` (matplotlib's vocabulary) and each entry's
 **2. `add_recombination_overlay` is gone.** The overlay is composed from
 primitives by `composition.render_recombination_overlay()`. A backend that wants
 the overlay implements `SupportsSecondaryAxis`: `create_twin_axis(ax)` returns
-an opaque per-backend handle, and `line_secondary`, `fill_between_secondary`,
-`set_secondary_ylim`, and `set_secondary_ylabel` each take that handle as their
-first argument.
+a per-backend handle, `set_secondary_ylim` and `set_secondary_ylabel` take that
+handle, and `line` and `fill_between` accept it in place of a panel to draw
+against the secondary scale.
 
 **3. Capabilities are protocols, not booleans.** The `supports_snp_labels` and
 `supports_secondary_axis` properties are removed. Optional capabilities are
