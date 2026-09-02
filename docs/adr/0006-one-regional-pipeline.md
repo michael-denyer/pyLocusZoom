@@ -97,3 +97,21 @@ output, and unifying it would be a visible change for its own sake.
 `tests/test_regional_plan.py` renders every panel type through the
 contract tests' recording backend, so the panel model is tested directly
 rather than only through matplotlib.
+
+## Addendum: the arms carry no logic
+
+The dispatch shape held, but the arms did not stay thin. `_render_eqtl` and
+`_render_association` grew to 68 and 66 lines because they decided the panel's
+mode and built its hover contract at draw time, from sixteen `in df.columns`
+probes in a module whose job is to trust a prepared frame. Two of the four
+optional panels also drew inside the composer while the other two drew in
+`gene_track.py` and `finemapping.py`, so the reader had to know which
+convention each panel followed.
+
+Every such decision now happens in the panel's constructor, and the panel
+value types, their constructors and one `draw_*` function each moved to
+`_regional_panels.py`. Each `render_panel` arm is one call. Drawing moved into
+the composition layer rather than out into the domain modules, because
+`eqtl.py` and `finemapping.py` are the validation layer and the layering rule
+keeps backend primitives out of it; `gene_track.py` drops to the region
+filter, the row layout and the arrow geometry.

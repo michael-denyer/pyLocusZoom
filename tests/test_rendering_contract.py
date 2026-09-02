@@ -239,11 +239,8 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
     """
     import numpy as np
 
-    from pylocuszoom._regional import (
-        HeatmapPanel,
-        RegionalFigurePlan,
-        RegionalPlotComposer,
-    )
+    from pylocuszoom._regional import RegionalPlotComposer
+    from pylocuszoom._regional_panels import HeatmapPanel, RegionalFigurePlan
 
     backend = RecordingBackend()
     ld_matrix = pd.DataFrame(np.eye(3), index=list("abc"), columns=list("abc"))

@@ -18,7 +18,8 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from ._ld_plotting import enrich_with_ld
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
-from ._regional import (
+from ._regional import RegionalPlotComposer
+from ._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
@@ -26,7 +27,7 @@ from ._regional import (
     HeatmapPanel,
     RegionalFigurePlan,
     RegionalPanel,
-    RegionalPlotComposer,
+    hover_for_association,
 )
 from .backends import BackendType, get_backend
 from .config import ColumnConfig, PlotConfig, RegionConfig, StackedPlotConfig
@@ -495,6 +496,8 @@ class LocusZoomPlotter:
                 species=self.species,
                 context=f"panel {index + 1}",
             )
+            if ld_col is not None and ld_col not in df.columns:
+                ld_col = None
             association.append(
                 AssociationPanel(
                     data=df,
@@ -502,6 +505,7 @@ class LocusZoomPlotter:
                     columns=columns,
                     display=display,
                     ld_col=ld_col,
+                    hover=hover_for_association(df, columns, ld_col),
                     lead_pos=lead_pos,
                     recomb_df=recomb_df if index == 0 else None,
                     panel_label=panel_labels[index] if panel_labels else None,

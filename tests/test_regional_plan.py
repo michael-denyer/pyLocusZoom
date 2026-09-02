@@ -8,14 +8,15 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
-from pylocuszoom._regional import (
+from pylocuszoom._regional import RegionalPlotComposer
+from pylocuszoom._regional_panels import (
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
     RegionalFigurePlan,
-    RegionalPlotComposer,
+    hover_for_association,
 )
 from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
 from tests.test_rendering_contract import FullCapabilityBackend, RecordingBackend
@@ -44,6 +45,10 @@ def _association(**overrides):
         recomb_df=None,
     )
     fields.update(overrides)
+    fields.setdefault(
+        "hover",
+        hover_for_association(fields["data"], fields["columns"], fields["ld_col"]),
+    )
     return AssociationPanel(**fields)
 
 

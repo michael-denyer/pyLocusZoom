@@ -192,7 +192,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3c | assign_gene_positions | Overlap-free gene row layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
-| 3c | plot_gene_track_generic | Backend-agnostic gene rendering | [gene_track.py](../src/pylocuszoom/gene_track.py) |
+| 3c | compute_arrow_geometry | Strand-arrow tip positions and dimensions | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
@@ -211,6 +211,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | add_snp_labels | SNP label placement and lead-proximity filtering | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
+| 3i | Regional panels | The five regional panel value types and the `draw_*` function each dispatches to | [_regional_panels.py](../src/pylocuszoom/_regional_panels.py) |
 | 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_rendering.py](../src/pylocuszoom/_rendering.py), [_regional.py](../src/pylocuszoom/_regional.py), [_miami_renderer.py](../src/pylocuszoom/_miami_renderer.py), [_stats_renderer.py](../src/pylocuszoom/_stats_renderer.py), [_coloc_renderer.py](../src/pylocuszoom/_coloc_renderer.py), [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
 | 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [_qq_panel.py](../src/pylocuszoom/_qq_panel.py) |
 | 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, and the function that draws it, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
@@ -316,7 +317,7 @@ sequenceDiagram
     end
     box rgb(46, 125, 50) Core
         participant L as calculate_ld (3a)
-        participant G as gene_track (3c)
+        participant G as _regional_panels (3i)
     end
     box rgb(173, 20, 87) Backend
         participant O as composition (4f)
@@ -337,7 +338,7 @@ sequenceDiagram
     P->>B: create_figure()
     activate B
     P->>B: scatter(pos, -log10p, colors)
-    P->>G: plot_gene_track_generic(ax, backend, genes_df)
+    P->>G: draw_genes(backend, ax, panel, plan)
     G->>B: add_rectangle(), add_polygon(), add_text()
     opt Recombination
         P->>O: render_recombination_overlay()
@@ -394,7 +395,7 @@ classDiagram
     class gene_track {
         <<module>>
         +assign_gene_positions()
-        +plot_gene_track_generic()
+        +compute_arrow_geometry()
     }
     class MatplotlibBackend
     class PlotlyBackend
