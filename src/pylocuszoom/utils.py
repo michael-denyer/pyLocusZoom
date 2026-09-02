@@ -66,6 +66,9 @@ def to_pandas(
 ) -> pd.DataFrame:
     """Convert DataFrame-like object to pandas DataFrame.
 
+    Every public plot method calls this on the frames it is given, so the
+    library's own boundary is the only place a Spark frame is collected.
+
     Supports pandas DataFrames (returned as-is) and PySpark DataFrames
     (converted to pandas). For large PySpark DataFrames, use sample_size
     to limit the data transferred.
@@ -91,18 +94,16 @@ def to_pandas(
     if isinstance(df, pd.DataFrame):
         return df
 
-    if is_spark_dataframe(df):
-        if sample_size is not None:
-            # Sample to limit data transfer
-            total = df.count()
-            if total > sample_size:
-                fraction = sample_size / total
-                df = df.sample(fraction=fraction, seed=42)
-        return df.toPandas()
+    if is_spark_dataframe(df) and sample_size is not None:
+        # Sample to limit data transfer
+        total = df.count()
+        if total > sample_size:
+            fraction = sample_size / total
+            df = df.sample(fraction=fraction, seed=42)
 
-    # Try pandas conversion as fallback
-    if hasattr(df, "to_pandas"):
-        return df.to_pandas()
+    # toPandas() is the Spark contract, and the only one this function needs:
+    # Databricks Connect and other wrappers satisfy it without being importable
+    # as pyspark, so is_spark_dataframe alone would turn them away.
     if hasattr(df, "toPandas"):
         return df.toPandas()
 

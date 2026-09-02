@@ -8,7 +8,7 @@ This package provides LocusZoom-style regional association plots with:
 - Multiple backends: matplotlib (static), plotly (interactive), bokeh (dashboards)
 - eQTL overlay support
 - Fine-mapping/SuSiE visualization (PIP line with credible set coloring)
-- PySpark DataFrame support for large-scale data
+- PySpark DataFrames accepted by every plot method, collected through to_pandas()
 
 Example:
     >>> from pylocuszoom import LocusZoomPlotter

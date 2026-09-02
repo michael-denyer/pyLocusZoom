@@ -28,6 +28,7 @@ from .colors import (
 )
 from .config import ColocConfig
 from .schemas import Canonical, validate_coloc_df
+from .utils import DataFrameLike, to_pandas
 
 
 def _resolve_merged_column(
@@ -236,8 +237,8 @@ class ColocPlotter:
 
     def plot_coloc(
         self,
-        gwas_df: pd.DataFrame,
-        eqtl_df: pd.DataFrame,
+        gwas_df: DataFrameLike,
+        eqtl_df: DataFrameLike,
         pos_col: str = Canonical.POS,
         gwas_p_col: str = "p_gwas",
         eqtl_p_col: str = "p_eqtl",
@@ -304,6 +305,7 @@ class ColocPlotter:
             ...     eqtl_effect_col="beta_eqtl",
             ... )
         """
+        gwas_df, eqtl_df = to_pandas(gwas_df), to_pandas(eqtl_df)
         config = ColocConfig(
             pos_col=pos_col,
             gwas_p_col=gwas_p_col,

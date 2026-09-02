@@ -8,8 +8,6 @@ Provides visualization of GWAS comparisons with mirrored y-axes:
 
 from typing import Any, List, Optional, Tuple
 
-import pandas as pd
-
 from ._figure import render_figure
 from ._miami_panels import MiamiRequest, miami_plan
 from ._plotter_utils import (
@@ -23,6 +21,7 @@ from .backends.hover import HoverConfig
 from .config import GenomeWideConfig
 from .manhattan import prepare_genomewide_frames
 from .species import Species, resolve_species
+from .utils import DataFrameLike, to_pandas
 
 
 class MiamiPlotter:
@@ -63,8 +62,8 @@ class MiamiPlotter:
 
     def plot_miami(
         self,
-        top_df: pd.DataFrame,
-        bottom_df: pd.DataFrame,
+        top_df: DataFrameLike,
+        bottom_df: DataFrameLike,
         *,
         config: GenomeWideConfig = GenomeWideConfig(),
         rs_col: Optional[str] = None,
@@ -126,6 +125,7 @@ class MiamiPlotter:
             ...     bottom_label="Replication",
             ... )
         """
+        top_df, bottom_df = to_pandas(top_df), to_pandas(bottom_df)
         top_threshold = resolve_threshold(top_threshold, self.genomewide_threshold)
         bottom_threshold = resolve_threshold(
             bottom_threshold, self.genomewide_threshold

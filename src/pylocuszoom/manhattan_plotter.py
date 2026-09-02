@@ -28,7 +28,9 @@ from .backends import BackendType, get_backend
 from .config import GenomeWideConfig
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
 from .qq import prepare_qq_data
+from .schemas import Canonical
 from .species import Species, resolve_species
+from .utils import DataFrameLike, to_pandas
 
 
 class ManhattanPlotter:
@@ -76,7 +78,7 @@ class ManhattanPlotter:
 
     def plot_manhattan(
         self,
-        df: pd.DataFrame,
+        df: DataFrameLike,
         *,
         config: GenomeWideConfig = GenomeWideConfig(),
         category_col: Optional[str] = None,
@@ -121,6 +123,7 @@ class ManhattanPlotter:
             ...     config=GenomeWideConfig(p_col="pvalue"),
             ... )
         """
+        df = to_pandas(df)
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )
@@ -152,7 +155,7 @@ class ManhattanPlotter:
         self,
         df: pd.DataFrame,
         category_col: str,
-        p_col: str = "p",
+        p_col: str = Canonical.P,
         category_order: Optional[List[str]] = None,
         significance_threshold: Optional[float] = None,
         figsize: Tuple[float, float] = (12, 5),
@@ -178,7 +181,7 @@ class ManhattanPlotter:
 
     def plot_qq(
         self,
-        df: pd.DataFrame,
+        df: DataFrameLike,
         *,
         config: GenomeWideConfig = GenomeWideConfig(),
         show_confidence_band: bool = True,
@@ -205,6 +208,7 @@ class ManhattanPlotter:
         Example:
             >>> fig = plotter.plot_qq(gwas_df, config=GenomeWideConfig(p_col="pvalue"))
         """
+        df = to_pandas(df)
         qq = prepare_qq_data(df, p_col=config.p_col)
         panel = QQPanelSpec(
             qq_df=qq.frame,
@@ -217,7 +221,7 @@ class ManhattanPlotter:
 
     def plot_manhattan_stacked(
         self,
-        gwas_dfs: List[pd.DataFrame],
+        gwas_dfs: List[DataFrameLike],
         *,
         config: GenomeWideConfig = GenomeWideConfig(),
         significance_threshold: ThresholdArg = UNSET,
@@ -249,6 +253,7 @@ class ManhattanPlotter:
             ...     panel_labels=["Discovery", "Replication", "Meta-analysis"],
             ... )
         """
+        gwas_dfs = [to_pandas(df) for df in gwas_dfs]
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )
@@ -280,7 +285,7 @@ class ManhattanPlotter:
 
     def plot_manhattan_qq(
         self,
-        df: pd.DataFrame,
+        df: DataFrameLike,
         *,
         config: GenomeWideConfig = GenomeWideConfig(),
         significance_threshold: ThresholdArg = UNSET,
@@ -312,6 +317,7 @@ class ManhattanPlotter:
             >>> fig = plotter.plot_manhattan_qq(gwas_df)
             >>> fig.savefig("gwas_summary.png", dpi=150)
         """
+        df = to_pandas(df)
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )
@@ -348,7 +354,7 @@ class ManhattanPlotter:
 
     def plot_manhattan_qq_stacked(
         self,
-        gwas_dfs: List[pd.DataFrame],
+        gwas_dfs: List[DataFrameLike],
         *,
         config: GenomeWideConfig = GenomeWideConfig(),
         significance_threshold: ThresholdArg = UNSET,
@@ -384,6 +390,7 @@ class ManhattanPlotter:
             ...     panel_labels=["Discovery", "Replication"],
             ... )
         """
+        gwas_dfs = [to_pandas(df) for df in gwas_dfs]
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )

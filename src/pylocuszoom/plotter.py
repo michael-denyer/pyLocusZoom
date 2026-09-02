@@ -50,7 +50,7 @@ from .recombination import RecombResult, RecombStatus, recomb_for_region
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import validate_genes_df, validate_gwas_df
 from .species import Species, resolve_species
-from .utils import filter_by_region
+from .utils import DataFrameLike, filter_by_region, to_pandas
 
 
 class LocusZoomPlotter:
@@ -149,7 +149,7 @@ class LocusZoomPlotter:
 
     def plot(
         self,
-        gwas_df: pd.DataFrame,
+        gwas_df: DataFrameLike,
         *,
         chrom: Union[int, str],
         start: int,
@@ -216,6 +216,7 @@ class LocusZoomPlotter:
             ...     panels=PanelInputs(genes_df=genes_df),
             ... )
         """
+        gwas_df = to_pandas(gwas_df)
         config = PlotConfig(
             region=RegionConfig(chrom=chrom, start=start, end=end),
             columns=columns,
@@ -239,7 +240,7 @@ class LocusZoomPlotter:
 
     def plot_stacked(
         self,
-        gwas_dfs: List[pd.DataFrame],
+        gwas_dfs: List[DataFrameLike],
         *,
         chrom: Union[int, str],
         start: int,
@@ -287,6 +288,7 @@ class LocusZoomPlotter:
             ...     panels=PanelInputs(genes_df=genes_df),
             ... )
         """
+        gwas_dfs = [to_pandas(df) for df in gwas_dfs]
         if not gwas_dfs:
             raise ValueError("At least one GWAS DataFrame required")
         config = StackedPlotConfig(

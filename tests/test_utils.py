@@ -209,18 +209,15 @@ class TestToPandas:
         with pytest.raises(TypeError, match="Unsupported DataFrame type"):
             to_pandas([1, 2, 3])
 
-    def test_object_with_to_pandas_method(self):
-        """Object with to_pandas() method uses that method."""
-        expected = pd.DataFrame({"a": [1, 2, 3]})
+    def test_object_with_only_to_pandas_is_rejected(self):
+        """The contract is pandas or Spark, so a bare to_pandas() is not enough."""
         mock_obj = MagicMock()
-        mock_obj.to_pandas.return_value = expected
-        # Make sure it's not detected as Spark
+        del mock_obj.toPandas
         mock_obj.__class__.__name__ = "CustomDataFrame"
         mock_obj.__class__.__module__ = "custom"
 
-        result = to_pandas(mock_obj)
-        assert result.equals(expected)
-        mock_obj.to_pandas.assert_called_once()
+        with pytest.raises(TypeError, match="Unsupported DataFrame type"):
+            to_pandas(mock_obj)
 
     def test_object_with_toPandas_method(self):
         """Object with toPandas() method (Spark-style) uses that method."""

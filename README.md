@@ -621,12 +621,17 @@ fig.savefig("manhattan_qq.png", dpi=150)
 
 ## PySpark Support
 
-For large-scale genomics data, convert PySpark DataFrames with `to_pandas()` before plotting:
+Every plot method collects a PySpark DataFrame through `to_pandas()` before it
+reads a single column, so a Spark frame can be passed straight in. Call
+`to_pandas()` yourself when you want to sample a very large frame first:
 
 ```python
 from pylocuszoom import LocusZoomPlotter, to_pandas
 
-# Convert PySpark DataFrame (optionally sampled for very large data)
+# Passed straight in: the plot method collects it
+fig = plotter.plot(spark_gwas_df, chrom=1, start=1000000, end=2000000)
+
+# Sampled first, for a frame too large to collect whole
 pandas_df = to_pandas(spark_gwas_df, sample_size=100000)
 fig = plotter.plot(pandas_df, chrom=1, start=1000000, end=2000000)
 ```

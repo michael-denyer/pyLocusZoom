@@ -285,7 +285,7 @@ implementing the methods and out by omitting them; see
 |----|-----------|-------------|-----------|
 | 5a | PyLocusZoomError | Exception hierarchy root | [exceptions.py](../src/pylocuszoom/exceptions.py) |
 | 5b | enable_logging | Loguru/stdlib logging facade | [logging.py](../src/pylocuszoom/logging.py) |
-| 5c | to_pandas | PySpark → pandas bridge | [utils.py](../src/pylocuszoom/utils.py) |
+| 5c | to_pandas | PySpark → pandas bridge, called by every public plot method on the frames it is given | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom_series | Column-level chromosome normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 | 5d | download_file | The one HTTP download path: retries, atomic writes, progress | [_http.py](../src/pylocuszoom/_http.py) |
