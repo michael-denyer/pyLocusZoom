@@ -145,9 +145,6 @@ class ManhattanQQRenderer:
         title: Optional[str],
     ) -> Any:
         """Render prepared Manhattan panels with shared x coordinates."""
-        chrom_order = prepared_dfs[0].attrs["chrom_order"]
-        chrom_centers = prepared_dfs[0].attrs["chrom_centers"]
-        x_limits = shared_manhattan_limits(prepared_dfs)
         n_panels = len(prepared_dfs)
         fig, axes = self._backend.create_figure(
             n_panels=n_panels,
@@ -155,24 +152,15 @@ class ManhattanQQRenderer:
             figsize=figsize,
             sharex=True,
         )
-        ticks = chromosome_ticks(chrom_order, chrom_centers)
-
-        for index, (ax, prepared_df) in enumerate(zip(axes, prepared_dfs)):
-            render_manhattan_panel(
-                self._backend,
-                ax,
-                manhattan_spec(
-                    prepared_df,
-                    x_limits=x_limits,
-                    ticks=ticks,
-                    significance_threshold=significance_threshold,
-                    y_label_fontsize=10,
-                    x_label="Chromosome" if index == n_panels - 1 else None,
-                    panel_label=panel_labels[index]
-                    if panel_labels and index < len(panel_labels)
-                    else None,
-                ),
-            )
+        for ax, spec in zip(
+            axes,
+            self._stacked_manhattan_specs(
+                prepared_dfs,
+                significance_threshold=significance_threshold,
+                panel_labels=panel_labels,
+            ),
+        ):
+            render_manhattan_panel(self._backend, ax, spec)
 
         if title:
             self._backend.set_title(axes[0], title, fontsize=14)
@@ -238,9 +226,6 @@ class ManhattanQQRenderer:
         title: Optional[str],
     ) -> Any:
         """Render stacked side-by-side Manhattan and QQ panels."""
-        chrom_order = manhattan_dfs[0].attrs["chrom_order"]
-        chrom_centers = manhattan_dfs[0].attrs["chrom_centers"]
-        x_limits = shared_manhattan_limits(manhattan_dfs)
         n_panels = len(manhattan_dfs)
         fig, axes = self._backend.create_figure_grid(
             n_rows=n_panels,
@@ -248,26 +233,15 @@ class ManhattanQQRenderer:
             width_ratios=[2.5, 1],
             figsize=figsize,
         )
-        ticks = chromosome_ticks(chrom_order, chrom_centers)
+        specs = self._stacked_manhattan_specs(
+            manhattan_dfs,
+            significance_threshold=significance_threshold,
+            panel_labels=panel_labels,
+        )
 
-        for index, (manhattan_df, qq_df) in enumerate(zip(manhattan_dfs, qq_dfs)):
-            manhattan_ax = axes[index * 2]
+        for index, (spec, qq_df) in enumerate(zip(specs, qq_dfs)):
             qq_ax = axes[index * 2 + 1]
-            render_manhattan_panel(
-                self._backend,
-                manhattan_ax,
-                manhattan_spec(
-                    manhattan_df,
-                    x_limits=x_limits,
-                    ticks=ticks,
-                    significance_threshold=significance_threshold,
-                    y_label_fontsize=10,
-                    x_label="Chromosome" if index == n_panels - 1 else None,
-                    panel_label=panel_labels[index]
-                    if panel_labels and index < len(panel_labels)
-                    else None,
-                ),
-            )
+            render_manhattan_panel(self._backend, axes[index * 2], spec)
             self._render_qq_panel(qq_ax, qq_df, show_confidence_band)
             self._set_qq_labels_and_title(
                 qq_ax,
@@ -287,6 +261,47 @@ class ManhattanQQRenderer:
         else:
             self._backend.finalize_layout(fig, hspace=0.15)
         return fig
+
+    @staticmethod
+    def _stacked_manhattan_specs(
+        prepared_dfs: Sequence[pd.DataFrame],
+        *,
+        significance_threshold: Optional[float],
+        panel_labels: Optional[List[str]],
+    ) -> List[ManhattanPanelSpec]:
+        """Build specs for vertically stacked panels sharing x limits and ticks.
+
+        Only the bottom panel carries the x-axis label, since the panels share
+        one x axis.
+
+        Args:
+            prepared_dfs: Frames from ``prepare_manhattan_data``, top to bottom.
+            significance_threshold: P-value for the significance line, or None.
+            panel_labels: Corner label per panel, or None.
+
+        Returns:
+            One spec per frame, in the same order.
+        """
+        n_panels = len(prepared_dfs)
+        x_limits = shared_manhattan_limits(prepared_dfs)
+        ticks = chromosome_ticks(
+            prepared_dfs[0].attrs["chrom_order"],
+            prepared_dfs[0].attrs["chrom_centers"],
+        )
+        return [
+            manhattan_spec(
+                prepared_df,
+                x_limits=x_limits,
+                ticks=ticks,
+                significance_threshold=significance_threshold,
+                y_label_fontsize=10,
+                x_label="Chromosome" if index == n_panels - 1 else None,
+                panel_label=panel_labels[index]
+                if panel_labels and index < len(panel_labels)
+                else None,
+            )
+            for index, prepared_df in enumerate(prepared_dfs)
+        ]
 
     def _render_qq_panel(
         self,
