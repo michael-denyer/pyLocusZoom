@@ -3,15 +3,15 @@
 Provides validation for GWAS, eQTL, fine-mapping, and gene annotation
 DataFrames to ensure data quality before plotting.
 
-These are the strict, load-time schemas. Plot-time validation in
-``utils.validate_*`` is deliberately more permissive; see the two-tier note in
-``CONTEXT.md``.
+These are the strict, load-time schemas. The permissive plot-time tier is
+``validation.gwas_spec(..., strict=False)`` and ``validation.GENES_SPEC``; see
+the two-tier note in ``CONTEXT.md``.
 """
 
 import pandas as pd
 
 from .exceptions import LoaderValidationError
-from .validation import ColumnSpec, RangeRule, check
+from .validation import ColumnSpec, RangeRule, check, gwas_spec
 
 # =============================================================================
 # GWAS Validation
@@ -36,18 +36,7 @@ def validate_gwas_dataframe(
     Raises:
         LoaderValidationError: If validation fails.
     """
-    check(
-        df,
-        ColumnSpec(
-            name="GWAS",
-            required=(pos_col, p_col),
-            numeric=(pos_col, p_col),
-            not_null=(pos_col, p_col),
-            ranges=(RangeRule(pos_col, min_val=0, exclusive_min=True),),
-            pvalue=p_col,
-            error_class=LoaderValidationError,
-        ),
-    )
+    check(df, gwas_spec(pos_col, p_col, strict=True))
     return df
 
 
