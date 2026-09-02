@@ -1296,20 +1296,21 @@ one is `homo_sapiens` rather than `human`; `get_ensembl_species_name` resolves
 an alias to it.
 
 **Fetching genes without plotting:** `get_genes_for_build` returns the genes
-and exons for a region, going through the same cache the plotter uses.
+and the exons for a region, going through the same cache the plotter uses.
+`source_for` turns a species and a build into the source that can serve them,
+and is the one place either is interpreted.
 
 ```python
-from pylocuszoom import get_genes_for_build
+from pylocuszoom import get_genes_for_build, source_for
 
 genes_df, exons_df = get_genes_for_build(
-    species="canine", chrom=1, start=1_000_000, end=2_000_000,
-    genome_build="canfam3.1", include_exons=True,
+    source_for("canine", "canfam3.1"), chrom=1, start=1_000_000, end=2_000_000
 )
 ```
 
-`source_for(species, genome_build)` returns the `GeneSource` that routing would
-pick, which is the way to ask one source directly for a build the other would
-otherwise serve.
+The result is a named tuple, so `annotations.genes` and `annotations.exons`
+also work. Both frames are cached together, so a second call for the same
+region makes no request at all.
 
 **Note:** Recombination rates are NOT available from Ensembl for most species. Continue to provide recombination maps separately.
 

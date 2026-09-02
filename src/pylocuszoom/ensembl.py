@@ -20,7 +20,14 @@ import warnings
 
 import pandas as pd
 
-from ._gene_source import EXON_COLUMNS, GENE_COLUMNS, GeneSource, empty_frame
+from ._gene_source import (
+    EXON_COLUMNS,
+    GENE_COLUMNS,
+    GeneAnnotations,
+    GeneSource,
+    empty_annotations,
+    empty_frame,
+)
 from ._http import request_json
 from .exceptions import EnsemblAPIError, ValidationError
 from .logging import logger
@@ -179,8 +186,8 @@ def fetch_overlap_frames(
     end: int,
     genome_build: str | None = None,
     biotype: str = "protein_coding",
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fetch the gene and exon frames for a region in one overlap request.
+) -> GeneAnnotations:
+    """Fetch the genes and exons for a region in one overlap request.
 
     Exon features name only their transcript, and transcript features name
     only their gene, so asking for all three feature types in one request is
@@ -198,7 +205,7 @@ def fetch_overlap_frames(
         biotype: Gene biotype filter.
 
     Returns:
-        Tuple of (genes_df, exons_df), each carrying its full column set even
+        The region's annotations, each frame carrying its full column set even
         when the region has nothing of that kind.
 
     Raises:
@@ -227,7 +234,7 @@ def fetch_overlap_frames(
 
     if not data:
         logger.debug(f"No genes found in region {region}")
-        return empty_frame(GENE_COLUMNS), empty_frame(EXON_COLUMNS)
+        return empty_annotations()
 
     _warn_on_assembly_mismatch(_response_assembly(data), genome_build, ensembl_species)
 
@@ -247,7 +254,7 @@ def fetch_overlap_frames(
             exons.append(_exon_record(feature, chrom_str, symbol))
 
     logger.debug(f"Fetched {len(genes)} genes and {len(exons)} exons from Ensembl")
-    return (
+    return GeneAnnotations(
         pd.DataFrame(genes) if genes else empty_frame(GENE_COLUMNS),
         pd.DataFrame(exons) if exons else empty_frame(EXON_COLUMNS),
     )

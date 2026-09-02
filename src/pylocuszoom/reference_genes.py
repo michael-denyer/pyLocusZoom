@@ -22,10 +22,8 @@ once per source.
 
 from pathlib import Path
 
-import pandas as pd
-
-from ._gene_cache import cache_root, clear_cache, load_genes, save_genes
-from ._gene_source import GeneSource
+from ._gene_cache import cache_root, clear_cache, load_annotations, save_annotations
+from ._gene_source import GeneAnnotations, GeneSource
 from .ensembl import ensembl_source
 from .logging import logger
 from .ucsc import ucsc_source
@@ -71,17 +69,15 @@ def source_for(species: str, genome_build: str | None = None) -> GeneSource:
 
 
 def get_genes_for_build(
-    species: str,
+    source: GeneSource,
     chrom: str | int,
     start: int,
     end: int,
-    genome_build: str | None = None,
+    *,
     cache_dir: Path | None = None,
     use_cache: bool = True,
-    include_exons: bool = False,
-    source: GeneSource | None = None,
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
-    """Get gene annotations for a region in the caller's genome build.
+) -> GeneAnnotations:
+    """Get the gene annotations for a region from one source.
 
     Checks the disk cache first and fetches from the serving API on a miss.
     An empty region is cached so gene-sparse regions stop re-requesting; a
@@ -90,21 +86,15 @@ def get_genes_for_build(
     region's genes.
 
     Args:
-        species: Species name or alias, used when Ensembl serves the build.
+        source: Source to fetch from, from ``source_for``.
         chrom: Chromosome name or number.
         start: Region start position (1-based).
         end: Region end position (1-based).
-        genome_build: Build the caller's data is in. Selects the source; None
-            means Ensembl's current assembly for the species.
         cache_dir: Cache directory (the source's default if None).
         use_cache: Whether to use the disk cache.
-        include_exons: If True, return a (genes_df, exons_df) tuple.
-        source: Source to fetch from. Derived from species and genome_build if
-            None.
 
     Returns:
-        Gene annotations in the requested build, or a (genes_df, exons_df)
-        tuple when include_exons. Both carry an ``assembly`` column.
+        The region's genes and exons, both carrying an ``assembly`` column.
 
     Raises:
         ValidationError: If an Ensembl-served build asks for a region over
@@ -112,42 +102,24 @@ def get_genes_for_build(
         ReferenceAPIError: If the serving API fails (EnsemblAPIError or
             UCSCAPIError, depending on the source).
     """
-    if source is None:
-        source = source_for(species, genome_build)
     if cache_dir is None:
         cache_dir = cache_root(source.name)
 
     chrom_str = normalize_chrom(chrom)
+    key = (cache_dir, source.cache_species, chrom_str, start, end)
 
     if use_cache:
-        cached = load_genes(
-            cache_dir,
-            source.cache_species,
-            chrom_str,
-            start,
-            end,
-            build_token=source.build_token,
-        )
+        cached = load_annotations(*key, build_token=source.build_token)
         if cached is not None:
-            source.on_cache_hit(cached)
-            if not include_exons:
-                return cached
-            return cached, source.fetch(chrom_str, start, end)[1]
+            source.on_cache_hit(cached.genes)
+            return cached
 
-    genes_df, exons_df = source.fetch(chrom_str, start, end)
+    annotations = source.fetch(chrom_str, start, end)
 
     if use_cache:
-        save_genes(
-            genes_df,
-            cache_dir,
-            source.cache_species,
-            chrom_str,
-            start,
-            end,
-            build_token=source.build_token,
-        )
+        save_annotations(annotations, *key, build_token=source.build_token)
 
-    return (genes_df, exons_df) if include_exons else genes_df
+    return annotations
 
 
 def clear_gene_cache(

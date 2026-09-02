@@ -116,24 +116,14 @@ class TestUCSCCaching:
             return_value=ok_response(refseq_payload()),
         ) as mock_get:
             first = get_genes_for_build(
-                "",
-                "1",
-                1_000_000,
-                1_200_000,
-                cache_dir=tmp_path,
-                source=ucsc_source("canFam3"),
+                ucsc_source("canFam3"), "1", 1_000_000, 1_200_000, cache_dir=tmp_path
             )
             second = get_genes_for_build(
-                "",
-                "1",
-                1_000_000,
-                1_200_000,
-                cache_dir=tmp_path,
-                source=ucsc_source("canFam3"),
+                ucsc_source("canFam3"), "1", 1_000_000, 1_200_000, cache_dir=tmp_path
             )
 
         assert mock_get.call_count == 1
-        assert second["gene_name"].tolist() == first["gene_name"].tolist()
+        assert second.genes["gene_name"].tolist() == first.genes["gene_name"].tolist()
 
     def test_failed_fetch_is_not_cached(self, tmp_path):
         """An outage must not poison the region with a permanent empty result."""
@@ -152,12 +142,7 @@ class TestUCSCCaching:
             pytest.raises(UCSCAPIError),
         ):
             get_genes_for_build(
-                "",
-                "1",
-                1_000_000,
-                1_200_000,
-                cache_dir=tmp_path,
-                source=ucsc_source("canFam3"),
+                ucsc_source("canFam3"), "1", 1_000_000, 1_200_000, cache_dir=tmp_path
             )
 
         with patch(
@@ -165,14 +150,9 @@ class TestUCSCCaching:
             return_value=ok_response(refseq_payload()),
         ):
             after = get_genes_for_build(
-                "",
-                "1",
-                1_000_000,
-                1_200_000,
-                cache_dir=tmp_path,
-                source=ucsc_source("canFam3"),
+                ucsc_source("canFam3"), "1", 1_000_000, 1_200_000, cache_dir=tmp_path
             )
-        assert after["gene_name"].tolist() == ["NFATC1"]
+        assert after.genes["gene_name"].tolist() == ["NFATC1"]
 
     def test_exons_share_the_gene_request(self, tmp_path):
         """ncbiRefSeq rows carry exons, so one track request serves both."""
@@ -184,13 +164,7 @@ class TestUCSCCaching:
             return_value=ok_response(refseq_payload()),
         ) as mock_get:
             genes, exons = get_genes_for_build(
-                "",
-                "1",
-                1_000_000,
-                1_200_000,
-                cache_dir=tmp_path,
-                include_exons=True,
-                source=ucsc_source("canFam3"),
+                ucsc_source("canFam3"), "1", 1_000_000, 1_200_000, cache_dir=tmp_path
             )
 
         assert mock_get.call_count == 1
@@ -207,12 +181,7 @@ class TestUCSCCaching:
         ) as mock_get:
             for genome in ("canFam3", "canFam4"):
                 get_genes_for_build(
-                    "",
-                    "1",
-                    1_000_000,
-                    1_200_000,
-                    cache_dir=tmp_path,
-                    source=ucsc_source(genome),
+                    ucsc_source(genome), "1", 1_000_000, 1_200_000, cache_dir=tmp_path
                 )
 
         assert mock_get.call_count == 2
@@ -242,18 +211,17 @@ class TestBuildRouting:
 
     def test_retired_build_routes_to_ucsc(self, tmp_path):
         """A CanFam3.1 caller gets CanFam3.1 coordinates, not ROS_Cfam_1.0."""
-        from pylocuszoom.reference_genes import get_genes_for_build
+        from pylocuszoom.reference_genes import get_genes_for_build, source_for
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ):
-            genes = get_genes_for_build(
-                "canine",
+            genes, _ = get_genes_for_build(
+                source_for("canine", "canfam3.1"),
                 "1",
                 1_000_000,
                 1_200_000,
-                genome_build="canfam3.1",
                 cache_dir=tmp_path,
             )
 
@@ -262,18 +230,17 @@ class TestBuildRouting:
 
     def test_served_build_stays_on_ensembl(self, tmp_path):
         """A build Ensembl serves is not diverted to UCSC."""
-        from pylocuszoom.reference_genes import get_genes_for_build
+        from pylocuszoom.reference_genes import get_genes_for_build, source_for
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(ros_cfam_gene_payload()),
         ):
-            genes = get_genes_for_build(
-                "canine",
+            genes, _ = get_genes_for_build(
+                source_for("canine", "ROS_Cfam_1.0"),
                 "1",
                 900_000,
                 1_200_000,
-                genome_build="ROS_Cfam_1.0",
                 cache_dir=tmp_path,
             )
 
@@ -288,8 +255,9 @@ class TestBuildRouting:
         assert ucsc_genome_for_build(plotter.genome_build) == "canFam3"
 
     def test_plotter_fetches_in_its_own_build(self):
-        """auto_genes routes through the build-aware entry point."""
+        """auto_genes fetches from the source its own build routes to."""
         from pylocuszoom import LocusZoomPlotter
+        from pylocuszoom._gene_source import GeneAnnotations
 
         plotter = LocusZoomPlotter(species="canine", auto_genes=True, log_level=None)
         gwas = pd.DataFrame(
@@ -298,11 +266,13 @@ class TestBuildRouting:
 
         with patch(
             "pylocuszoom.plotter.get_genes_for_build",
-            return_value=(
+            return_value=GeneAnnotations(
                 pd.DataFrame(columns=["chr", "start", "end", "gene_name", "assembly"]),
                 pd.DataFrame(),
             ),
         ) as mock_fetch:
             plotter.plot(gwas, chrom=1, start=900_000, end=1_200_000)
 
-        assert mock_fetch.call_args.kwargs["genome_build"] == plotter.genome_build
+        source = mock_fetch.call_args.args[0]
+        assert source.name == "ucsc"
+        assert source.cache_species == "canFam3"

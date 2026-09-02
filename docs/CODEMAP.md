@@ -197,7 +197,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3e | prepare_manhattan_data | Cumulative-position Manhattan prep | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |
-| 3h | GeneSource, GENE_COLUMNS, EXON_COLUMNS | The value type and frame schema both sources produce, in a leaf neither imports back | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |
+| 3h | GeneSource, GeneAnnotations, GENE_COLUMNS | The value types and frame schema both sources produce, in a leaf neither imports back | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |
 | 3h | source_for, get_genes_for_build | The build-to-source routing and the one fetch-and-cache orchestration | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
 | 3h | ensembl_source, fetch_overlap_frames | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 | 3h | ucsc_source, fetch_track_frames | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |

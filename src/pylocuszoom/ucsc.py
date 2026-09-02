@@ -17,7 +17,13 @@ column, so either source drops into the same plot.
 
 import pandas as pd
 
-from ._gene_source import EXON_COLUMNS, GENE_COLUMNS, GeneSource, empty_frame
+from ._gene_source import (
+    EXON_COLUMNS,
+    GENE_COLUMNS,
+    GeneAnnotations,
+    GeneSource,
+    empty_frame,
+)
 from ._http import request_json
 from .exceptions import UCSCAPIError
 from .logging import logger
@@ -178,8 +184,8 @@ def fetch_track_frames(
     start: int,
     end: int,
     biotype: str = "protein_coding",
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fetch the gene and exon frames for a region from one track request.
+) -> GeneAnnotations:
+    """Fetch the genes and exons for a region from one track request.
 
     ncbiRefSeq rows already carry ``exonStarts``/``exonEnds``, so the exons
     cost nothing beyond the genes.
@@ -196,7 +202,7 @@ def fetch_track_frames(
             other value matches nothing.
 
     Returns:
-        Tuple of (genes_df, exons_df). UCSC coordinates are 0-based half-open
+        The region's annotations. UCSC coordinates are 0-based half-open
         and are converted to the 1-based inclusive convention Ensembl and the
         rest of pyLocusZoom use.
 
@@ -206,7 +212,7 @@ def fetch_track_frames(
     chrom_str = normalize_chrom(chrom)
     rows = _fetch_track(ucsc_genome, chrom_str, start, end)
 
-    return (
+    return GeneAnnotations(
         _genes_from_rows(rows, ucsc_genome, chrom_str, biotype),
         _exons_from_rows(rows, ucsc_genome, chrom_str),
     )

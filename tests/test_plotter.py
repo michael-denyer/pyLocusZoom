@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.reference_mocks import (
     gene_transcript_exon_payload,
@@ -83,7 +84,7 @@ class TestAutoGenes:
 
         with patch(
             "pylocuszoom.plotter.get_genes_for_build",
-            return_value=(mock_genes, pd.DataFrame()),
+            return_value=GeneAnnotations(mock_genes, pd.DataFrame()),
         ):
             fig = plotter.plot(
                 small_regional_gwas_df,
@@ -173,7 +174,7 @@ class TestAutoGenes:
 
         with patch(
             "pylocuszoom.plotter.get_genes_for_build",
-            return_value=(mock_genes, pd.DataFrame()),
+            return_value=GeneAnnotations(mock_genes, pd.DataFrame()),
         ) as mock_fetch:
             fig = plotter.plot_stacked(
                 [small_regional_gwas_df],

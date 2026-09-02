@@ -272,12 +272,12 @@ def test_cache_resolvers_share_base(tmp_path, monkeypatch):
     assert cache_root("ensembl").parent == get_default_data_dir().parent
 
 
-def test_load_genes_miss():
+def test_load_annotations_miss():
     """Test cache miss returns None."""
-    from pylocuszoom._gene_cache import load_genes
+    from pylocuszoom._gene_cache import load_annotations
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        result = load_genes(
+        result = load_annotations(
             Path(tmpdir),
             "homo_sapiens",
             "13",
@@ -287,9 +287,10 @@ def test_load_genes_miss():
         assert result is None
 
 
-def test_save_and_load_cached_genes():
-    """Test saving and loading cached genes using CSV."""
-    from pylocuszoom._gene_cache import load_genes, save_genes
+def test_save_and_load_cached_annotations():
+    """Test saving and loading a cached entry using CSV."""
+    from pylocuszoom._gene_cache import load_annotations, save_annotations
+    from pylocuszoom._gene_source import GeneAnnotations
 
     df = pd.DataFrame(
         {
@@ -304,8 +305,8 @@ def test_save_and_load_cached_genes():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
 
-        save_genes(
-            df,
+        save_annotations(
+            GeneAnnotations(df, pd.DataFrame(columns=list(EXON_COLUMNS))),
             cache_dir,
             "homo_sapiens",
             "13",
@@ -313,11 +314,11 @@ def test_save_and_load_cached_genes():
             33000000,
         )
 
-        # Verify CSV file created (not parquet)
+        # Verify CSV files created (not parquet), one per frame
         csv_files = list(cache_dir.glob("**/*.csv"))
-        assert len(csv_files) == 1
+        assert len(csv_files) == 2
 
-        loaded = load_genes(
+        loaded = load_annotations(
             cache_dir,
             "homo_sapiens",
             "13",
@@ -326,9 +327,10 @@ def test_save_and_load_cached_genes():
         )
 
         assert loaded is not None
-        assert len(loaded) == 2
+        assert len(loaded.genes) == 2
+        assert loaded.exons.empty
         # Sort for deterministic comparison
-        loaded_sorted = loaded.sort_values("start")
+        loaded_sorted = loaded.genes.sort_values("start")
         assert loaded_sorted["gene_name"].tolist() == ["BRCA2", "TEST"]
 
 
@@ -337,7 +339,9 @@ def test_save_and_load_cached_genes():
 
 def test_get_genes_for_build_uses_cache():
     """Test that get_genes_for_build uses cache when available."""
-    from pylocuszoom._gene_cache import save_genes
+    from pylocuszoom._gene_cache import save_annotations
+    from pylocuszoom._gene_source import GeneAnnotations
+    from pylocuszoom.ensembl import ensembl_source
     from pylocuszoom.reference_genes import get_genes_for_build
 
     # Pre-populate cache
@@ -353,27 +357,35 @@ def test_get_genes_for_build_uses_cache():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
-        save_genes(cached_df, cache_dir, "homo_sapiens", "13", 32000000, 33000000)
+        save_annotations(
+            GeneAnnotations(cached_df, pd.DataFrame(columns=list(EXON_COLUMNS))),
+            cache_dir,
+            "homo_sapiens",
+            "13",
+            32000000,
+            33000000,
+        )
 
         # Mock the API call - should NOT be called due to cache hit
         with patch("pylocuszoom._http.requests.get") as mock_get:
             result = get_genes_for_build(
-                species="human",
-                chrom="13",
-                start=32000000,
-                end=33000000,
+                ensembl_source("human"),
+                "13",
+                32000000,
+                33000000,
                 cache_dir=cache_dir,
             )
 
             # API should not have been called
             mock_get.assert_not_called()
 
-        assert len(result) == 1
-        assert result["gene_name"].iloc[0] == "CACHED_GENE"
+        assert len(result.genes) == 1
+        assert result.genes["gene_name"].iloc[0] == "CACHED_GENE"
 
 
 def test_get_genes_for_build_fetches_and_caches():
     """Test that get_genes_for_build fetches from API and caches result."""
+    from pylocuszoom.ensembl import ensembl_source
     from pylocuszoom.reference_genes import get_genes_for_build
 
     mock_response = Mock()
@@ -396,23 +408,24 @@ def test_get_genes_for_build_fetches_and_caches():
 
         with patch("pylocuszoom._http.requests.get", return_value=mock_response):
             result = get_genes_for_build(
-                species="human",
-                chrom="13",
-                start=32000000,
-                end=33000000,
+                ensembl_source("human"),
+                "13",
+                32000000,
+                33000000,
                 cache_dir=cache_dir,
             )
 
-        assert len(result) == 1
-        assert result["gene_name"].iloc[0] == "BRCA2"
+        assert len(result.genes) == 1
+        assert result.genes["gene_name"].iloc[0] == "BRCA2"
 
-        # Verify cache file was created (CSV, not parquet)
+        # Verify cache files were created (CSV, not parquet)
         csv_files = list(cache_dir.glob("**/*.csv"))
-        assert len(csv_files) == 1
+        assert len(csv_files) == 2
 
 
-def test_get_genes_for_build_include_exons():
-    """Test fetching genes with exons included."""
+def test_get_genes_for_build_returns_exons():
+    """One request serves both frames, and both are cached."""
+    from pylocuszoom.ensembl import ensembl_source
     from pylocuszoom.reference_genes import get_genes_for_build
 
     mock_response = Mock()
@@ -424,17 +437,28 @@ def test_get_genes_for_build_include_exons():
 
         with patch("pylocuszoom._http.requests.get", return_value=mock_response):
             genes_df, exons_df = get_genes_for_build(
-                species="human",
-                chrom="13",
-                start=32000000,
-                end=33000000,
+                ensembl_source("human"),
+                "13",
+                32000000,
+                33000000,
                 cache_dir=cache_dir,
-                include_exons=True,
             )
 
         assert len(genes_df) == 1
         assert len(exons_df) == 2
         assert exons_df["gene_name"].unique().tolist() == ["BRCA2"]
+
+        with patch("pylocuszoom._http.requests.get") as mock_get:
+            cached = get_genes_for_build(
+                ensembl_source("human"),
+                "13",
+                32000000,
+                33000000,
+                cache_dir=cache_dir,
+            )
+
+        assert not mock_get.called, "a cached entry must not refetch its exons"
+        assert len(cached.exons) == 2
 
 
 # --- clear_gene_cache tests ---
@@ -442,7 +466,8 @@ def test_get_genes_for_build_include_exons():
 
 def test_clear_gene_cache():
     """Test clearing the Ensembl cache."""
-    from pylocuszoom._gene_cache import save_genes
+    from pylocuszoom._gene_cache import save_annotations
+    from pylocuszoom._gene_source import GeneAnnotations
     from pylocuszoom.reference_genes import clear_gene_cache
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -458,23 +483,25 @@ def test_clear_gene_cache():
                 "strand": ["+"],
             }
         )
-        save_genes(df, cache_dir, "homo_sapiens", "1", 100, 200)
-        save_genes(df, cache_dir, "mus_musculus", "1", 100, 200)
+        entry = GeneAnnotations(df, pd.DataFrame(columns=list(EXON_COLUMNS)))
+        save_annotations(entry, cache_dir, "homo_sapiens", "1", 100, 200)
+        save_annotations(entry, cache_dir, "mus_musculus", "1", 100, 200)
 
-        # Should have 2 CSV files in species subdirs
+        # Two entries of two frames each
         csv_files = list(cache_dir.glob("**/*.csv"))
-        assert len(csv_files) == 2
+        assert len(csv_files) == 4
 
         # Clear cache
         deleted = clear_gene_cache("ensembl", cache_dir)
 
-        assert deleted == 2
+        assert deleted == 4
         assert len(list(cache_dir.glob("**/*.csv"))) == 0
 
 
 def test_clear_gene_cache_species_specific():
     """Test clearing cache for specific species only."""
-    from pylocuszoom._gene_cache import save_genes
+    from pylocuszoom._gene_cache import save_annotations
+    from pylocuszoom._gene_source import GeneAnnotations
     from pylocuszoom.reference_genes import clear_gene_cache
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -489,15 +516,16 @@ def test_clear_gene_cache_species_specific():
                 "strand": ["+"],
             }
         )
-        save_genes(df, cache_dir, "homo_sapiens", "1", 100, 200)
-        save_genes(df, cache_dir, "mus_musculus", "1", 100, 200)
+        entry = GeneAnnotations(df, pd.DataFrame(columns=list(EXON_COLUMNS)))
+        save_annotations(entry, cache_dir, "homo_sapiens", "1", 100, 200)
+        save_annotations(entry, cache_dir, "mus_musculus", "1", 100, 200)
 
         # Clear only human cache
         deleted = clear_gene_cache("ensembl", cache_dir, "homo_sapiens")
 
-        assert deleted == 1
+        assert deleted == 2
         # Mouse cache should still exist
-        assert len(list(cache_dir.glob("**/*.csv"))) == 1
+        assert len(list(cache_dir.glob("**/*.csv"))) == 2
 
 
 # --- Consolidation tests ---
@@ -561,24 +589,25 @@ class TestPathTraversalProtection:
         result = safe_species_dir(tmp_path, "canis_lupus_familiaris")
         assert result.is_relative_to(tmp_path)
 
-    def test_load_genes_rejects_traversal(self, tmp_path):
-        """load_genes should reject path traversal species."""
-        from pylocuszoom._gene_cache import load_genes
+    def test_load_annotations_rejects_traversal(self, tmp_path):
+        """load_annotations should reject path traversal species."""
+        from pylocuszoom._gene_cache import load_annotations
         from pylocuszoom.utils import ValidationError
 
         with pytest.raises(ValidationError, match="Invalid species name"):
-            load_genes(tmp_path, "../../etc/passwd", "1", 1, 100)
+            load_annotations(tmp_path, "../../etc/passwd", "1", 1, 100)
 
-    def test_save_genes_rejects_traversal(self, tmp_path):
-        """save_genes should reject path traversal species."""
+    def test_save_annotations_rejects_traversal(self, tmp_path):
+        """save_annotations should reject path traversal species."""
         import pandas as pd
 
-        from pylocuszoom._gene_cache import save_genes
+        from pylocuszoom._gene_cache import save_annotations
+        from pylocuszoom._gene_source import GeneAnnotations
         from pylocuszoom.utils import ValidationError
 
-        df = pd.DataFrame({"gene": ["BRCA1"]})
+        annotations = GeneAnnotations(pd.DataFrame({"gene": ["BRCA1"]}), pd.DataFrame())
         with pytest.raises(ValidationError, match="Invalid species name"):
-            save_genes(df, tmp_path, "../../etc/passwd", "1", 1, 100)
+            save_annotations(annotations, tmp_path, "../../etc/passwd", "1", 1, 100)
 
     def test_clear_gene_cache_rejects_traversal(self, tmp_path):
         """clear_gene_cache should reject path traversal species."""
@@ -613,30 +642,32 @@ class TestEmptyResultCaching:
 
     def test_gene_sparse_region_reloads_from_cache(self, tmp_path):
         """A region with no genes caches and reloads without raising."""
+        from pylocuszoom.ensembl import ensembl_source
         from pylocuszoom.reference_genes import get_genes_for_build
 
         with patch(
             "pylocuszoom._http.requests.get", return_value=ok_response([])
         ) as mock_get:
             first = get_genes_for_build(
-                "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+                ensembl_source("human"), "1", 1_000_000, 1_100_000, cache_dir=tmp_path
             )
             assert mock_get.call_count == 1
 
             second = get_genes_for_build(
-                "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+                ensembl_source("human"), "1", 1_000_000, 1_100_000, cache_dir=tmp_path
             )
 
-        assert first.empty
-        assert second.empty
+        assert first.genes.empty
+        assert second.genes.empty
         assert mock_get.call_count == 1, "second call must be served from cache"
-        assert list(second.columns) == list(first.columns)
-        assert "gene_name" in second.columns
+        assert list(second.genes.columns) == list(first.genes.columns)
+        assert "gene_name" in second.genes.columns
 
     def test_failed_fetch_is_not_cached(self, tmp_path):
         """An API outage must not poison the cache for the region."""
         import requests
 
+        from pylocuszoom.ensembl import ensembl_source
         from pylocuszoom.exceptions import EnsemblAPIError
         from pylocuszoom.reference_genes import get_genes_for_build
 
@@ -649,7 +680,11 @@ class TestEmptyResultCaching:
         ):
             with pytest.raises(EnsemblAPIError):
                 get_genes_for_build(
-                    "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+                    ensembl_source("human"),
+                    "1",
+                    1_000_000,
+                    1_100_000,
+                    cache_dir=tmp_path,
                 )
 
         assert not list(tmp_path.rglob("genes_*.csv")), (
@@ -661,23 +696,27 @@ class TestEmptyResultCaching:
             return_value=ok_response(self._gene_payload()),
         ) as mock_get:
             after_recovery = get_genes_for_build(
-                "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+                ensembl_source("human"), "1", 1_000_000, 1_100_000, cache_dir=tmp_path
             )
 
         assert mock_get.called, "recovery must retry the API, not reuse a failed result"
-        assert len(after_recovery) == 1
-        assert after_recovery["gene_name"].iloc[0] == "BRCA2"
+        assert len(after_recovery.genes) == 1
+        assert after_recovery.genes["gene_name"].iloc[0] == "BRCA2"
 
     def test_zero_byte_cache_file_is_ignored(self, tmp_path):
         """A cache file poisoned by an older release is treated as a miss."""
-        from pylocuszoom._gene_cache import cache_key, load_genes
+        from pylocuszoom._gene_cache import cache_key, load_annotations
 
         species_dir = tmp_path / "homo_sapiens"
         species_dir.mkdir()
         key = cache_key("homo_sapiens", "1", 1_000_000, 1_100_000)
         (species_dir / f"genes_{key}.csv").write_text("\n")
+        (species_dir / f"exons_{key}.csv").write_text("\n")
 
-        assert load_genes(tmp_path, "homo_sapiens", "1", 1_000_000, 1_100_000) is None
+        assert (
+            load_annotations(tmp_path, "homo_sapiens", "1", 1_000_000, 1_100_000)
+            is None
+        )
 
 
 class TestAssemblyMismatch:
@@ -709,13 +748,11 @@ class TestAssemblyMismatch:
             for build in ("canfam3.1", "canfam4"):
                 with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                     get_genes_for_build(
-                        "canine",
+                        ensembl_source("canine", build),
                         "1",
                         1,
                         100,
                         cache_dir=tmp_path,
-                        genome_build=build,
-                        source=ensembl_source("canine", build),
                     )
 
         assert mock_get.call_count == 2, "each build must fetch its own entry"
@@ -796,25 +833,11 @@ class TestAssemblyMismatch:
         ) as mock_get:
             source = ensembl_source("canine", "canfam3.1")
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                get_genes_for_build(
-                    "canine",
-                    "1",
-                    900_000,
-                    1_200_000,
-                    cache_dir=tmp_path,
-                    genome_build="canfam3.1",
-                    source=source,
-                )
+                get_genes_for_build(source, "1", 900_000, 1_200_000, cache_dir=tmp_path)
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
                 cached = get_genes_for_build(
-                    "canine",
-                    "1",
-                    900_000,
-                    1_200_000,
-                    cache_dir=tmp_path,
-                    genome_build="canfam3.1",
-                    source=source,
+                    source, "1", 900_000, 1_200_000, cache_dir=tmp_path
                 )
 
         assert mock_get.call_count == 1, "second call must be served from cache"
-        assert cached["assembly"].tolist() == ["ROS_Cfam_1.0"]
+        assert cached.genes["assembly"].tolist() == ["ROS_Cfam_1.0"]

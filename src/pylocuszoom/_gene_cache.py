@@ -5,6 +5,9 @@ Both ``ensembl.py`` and ``ucsc.py`` cache the same shape of result under the
 same rules, so the key derivation and the CSV round-trip live here rather than
 once per client. Each source owns its own cache root, so a region fetched from
 Ensembl and the same region fetched from UCSC never collide.
+
+An entry is the genes and the exons together. Half an entry is a miss, which
+is what retires the gene-only entries written by earlier releases.
 """
 
 import hashlib
@@ -12,6 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ._gene_source import GeneAnnotations
 from .exceptions import ValidationError
 from .logging import logger
 from .utils import _platform_cache_base, normalize_chrom
@@ -77,33 +81,48 @@ def cache_key(
     return hashlib.md5(key_str.encode()).hexdigest()[:16]
 
 
-def load_genes(
+def _entry_files(
+    cache_dir: Path,
+    species: str,
+    chrom: str | int,
+    start: int,
+    end: int,
+    build_token: str,
+) -> tuple[Path, Path]:
+    """Resolve the gene and exon file of one cache entry."""
+    key = cache_key(species, normalize_chrom(chrom), start, end, build_token)
+    species_dir = safe_species_dir(cache_dir, species)
+    return species_dir / f"genes_{key}.csv", species_dir / f"exons_{key}.csv"
+
+
+def load_annotations(
     cache_dir: Path,
     species: str,
     chrom: str | int,
     start: int,
     end: int,
     build_token: str = "",
-) -> pd.DataFrame | None:
-    """Load a cached gene frame, or None on a miss or an unreadable file."""
-    key = cache_key(species, normalize_chrom(chrom), start, end, build_token)
-    cache_file = safe_species_dir(cache_dir, species) / f"genes_{key}.csv"
+) -> GeneAnnotations | None:
+    """Load a cached entry, or None on a miss, half an entry or a bad file."""
+    genes_file, exons_file = _entry_files(
+        cache_dir, species, chrom, start, end, build_token
+    )
 
-    if not cache_file.exists():
+    if not (genes_file.exists() and exons_file.exists()):
         return None
 
     try:
-        logger.debug(f"Cache hit: {cache_file}")
-        return pd.read_csv(cache_file)
+        logger.debug(f"Cache hit: {genes_file}")
+        return GeneAnnotations(pd.read_csv(genes_file), pd.read_csv(exons_file))
     except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
         # EmptyDataError subclasses ValueError, not ParserError, so it needs
         # naming explicitly. Releases before 2.1.1 wrote column-less CSVs.
-        logger.warning(f"Corrupt cache file {cache_file}, ignoring: {e}")
+        logger.warning(f"Corrupt cache file for {genes_file}, ignoring: {e}")
         return None
 
 
-def save_genes(
-    df: pd.DataFrame,
+def save_annotations(
+    annotations: GeneAnnotations,
     cache_dir: Path,
     species: str,
     chrom: str | int,
@@ -111,17 +130,18 @@ def save_genes(
     end: int,
     build_token: str = "",
 ) -> None:
-    """Write a gene frame to the cache, logging rather than raising on failure."""
-    key = cache_key(species, normalize_chrom(chrom), start, end, build_token)
-    species_dir = safe_species_dir(cache_dir, species)
-    species_dir.mkdir(parents=True, exist_ok=True)
+    """Write an entry to the cache, logging rather than raising on failure."""
+    genes_file, exons_file = _entry_files(
+        cache_dir, species, chrom, start, end, build_token
+    )
+    genes_file.parent.mkdir(parents=True, exist_ok=True)
 
-    cache_file = species_dir / f"genes_{key}.csv"
     try:
-        df.to_csv(cache_file, index=False)
-        logger.debug(f"Cached genes to: {cache_file}")
+        annotations.genes.to_csv(genes_file, index=False)
+        annotations.exons.to_csv(exons_file, index=False)
+        logger.debug(f"Cached annotations to: {genes_file}")
     except OSError as e:
-        logger.warning(f"Failed to write gene cache {cache_file}: {e}")
+        logger.warning(f"Failed to write gene cache {genes_file}: {e}")
 
 
 def clear_cache(cache_dir: Path, species: str | None = None) -> int:

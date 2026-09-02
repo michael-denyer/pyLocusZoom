@@ -10,6 +10,7 @@ functions.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import pandas as pd
 
@@ -36,14 +37,30 @@ EXON_COLUMNS = (
     "assembly",
 )
 
-# Fetch (genes, exons) for (chrom, start, end). Both sources answer from one
-# request, so neither frame costs anything the other did not.
-FetchFn = Callable[[str, int, int], "tuple[pd.DataFrame, pd.DataFrame]"]
-
 
 def empty_frame(columns: tuple[str, ...]) -> pd.DataFrame:
     """Build the empty frame for a schema, columns and all."""
     return pd.DataFrame(columns=list(columns))
+
+
+class GeneAnnotations(NamedTuple):
+    """What a source returns for a region: the genes and their exons.
+
+    Both sources answer from one request, so the exons cost nothing beyond the
+    genes and there is no reason for a caller to ask for one without the other.
+    """
+
+    genes: pd.DataFrame
+    exons: pd.DataFrame
+
+
+def empty_annotations() -> "GeneAnnotations":
+    """Build the annotations for a region that has none, columns and all."""
+    return GeneAnnotations(empty_frame(GENE_COLUMNS), empty_frame(EXON_COLUMNS))
+
+
+# Fetch the annotations for (chrom, start, end).
+FetchFn = Callable[[str, int, int], GeneAnnotations]
 
 
 @dataclass(frozen=True)
@@ -57,9 +74,9 @@ class GeneSource:
         build_token: Extra cache-key component. Ensembl serves every build of a
             species from one URL, so its entries have to be keyed by build;
             a UCSC genome already names one build, so it needs none.
-        fetch: Fetch (genes, exons) for (chrom, start, end). Always raises
-            ``ReferenceAPIError`` on failure rather than returning an empty
-            frame.
+        fetch: Fetch the annotations for (chrom, start, end). Always raises
+            ``ReferenceAPIError`` on failure rather than returning empty
+            frames.
         on_cache_hit: Inspect a frame reloaded from cache. Ensembl uses it to
             repeat its assembly-mismatch warning in a later session.
     """
