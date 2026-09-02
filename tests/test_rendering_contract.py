@@ -234,27 +234,24 @@ def test_miami_highlight_reaches_the_backend(prepared_data):
     assert [name for name, _, _ in backend.calls].count("add_region_highlight") == 1
 
 
-def test_ld_heatmap_renderer_owns_panel_policy():
-    """render_ld_heatmap drives the heatmap, its scale, ticks, and layout."""
+def test_ld_heatmap_panel_owns_its_policy():
+    """LDHeatmapPanel drives the heatmap, its scale, ticks, and layout."""
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
+    from pylocuszoom._ld_heatmap_panel import LDHeatmapPanel
 
     backend = RecordingBackend()
 
-    render_ld_heatmap(
-        backend,
-        LDHeatmapRequest(
-            data=np.eye(3),
-            snp_ids=["rs1", "rs2", "rs3"],
-            lead_idx=0,
-            highlight_indices=[2],
-            metric="dprime",
-            figsize=(8.0, 8.0),
-            title="Contract Heatmap",
-            show_colorbar=True,
-        ),
+    panel = LDHeatmapPanel(
+        data=np.eye(3),
+        snp_ids=["rs1", "rs2", "rs3"],
+        lead_idx=0,
+        highlight_indices=[2],
+        metric="dprime",
+        title="Contract Heatmap",
+        show_colorbar=True,
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert names[0] == "create_figure"
@@ -273,26 +270,23 @@ def test_ld_heatmap_renderer_owns_panel_policy():
     assert colorbar["label"] == "D'"
 
 
-def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
+def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
+    from pylocuszoom._ld_heatmap_panel import LDHeatmapPanel
 
     backend = RecordingBackend()
 
-    render_ld_heatmap(
-        backend,
-        LDHeatmapRequest(
-            data=np.eye(2),
-            snp_ids=["rs1", "rs2"],
-            lead_idx=None,
-            highlight_indices=[],
-            metric="r2",
-            figsize=(8.0, 8.0),
-            title=None,
-            show_colorbar=False,
-        ),
+    panel = LDHeatmapPanel(
+        data=np.eye(2),
+        snp_ids=["rs1", "rs2"],
+        lead_idx=None,
+        highlight_indices=[],
+        metric="r2",
+        title=None,
+        show_colorbar=False,
     )
+    render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
     assert "add_heatmap" in names

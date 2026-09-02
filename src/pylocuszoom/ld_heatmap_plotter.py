@@ -9,7 +9,8 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from ._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
+from ._figure import FigurePlan, render_figure
+from ._ld_heatmap_panel import LDHeatmapPanel
 from .backends import BackendType, get_backend
 
 
@@ -116,16 +117,13 @@ class LDHeatmapPlotter:
                     raise ValueError(f"highlight_snp '{snp}' not found in snp_ids")
                 highlight_indices.append(snp_ids.index(snp))
 
-        return render_ld_heatmap(
-            self._backend,
-            LDHeatmapRequest(
-                data=data,
-                snp_ids=snp_ids,
-                lead_idx=lead_idx,
-                highlight_indices=highlight_indices,
-                metric=metric,
-                figsize=figsize,
-                title=title,
-                show_colorbar=show_colorbar,
-            ),
+        panel = LDHeatmapPanel(
+            data=data,
+            snp_ids=snp_ids,
+            lead_idx=lead_idx,
+            highlight_indices=highlight_indices,
+            metric=metric,
+            title=title,
+            show_colorbar=show_colorbar,
         )
+        return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))

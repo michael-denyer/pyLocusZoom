@@ -32,7 +32,7 @@ flowchart TB
         FM["finemapping<br/><small>3g</small>"]
         GS["_gene_source.GeneSource<br/><small>3h</small>"]
         HTTP["_http downloads<br/><small>5d</small>"]
-        REND["Semantic family renderers<br/><small>3i</small>"]
+        REND["Family panels<br/><small>3i</small>"]
     end
 
     subgraph Layer4["🎨 Backends"]
@@ -217,10 +217,9 @@ Data transformation between validated input and backend-ready primitives.
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it | [_regional_panels.py](../src/pylocuszoom/_regional_panels.py) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [_miami_panels.py](../src/pylocuszoom/_miami_panels.py) |
 | 3i | ColocPanel | The colocalization scatter, built by the plotter and drawing itself | [_coloc_panel.py](../src/pylocuszoom/_coloc_panel.py) |
-| 3i | LDHeatmapRequest | The standalone heatmap request, built by the plotter and consumed by `render_ld_heatmap` | [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
+| 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [_ld_heatmap_panel.py](../src/pylocuszoom/_ld_heatmap_panel.py) |
 | 3i | FigurePlan, render_figure | The one figure model every family builds, and the only code above the backends that creates a figure or finalizes its layout | [_figure.py](../src/pylocuszoom/_figure.py) |
 | 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [_stats_panels.py](../src/pylocuszoom/_stats_panels.py) |
-| 3i | Semantic family renderers | Panel composition and backend-neutral figure intent | [_ld_heatmap_renderer.py](../src/pylocuszoom/_ld_heatmap_renderer.py) |
 | 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [_qq_panel.py](../src/pylocuszoom/_qq_panel.py) |
 | 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, the function that draws it, and the `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` builders, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [_manhattan_panel.py](../src/pylocuszoom/_manhattan_panel.py) |
 

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`LDHeatmapRequest` is `LDHeatmapPanel` and draws itself (breaking).** `pylocuszoom._ld_heatmap_renderer` is now `pylocuszoom._ld_heatmap_panel`; the request is renamed `LDHeatmapPanel`, loses its `figsize` field (the figure's size belongs to the `FigurePlan` the plotter builds), and gains `draw(backend, ax)` holding what `render_ld_heatmap` drew. `render_ld_heatmap` no longer exists. Rendered output is unchanged.
+
 - **`ColocRequest` is `ColocPanel` and draws itself (breaking).** `render_coloc` opened with `create_figure` and closed with `finalize_layout` around one panel's drawing. `pylocuszoom._coloc_renderer` is now `pylocuszoom._coloc_panel`, the request is renamed `ColocPanel` with the same fields, its `draw(backend, ax)` holds what `render_coloc` drew, and `ColocPlotter` puts it on a `FigurePlan`. Both grey threshold lines go through `add_significance_line`. `render_coloc` no longer exists. Rendered output is unchanged.
 
 - **`StatsRenderer` is removed; PheWAS and forest are panels (breaking).** The class held only the backend, and its two methods shared no code: each grouped or sized its frame, created a figure, drew, and finalized. `pylocuszoom._stats_renderer` is now `pylocuszoom._stats_panels`, holding `PhewasPanel` and `ForestPanel`. Each is built through `from_frame`, which does the grouping and the marker sizing the renderer did at draw time, and draws itself through `draw(backend, ax)`; `StatsPlotter` puts one on a `FigurePlan`. `StatsPlotter._renderer` is gone, and the plotter no longer copies the frame before `prepare_pvalue_data` and `from_frame` copy it again. Rendered output is unchanged.
