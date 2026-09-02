@@ -77,7 +77,8 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 - `tests/test_ld_plotting.py` — the policy deciding whether a plot reaches for PLINK
 - `tests/test_loaders.py` — loader dispatch, format detection and file-path validation
 - `tests/test_loaders_gwas.py`, `tests/test_loaders_eqtl.py`, `tests/test_loaders_finemapping.py`, `tests/test_loaders_annotation.py` — one file per loader family
-- `tests/test_schemas.py` — the load-time contract, one class per family
+- `tests/test_validation_contract.py` — the load-time contract as one accepted table and one rejected table; a new column rule is a new row
+- `tests/test_validation.py` — the `ColumnSpec` rule engine the contract runs on
 - `tests/test_gene_track.py`, `tests/test_labels.py`, `tests/test_colors.py`, etc.
 
 Do not name a file after a batch of bugs. A maintainer editing `bokeh_backend.py`
