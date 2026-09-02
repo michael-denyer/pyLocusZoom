@@ -10,7 +10,7 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 
-from ._miami_renderer import MiamiRenderer
+from ._miami_renderer import MiamiRequest, render_miami
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
@@ -18,6 +18,7 @@ from ._plotter_utils import (
     resolve_threshold,
 )
 from .backends import BackendType, get_backend
+from .backends.hover import HoverConfig
 from .manhattan import prepare_manhattan_frames
 
 
@@ -54,7 +55,6 @@ class MiamiPlotter:
         """Initialize the Miami plotter."""
         self.species = species
         self._backend = get_backend(backend)
-        self._renderer = MiamiRenderer(self._backend)
         self.genomewide_threshold = genomewide_threshold
 
     def plot_miami(
@@ -139,21 +139,27 @@ class MiamiPlotter:
             custom_order=custom_chrom_order,
         )
 
-        return self._renderer.render(
-            top_prepared,
-            bottom_prepared,
-            pos_col=pos_col,
-            p_col=p_col,
-            rs_col=rs_col,
-            top_threshold=top_threshold,
-            bottom_threshold=bottom_threshold,
-            top_label=top_label,
-            bottom_label=bottom_label,
-            top_snp_annotations=top_snp_annotations,
-            bottom_snp_annotations=bottom_snp_annotations,
-            highlight_regions=highlight_regions,
-            highlight_color=highlight_color,
-            highlight_alpha=highlight_alpha,
-            figsize=figsize,
-            title=title,
+        return render_miami(
+            self._backend,
+            MiamiRequest(
+                top=top_prepared,
+                bottom=bottom_prepared,
+                hover=(
+                    HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
+                    if rs_col is not None
+                    else None
+                ),
+                rs_col=rs_col,
+                top_threshold=top_threshold,
+                bottom_threshold=bottom_threshold,
+                top_label=top_label,
+                bottom_label=bottom_label,
+                top_annotations=tuple(top_snp_annotations or ()),
+                bottom_annotations=tuple(bottom_snp_annotations or ()),
+                highlights=tuple(highlight_regions or ()),
+                highlight_color=highlight_color,
+                highlight_alpha=highlight_alpha,
+                figsize=figsize,
+                title=title,
+            ),
         )

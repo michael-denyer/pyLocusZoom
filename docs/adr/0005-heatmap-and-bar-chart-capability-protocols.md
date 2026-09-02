@@ -44,7 +44,8 @@ without it:
 - `RegionalPlotComposer.render_heatmap_panel` skips the panel with a debug log.
   The heatmap is one panel among several, so the rest of the regional figure
   still renders. This matches the existing SNP-label and recombination gates.
-- `LDHeatmapRenderer` raises `TypeError` from its constructor, and
+- `require_heatmap_backend` raises `TypeError`, which `LDHeatmapPlotter` calls
+  when it is constructed, and
   `StatsRenderer.render_forest` raises `TypeError` before drawing. There the
   capability is the entire figure, so a silent skip would return a blank panel.
   The message names the backend class and the missing protocol.

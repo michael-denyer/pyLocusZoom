@@ -1,5 +1,6 @@
 """Semantic renderer for Miami plots."""
 
+from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 import pandas as pd
@@ -9,129 +10,133 @@ from .backends.base import PlotBackend, SupportsRegionHighlight
 from .backends.hover import HoverConfig
 
 
-class MiamiRenderer:
-    """Render a prepared mirrored Manhattan figure."""
+@dataclass(frozen=True)
+class MiamiRequest:
+    """One mirrored Manhattan figure, resolved by the plotter.
 
-    def __init__(self, backend: PlotBackend):
-        self._backend = backend
+    ``top`` and ``bottom`` are prepared against one shared ``GenomeLayout``.
+    ``rs_col`` names the id column the annotations index into and is set
+    whenever either annotation tuple is non-empty.
+    """
 
-    def render(
-        self,
-        top_df: pd.DataFrame,
-        bottom_df: pd.DataFrame,
-        *,
-        pos_col: str,
-        p_col: str,
-        rs_col: Optional[str],
-        top_threshold: Optional[float],
-        bottom_threshold: Optional[float],
-        top_label: Optional[str],
-        bottom_label: Optional[str],
-        top_snp_annotations: Optional[List[str]],
-        bottom_snp_annotations: Optional[List[str]],
-        highlight_regions: Optional[List[Tuple[str, int, int]]],
-        highlight_color: str,
-        highlight_alpha: float,
-        figsize: Tuple[float, float],
-        title: Optional[str],
-    ) -> Any:
-        fig, axes = self._backend.create_figure(
-            n_panels=2,
-            height_ratios=[1.0, 1.0],
-            figsize=figsize,
-            sharex=True,
-        )
-        top_ax, bottom_ax = axes
-        hover = (
-            HoverConfig(snp_col=rs_col, pos_col=pos_col, p_col=p_col)
-            if rs_col is not None
-            else None
-        )
-        render_manhattan_panel(
-            self._backend,
-            top_ax,
-            manhattan_spec(
-                top_df,
-                significance_threshold=top_threshold,
-                panel_label=top_label,
-                hover=hover,
-            ),
-        )
-        render_manhattan_panel(
-            self._backend,
-            bottom_ax,
-            manhattan_spec(
-                bottom_df,
-                significance_threshold=bottom_threshold,
-                x_label="Chromosome",
-                panel_label=bottom_label,
-                panel_label_y_frac=0.05,
-                invert_y=True,
-                hover=hover,
-            ),
-        )
-        if top_snp_annotations and rs_col:
-            self._add_snp_annotations(top_ax, top_df, rs_col, top_snp_annotations)
-        if bottom_snp_annotations and rs_col:
-            self._add_snp_annotations(
-                bottom_ax, bottom_df, rs_col, bottom_snp_annotations
+    top: pd.DataFrame
+    bottom: pd.DataFrame
+    hover: Optional[HoverConfig]
+    rs_col: Optional[str]
+    top_threshold: Optional[float]
+    bottom_threshold: Optional[float]
+    top_label: Optional[str]
+    bottom_label: Optional[str]
+    top_annotations: Tuple[str, ...]
+    bottom_annotations: Tuple[str, ...]
+    highlights: Tuple[Tuple[str, int, int], ...]
+    highlight_color: str
+    highlight_alpha: float
+    figsize: Tuple[float, float]
+    title: Optional[str]
+
+
+def render_miami(backend: PlotBackend, req: MiamiRequest) -> Any:
+    """Draw the two mirrored panels, their annotations, and their highlights."""
+    fig, axes = backend.create_figure(
+        n_panels=2,
+        height_ratios=[1.0, 1.0],
+        figsize=req.figsize,
+        sharex=True,
+    )
+    top_ax, bottom_ax = axes
+    render_manhattan_panel(
+        backend,
+        top_ax,
+        manhattan_spec(
+            req.top,
+            significance_threshold=req.top_threshold,
+            panel_label=req.top_label,
+            hover=req.hover,
+        ),
+    )
+    render_manhattan_panel(
+        backend,
+        bottom_ax,
+        manhattan_spec(
+            req.bottom,
+            significance_threshold=req.bottom_threshold,
+            x_label="Chromosome",
+            panel_label=req.bottom_label,
+            panel_label_y_frac=0.05,
+            invert_y=True,
+            hover=req.hover,
+        ),
+    )
+    if req.rs_col is not None:
+        for ax, frame, ids in (
+            (top_ax, req.top, req.top_annotations),
+            (bottom_ax, req.bottom, req.bottom_annotations),
+        ):
+            _add_snp_annotations(backend, ax, frame, req.rs_col, ids)
+    if req.highlights:
+        offsets = req.top.attrs["layout"].offsets
+        for chrom, start, end in req.highlights:
+            _add_region_highlight(
+                backend,
+                fig,
+                [top_ax, bottom_ax],
+                str(chrom),
+                start,
+                end,
+                offsets,
+                req.highlight_color,
+                req.highlight_alpha,
             )
-        if highlight_regions:
-            offsets = top_df.attrs["layout"].offsets
-            for chrom, start, end in highlight_regions:
-                self._add_region_highlight(
-                    fig,
-                    top_ax,
-                    bottom_ax,
-                    str(chrom),
-                    start,
-                    end,
-                    offsets,
-                    highlight_color,
-                    highlight_alpha,
-                )
-        if title:
-            self._backend.set_suptitle(fig, title, fontsize=14)
-            self._backend.finalize_layout(fig, top=0.92, hspace=0.05)
-        else:
-            self._backend.finalize_layout(fig, hspace=0.05)
-        return fig
+    if req.title:
+        backend.set_suptitle(fig, req.title, fontsize=14)
+        backend.finalize_layout(fig, top=0.92, hspace=0.05)
+    else:
+        backend.finalize_layout(fig, hspace=0.05)
+    return fig
 
-    def _add_snp_annotations(
-        self, ax: Any, prepared_df: pd.DataFrame, rs_col: str, snp_ids: List[str]
-    ) -> None:
-        for _, row in prepared_df[prepared_df[rs_col].isin(snp_ids)].iterrows():
-            self._backend.add_text(
-                ax,
-                x=row["_cumulative_pos"],
-                y=row["neglog10p"],
-                text=str(row[rs_col]),
-                fontsize=8,
-                ha="center",
-                va="bottom",
-            )
 
-    def _add_region_highlight(
-        self,
-        fig: Any,
-        top_ax: Any,
-        bottom_ax: Any,
-        chrom: str,
-        start: int,
-        end: int,
-        offsets: dict[str, float],
-        color: str,
-        alpha: float,
-    ) -> None:
-        if chrom not in offsets:
-            return
-        if not isinstance(self._backend, SupportsRegionHighlight):
-            return
-        self._backend.add_region_highlight(
-            fig,
-            [top_ax, bottom_ax],
-            offsets[chrom] + start,
-            offsets[chrom] + end,
-            color=color,
-            alpha=alpha,
+def _add_snp_annotations(
+    backend: PlotBackend,
+    ax: Any,
+    prepared_df: pd.DataFrame,
+    rs_col: str,
+    snp_ids: Tuple[str, ...],
+) -> None:
+    if not snp_ids:
+        return
+    for _, row in prepared_df[prepared_df[rs_col].isin(snp_ids)].iterrows():
+        backend.add_text(
+            ax,
+            x=row["_cumulative_pos"],
+            y=row["neglog10p"],
+            text=str(row[rs_col]),
+            fontsize=8,
+            ha="center",
+            va="bottom",
         )
+
+
+def _add_region_highlight(
+    backend: PlotBackend,
+    fig: Any,
+    axes: List[Any],
+    chrom: str,
+    start: int,
+    end: int,
+    offsets: dict[str, float],
+    color: str,
+    alpha: float,
+) -> None:
+    if chrom not in offsets:
+        return
+    if not isinstance(backend, SupportsRegionHighlight):
+        return
+    backend.add_region_highlight(
+        fig,
+        axes,
+        offsets[chrom] + start,
+        offsets[chrom] + end,
+        color=color,
+        alpha=alpha,
+    )

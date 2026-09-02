@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._manhattan_panel import ManhattanPanelSpec, manhattan_spec
-from pylocuszoom._miami_renderer import MiamiRenderer
+from pylocuszoom._miami_renderer import MiamiRequest, render_miami
 from pylocuszoom._rendering import ManhattanQQRenderer
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
@@ -208,23 +208,25 @@ def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):
     manhattan_df, _ = prepared_data
     backend = RecordingBackend()
 
-    figure = MiamiRenderer(backend).render(
-        manhattan_df,
-        manhattan_df,
-        pos_col="pos",
-        p_col="p",
-        rs_col=None,
-        top_threshold=None,
-        bottom_threshold=None,
-        top_label=None,
-        bottom_label=None,
-        top_snp_annotations=None,
-        bottom_snp_annotations=None,
-        highlight_regions=[("1", 1_000_000, 2_000_000)],
-        highlight_color="yellow",
-        highlight_alpha=0.3,
-        figsize=(12, 8),
-        title=None,
+    figure = render_miami(
+        backend,
+        MiamiRequest(
+            top=manhattan_df,
+            bottom=manhattan_df,
+            hover=None,
+            rs_col=None,
+            top_threshold=None,
+            bottom_threshold=None,
+            top_label=None,
+            bottom_label=None,
+            top_annotations=(),
+            bottom_annotations=(),
+            highlights=(("1", 1_000_000, 2_000_000),),
+            highlight_color="yellow",
+            highlight_alpha=0.3,
+            figsize=(12, 8),
+            title=None,
+        ),
     )
 
     assert figure is not None
@@ -263,22 +265,25 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
 
 
 def test_ld_heatmap_renderer_owns_panel_policy():
-    """LDHeatmapRenderer drives the heatmap, its scale, ticks, and layout."""
+    """render_ld_heatmap drives the heatmap, its scale, ticks, and layout."""
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRenderer
+    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
 
     backend = FullCapabilityBackend()
 
-    LDHeatmapRenderer(backend).render(
-        np.eye(3),
-        ["rs1", "rs2", "rs3"],
-        lead_idx=0,
-        highlight_indices=[2],
-        metric="dprime",
-        figsize=(8.0, 8.0),
-        title="Contract Heatmap",
-        show_colorbar=True,
+    render_ld_heatmap(
+        backend,
+        LDHeatmapRequest(
+            data=np.eye(3),
+            snp_ids=["rs1", "rs2", "rs3"],
+            lead_idx=0,
+            highlight_indices=[2],
+            metric="dprime",
+            figsize=(8.0, 8.0),
+            title="Contract Heatmap",
+            show_colorbar=True,
+        ),
     )
 
     names = [name for name, _, _ in backend.calls]
@@ -301,19 +306,22 @@ def test_ld_heatmap_renderer_owns_panel_policy():
 def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRenderer
+    from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
 
     backend = FullCapabilityBackend()
 
-    LDHeatmapRenderer(backend).render(
-        np.eye(2),
-        ["rs1", "rs2"],
-        lead_idx=None,
-        highlight_indices=[],
-        metric="r2",
-        figsize=(8.0, 8.0),
-        title=None,
-        show_colorbar=False,
+    render_ld_heatmap(
+        backend,
+        LDHeatmapRequest(
+            data=np.eye(2),
+            snp_ids=["rs1", "rs2"],
+            lead_idx=None,
+            highlight_indices=[],
+            metric="r2",
+            figsize=(8.0, 8.0),
+            title=None,
+            show_colorbar=False,
+        ),
     )
 
     names = [name for name, _, _ in backend.calls]
@@ -426,7 +434,8 @@ def test_stats_renderer_owns_forest_panel_policy():
 
 def test_coloc_renderer_owns_panel_policy():
     """Colocalisation axes, thresholds, legend, and layout live above the seam."""
-    from pylocuszoom._coloc_renderer import ColocRenderer
+    from pylocuszoom._coloc_renderer import ColocRequest, render_coloc
+    from pylocuszoom.config import ColocConfig
 
     backend = FullCapabilityBackend()
     merged = pd.DataFrame(
@@ -438,18 +447,23 @@ def test_coloc_renderer_owns_panel_policy():
         }
     )
 
-    ColocRenderer(backend).render(
-        merged,
-        lead_idx=0,
-        merged_rs_col="rs",
-        ld_col_merged=None,
-        gwas_threshold=5e-8,
-        eqtl_threshold=1e-5,
-        show_correlation=True,
-        color_by_effect=False,
-        h4_posterior=0.92,
-        title="Contract Coloc",
-        figsize=(8.0, 8.0),
+    render_coloc(
+        backend,
+        ColocRequest(
+            merged=merged,
+            config=ColocConfig(
+                gwas_threshold=5e-8,
+                eqtl_threshold=1e-5,
+                show_correlation=True,
+                color_by_effect=False,
+                h4_posterior=0.92,
+                figsize=(8.0, 8.0),
+            ),
+            rs_col="rs",
+            ld_col=None,
+            lead_idx=0,
+            title="Contract Coloc",
+        ),
     )
 
     names = [name for name, _, _ in backend.calls]
