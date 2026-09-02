@@ -63,19 +63,18 @@ conda install -c bioconda pylocuszoom
 ## Quick Start
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LDConfig, LocusZoomPlotter
 
 # Initialize plotter (loads reference data for canine)
 plotter = LocusZoomPlotter(species="canine", auto_genes=True)
 
-# Plot with parameters passed directly
+# The region is passed directly; every other option lives on a config model
 fig = plotter.plot(
     gwas_df,                        # DataFrame with pos, p_value, rs columns
     chrom=1,
     start=1000000,
     end=2000000,
-    lead_pos=1500000,               # Highlight lead SNP
-    show_recombination=True,        # Overlay recombination rate
+    ld=LDConfig(lead_pos=1500000),  # Highlight lead SNP
 )
 fig.savefig("regional_plot.png", dpi=150)
 ```
@@ -83,7 +82,13 @@ fig.savefig("regional_plot.png", dpi=150)
 ## Full Example
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import (
+    ColumnConfig,
+    DisplayConfig,
+    LDConfig,
+    LocusZoomPlotter,
+    PanelInputs,
+)
 
 plotter = LocusZoomPlotter(
     species="canine",                   # or "feline", or None for custom
@@ -95,19 +100,30 @@ fig = plotter.plot(
     chrom=1,
     start=1000000,
     end=2000000,
-    lead_pos=1500000,
-    ld_reference_file="genotypes",      # PLINK fileset (without extension)
-    show_recombination=True,            # Overlay recombination rate
-    snp_labels=True,                    # Label top SNPs
-    label_top_n=5,                      # How many to label
-    pos_col="ps",                       # Column name for position
-    p_col="p_wald",                     # Column name for p-value
-    rs_col="rs",                        # Column name for SNP ID
-    figsize=(12, 8),
-    genes_df=genes_df,                  # Gene annotations
-    exons_df=exons_df,                  # Exon annotations
+    columns=ColumnConfig(
+        pos_col="ps",                   # Column name for position
+        p_col="p_wald",                 # Column name for p-value
+        rs_col="rs",                    # Column name for SNP ID
+    ),
+    display=DisplayConfig(
+        show_recombination=True,        # Overlay recombination rate
+        snp_labels=True,                # Label top SNPs
+        label_top_n=5,                  # How many to label
+        figsize=(12, 8),
+    ),
+    ld=LDConfig(
+        lead_pos=1500000,
+        ld_reference_file="genotypes",  # PLINK fileset (without extension)
+    ),
+    panels=PanelInputs(
+        genes_df=genes_df,              # Gene annotations
+        exons_df=exons_df,              # Exon annotations
+    ),
 )
 ```
+
+The four models are frozen, so a `ColumnConfig` for your file format or a
+`PanelInputs` holding a gene track can be built once and reused across calls.
 
 ## Genome Builds
 
@@ -139,8 +155,7 @@ fig = plotter.plot(
     chrom=1,
     start=1000000,
     end=2000000,
-    recomb_df=my_recomb_dataframe,
-    genes_df=my_genes_df,
+    panels=PanelInputs(recomb_df=my_recomb_dataframe, genes_df=my_genes_df),
 )
 ```
 
@@ -241,7 +256,7 @@ they are required `PlotBackend` methods now.
 Compare multiple GWAS results vertically with shared x-axis:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LocusZoomPlotter, PanelInputs
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -251,7 +266,7 @@ fig = plotter.plot_stacked(
     start=1000000,
     end=2000000,
     panel_labels=["Height", "BMI", "WHR"],
-    genes_df=genes_df,
+    panels=PanelInputs(genes_df=genes_df),
 )
 ```
 
@@ -261,10 +276,10 @@ fig = plotter.plot_stacked(
 ## eQTL Overlay
 
 Add expression QTL data as a separate panel. `plot()` takes the same
-`eqtl_*` and `finemapping_*` arguments for a single GWAS:
+`PanelInputs` for a single GWAS:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LocusZoomPlotter, PanelInputs
 
 eqtl_df = pd.DataFrame({
     "pos": [1000500, 1001200, 1002000],
@@ -279,9 +294,7 @@ fig = plotter.plot_stacked(
     chrom=1,
     start=1000000,
     end=2000000,
-    eqtl_df=eqtl_df,
-    eqtl_gene="BRCA1",
-    genes_df=genes_df,
+    panels=PanelInputs(eqtl_df=eqtl_df, eqtl_gene="BRCA1", genes_df=genes_df),
 )
 ```
 
@@ -293,7 +306,7 @@ fig = plotter.plot_stacked(
 Visualize SuSiE or other fine-mapping results with credible set coloring:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LocusZoomPlotter, PanelInputs
 
 finemapping_df = pd.DataFrame({
     "pos": [1000500, 1001200, 1002000, 1003500],
@@ -308,9 +321,9 @@ fig = plotter.plot_stacked(
     chrom=1,
     start=1000000,
     end=2000000,
-    finemapping_df=finemapping_df,
-    finemapping_cs_col="cs",
-    genes_df=genes_df,
+    panels=PanelInputs(
+        finemapping_df=finemapping_df, finemapping_cs_col="cs", genes_df=genes_df
+    ),
 )
 ```
 
@@ -345,7 +358,7 @@ fig.savefig("ld_heatmap.png", dpi=150)
 Add an LD heatmap panel below a regional association plot:
 
 ```python
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LDConfig, LocusZoomPlotter, PanelInputs
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -354,10 +367,12 @@ fig = plotter.plot(
     chrom=1,
     start=1000000,
     end=2000000,
-    lead_pos=1500000,
-    ld_heatmap_df=ld_matrix,         # Pairwise LD matrix
-    ld_heatmap_snp_ids=snp_ids,      # SNP IDs in matrix
-    ld_heatmap_height=0.25,          # Panel height ratio
+    ld=LDConfig(lead_pos=1500000),
+    panels=PanelInputs(
+        ld_heatmap_df=ld_matrix,     # Pairwise LD matrix
+        ld_heatmap_snp_ids=snp_ids,  # SNP IDs in matrix
+        ld_heatmap_height=0.25,      # Panel height ratio
+    ),
 )
 ```
 

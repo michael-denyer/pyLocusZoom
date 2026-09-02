@@ -1,19 +1,24 @@
 """Pydantic configuration classes for pyLocusZoom plot methods.
 
-This module provides typed, validated configuration objects that replace
-the parameter explosion in plot methods. Each config is immutable (frozen)
-to prevent accidental modification.
+Each option a plot method accepts is declared once, on the model that owns
+it, and the method takes the model as a value. Every model is immutable
+(frozen), so one built in a notebook can be handed to as many calls as
+needed.
 
 Example:
-    >>> from pylocuszoom.config import RegionConfig, DisplayConfig, PlotConfig
-    >>> region = RegionConfig(chrom=1, start=1000000, end=2000000)
-    >>> display = DisplayConfig(snp_labels=False, label_top_n=3)
-    >>>
-    >>> # Using composite PlotConfig with factory method
-    >>> config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
+    >>> from pylocuszoom import DisplayConfig, LDConfig, LocusZoomPlotter
+    >>> plotter = LocusZoomPlotter(species="canine")
+    >>> fig = plotter.plot(
+    ...     gwas_df,
+    ...     chrom=1,
+    ...     start=1000000,
+    ...     end=2000000,
+    ...     ld=LDConfig(lead_pos=1500000, ld_col="R2"),
+    ...     display=DisplayConfig(snp_labels=False),
+    ... )
 """
 
-from typing import Annotated, Any, ClassVar, List, Optional, Tuple, Union
+from typing import Annotated, ClassVar, List, Optional, Tuple, Union
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -77,17 +82,26 @@ class DisplayConfig(BaseModel):
 
     Attributes:
         snp_labels: Whether to show SNP labels on plot.
-        label_top_n: Number of top SNPs to label.
+        label_top_n: Number of top SNPs to label per association panel.
+            None takes the method's default: 5 on ``plot()``, 3 on
+            ``plot_stacked()``, whose panels are shorter.
         show_recombination: Whether to show recombination rate overlay.
+        auto_genes: Fetch the gene track when no ``genes_df`` is supplied.
+            None inherits the plotter's constructor setting.
         figsize: Figure size as (width, height) in inches.
     """
 
     model_config = ConfigDict(frozen=True)
 
     snp_labels: bool = Field(default=True, description="Show SNP labels")
-    label_top_n: int = Field(default=5, ge=0, description="Number of top SNPs to label")
+    label_top_n: Optional[int] = Field(
+        default=None, ge=0, description="Number of top SNPs to label"
+    )
     show_recombination: bool = Field(
         default=True, description="Show recombination overlay"
+    )
+    auto_genes: Optional[bool] = Field(
+        default=None, description="Fetch the gene track; None inherits the plotter"
     )
     figsize: Tuple[float, float] = Field(
         default=(12.0, 8.0), description="Figure size (width, height)"
@@ -180,11 +194,10 @@ class PanelInputs(BaseModel):
 
 
 class PlotConfig(BaseModel):
-    """Composite configuration for plot() method.
+    """Everything ``plot()`` was asked for, as one validated value.
 
-    Composes all sub-configs into a single validated configuration object.
-    Use either direct construction with nested configs, or the from_kwargs()
-    factory method for backward compatibility with existing code.
+    ``plot()`` builds one from its arguments; the cross-model rules live
+    here. Callers do not construct it.
 
     Attributes:
         region: Genomic region specification (required).
@@ -192,19 +205,6 @@ class PlotConfig(BaseModel):
         display: Display and visual options.
         ld: Linkage disequilibrium configuration.
         panels: Data for the optional panels beneath the association track.
-
-    Example:
-        >>> # Direct construction
-        >>> config = PlotConfig(
-        ...     region=RegionConfig(chrom=1, start=1000000, end=2000000),
-        ...     display=DisplayConfig(snp_labels=False),
-        ... )
-        >>>
-        >>> # Factory method (backward compatible with plot() signature)
-        >>> config = PlotConfig.from_kwargs(
-        ...     chrom=1, start=1000000, end=2000000,
-        ...     snp_labels=False, lead_pos=1500000,
-        ... )
     """
 
     model_config = ConfigDict(frozen=True)
@@ -230,50 +230,18 @@ class PlotConfig(BaseModel):
             raise ValueError(self._lead_required_error)
         return self
 
-    @classmethod
-    def from_kwargs(cls, **kwargs: Any) -> "PlotConfig":
-        """Create a config from the flat keyword arguments a plot method accepts.
-
-        Each keyword is routed to the nested model that declares it; whatever
-        remains is a field of ``cls`` itself.
-
-        Raises:
-            ValidationError: If parameters are invalid.
-        """
-        nested = (
-            ("region", RegionConfig),
-            ("columns", ColumnConfig),
-            ("display", DisplayConfig),
-            ("ld", LDConfig),
-            ("panels", PanelInputs),
-        )
-        parts = {
-            name: model(
-                **{k: kwargs.pop(k) for k in list(kwargs) if k in model.model_fields}
-            )
-            for name, model in nested
-        }
-        return cls(**parts, **kwargs)
-
 
 class StackedPlotConfig(PlotConfig):
-    """Composite configuration for plot_stacked() method.
+    """Everything ``plot_stacked()`` was asked for, as one validated value.
 
-    Extends PlotConfig with list-based parameters for stacked plots.
-    Supports multiple lead positions, panel labels, and LD reference files.
+    Extends :class:`PlotConfig` with the per-panel lists, each of which must
+    hold one entry per GWAS frame.
 
     Attributes:
         n_panels: Number of association panels, one per GWAS frame.
         lead_positions: List of lead SNP positions (one per panel).
         panel_labels: List of panel labels (one per panel).
         ld_reference_files: List of PLINK filesets (one per panel).
-
-    Example:
-        >>> config = StackedPlotConfig.from_kwargs(
-        ...     chrom=1, start=1000000, end=2000000, n_panels=2,
-        ...     lead_positions=[1500000, 1600000],
-        ...     panel_labels=["Study A", "Study B"],
-        ... )
     """
 
     n_panels: int = Field(..., ge=1, description="Number of association panels")

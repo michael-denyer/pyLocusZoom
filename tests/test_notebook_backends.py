@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.composition import lower_triangle
@@ -59,7 +60,7 @@ class TestPlotlyNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # Plotly figures have _repr_html_ for notebook rendering
@@ -80,7 +81,7 @@ class TestPlotlyNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # Databricks uses JSON serialization
@@ -100,7 +101,7 @@ class TestPlotlyNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
@@ -118,7 +119,7 @@ class TestPlotlyNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # Should have at least one trace
@@ -135,7 +136,7 @@ class TestPlotlyNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # Check that traces have hovertemplate (plotly's hover mechanism)
@@ -155,8 +156,7 @@ class TestPlotlyNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            snp_labels=False,
+            display=DisplayConfig(show_recombination=False, snp_labels=False),
         )
 
         # Should have data from both panels
@@ -180,7 +180,7 @@ class TestBokehNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         assert fig is not None
@@ -195,7 +195,7 @@ class TestBokehNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
@@ -217,7 +217,7 @@ class TestBokehNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # Bokeh uses json_item for embedding
@@ -292,8 +292,7 @@ class TestBokehNotebookCompatibility:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            snp_labels=False,
+            display=DisplayConfig(show_recombination=False, snp_labels=False),
         )
 
         # Should save to HTML without errors
@@ -319,7 +318,7 @@ class TestBackendConsistency:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, FIGURE_TYPES[backend_name])
 
@@ -338,7 +337,7 @@ class TestBackendConsistency:
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
@@ -352,8 +351,8 @@ class TestBackendConsistency:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            lead_pos=1_500_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1_500_000),
         )
         assert isinstance(fig, FIGURE_TYPES[backend_name])
 
@@ -371,8 +370,8 @@ class TestBackendConsistency:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            ld_col="R2",
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(ld_col="R2"),
         )
         assert isinstance(fig, FIGURE_TYPES[backend_name])
 
@@ -388,7 +387,7 @@ class TestDatabricksSpecific:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # Databricks displayHTML() expects a complete HTML string
@@ -407,7 +406,7 @@ class TestDatabricksSpecific:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         # components() returns (script, div) for embedding
@@ -443,10 +442,10 @@ class TestPlotlyEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
+            ),
         )
 
         # Find traces with triangle-up markers (positive effects)
@@ -469,10 +468,10 @@ class TestPlotlyEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
+            ),
         )
 
         # Find traces with triangle-down markers (negative effects)
@@ -495,10 +494,12 @@ class TestPlotlyEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_no_effect_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_no_effect_df,
+                eqtl_gene="GENE_A",
+                genes_df=sample_genes_df,
+            ),
         )
 
         # Find traces with diamond markers
@@ -519,9 +520,10 @@ class TestPlotlyEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
+            ),
         )
 
         # Find traces with circle markers (fine-mapping uses circles)
@@ -540,10 +542,10 @@ class TestPlotlyEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
+            ),
         )
 
         # Find eQTL data traces (triangle markers with actual data, not legend traces)
@@ -572,9 +574,10 @@ class TestPlotlyEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
+            ),
         )
 
         # Find fine-mapping traces (circle markers with PIP data)
@@ -602,10 +605,10 @@ class TestBokehEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
+            ),
         )
 
         # Bokeh returns a column layout - get the figures
@@ -625,10 +628,10 @@ class TestBokehEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
+            ),
         )
 
         from bokeh.models import GlyphRenderer, Scatter
@@ -656,9 +659,10 @@ class TestBokehEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
+            ),
         )
 
         from bokeh.models import GlyphRenderer, Scatter
@@ -688,10 +692,10 @@ class TestBokehEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE_A",
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
+            ),
         )
 
         # Check for HoverTool in any figure
@@ -717,9 +721,10 @@ class TestBokehEQTLFinemappingMarkers:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-            genes_df=sample_genes_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
+            ),
         )
 
         # Check for HoverTool in any figure
@@ -750,8 +755,8 @@ class TestGeneTrackMbFormatting:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            genes_df=sample_genes_df,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(genes_df=sample_genes_df),
         )
 
         # With gene track, row 2 is the gene track axis, so xaxis2 is its x-axis.
@@ -781,8 +786,8 @@ class TestGeneTrackMbFormatting:
             chrom=1,
             start=1_000_000,
             end=2_000_000,
-            genes_df=sample_genes_df,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(genes_df=sample_genes_df),
         )
 
         # Bokeh layout contains multiple figures - find the gene track figure

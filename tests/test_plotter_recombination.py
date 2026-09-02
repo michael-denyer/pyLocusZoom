@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from pylocuszoom import DisplayConfig, PanelInputs
 from pylocuszoom.plotter import LocusZoomPlotter
 from pylocuszoom.recombination import RecombResult, RecombStatus
 
@@ -66,7 +67,7 @@ class TestLocusZoomPlotterRecombination:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         ax_no_recomb = fig_no_recomb.axes[0]
         ylim_no_recomb = ax_no_recomb.get_ylim()
@@ -77,7 +78,7 @@ class TestLocusZoomPlotterRecombination:
             chrom=1,
             start=1000000,
             end=2000000,
-            recomb_df=recomb_df,
+            panels=PanelInputs(recomb_df=recomb_df),
         )
         ax_with_recomb = fig_with_recomb.axes[0]
         ylim_with_recomb = ax_with_recomb.get_ylim()
@@ -125,7 +126,7 @@ class TestRecombinationDownloadErrors:
                     chrom=1,
                     start=1000000,
                     end=2000000,
-                    show_recombination=True,
+                    display=DisplayConfig(show_recombination=True),
                 )
             assert fig is not None
 
@@ -139,7 +140,7 @@ class TestRecombinationDownloadErrors:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=True,
+                display=DisplayConfig(show_recombination=True),
             )
 
         skipped = [
@@ -157,7 +158,7 @@ class TestRecombinationDownloadErrors:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=True,
+                display=DisplayConfig(show_recombination=True),
             )
 
         skipped = next(

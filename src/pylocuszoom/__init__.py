@@ -58,8 +58,9 @@ from .colors import (
     get_phewas_category_palette,
 )
 
-# Configuration classes (internal - use kwargs directly on plot()/plot_stacked())
-# from .config import PlotConfig, StackedPlotConfig  # Internal use only
+# Configuration models the plot methods take as values
+from .config import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
+
 # Ensembl integration
 from .ensembl import get_ensembl_species_name
 
@@ -181,6 +182,11 @@ __all__ = [
     "StatsPlotter",
     "LDHeatmapPlotter",
     "ColocPlotter",
+    # Plot configuration
+    "ColumnConfig",
+    "DisplayConfig",
+    "LDConfig",
+    "PanelInputs",
     # Backends
     "BackendType",
     "get_backend",

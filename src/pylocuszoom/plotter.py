@@ -10,14 +10,19 @@ Supports multiple backends:
 """
 
 import warnings
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
 import pandas as pd
 
 from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._ld_plotting import enrich_with_ld
-from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
+from ._plotter_utils import (
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+    UNSET,
+    ThresholdArg,
+    resolve_threshold,
+)
 from ._regional_panels import (
     AssociationPanel,
     EqtlPanel,
@@ -28,7 +33,15 @@ from ._regional_panels import (
     hover_for_association,
 )
 from .backends import BackendType, get_backend
-from .config import ColumnConfig, PlotConfig, RegionConfig, StackedPlotConfig
+from .config import (
+    ColumnConfig,
+    DisplayConfig,
+    LDConfig,
+    PanelInputs,
+    PlotConfig,
+    RegionConfig,
+    StackedPlotConfig,
+)
 from .exceptions import ReferenceAPIError
 from .ld import find_plink
 from .logging import enable_logging, logger
@@ -77,12 +90,13 @@ class LocusZoomPlotter:
         >>> # Interactive plot with plotly
         >>> plotter = LocusZoomPlotter(species="canine", backend="plotly")
         >>>
+        >>> from pylocuszoom import LDConfig
         >>> fig = plotter.plot(
         ...     gwas_df,
         ...     chrom=1,
         ...     start=1000000,
         ...     end=2000000,
-        ...     lead_pos=1500000,
+        ...     ld=LDConfig(lead_pos=1500000),
         ... )
         >>> fig.savefig("regional_plot.png", dpi=150)  # matplotlib
         >>> # or fig.save("plot.html")  # plotly/bokeh
@@ -139,117 +153,87 @@ class LocusZoomPlotter:
         chrom: Union[int, str],
         start: int,
         end: int,
-        pos_col: str = "ps",
-        p_col: str = "p_wald",
-        rs_col: str = "rs",
-        snp_labels: bool = True,
-        label_top_n: int = 5,
-        show_recombination: bool = True,
-        figsize: Tuple[float, float] = (12.0, 8.0),
-        lead_pos: Optional[int] = None,
-        ld_reference_file: Optional[str] = None,
-        ld_col: Optional[str] = None,
-        genes_df: Optional[pd.DataFrame] = None,
-        exons_df: Optional[pd.DataFrame] = None,
-        recomb_df: Optional[pd.DataFrame] = None,
-        eqtl_df: Optional[pd.DataFrame] = None,
-        eqtl_gene: Optional[str] = None,
-        eqtl_threshold: float = DEFAULT_EQTL_THRESHOLD,
-        finemapping_df: Optional[pd.DataFrame] = None,
-        finemapping_cs_col: Optional[str] = "cs",
-        ld_heatmap_df: Optional[pd.DataFrame] = None,
-        ld_heatmap_snp_ids: Optional[List[str]] = None,
-        ld_heatmap_height: float = 0.25,
-        ld_heatmap_metric: str = "r2",
+        columns: ColumnConfig = ColumnConfig(),
+        display: DisplayConfig = DisplayConfig(),
+        ld: LDConfig = LDConfig(),
+        panels: PanelInputs = PanelInputs(),
+        significance_threshold: ThresholdArg = UNSET,
     ) -> Any:
         """Create a regional association plot for a single locus.
 
         Plots ``-log10(p)`` against genomic position for the specified region,
         optionally overlaid with LD colouring, recombination rate, SNP labels,
         a gene track, and fine-mapping, eQTL, or LD-heatmap panels beneath.
-
-        Coordinates are 1-based genomic positions (so ``lead_pos=0`` is
-        rejected upstream by the Pydantic validator; any position ``>= 1`` is
-        honoured, including small sentinel values).
+        Every option is declared once, on the config model that owns it; the
+        models are frozen, so one built in a notebook serves many calls.
 
         Args:
             gwas_df: GWAS summary statistics. Must contain the columns named
-                by ``pos_col`` and ``p_col``; needs ``rs_col`` only when LD is
-                computed from ``ld_reference_file``.
+                by ``columns.pos_col`` and ``columns.p_col``; needs
+                ``columns.rs_col`` only when LD is computed from a fileset.
             chrom: Chromosome of the region.
-            start: Region start position (bp, inclusive).
-            end: Region end position (bp, inclusive).
-            lead_pos: Genomic position of the lead SNP (``>= 1``), marked
-                with a diamond. Auto-detected as the strongest in-region
-                p-value when omitted. Required when ``ld_reference_file`` is
-                supplied and ``ld_col`` is not.
-            genes_df: Gene annotations; adds a gene track. ``exons_df`` draws
-                exon structure within it. Both are filtered to the region.
-            recomb_df: Recombination rates to overlay on the first
-                association panel, replacing the species map lookup.
-            eqtl_df: eQTL results with ``pos`` and ``p_value`` columns; adds
-                an eQTL panel. ``eqtl_gene`` filters it to one gene and
-                requires a ``gene`` column; ``eqtl_threshold`` places its
-                significance line.
-            finemapping_df: Fine-mapping results with ``pos`` and ``pip``
-                columns; adds a PIP panel coloured by ``finemapping_cs_col``.
-                Pass ``finemapping_cs_col=None`` for no credible-set colouring.
-            ld_heatmap_df: Square LD matrix; adds a heatmap panel.
-                ``ld_heatmap_snp_ids`` names its rows and columns and is
-                required with it. ``ld_heatmap_height`` scales the panel
-                against the association panel and ``ld_heatmap_metric``
-                (``"r2"`` or ``"dprime"``) labels the colour bar.
+            start: Region start position (bp, inclusive, ``>= 1``).
+            end: Region end position (bp, inclusive, ``> start``).
+            columns: :class:`~pylocuszoom.ColumnConfig` naming the position,
+                p-value and SNP id columns of ``gwas_df``.
+            display: :class:`~pylocuszoom.DisplayConfig` for SNP labels, the
+                recombination overlay, automatic gene fetching and the figure
+                size. ``label_top_n`` defaults to 5 here.
+            ld: :class:`~pylocuszoom.LDConfig` naming the lead SNP and the LD
+                source. ``lead_pos`` is auto-detected as the strongest
+                in-region p-value when omitted, and is required when
+                ``ld_reference_file`` is set and ``ld_col`` is not.
+            panels: :class:`~pylocuszoom.PanelInputs` carrying the frames for
+                the optional gene, eQTL, fine-mapping and LD-heatmap panels,
+                plus a caller-supplied recombination frame.
+            significance_threshold: P-value for the genome-wide significance
+                line. Defaults to the plotter's ``genomewide_threshold``;
+                pass None to draw no line.
 
         Returns:
             Backend-specific figure object (``matplotlib.figure.Figure``,
             ``plotly.graph_objects.Figure``, or ``bokeh.layouts.Column``).
-            See keyword args for the full option surface.
 
         Raises:
-            ValueError: On invalid kwargs (caught by
-                :class:`PlotConfig`) or missing required GWAS columns.
+            ValueError: On an invalid region or a contradictory config
+                (raised by :class:`PlotConfig` as a ``ValidationError``), or
+                a missing required GWAS column.
             pylocuszoom.exceptions.PlinkError: When PLINK itself fails
                 (timeout, non-zero exit, corrupt ``.bed``, missing output).
-                The specific "empty LD output" case — singleton lead SNP with
-                no neighbours in the window — is downgraded to a warning and
+                The specific "empty LD output" case, a singleton lead SNP with
+                no neighbours in the window, is downgraded to a warning and
                 the plot is drawn without LD colouring.
+
+        Example:
+            >>> from pylocuszoom import LDConfig, PanelInputs
+            >>> fig = plotter.plot(
+            ...     gwas_df,
+            ...     chrom=1,
+            ...     start=1_000_000,
+            ...     end=2_000_000,
+            ...     ld=LDConfig(lead_pos=1_500_000, ld_reference_file="ref"),
+            ...     panels=PanelInputs(genes_df=genes_df),
+            ... )
         """
-        config = PlotConfig.from_kwargs(
-            chrom=chrom,
-            start=start,
-            end=end,
-            pos_col=pos_col,
-            p_col=p_col,
-            rs_col=rs_col,
-            snp_labels=snp_labels,
-            label_top_n=label_top_n,
-            show_recombination=show_recombination,
-            figsize=figsize,
-            lead_pos=lead_pos,
-            ld_reference_file=ld_reference_file,
-            ld_col=ld_col,
-            genes_df=genes_df,
-            exons_df=exons_df,
-            recomb_df=recomb_df,
-            eqtl_df=eqtl_df,
-            eqtl_gene=eqtl_gene,
-            eqtl_threshold=eqtl_threshold,
-            finemapping_df=finemapping_df,
-            finemapping_cs_col=finemapping_cs_col,
-            ld_heatmap_df=ld_heatmap_df,
-            ld_heatmap_snp_ids=ld_heatmap_snp_ids,
-            ld_heatmap_height=ld_heatmap_height,
-            ld_heatmap_metric=ld_heatmap_metric,
+        config = PlotConfig(
+            region=RegionConfig(chrom=chrom, start=start, end=end),
+            columns=columns,
+            display=display,
+            ld=ld,
+            panels=panels,
         )
         return self._render_regional(
             config,
             [gwas_df],
-            leads=None if config.ld.lead_pos is None else [config.ld.lead_pos],
-            reference_files=[config.ld.ld_reference_file],
+            leads=None if ld.lead_pos is None else [ld.lead_pos],
+            reference_files=[ld.ld_reference_file],
             panel_labels=None,
-            association_height=config.display.figsize[1] * 0.6,
+            threshold=resolve_threshold(
+                significance_threshold, self.genomewide_threshold
+            ),
+            label_top_n=5,
+            association_height=display.figsize[1] * 0.6,
             min_figure_height=0.0,
-            auto_genes=self._auto_genes,
         )
 
     def plot_stacked(
@@ -259,95 +243,75 @@ class LocusZoomPlotter:
         chrom: Union[int, str],
         start: int,
         end: int,
-        pos_col: str = "ps",
-        p_col: str = "p_wald",
-        rs_col: str = "rs",
-        snp_labels: bool = True,
-        label_top_n: int = 3,
-        show_recombination: bool = True,
-        figsize: Tuple[float, float] = (12.0, 8.0),
-        ld_reference_file: Optional[str] = None,
-        ld_col: Optional[str] = None,
+        columns: ColumnConfig = ColumnConfig(),
+        display: DisplayConfig = DisplayConfig(),
+        ld: LDConfig = LDConfig(),
+        panels: PanelInputs = PanelInputs(),
         lead_positions: Optional[List[int]] = None,
         panel_labels: Optional[List[str]] = None,
         ld_reference_files: Optional[List[str]] = None,
-        auto_genes: Optional[bool] = None,
-        genes_df: Optional[pd.DataFrame] = None,
-        exons_df: Optional[pd.DataFrame] = None,
-        eqtl_df: Optional[pd.DataFrame] = None,
-        eqtl_gene: Optional[str] = None,
-        eqtl_threshold: float = DEFAULT_EQTL_THRESHOLD,
-        finemapping_df: Optional[pd.DataFrame] = None,
-        finemapping_cs_col: Optional[str] = "cs",
-        recomb_df: Optional[pd.DataFrame] = None,
-        ld_heatmap_df: Optional[pd.DataFrame] = None,
-        ld_heatmap_snp_ids: Optional[List[str]] = None,
-        ld_heatmap_height: float = 0.25,
-        ld_heatmap_metric: str = "r2",
+        significance_threshold: ThresholdArg = UNSET,
     ) -> Any:
         """Create stacked regional association plots for multiple GWAS.
 
         Each frame in ``gwas_dfs`` becomes one association panel; optional
         fine-mapping, eQTL, gene-track, and LD-heatmap panels follow beneath.
-        ``lead_positions`` names one lead per panel and is auto-detected as
-        the strongest in-region p-value when omitted.
+        The config models behave as documented on :meth:`plot`, with two
+        per-panel differences: ``display.label_top_n`` defaults to 3, and
+        ``ld.lead_pos`` and ``ld.ld_reference_file`` apply to every panel
+        unless the per-panel lists below override them.
 
         Args:
             gwas_dfs: One GWAS summary-statistics frame per panel.
-            auto_genes: Fetch the gene track when ``genes_df`` is not given.
-                ``None`` inherits the plotter's constructor setting.
-            genes_df: Gene annotations. This and every other optional-panel
-                argument behaves as documented on :meth:`plot`.
+            lead_positions: One lead position per panel. Auto-detected as
+                the strongest in-region p-value when omitted. Required with
+                a broadcast ``ld.ld_reference_file``.
+            panel_labels: One label per panel, or None for none.
+            ld_reference_files: One PLINK fileset per panel, replacing the
+                broadcast ``ld.ld_reference_file``.
+            significance_threshold: As on :meth:`plot`.
 
         Raises:
-            ValueError: If ``gwas_dfs`` is empty or a per-panel list
-                (``lead_positions``, ``panel_labels``,
-                ``ld_reference_files``) has a different length.
+            ValueError: If ``gwas_dfs`` is empty or a per-panel list has a
+                different length.
+
+        Example:
+            >>> fig = plotter.plot_stacked(
+            ...     [gwas_a, gwas_b],
+            ...     chrom=1,
+            ...     start=1_000_000,
+            ...     end=2_000_000,
+            ...     lead_positions=[1_500_000, 1_700_000],
+            ...     panel_labels=["Height", "BMI"],
+            ...     panels=PanelInputs(genes_df=genes_df),
+            ... )
         """
         if not gwas_dfs:
             raise ValueError("At least one GWAS DataFrame required")
-        config = StackedPlotConfig.from_kwargs(
+        config = StackedPlotConfig(
+            region=RegionConfig(chrom=chrom, start=start, end=end),
+            columns=columns,
+            display=display,
+            ld=ld,
+            panels=panels,
             n_panels=len(gwas_dfs),
-            chrom=chrom,
-            start=start,
-            end=end,
-            pos_col=pos_col,
-            p_col=p_col,
-            rs_col=rs_col,
-            snp_labels=snp_labels,
-            label_top_n=label_top_n,
-            show_recombination=show_recombination,
-            figsize=figsize,
-            ld_reference_file=ld_reference_file,
-            ld_col=ld_col,
             lead_positions=lead_positions,
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
-            genes_df=genes_df,
-            exons_df=exons_df,
-            recomb_df=recomb_df,
-            eqtl_df=eqtl_df,
-            eqtl_gene=eqtl_gene,
-            eqtl_threshold=eqtl_threshold,
-            finemapping_df=finemapping_df,
-            finemapping_cs_col=finemapping_cs_col,
-            ld_heatmap_df=ld_heatmap_df,
-            ld_heatmap_snp_ids=ld_heatmap_snp_ids,
-            ld_heatmap_height=ld_heatmap_height,
-            ld_heatmap_metric=ld_heatmap_metric,
         )
-        files = (
-            config.ld_reference_files or [config.ld.ld_reference_file] * config.n_panels
-        )
+        files = ld_reference_files or [ld.ld_reference_file] * len(gwas_dfs)
         return self._render_regional(
             config,
             gwas_dfs,
-            leads=config.lead_positions,
+            leads=lead_positions,
             reference_files=files,
-            panel_labels=config.panel_labels,
+            panel_labels=panel_labels,
+            threshold=resolve_threshold(
+                significance_threshold, self.genomewide_threshold
+            ),
+            label_top_n=3,
             association_height=2.5,
-            min_figure_height=config.display.figsize[1],
-            auto_genes=self._auto_genes if auto_genes is None else auto_genes,
+            min_figure_height=display.figsize[1],
         )
 
     def _render_regional(
@@ -358,15 +322,17 @@ class LocusZoomPlotter:
         leads: Optional[List[int]],
         reference_files: List[Optional[str]],
         panel_labels: Optional[List[str]],
+        threshold: Optional[float],
+        label_top_n: int,
         association_height: float,
         min_figure_height: float,
-        auto_genes: bool,
     ) -> Any:
         """Build the panel plan for one regional figure and render it.
 
         ``plot()`` and ``plot_stacked()`` differ only in how they resolve
-        their per-panel lists and in height policy: the association panels'
-        height and the floor on the figure height. Everything else is here.
+        their per-panel lists and in per-panel policy: how many SNPs to
+        label, the association panels' height and the floor on the figure
+        height. Everything else is here.
 
         Args:
             config: Validated region, column, display, LD, and panel settings.
@@ -375,12 +341,18 @@ class LocusZoomPlotter:
                 None to take each panel's strongest in-region signal.
             reference_files: PLINK fileset per panel, parallel to ``gwas_dfs``.
             panel_labels: Label per panel, or None for none.
+            threshold: Resolved p-value for the significance line, or None.
+            label_top_n: SNPs to label per panel when the display config
+                leaves it unset.
             association_height: Height-ratio units for each association panel.
             min_figure_height: Floor on the figure height in inches.
-            auto_genes: Fetch the gene track when ``config.panels.genes_df``
-                is None.
         """
         region, columns, display = config.region, config.columns, config.display
+        if display.label_top_n is None:
+            display = display.model_copy(update={"label_top_n": label_top_n})
+        auto_genes = (
+            self._auto_genes if display.auto_genes is None else display.auto_genes
+        )
         inputs = config.panels
         genes_df, exons_df = inputs.genes_df, inputs.exons_df
         recomb_df = inputs.recomb_df
@@ -479,7 +451,7 @@ class LocusZoomPlotter:
                     height=association_height,
                     columns=columns,
                     display=display,
-                    genomewide_threshold=self.genomewide_threshold,
+                    genomewide_threshold=threshold,
                     ld_col=ld_col,
                     hover=hover_for_association(df, columns, ld_col),
                     lead_pos=lead_pos,

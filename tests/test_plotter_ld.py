@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.plotter import LocusZoomPlotter
@@ -29,9 +30,8 @@ class TestLocusZoomPlotterLdCalculation:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                lead_pos=1100000,
-                ld_reference_file=bfile,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
             )
 
         legend = fig.get_axes()[0].get_legend()
@@ -57,9 +57,8 @@ class TestLocusZoomPlotterLdCalculation:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                lead_pos=1100000,
-                ld_reference_file=bfile,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
             )
 
         assert fig is not None
@@ -82,7 +81,7 @@ class TestLocusZoomPlotterLdCalculation:
                 end=2000000,
                 lead_positions=[1100000],
                 ld_reference_files=[bfile],
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
         assert fig is not None
@@ -107,8 +106,7 @@ class TestLocusZoomPlotterLdCalculation:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                lead_pos=1100000,
-                ld_reference_file=bfile,
+                ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
             )
 
 
@@ -175,9 +173,8 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Should have at least 2 axes (association + heatmap)
@@ -195,9 +192,8 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Verify the heatmap panel exists and has correct x-axis range
@@ -223,10 +219,12 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            genes_df=heatmap_genes_df,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                genes_df=heatmap_genes_df,
+                ld_heatmap_df=ld_matrix,
+                ld_heatmap_snp_ids=snp_ids,
+            ),
         )
 
         # Should have 3 panels: GWAS, gene track, heatmap
@@ -247,10 +245,9 @@ class TestLDHeatmapIntegration:
             ld_heatmap_gwas_df,
             chrom=1,
             start=1000000,
-            end=1001000,  # Only includes rs1, rs2, rs3
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            end=1001000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Should complete without error even with partial overlap
@@ -269,9 +266,8 @@ class TestLDHeatmapIntegration:
                 chrom=1,
                 start=5000000,
                 end=6000000,
-                show_recombination=False,
-                ld_heatmap_df=ld_matrix,
-                ld_heatmap_snp_ids=snp_ids,
+                display=DisplayConfig(show_recombination=False),
+                panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
             )
 
     def test_ld_heatmap_height_parameter(
@@ -287,10 +283,12 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
-            ld_heatmap_height=0.1,  # Smaller
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                ld_heatmap_df=ld_matrix,
+                ld_heatmap_snp_ids=snp_ids,
+                ld_heatmap_height=0.1,
+            ),
         )
 
         fig2 = plotter.plot(
@@ -298,10 +296,12 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
-            ld_heatmap_height=0.5,  # Larger
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                ld_heatmap_df=ld_matrix,
+                ld_heatmap_snp_ids=snp_ids,
+                ld_heatmap_height=0.5,
+            ),
         )
 
         # Both should render successfully
@@ -321,10 +321,9 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            lead_pos=1000000,  # rs1
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1000000),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Should render with lead SNP highlight (visual check)
@@ -344,9 +343,8 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Should have at least 2 main axes (association + heatmap)
@@ -368,9 +366,8 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         assert isinstance(fig, go.Figure)
@@ -389,9 +386,8 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Bokeh returns Column layout
@@ -426,10 +422,9 @@ class TestLDHeatmapIntegration:
             ld_heatmap_gwas_df,
             chrom=1,
             start=999999,
-            end=1000001,  # Only rs1 at 1000000
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            end=1000001,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Should complete without error
@@ -464,10 +459,9 @@ class TestLDHeatmapIntegration:
             chrom=1,
             start=999000,
             end=1003000,
-            lead_pos=1000100,  # rs_extra - not in heatmap
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=snp_ids,
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1000100),
+            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
         # Should complete without error
@@ -486,9 +480,8 @@ class TestLDHeatmapIntegration:
                 chrom=1,
                 start=999000,
                 end=1003000,
-                show_recombination=False,
-                ld_heatmap_df=ld_matrix,
-                # ld_heatmap_snp_ids not provided
+                display=DisplayConfig(show_recombination=False),
+                panels=PanelInputs(ld_heatmap_df=ld_matrix),
             )
 
 
@@ -536,10 +529,11 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
             chrom=1,
             start=self.START,
             end=self.END,
-            lead_pos=1000000,
-            show_recombination=False,
-            ld_heatmap_df=ld_matrix,
-            ld_heatmap_snp_ids=list(ld_matrix.index),
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1000000),
+            panels=PanelInputs(
+                ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=list(ld_matrix.index)
+            ),
         )
 
     def _assert_inside_region(self, spans):
