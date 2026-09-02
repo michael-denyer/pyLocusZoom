@@ -5,15 +5,15 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from ._plotter_utils import (
+from .._plotter_utils import (
     POINT_EDGE_COLOR,
     QQ_CI_ALPHA,
     QQ_EDGE_WIDTH,
     QQ_POINT_SIZE,
     SIGNIFICANCE_LINE_COLOR,
 )
-from .backends.base import PlotBackend
-from .colors import QQ_CI_COLOR, QQ_POINT_COLOR
+from ..backends.base import PlotBackend
+from ..colors import QQ_CI_COLOR, QQ_POINT_COLOR
 
 
 def qq_title(lambda_gc: float, *, show_lambda: bool, compact: bool) -> str:

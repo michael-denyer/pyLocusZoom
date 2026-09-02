@@ -8,12 +8,12 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._figure import FigurePlan, render_figure
-from pylocuszoom._manhattan_panel import ManhattanPanelSpec, manhattan_spec
-from pylocuszoom._miami_panels import MiamiRequest, miami_plan
-from pylocuszoom._qq_panel import QQPanelSpec, qq_title
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.manhattan import prepare_manhattan_frames
+from pylocuszoom.panels.manhattan import ManhattanPanelSpec, manhattan_spec
+from pylocuszoom.panels.miami import MiamiRequest, miami_plan
+from pylocuszoom.panels.qq import QQPanelSpec, qq_title
 from pylocuszoom.qq import prepare_qq_data
 
 
@@ -238,7 +238,7 @@ def test_ld_heatmap_panel_owns_its_policy():
     """LDHeatmapPanel drives the heatmap, its scale, ticks, and layout."""
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_panel import LDHeatmapPanel
+    from pylocuszoom.panels.ld_heatmap import LDHeatmapPanel
 
     backend = RecordingBackend()
 
@@ -273,7 +273,7 @@ def test_ld_heatmap_panel_owns_its_policy():
 def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
     import numpy as np
 
-    from pylocuszoom._ld_heatmap_panel import LDHeatmapPanel
+    from pylocuszoom.panels.ld_heatmap import LDHeatmapPanel
 
     backend = RecordingBackend()
 
@@ -297,7 +297,7 @@ def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
 
 def test_phewas_panel_owns_its_policy():
     """PheWAS grouping, the significance line, and axis policy live above the seam."""
-    from pylocuszoom._stats_panels import PhewasPanel
+    from pylocuszoom.panels.stats import PhewasPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -330,7 +330,7 @@ def test_phewas_panel_owns_its_policy():
 
 
 def test_phewas_panel_draws_no_significance_line_for_none():
-    from pylocuszoom._stats_panels import PhewasPanel
+    from pylocuszoom.panels.stats import PhewasPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -358,7 +358,7 @@ def test_phewas_panel_draws_no_significance_line_for_none():
 
 def test_forest_panel_owns_its_policy():
     """Forest error bars, markers, null line, and x-padding live above the seam."""
-    from pylocuszoom._stats_panels import ForestPanel
+    from pylocuszoom.panels.stats import ForestPanel
 
     backend = RecordingBackend()
     df = pd.DataFrame(
@@ -398,8 +398,8 @@ def test_forest_panel_owns_its_policy():
 
 def test_coloc_panel_owns_its_policy():
     """Colocalisation axes, thresholds, legend, and layout live above the seam."""
-    from pylocuszoom._coloc_panel import ColocPanel
     from pylocuszoom.config import ColocConfig
+    from pylocuszoom.panels.coloc import ColocPanel
 
     backend = RecordingBackend()
     merged = pd.DataFrame(

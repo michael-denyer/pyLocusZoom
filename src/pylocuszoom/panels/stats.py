@@ -5,9 +5,9 @@ from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
 
-from ._plotter_utils import add_significance_line
-from .backends.base import PlotBackend
-from .colors import (
+from .._plotter_utils import add_significance_line
+from ..backends.base import PlotBackend
+from ..colors import (
     FOREST_MARKER_COLOR,
     UNCATEGORISED_COLOR,
     get_phewas_category_palette,

@@ -6,15 +6,15 @@ from typing import Any, Optional
 import pandas as pd
 from scipy import stats
 
-from ._plotter_utils import add_significance_line
-from .backends.base import PlotBackend
-from .backends.composition import (
+from .._plotter_utils import add_significance_line
+from ..backends.base import PlotBackend
+from ..backends.composition import (
     LD_LEGEND_TITLE,
     effect_legend_entries,
     ld_legend_entries,
 )
-from .colors import LEAD_SNP_COLOR
-from .config import ColocConfig
+from ..colors import LEAD_SNP_COLOR
+from ..config import ColocConfig
 
 
 @dataclass(frozen=True)

@@ -23,15 +23,6 @@ from ._plotter_utils import (
     ThresholdArg,
     resolve_threshold,
 )
-from ._regional_panels import (
-    AssociationPanel,
-    EqtlPanel,
-    FinemappingPanel,
-    GenePanel,
-    HeatmapPanel,
-    RegionalPanel,
-    hover_for_association,
-)
 from .backends import BackendType, get_backend
 from .config import (
     ColumnConfig,
@@ -46,6 +37,15 @@ from .config import (
 from .exceptions import ReferenceAPIError
 from .ld import find_plink
 from .logging import enable_logging, logger
+from .panels import (
+    AssociationPanel,
+    EqtlPanel,
+    FinemappingPanel,
+    GenePanel,
+    HeatmapPanel,
+    RegionalPanel,
+    hover_for_association,
+)
 from .recombination import RecombResult, RecombStatus, recomb_for_region
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import validate_genes_df, validate_gwas_df

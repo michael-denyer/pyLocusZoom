@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from pylocuszoom._regional_panels import FinemappingPanel
 from pylocuszoom.backends.hover import HoverConfig
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.config import RegionConfig
@@ -17,6 +16,7 @@ from pylocuszoom.finemapping import (
     prepare_finemapping_for_plotting,
     validate_finemapping_df,
 )
+from pylocuszoom.panels.finemapping import FinemappingPanel
 
 DRAW_REGION = RegionConfig(chrom=1, start=1, end=1_000_000)
 

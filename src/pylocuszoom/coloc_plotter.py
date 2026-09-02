@@ -9,7 +9,6 @@ from typing import Any, Optional, Tuple
 
 import pandas as pd
 
-from ._coloc_panel import ColocPanel
 from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
@@ -27,6 +26,7 @@ from .colors import (
     get_ld_color,
 )
 from .config import ColocConfig
+from .panels.coloc import ColocPanel
 from .schemas import Canonical, validate_coloc_df
 from .utils import DataFrameLike, to_pandas
 

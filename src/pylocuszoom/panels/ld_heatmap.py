@@ -5,9 +5,9 @@ from typing import Any, List, Optional
 
 import numpy as np
 
-from .backends.base import PlotBackend
-from .backends.composition import heatmap_highlight_rects, lower_triangle
-from .colors import (
+from ..backends.base import PlotBackend
+from ..backends.composition import heatmap_highlight_rects, lower_triangle
+from ..colors import (
     LD_HEATMAP_COLORS,
     LEAD_SNP_HIGHLIGHT_COLOR,
     SECONDARY_HIGHLIGHT_COLOR,

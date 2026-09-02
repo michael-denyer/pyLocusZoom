@@ -12,16 +12,16 @@ from typing import Any, List, Optional, Sequence
 
 import pandas as pd
 
-from ._plotter_utils import (
+from .._plotter_utils import (
     MANHATTAN_CATEGORICAL_POINT_SIZE,
     MANHATTAN_EDGE_WIDTH,
     MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
     add_significance_line,
 )
-from .backends.base import PlotBackend
-from .backends.hover import HoverConfig, HoverDataBuilder
-from .manhattan import PanelLayout, PreparedManhattan
+from ..backends.base import PlotBackend
+from ..backends.hover import HoverConfig, HoverDataBuilder
+from ..manhattan import PanelLayout, PreparedManhattan
 
 
 def padded_ymax(y_max: float) -> float:
