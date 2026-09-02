@@ -27,7 +27,7 @@ class TestAddSnpLabels:
                     "rs9",
                     "rs10",
                 ],
-                "ps": [
+                "pos": [
                     1100000,
                     1200000,
                     1300000,
@@ -39,7 +39,18 @@ class TestAddSnpLabels:
                     1900000,
                     2000000,
                 ],
-                "p_wald": [1e-8, 1e-5, 1e-3, 1e-6, 1e-9, 1e-4, 1e-7, 1e-2, 1e-10, 1e-1],
+                "p_value": [
+                    1e-8,
+                    1e-5,
+                    1e-3,
+                    1e-6,
+                    1e-9,
+                    1e-4,
+                    1e-7,
+                    1e-2,
+                    1e-10,
+                    1e-1,
+                ],
                 "neglog10p": [8, 5, 3, 6, 9, 4, 7, 2, 10, 1],
             }
         )
@@ -47,7 +58,7 @@ class TestAddSnpLabels:
     def test_adds_labels_to_plot(self, ranked_labelled_gwas_df):
         """Should add text labels to the plot."""
         fig, ax = plt.subplots()
-        ax.scatter(ranked_labelled_gwas_df["ps"], ranked_labelled_gwas_df["neglog10p"])
+        ax.scatter(ranked_labelled_gwas_df["pos"], ranked_labelled_gwas_df["neglog10p"])
 
         texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=3)
 
@@ -56,7 +67,7 @@ class TestAddSnpLabels:
     def test_labels_top_n_snps(self, ranked_labelled_gwas_df):
         """Should label only the top N most significant SNPs."""
         fig, ax = plt.subplots()
-        ax.scatter(ranked_labelled_gwas_df["ps"], ranked_labelled_gwas_df["neglog10p"])
+        ax.scatter(ranked_labelled_gwas_df["pos"], ranked_labelled_gwas_df["neglog10p"])
 
         texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=5)
 
@@ -66,7 +77,7 @@ class TestAddSnpLabels:
     def test_uses_snp_id_by_default(self, ranked_labelled_gwas_df):
         """Should use SNP ID (rs number) as default label."""
         fig, ax = plt.subplots()
-        ax.scatter(ranked_labelled_gwas_df["ps"], ranked_labelled_gwas_df["neglog10p"])
+        ax.scatter(ranked_labelled_gwas_df["pos"], ranked_labelled_gwas_df["neglog10p"])
 
         texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=1)
 
@@ -80,7 +91,7 @@ class TestAddSnpLabels:
         df.loc[df["neglog10p"] == 10, "rs"] = "rs_very_long_identifier_name"
 
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(ax, df, label_top_n=1, max_label_length=15)
 
@@ -139,12 +150,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["lead", "nearby", "distant"],
-                "ps": [1500000, 1510000, 1800000],
+                "pos": [1500000, 1510000, 1800000],
                 "neglog10p": [20, 15, 10],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(
             ax,
@@ -164,12 +175,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["a", "b", "c"],
-                "ps": [1500000, 1510000, 1800000],
+                "pos": [1500000, 1510000, 1800000],
                 "neglog10p": [20, 15, 10],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(ax, df, label_top_n=3)
 
@@ -180,12 +191,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["lead", "neighbor1", "neighbor2"],
-                "ps": [1500000, 1500100, 1499900],
+                "pos": [1500000, 1500100, 1499900],
                 "neglog10p": [20, 18, 16],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(
             ax,
@@ -205,12 +216,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["lead", "boundary"],
-                "ps": [1500000, 1550000],
+                "pos": [1500000, 1550000],
                 "neglog10p": [20, 15],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(
             ax, df, label_top_n=2, lead_pos=1500000, region_span=1000000
@@ -224,12 +235,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["a", "b", "c"],
-                "ps": [1500000, 1510000, 1800000],
+                "pos": [1500000, 1510000, 1800000],
                 "neglog10p": [20, 15, 10],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(ax, df, label_top_n=3, lead_pos=1500000, region_span=0)
 
@@ -240,12 +251,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["a", "b"],
-                "ps": [1500000, 1800000],
+                "pos": [1500000, 1800000],
                 "neglog10p": [20, 10],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(
             ax, df, label_top_n=2, lead_pos=1500000, region_span=None
@@ -260,12 +271,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["lead", "mid_range", "far"],
-                "ps": [1500000, 1560000, 1800000],
+                "pos": [1500000, 1560000, 1800000],
                 "neglog10p": [20, 15, 10],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         texts = add_snp_labels(
             ax,
@@ -286,12 +297,12 @@ class TestAddSnpLabels:
         df = pd.DataFrame(
             {
                 "rs": ["a", "b"],
-                "ps": [1500000, 1800000],
+                "pos": [1500000, 1800000],
                 "neglog10p": [20, 10],
             }
         )
         fig, ax = plt.subplots()
-        ax.scatter(df["ps"], df["neglog10p"])
+        ax.scatter(df["pos"], df["neglog10p"])
 
         with pytest.raises(ValueError, match="min_label_distance"):
             add_snp_labels(
@@ -318,7 +329,7 @@ class TestAdjustTextWarning:
         from pylocuszoom.logging import logger
 
         fig, ax = plt.subplots()
-        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["pos"], labelled_gwas_df["neglog10p"])
 
         # Capture log output with a custom sink
         log_capture = io.StringIO()
@@ -366,7 +377,7 @@ class TestDeferredAdjustment:
     def test_adjust_false_skips_adjustment(self, labelled_gwas_df):
         """When adjust=False, labels are added but not adjusted."""
         fig, ax = plt.subplots()
-        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["pos"], labelled_gwas_df["neglog10p"])
 
         texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=3, adjust=False)
 
@@ -375,7 +386,7 @@ class TestDeferredAdjustment:
     def test_adjust_snp_labels_can_be_called_separately(self, labelled_gwas_df):
         """adjust_snp_labels can be called after setting axis limits."""
         fig, ax = plt.subplots()
-        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["pos"], labelled_gwas_df["neglog10p"])
 
         # Add labels without adjustment
         texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=3, adjust=False)
@@ -399,7 +410,7 @@ class TestDeferredAdjustment:
     def test_adjust_snp_labels_handles_single_label(self, labelled_gwas_df):
         """adjust_snp_labels handles single label (skips adjustText)."""
         fig, ax = plt.subplots()
-        ax.scatter(labelled_gwas_df["ps"], labelled_gwas_df["neglog10p"])
+        ax.scatter(labelled_gwas_df["pos"], labelled_gwas_df["neglog10p"])
 
         texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=1, adjust=False)
 
@@ -425,7 +436,7 @@ class TestNearLeadFilterBackfill:
         df = pd.DataFrame(
             {
                 "rs": [f"rs{i}" for i in range(10)],
-                "ps": [
+                "pos": [
                     1500000,  # lead
                     1500100,  # near (excluded)
                     1500200,  # near (excluded)
@@ -473,7 +484,7 @@ class TestNearLeadFilterBackfill:
         df = pd.DataFrame(
             {
                 "rs": ["lead", "near1", "near2"],
-                "ps": [1500000, 1500100, 1500200],
+                "pos": [1500000, 1500100, 1500200],
                 "neglog10p": [20.0, 19.0, 18.0],
             }
         )

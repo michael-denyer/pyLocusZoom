@@ -41,6 +41,7 @@ from .config import (
     PlotConfig,
     RegionConfig,
     StackedPlotConfig,
+    resolve_deprecated_columns,
 )
 from .exceptions import ReferenceAPIError
 from .ld import find_plink
@@ -347,7 +348,8 @@ class LocusZoomPlotter:
             association_height: Height-ratio units for each association panel.
             min_figure_height: Floor on the figure height in inches.
         """
-        region, columns = config.region, config.columns
+        region = config.region
+        columns = resolve_deprecated_columns(gwas_dfs[0], config.columns)
         display = config.display.with_defaults(
             label_top_n=label_top_n, auto_genes=self._auto_genes
         )
@@ -503,15 +505,13 @@ def _strongest_position(
     """Return the position of the strongest in-region signal in a prepared frame.
 
     ``df`` has been through ``prepare_pvalue_data``, so the p-value domain rule
-    has already been applied and ``neglog10p`` is finite. Filters on a ``chrom``
-    or ``chr`` column when one exists, so a whole-genome frame cannot anchor the
-    lead to another chromosome.
+    has already been applied and ``neglog10p`` is finite. Filters on the
+    canonical chromosome column when the frame carries one, so a whole-genome
+    frame cannot anchor the lead to another chromosome.
     """
-    chrom_col = next((c for c in ("chrom", "chr") if c in df.columns), "chrom")
     region_df = filter_by_region(
         df,
         region=(region.chrom, region.start, region.end),
-        chrom_col=chrom_col,
         pos_col=columns.pos_col,
     )
     if region_df.empty:

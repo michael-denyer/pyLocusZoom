@@ -170,6 +170,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2a | ColumnSpec | Frozen per-family validation contract (required, numeric, not-null, ranges, p-value, ordering) | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | RangeRule | One numeric-range constraint inside a `ColumnSpec` | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | check | Runs a `ColumnSpec` against a DataFrame in fixed rule order | [validation.py](../src/pylocuszoom/validation.py) |
+| 2b | Canonical | The column names every loader emits and every plotter defaults to | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | Family, Tier | The DataFrame family and the validation tier a contract is looked up by | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | spec | Returns the `ColumnSpec` for one family at one tier | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_gwas_df, validate_genes_df | Plot-time GWAS and gene-annotation checks | [schemas.py](../src/pylocuszoom/schemas.py) |
@@ -496,6 +497,7 @@ complete reference; this table is the complete one.
 
 | Name | Purpose |
 |------|---------|
+| `Canonical` | The column names every loader emits and every plotter defaults to: `chr`, `pos`, `p_value`, `rs`. |
 | `validate_forest_df` | Validate forest plot DataFrame has required columns and types. |
 | `validate_phewas_df` | Validate PheWAS DataFrame has required columns and types. |
 

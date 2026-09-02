@@ -54,7 +54,7 @@ class TestFilterByRegion:
         """When chrom_col exists, filter by both chromosome and position."""
         df = pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2],
+                "chr": [1, 1, 2, 2],
                 "pos": [1000, 2000, 1000, 2000],
                 "value": [1, 2, 3, 4],
             }
@@ -63,43 +63,41 @@ class TestFilterByRegion:
 
         # Should only return chromosome 1 rows
         assert len(result) == 2
-        assert list(result["chrom"]) == [1, 1]
+        assert list(result["chr"]) == [1, 1]
 
     # Chromosome type coercion (int vs str, chr prefix)
 
     def test_chromosome_type_coercion_int_to_str(self):
         """Region chrom=1 (int) matches df['chrom']='1' (str)."""
-        df = pd.DataFrame({"chrom": ["1", "1", "2"], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": ["1", "1", "2"], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=(1, 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_type_coercion_str_to_int(self):
         """Region chrom='1' (str) matches df['chrom']=1 (int)."""
-        df = pd.DataFrame({"chrom": [1, 1, 2], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": [1, 1, 2], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=("1", 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_chr_prefix_in_region(self):
         """Region chrom='chr1' matches df['chrom']='1' or df['chrom']=1."""
-        df = pd.DataFrame({"chrom": [1, 1, 2], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": [1, 1, 2], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=("chr1", 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_chr_prefix_in_dataframe(self):
         """Region chrom=1 matches df['chrom']='chr1'."""
-        df = pd.DataFrame(
-            {"chrom": ["chr1", "chr1", "chr2"], "pos": [1000, 2000, 1000]}
-        )
+        df = pd.DataFrame({"chr": ["chr1", "chr1", "chr2"], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=(1, 500, 2500), pos_col="pos")
 
         assert len(result) == 2
 
     def test_chromosome_x_matching(self):
         """Chromosome X matching works across type variations."""
-        df = pd.DataFrame({"chrom": ["X", "X", "1"], "pos": [1000, 2000, 1000]})
+        df = pd.DataFrame({"chr": ["X", "X", "1"], "pos": [1000, 2000, 1000]})
         result = filter_by_region(df, region=("chrX", 500, 2500), pos_col="pos")
 
         assert len(result) == 2
@@ -117,7 +115,7 @@ class TestFilterByRegion:
 
     def test_empty_result_wrong_chromosome(self):
         """Wrong chromosome returns empty DataFrame."""
-        df = pd.DataFrame({"chrom": [1, 1, 1], "pos": [1000, 2000, 3000]})
+        df = pd.DataFrame({"chr": [1, 1, 1], "pos": [1000, 2000, 3000]})
         result = filter_by_region(df, region=(2, 500, 3500), pos_col="pos")
 
         assert len(result) == 0

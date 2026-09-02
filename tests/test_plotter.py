@@ -267,7 +267,7 @@ class TestLocusZoomPlotterPlot:
 
     def test_highlights_lead_snp(self, canine_plotter, regional_gwas_df):
         """Should highlight lead SNP when lead_pos provided."""
-        lead_pos = regional_gwas_df["ps"].iloc[0]
+        lead_pos = regional_gwas_df["pos"].iloc[0]
         fig = canine_plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -282,7 +282,7 @@ class TestLocusZoomPlotterPlot:
         """Empty GWAS DataFrame should raise ValidationError."""
         from pylocuszoom.exceptions import ValidationError
 
-        empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
+        empty_df = pd.DataFrame(columns=["rs", "chr", "pos", "p_value"])
         with pytest.raises(ValidationError, match="empty"):
             canine_plotter.plot(
                 empty_df,
@@ -373,8 +373,8 @@ class TestPlotEdgeCases:
         """
         df = pd.DataFrame(
             {
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [1e-8, 1e-5, 1e-3],
             }
         )
 
@@ -486,7 +486,7 @@ class TestPlotterDelegation:
             species="canine", backend="matplotlib", log_level=None
         )
 
-        gwas_df = pd.DataFrame({"ps": [1000, 2000], "p_wald": [0.01, 0.001]})
+        gwas_df = pd.DataFrame({"pos": [1000, 2000], "p_value": [0.01, 0.001]})
         fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
 
         no_maps = RecombResult(RecombStatus.NO_MAPS_FOR_SPECIES, detail="none here")
@@ -559,8 +559,8 @@ class TestStackedPlotLeadDetectionCrossChrom:
             {
                 "rs": ["rs1", "rs2", "rs3", "rs4"],
                 "chr": [1, 1, 2, 2],
-                "ps": [1_200_000, 1_800_000, 1_500_000, 1_900_000],
-                "p_wald": [1e-5, 1e-3, 1e-12, 1e-10],
+                "pos": [1_200_000, 1_800_000, 1_500_000, 1_900_000],
+                "p_value": [1e-5, 1e-3, 1e-12, 1e-10],
             }
         )
 
@@ -570,7 +570,7 @@ class TestStackedPlotLeadDetectionCrossChrom:
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                columns=ColumnConfig(pos_col="pos", p_col="p_value"),
                 display=DisplayConfig(show_recombination=False),
             )
         )
@@ -589,8 +589,8 @@ class TestLeadAutoDetectionAgreesAcrossEntryPoints:
             {
                 "rs": ["rs1", "rs2", "rs3"],
                 "chr": [1, 1, 1],
-                "ps": [1_200_000, 1_500_000, 1_800_000],
-                "p_wald": [1e-3, 1e-9, 1e-5],
+                "pos": [1_200_000, 1_500_000, 1_800_000],
+                "p_value": [1e-3, 1e-9, 1e-5],
             }
         )
         kwargs = dict(
@@ -621,8 +621,8 @@ class TestLeadPosBoundary:
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs_lead", "rs2", "rs3"],
-                "ps": [1, 100_000, 200_000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
+                "pos": [1, 100_000, 200_000],
+                "p_value": [1e-8, 1e-5, 1e-3],
             }
         )
 
@@ -632,7 +632,7 @@ class TestLeadPosBoundary:
                 chrom=1,
                 start=1,
                 end=300_000,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                columns=ColumnConfig(pos_col="pos", p_col="p_value"),
                 display=DisplayConfig(show_recombination=False),
                 ld=LDConfig(lead_pos=1),
             )
@@ -648,8 +648,8 @@ class TestLeadPosBoundary:
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2"],
-                "ps": [100_000, 200_000],
-                "p_wald": [1e-8, 1e-5],
+                "pos": [100_000, 200_000],
+                "p_value": [1e-8, 1e-5],
             }
         )
 
@@ -661,7 +661,7 @@ class TestLeadPosBoundary:
                 chrom=1,
                 start=1,
                 end=300_000,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                columns=ColumnConfig(pos_col="pos", p_col="p_value"),
                 display=DisplayConfig(show_recombination=False),
                 ld=LDConfig(lead_pos=0),
             )
@@ -679,7 +679,7 @@ class TestEmptyDataFrames:
     @pytest.fixture
     def empty_gwas_df(self):
         """Empty DataFrame with correct columns."""
-        return pd.DataFrame(columns=["chrom", "ps", "p_wald", "rs"])
+        return pd.DataFrame(columns=["chrom", "pos", "p_value", "rs"])
 
     def test_plot_with_empty_df_raises(self, regional_plotter, empty_gwas_df):
         """Regional plot with empty DataFrame raises ValidationError."""
@@ -691,7 +691,7 @@ class TestEmptyDataFrames:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                columns=ColumnConfig(pos_col="pos", p_col="p_value"),
                 display=DisplayConfig(show_recombination=False),
             )
 
@@ -708,8 +708,8 @@ class TestNaNPvalues:
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-                "ps": [1100000, 1300000, 1500000, 1700000, 1900000],
-                "p_wald": [1e-8, np.nan, 1e-5, np.nan, 0.01],
+                "pos": [1100000, 1300000, 1500000, 1700000, 1900000],
+                "p_value": [1e-8, np.nan, 1e-5, np.nan, 0.01],
             }
         )
 
@@ -731,8 +731,8 @@ class TestNaNPvalues:
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [np.nan, np.nan, np.nan],
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [np.nan, np.nan, np.nan],
             }
         )
 
@@ -864,12 +864,12 @@ class TestRegionalPlotColumnValidation:
         df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2"],
-                "p_wald": [1e-8, 0.01],
-                # missing 'ps' column
+                "p_value": [1e-8, 0.01],
+                # missing 'pos' column
             }
         )
 
-        with pytest.raises(ValidationError, match="ps"):
+        with pytest.raises(ValidationError, match="pos"):
             regional_plotter.plot(
                 df,
                 chrom=1,
@@ -884,12 +884,12 @@ class TestRegionalPlotColumnValidation:
         df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2"],
-                "ps": [1100000, 1900000],
-                # missing 'p_wald' column
+                "pos": [1100000, 1900000],
+                # missing 'p_value' column
             }
         )
 
-        with pytest.raises(ValidationError, match="p_wald"):
+        with pytest.raises(ValidationError, match="p_value"):
             regional_plotter.plot(
                 df,
                 chrom=1,

@@ -11,15 +11,15 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
-from .schemas import Family, Tier, spec
+from .schemas import Canonical, Family, Tier, spec
 from .utils import filter_by_region
 from .validation import check
 
 
 def validate_eqtl_df(
     df: pd.DataFrame,
-    pos_col: str = "pos",
-    p_col: str = "p_value",
+    pos_col: str = Canonical.POS,
+    p_col: str = Canonical.P,
 ) -> None:
     """Validate eQTL DataFrame has required columns.
 
@@ -68,8 +68,8 @@ def filter_eqtl_by_region(
     chrom: int,
     start: int,
     end: int,
-    pos_col: str = "pos",
-    chrom_col: Optional[str] = "chr",
+    pos_col: str = Canonical.POS,
+    chrom_col: Optional[str] = Canonical.CHROM,
 ) -> pd.DataFrame:
     """Filter eQTL data to a genomic region.
 
@@ -98,8 +98,8 @@ def filter_eqtl_by_region(
 
 def prepare_eqtl_for_plotting(
     df: pd.DataFrame,
-    pos_col: str = "pos",
-    p_col: str = "p_value",
+    pos_col: str = Canonical.POS,
+    p_col: str = Canonical.P,
     gene: Optional[str] = None,
     chrom: Optional[int] = None,
     start: Optional[int] = None,
@@ -154,10 +154,10 @@ def get_eqtl_genes(df: pd.DataFrame, gene_col: str = "gene") -> List[str]:
 def calculate_colocalization_overlap(
     gwas_df: pd.DataFrame,
     eqtl_df: pd.DataFrame,
-    gwas_pos_col: str = "ps",
-    eqtl_pos_col: str = "pos",
-    gwas_p_col: str = "p_wald",
-    eqtl_p_col: str = "p_value",
+    gwas_pos_col: str = Canonical.POS,
+    eqtl_pos_col: str = Canonical.POS,
+    gwas_p_col: str = Canonical.P,
+    eqtl_p_col: str = Canonical.P,
     p_threshold: float = 1e-5,
 ) -> pd.DataFrame:
     """Find SNPs significant in both GWAS and eQTL.

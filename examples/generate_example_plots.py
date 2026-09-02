@@ -98,8 +98,8 @@ ld_values = generate_ld_values(positions, peak_center)
 
 gwas_df = pd.DataFrame(
     {
-        "ps": positions,
-        "p_wald": p_values,
+        "pos": positions,
+        "p_value": p_values,
         "rs": [f"rs{i}" for i in range(n_snps)],
         "ld_r2": ld_values,  # Pre-computed LD column
     }
@@ -237,8 +237,8 @@ recomb_ld_values = generate_ld_values(recomb_positions, recomb_peak_center)
 
 recomb_gwas_df = pd.DataFrame(
     {
-        "ps": recomb_positions,
-        "p_wald": recomb_p_values,
+        "pos": recomb_positions,
+        "p_value": recomb_p_values,
         "rs": [f"rs{i}" for i in range(n_snps)],
         "ld_r2": recomb_ld_values,
     }
@@ -406,10 +406,10 @@ gwas_df2 = gwas_df.copy()
 peak_center2 = 1_700_000
 # Ensure lead SNP exists at exact position for second panel
 positions[350] = peak_center2
-gwas_df2.loc[350, "ps"] = peak_center2
+gwas_df2.loc[350, "pos"] = peak_center2
 
 # Generate p-values and LD for second GWAS (different peak location and parameters)
-gwas_df2["p_wald"] = generate_p_values(
+gwas_df2["p_value"] = generate_p_values(
     positions, peak_center2, peak_radius=80_000, peak_strength=6.0, decay_rate=25_000
 )
 gwas_df2["ld_r2"] = generate_ld_values(positions, peak_center2)
@@ -873,10 +873,10 @@ for chrom in range(1, 23):
         pvalues_1[hit_indices] = 10 ** np.random.uniform(-12, -8, n_hits)
     for i in range(n_variants):
         miami_data_1.append(
-            {"chrom": str(chrom), "pos": chrom_positions[i], "p": pvalues_1[i]}
+            {"chr": str(chrom), "pos": chrom_positions[i], "p_value": pvalues_1[i]}
         )
         miami_data_2.append(
-            {"chrom": str(chrom), "pos": chrom_positions[i], "p": pvalues_2[i]}
+            {"chr": str(chrom), "pos": chrom_positions[i], "p_value": pvalues_2[i]}
         )
 
 miami_df_1 = pd.DataFrame(miami_data_1)
@@ -947,7 +947,7 @@ for chrom in range(1, 23):
         chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-12, -8, n_hits)
     for i in range(n_variants):
         manhattan_data.append(
-            {"chrom": str(chrom), "pos": chrom_positions[i], "p": chrom_pvalues[i]}
+            {"chr": str(chrom), "pos": chrom_positions[i], "p_value": chrom_pvalues[i]}
         )
 
 manhattan_df = pd.DataFrame(manhattan_data)
@@ -972,7 +972,7 @@ qq_pvalues = np.random.uniform(0, 1, n_pvalues)
 n_true = 50
 qq_pvalues[:n_true] = 10 ** np.random.uniform(-10, -5, n_true)
 
-qq_df = pd.DataFrame({"p": qq_pvalues})
+qq_df = pd.DataFrame({"p_value": qq_pvalues})
 
 qq_plotter = ManhattanPlotter()
 fig = qq_plotter.plot_qq(
@@ -1068,7 +1068,11 @@ for i, name in enumerate(panel_names):
             chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-10, -8, n_hits)
         for j in range(n_variants):
             gwas_data.append(
-                {"chrom": str(chrom), "pos": chrom_positions[j], "p": chrom_pvalues[j]}
+                {
+                    "chr": str(chrom),
+                    "pos": chrom_positions[j],
+                    "p_value": chrom_pvalues[j],
+                }
             )
     stacked_gwas_dfs.append(pd.DataFrame(gwas_data))
 
@@ -1226,7 +1230,7 @@ for chrom in list(range(1, 39)) + ["X"]:
         chrom_pvalues[hit_indices] = 10 ** np.random.uniform(-10, -8, n_hits)
     for j in range(n_variants):
         canine_gwas_data.append(
-            {"chrom": str(chrom), "pos": chrom_positions[j], "p": chrom_pvalues[j]}
+            {"chr": str(chrom), "pos": chrom_positions[j], "p_value": chrom_pvalues[j]}
         )
 canine_gwas_df = pd.DataFrame(canine_gwas_data)
 
@@ -1316,8 +1320,8 @@ heatmap_gwas_positions = np.sort(
 )
 heatmap_gwas_df = pd.DataFrame(
     {
-        "ps": heatmap_gwas_positions,
-        "p_wald": 10 ** np.random.uniform(-10, -1, n_snps_heatmap),
+        "pos": heatmap_gwas_positions,
+        "p_value": 10 ** np.random.uniform(-10, -1, n_snps_heatmap),
         "rs": heatmap_snp_ids,
         "ld_r2": [
             1.0 if i == 5 else max(0, 0.9 * np.exp(-abs(i - 5) / 3))
@@ -1325,14 +1329,14 @@ heatmap_gwas_df = pd.DataFrame(
         ],
     }
 )
-heatmap_gwas_df.loc[5, "p_wald"] = 1e-12  # Lead SNP
+heatmap_gwas_df.loc[5, "p_value"] = 1e-12  # Lead SNP
 
 fig = plotter.plot(
     heatmap_gwas_df,
     chrom=1,
     start=1_000_000,
     end=2_000_000,
-    ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "ps"]), ld_col="ld_r2"),
+    ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "pos"]), ld_col="ld_r2"),
     panels=PanelInputs(ld_heatmap_df=ld_matrix_df, ld_heatmap_snp_ids=heatmap_snp_ids),
 )
 fig.savefig(
@@ -1347,7 +1351,7 @@ fig = plotly_plotter.plot(
     chrom=1,
     start=1_000_000,
     end=2_000_000,
-    ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "ps"]), ld_col="ld_r2"),
+    ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "pos"]), ld_col="ld_r2"),
     panels=PanelInputs(ld_heatmap_df=ld_matrix_df, ld_heatmap_snp_ids=heatmap_snp_ids),
 )
 fig.write_html("examples/plotly/regional_with_ld_heatmap_plotly.html")
@@ -1360,7 +1364,7 @@ fig = bokeh_plotter.plot(
     chrom=1,
     start=1_000_000,
     end=2_000_000,
-    ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "ps"]), ld_col="ld_r2"),
+    ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "pos"]), ld_col="ld_r2"),
     panels=PanelInputs(ld_heatmap_df=ld_matrix_df, ld_heatmap_snp_ids=heatmap_snp_ids),
 )
 output_file("examples/bokeh/regional_with_ld_heatmap_bokeh.html")

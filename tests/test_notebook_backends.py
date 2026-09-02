@@ -236,8 +236,8 @@ class TestBokehNotebookCompatibility:
         )
 
         ax = figures[0]
-        x = regional_gwas_df["ps"]
-        y = -np.log10(regional_gwas_df["p_wald"])
+        x = regional_gwas_df["pos"]
+        y = -np.log10(regional_gwas_df["p_value"])
 
         # scatter() should work without deprecation warning
         backend.scatter(
@@ -327,7 +327,7 @@ class TestBackendConsistency:
         """Each backend raises ValidationError for an empty frame."""
         from pylocuszoom.exceptions import ValidationError
 
-        empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
+        empty_df = pd.DataFrame(columns=["rs", "chr", "pos", "p_value"])
         plotter = LocusZoomPlotter(
             species="canine", backend=backend_name, log_level=None
         )

@@ -51,9 +51,9 @@ class TestPLINKLoader:
 
         assert len(df) == 3, "the header line must not be counted as a variant"
         assert df["chr"].iloc[0] == 1
-        assert df["ps"].iloc[0] == 1000000
+        assert df["pos"].iloc[0] == 1000000
         assert df["rs"].iloc[0] == "rs123"
-        assert df["p_wald"].iloc[0] == 0.01
+        assert df["p_value"].iloc[0] == 0.01
 
     def test_load_gwas_detects_plink2_glm(self, plink_glm_hash_file):
         """A .glm.linear name routes to the PLINK loader, not the warn-default."""
@@ -70,28 +70,29 @@ class TestPLINKLoader:
         df = load_plink_assoc(plink_glm_file)
 
         assert len(df) == 3  # Not 2; no '#' line for comment="#" to swallow
-        assert df["ps"].iloc[0] == 1000000  # POS, the second pos_col candidate
+        assert df["pos"].iloc[0] == 1000000  # POS, the second pos_col candidate
         assert df["rs"].iloc[0] == "rs123"  # ID, the second rs_col candidate
         assert df["chr"].iloc[0] == 1  # CHROM, the third chr candidate
-        assert df["p_wald"].iloc[0] == 0.01
+        assert df["p_value"].iloc[0] == 0.01
 
     def test_load_plink_assoc_basic(self, plink_assoc_file):
         """Test basic PLINK file loading."""
         df = load_plink_assoc(plink_assoc_file)
 
-        assert "ps" in df.columns
-        assert "p_wald" in df.columns
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
         assert "rs" in df.columns
         assert len(df) == 3
 
     def test_load_plink_assoc_custom_columns(self, plink_assoc_file):
-        """Test PLINK loader with custom column names."""
-        df = load_plink_assoc(
-            plink_assoc_file,
-            pos_col="position",
-            p_col="pvalue",
-            rs_col="snp_id",
-        )
+        """Naming the output columns still works, and warns that it will not."""
+        with pytest.warns(DeprecationWarning, match="5.0.0"):
+            df = load_plink_assoc(
+                plink_assoc_file,
+                pos_col="position",
+                p_col="pvalue",
+                rs_col="snp_id",
+            )
 
         assert "position" in df.columns
         assert "pvalue" in df.columns
@@ -101,8 +102,8 @@ class TestPLINKLoader:
         """Test that loaded values are correct."""
         df = load_plink_assoc(plink_assoc_file)
 
-        assert df["ps"].iloc[0] == 1000000
-        assert df["p_wald"].iloc[0] == 0.01
+        assert df["pos"].iloc[0] == 1000000
+        assert df["p_value"].iloc[0] == 0.01
         assert df["rs"].iloc[0] == "rs123"
 
 
@@ -125,15 +126,15 @@ class TestREGENIELoader:
         """Test that REGENIE renames P when LOG10P is absent."""
         df = load_regenie(regenie_p_only_file)
 
-        assert df["p_wald"].iloc[0] == 0.004  # Taken as-is, not 10**(-0.004)
-        assert df["p_wald"].iloc[2] == pytest.approx(2e-9, rel=0.01)
+        assert df["p_value"].iloc[0] == 0.004  # Taken as-is, not 10**(-0.004)
+        assert df["p_value"].iloc[2] == pytest.approx(2e-9, rel=0.01)
 
     def test_load_regenie_basic(self, regenie_file):
         """Test basic REGENIE file loading."""
         df = load_regenie(regenie_file)
 
-        assert "ps" in df.columns
-        assert "p_wald" in df.columns
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
         assert "rs" in df.columns
         assert len(df) == 3
 
@@ -142,8 +143,8 @@ class TestREGENIELoader:
         df = load_regenie(regenie_file)
 
         # LOG10P=2.0 -> p=0.01, LOG10P=8.0 -> p=1e-8
-        assert df["p_wald"].iloc[0] == pytest.approx(0.01, rel=0.01)
-        assert df["p_wald"].iloc[2] == pytest.approx(1e-8, rel=0.01)
+        assert df["p_value"].iloc[0] == pytest.approx(0.01, rel=0.01)
+        assert df["p_value"].iloc[2] == pytest.approx(1e-8, rel=0.01)
 
 
 class TestSAIGELoader:
@@ -176,24 +177,24 @@ class TestSAIGELoader:
         """Test that SAIGE loader prefers p.value.NA (SPA-adjusted) over p.value."""
         df = load_saige(saige_file)
 
-        assert "p_wald" in df.columns
+        assert "p_value" in df.columns
         # Should use SPA-adjusted p-values (p.value.NA column)
-        assert df["p_wald"].iloc[0] == 0.005  # Not 0.01
-        assert df["p_wald"].iloc[2] == pytest.approx(1e-9, rel=0.01)
+        assert df["p_value"].iloc[0] == 0.005  # Not 0.01
+        assert df["p_value"].iloc[2] == pytest.approx(1e-9, rel=0.01)
 
     def test_load_saige_fallback_to_pvalue(self, saige_file_no_spa):
         """Test that SAIGE loader falls back to p.value when p.value.NA missing."""
         df = load_saige(saige_file_no_spa)
 
-        assert "p_wald" in df.columns
-        assert df["p_wald"].iloc[0] == 0.01
+        assert "p_value" in df.columns
+        assert df["p_value"].iloc[0] == 0.01
 
     def test_load_saige_basic(self, saige_file):
         """Test basic SAIGE file loading."""
         df = load_saige(saige_file)
 
-        assert "ps" in df.columns
-        assert "p_wald" in df.columns
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
         assert "rs" in df.columns
         assert len(df) == 3
 
@@ -227,8 +228,8 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         """Test basic BOLT-LMM file loading."""
         df = load_bolt_lmm(bolt_file)
 
-        assert "ps" in df.columns
-        assert "p_wald" in df.columns
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
         assert "rs" in df.columns
         assert len(df) == 3
 
@@ -237,15 +238,15 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         df = load_bolt_lmm(bolt_file)
 
         # Should use P_BOLT_LMM (full model), not P_BOLT_LMM_INF
-        assert df["p_wald"].iloc[0] == 0.005  # Not 0.01
-        assert df["p_wald"].iloc[2] == pytest.approx(1e-9, rel=0.01)
+        assert df["p_value"].iloc[0] == 0.005  # Not 0.01
+        assert df["p_value"].iloc[2] == pytest.approx(1e-9, rel=0.01)
 
     def test_load_bolt_fallback_to_inf(self, bolt_file_inf_only):
         """Test that BOLT-LMM loader falls back to P_BOLT_LMM_INF."""
         df = load_bolt_lmm(bolt_file_inf_only)
 
-        assert "p_wald" in df.columns
-        assert df["p_wald"].iloc[0] == 0.01
+        assert "p_value" in df.columns
+        assert df["p_value"].iloc[0] == 0.01
 
 
 class TestGEMMALoader:
@@ -288,7 +289,7 @@ class TestGEMMALoader:
         """Test that GEMMA prefers p_wald over p_lrt and p_score."""
         df = load_gemma(gemma_all_p_file)
 
-        assert df["p_wald"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
+        assert df["p_value"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
 
     def test_load_gemma_precedence_with_custom_p_col(self, gemma_all_p_file):
         """Test GEMMA p-value precedence through a custom output column.
@@ -297,7 +298,8 @@ class TestGEMMALoader:
         onto the existing p_wald column, so the assertion would hit duplicate
         labels rather than a clean value mismatch.
         """
-        df = load_gemma(gemma_all_p_file, p_col="pval")
+        with pytest.warns(DeprecationWarning):
+            df = load_gemma(gemma_all_p_file, p_col="pval")
 
         assert df["pval"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
 
@@ -305,8 +307,8 @@ class TestGEMMALoader:
         """Test basic GEMMA file loading."""
         df = load_gemma(gemma_file)
 
-        assert "ps" in df.columns
-        assert "p_wald" in df.columns
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
         assert "rs" in df.columns
         assert len(df) == 3
 
@@ -314,15 +316,15 @@ class TestGEMMALoader:
         """Test that values are loaded correctly."""
         df = load_gemma(gemma_file)
 
-        assert df["ps"].iloc[0] == 1000000
-        assert df["p_wald"].iloc[0] == 0.01
+        assert df["pos"].iloc[0] == 1000000
+        assert df["p_value"].iloc[0] == 0.01
 
     def test_load_gemma_fallback_to_lrt(self, gemma_lrt_file):
         """Test GEMMA loader falls back to p_lrt when p_wald missing."""
         df = load_gemma(gemma_lrt_file)
 
-        assert "p_wald" in df.columns
-        assert df["p_wald"].iloc[0] == 0.02
+        assert "p_value" in df.columns
+        assert df["p_value"].iloc[0] == 0.02
 
 
 class TestGWASCatalogLoader:
@@ -344,8 +346,8 @@ class TestGWASCatalogLoader:
         """Test basic GWAS Catalog file loading."""
         df = load_gwas_catalog(catalog_file)
 
-        assert "ps" in df.columns
-        assert "p_wald" in df.columns
+        assert "pos" in df.columns
+        assert "p_value" in df.columns
         assert "rs" in df.columns
         assert len(df) == 3
 
@@ -353,6 +355,6 @@ class TestGWASCatalogLoader:
         """Test that values are mapped correctly."""
         df = load_gwas_catalog(catalog_file)
 
-        assert df["ps"].iloc[0] == 1000000
-        assert df["p_wald"].iloc[0] == 0.01
+        assert df["pos"].iloc[0] == 1000000
+        assert df["p_value"].iloc[0] == 0.01
         assert df["rs"].iloc[0] == "rs123"

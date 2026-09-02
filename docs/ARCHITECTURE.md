@@ -151,6 +151,11 @@ stages:
    columns. `schemas.spec(family, tier)` names the contract and
    `validation.check` runs it, strictly at `Tier.LOAD` for a frame a loader
    just parsed and permissively at `Tier.PLOT` for one the caller assembled.
+   `schemas.Canonical` names the columns both halves of the package agree on
+   (`chr`, `pos`, `p_value`, `rs`): every loader emits them and every column
+   model defaults to them, so loader output plots without renaming. A frame
+   carrying the pre-4.0 `ps` or `p_wald` spelling is accepted through
+   `config.resolve_deprecated_columns` with a `DeprecationWarning` until 5.0.0.
    P-value-bearing plot paths
    then share `_data.prepare_pvalue_data()` for null/range filtering and finite
    `-log10` transformation.

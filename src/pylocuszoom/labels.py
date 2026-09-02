@@ -12,14 +12,15 @@ from matplotlib.axes import Axes
 from matplotlib.text import Annotation
 
 from pylocuszoom.logging import logger
+from pylocuszoom.schemas import Canonical
 
 
 def add_snp_labels(
     ax: Axes,
     df: pd.DataFrame,
-    pos_col: str = "ps",
+    pos_col: str = Canonical.POS,
     neglog10p_col: str = "neglog10p",
-    rs_col: str = "rs",
+    rs_col: str = Canonical.RS,
     label_top_n: int = 5,
     max_label_length: int = 15,
     adjust: bool = True,

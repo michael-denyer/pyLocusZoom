@@ -128,9 +128,9 @@ class RecordingBackend:
 def prepared_data():
     df = pd.DataFrame(
         {
-            "chrom": [1, 1, 2, 2],
+            "chr": [1, 1, 2, 2],
             "pos": [1_000_000, 2_000_000, 1_000_000, 2_000_000],
-            "p": [1e-8, 0.01, 1e-6, 0.5],
+            "p_value": [1e-8, 0.01, 1e-6, 0.5],
         }
     )
     return (

@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **One column vocabulary across the package, with a deprecation path (breaking).** `load_gwas` emitted `chr`/`ps`/`p_wald`/`rs`, `ColumnConfig` defaulted to the same, `ManhattanPlotter` to `chrom`/`pos`/`p`, `eqtl.py` to `pos`/`p_value`, and `plotter.py` sniffed `("chrom", "chr")` to cope, so `plot_manhattan(load_gwas(f))` could not work without renaming three columns. `schemas.Canonical` now names the contract: `chr`, `pos`, `p_value`, `rs`. `chr` was chosen over `chrom` because the gene-annotation, fine-mapping and eQTL families already emit it, and `p_value` over `p` because the eQTL and PheWAS families already use it, so the package has one spelling per concept rather than two. Every loader emits the canonical names, `ColumnConfig`, `GenomeWideConfig`, `ColocConfig` and `utils.filter_by_region` default to them, and the chromosome sniff is gone. `Canonical` is exported from `pylocuszoom`.
+
+  Two aliases survive until **5.0.0**, each emitting a `DeprecationWarning` that names the canonical column:
+
+  - Passing `pos_col=`, `p_col=` or `rs_col=` to a GWAS loader still renames the output column. Rename after loading instead.
+  - Handing a plotter a frame that carries `ps` or `p_wald` and no canonical column, without naming your own columns, still plots. A frame carrying both is read as canonical, silently.
+
+  ```python
+  # before
+  gwas_df = load_gwas("results.assoc.txt")        # chr, ps, p_wald, rs
+  fig = plotter.plot_manhattan(gwas_df.rename(columns={"chr": "chrom", "ps": "pos", "p_wald": "p"}))
+
+  # after
+  gwas_df = load_gwas("results.assoc.txt")        # chr, pos, p_value, rs
+  fig = plotter.plot_manhattan(gwas_df)
+  ```
+
 - **One helper strips the `chr` prefix from a column.** `.astype(str).str.replace("chr", "", regex=False)` was open-coded at five sites across `loaders.py`, `gene_track.py` and `utils.py`, beside a `normalize_chrom` that only took a scalar. `utils.normalize_chrom_series` is the column-level companion and every site now calls it. `gene_track.get_nearest_gene` searched a window with its own copy of the chromosome match and the overlap test that `filter_genes_by_region` already held; it now calls that function with the window as the region. Rendered output is unchanged.
 
 - **`plot()` and `plot_stacked()` take the config models as values (breaking).** Each declared 26 and 29 keyword parameters, 24 of them identical, and every one was restated in the `PlotConfig.from_kwargs` call and the docstring while twelve were already fields of `PanelInputs`; `from_kwargs` then ran every nested validator twice. Both methods now take the region (`chrom`, `start`, `end`) plus `columns: ColumnConfig`, `display: DisplayConfig`, `ld: LDConfig` and `panels: PanelInputs`, each option declared once on the model that owns it, and `plot_stacked()` keeps its per-panel lists (`lead_positions`, `panel_labels`, `ld_reference_files`). The four models are exported from `pylocuszoom` and are frozen, so one built in a notebook serves many calls. `PlotConfig.from_kwargs` and `StackedPlotConfig.from_kwargs` no longer exist. No compatibility shim is provided; `scripts/migrate_to_config_models.py` rewrites `.py` and `.ipynb` callers in place. ADR-0008 records the decision.

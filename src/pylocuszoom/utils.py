@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import pandas as pd
 
 from .exceptions import ValidationError
+from .schemas import Canonical
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame as SparkDataFrame
@@ -184,8 +185,8 @@ def normalize_chrom_series(chroms: pd.Series) -> pd.Series:
 def filter_by_region(
     df: pd.DataFrame,
     region: tuple,
-    chrom_col: str | None = "chrom",
-    pos_col: str = "pos",
+    chrom_col: str | None = Canonical.CHROM,
+    pos_col: str = Canonical.POS,
 ) -> pd.DataFrame:
     """Filter DataFrame to genomic region with inclusive bounds.
 
@@ -196,7 +197,7 @@ def filter_by_region(
     Args:
         df: DataFrame to filter.
         region: Tuple of (chrom, start, end) defining the region.
-        chrom_col: Column name for chromosome (default: "chrom"). None, or a
+        chrom_col: Column name for chromosome (default: "chr"). None, or a
             name the frame does not carry, filters by position only.
         pos_col: Column name for position (default: "pos").
 

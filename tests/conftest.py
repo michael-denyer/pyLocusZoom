@@ -140,8 +140,8 @@ def regional_gwas_df():
         {
             "rs": [f"rs{i}" for i in range(n_snps)],
             "chr": [1] * n_snps,
-            "ps": positions,
-            "p_wald": rng.uniform(1e-10, 1, n_snps),
+            "pos": positions,
+            "p_value": rng.uniform(1e-10, 1, n_snps),
         }
     )
 
@@ -152,8 +152,8 @@ def tiny_regional_gwas_df():
     return pd.DataFrame(
         {
             "rs": ["rs1", "rs2", "rs3"],
-            "ps": [1100000, 1500000, 1900000],
-            "p_wald": [1e-8, 1e-5, 1e-3],
+            "pos": [1100000, 1500000, 1900000],
+            "p_value": [1e-8, 1e-5, 1e-3],
         }
     )
 
@@ -189,19 +189,19 @@ def small_regional_gwas_df():
     return pd.DataFrame(
         {
             "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-            "ps": [1100000, 1300000, 1500000, 1700000, 1900000],
-            "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
+            "pos": [1100000, 1300000, 1500000, 1700000, 1900000],
+            "p_value": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
         }
     )
 
 
 @pytest.fixture
 def manhattan_gwas_df():
-    """Multi-chromosome GWAS in the chrom/pos/p schema."""
+    """Multi-chromosome GWAS in the chr/pos/p_value schema."""
     rng = np.random.default_rng(42)
     return pd.DataFrame(
         {
-            "chrom": np.repeat([1, 2, 3], [40, 30, 30]),
+            "chr": np.repeat([1, 2, 3], [40, 30, 30]),
             "pos": np.concatenate(
                 [
                     np.sort(rng.integers(int(1e6), int(1e8), 40)),
@@ -209,7 +209,7 @@ def manhattan_gwas_df():
                     np.sort(rng.integers(int(1e6), int(1e8), 30)),
                 ]
             ),
-            "p": rng.uniform(1e-10, 1, 100),
+            "p_value": rng.uniform(1e-10, 1, 100),
         }
     )
 
@@ -244,7 +244,7 @@ def labelled_gwas_df():
     return pd.DataFrame(
         {
             "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
-            "ps": [1100000, 1200000, 1300000, 1400000, 1500000],
+            "pos": [1100000, 1200000, 1300000, 1400000, 1500000],
             "neglog10p": [8, 5, 3, 6, 9],
         }
     )
@@ -252,16 +252,16 @@ def labelled_gwas_df():
 
 @pytest.fixture
 def manhattan_rs_gwas_df():
-    """Fifty single-chromosome variants in the rs/chrom/pos/p schema."""
+    """Fifty single-chromosome variants in the rs/chr/pos/p_value schema."""
     rng = np.random.default_rng(42)
     n_snps = 50
     positions = np.sort(rng.integers(1_000_000, 2_000_000, n_snps))
     return pd.DataFrame(
         {
             "rs": [f"rs{i}" for i in range(n_snps)],
-            "chrom": [1] * n_snps,
+            "chr": [1] * n_snps,
             "pos": positions,
-            "p": rng.uniform(1e-10, 1, n_snps),
+            "p_value": rng.uniform(1e-10, 1, n_snps),
         }
     )
 

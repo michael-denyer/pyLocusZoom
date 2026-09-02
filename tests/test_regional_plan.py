@@ -26,15 +26,15 @@ def _gwas():
     return pd.DataFrame(
         {
             "rs": ["rs1", "rs2", "rs3"],
-            "ps": [1_100_000, 1_500_000, 1_900_000],
-            "p_wald": [1e-8, 1e-5, 1e-3],
+            "pos": [1_100_000, 1_500_000, 1_900_000],
+            "p_value": [1e-8, 1e-5, 1e-3],
         }
     )
 
 
 def _association(**overrides):
     fields = dict(
-        data=prepare_pvalue_data(_gwas(), "p_wald"),
+        data=prepare_pvalue_data(_gwas(), "p_value"),
         region=REGION,
         height=4.0,
         columns=ColumnConfig(),
@@ -72,7 +72,7 @@ def test_association_panel_draws_points_line_and_lead():
 
 
 def test_association_panel_label_and_ld_legend():
-    data = prepare_pvalue_data(_gwas(), "p_wald").assign(R2=[1.0, 0.5, 0.1])
+    data = prepare_pvalue_data(_gwas(), "p_value").assign(R2=[1.0, 0.5, 0.1])
     names = _names(
         _render(
             _association(data=data, ld_col="R2", panel_label="A", add_ld_legend=True)

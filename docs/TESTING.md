@@ -89,7 +89,7 @@ Test classes use `TestThing` and test functions use `test_behavior_when_conditio
 
 Prefer the shared fixtures in `tests/conftest.py` over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.
 
-One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`ps`/`p_wald` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chrom`/`pos`/`p` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow. It reads the column names of every `pd.DataFrame({...})` literal in the fixture body, so a fixture that assembles several frames and returns a list is covered too.
+One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`pos`/`p_value` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chr`/`pos`/`p_value` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow. It reads the column names of every `pd.DataFrame({...})` literal in the fixture body, so a fixture that assembles several frames and returns a list is covered too.
 
 An autouse fixture closes every pyplot figure after each test, so a test that
 builds a figure does not need to close it.

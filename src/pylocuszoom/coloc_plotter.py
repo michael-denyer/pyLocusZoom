@@ -27,7 +27,7 @@ from .colors import (
     get_ld_color,
 )
 from .config import ColocConfig
-from .schemas import validate_coloc_df
+from .schemas import Canonical, validate_coloc_df
 
 
 def _resolve_merged_column(
@@ -238,10 +238,10 @@ class ColocPlotter:
         self,
         gwas_df: pd.DataFrame,
         eqtl_df: pd.DataFrame,
-        pos_col: str = "pos",
+        pos_col: str = Canonical.POS,
         gwas_p_col: str = "p_gwas",
         eqtl_p_col: str = "p_eqtl",
-        rs_col: Optional[str] = "rs",
+        rs_col: Optional[str] = Canonical.RS,
         ld_col: Optional[str] = None,
         lead_snp: Optional[str] = None,
         gwas_threshold: ThresholdArg = UNSET,

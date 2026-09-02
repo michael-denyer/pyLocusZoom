@@ -22,9 +22,9 @@ class TestManhattanPlotter:
         """Create sample GWAS data."""
         return pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2, 3],
+                "chr": [1, 1, 2, 2, 3],
                 "pos": [1000, 2000, 1000, 2000, 1000],
-                "p": [0.01, 0.001, 0.0001, 0.05, 1e-8],
+                "p_value": [0.01, 0.001, 0.0001, 0.05, 1e-8],
             }
         )
 
@@ -65,9 +65,9 @@ class TestManhattanPlotterBackends:
         """Create sample GWAS data."""
         return pd.DataFrame(
             {
-                "chrom": [1, 1, 2],
+                "chr": [1, 1, 2],
                 "pos": [1000, 2000, 1000],
-                "p": [0.01, 0.001, 0.0001],
+                "p_value": [0.01, 0.001, 0.0001],
             }
         )
 
@@ -93,13 +93,11 @@ class TestCategoricalManhattanRendersIntegerCategories:
         df = pd.DataFrame(
             {
                 "cat": [1, 1, 2, 2, 3],
-                "p": [0.01, 0.05, 0.1, 0.001, 0.5],
+                "p_value": [0.01, 0.05, 0.1, 0.001, 0.5],
             }
         )
         plotter = ManhattanPlotter(species="human")
-        fig = plotter.plot_manhattan(
-            df, category_col="cat", config=GenomeWideConfig(p_col="p")
-        )
+        fig = plotter.plot_manhattan(df, category_col="cat")
         assert fig is not None
 
         ax = fig.axes[0]
@@ -114,9 +112,9 @@ class TestConstructorThresholdIsTheDefault:
     def _gwas():
         return pd.DataFrame(
             {
-                "chrom": [1, 1, 2, 2],
+                "chr": [1, 1, 2, 2],
                 "pos": [1_000_000, 2_000_000, 1_000_000, 2_000_000],
-                "p": [1e-9, 0.01, 1e-6, 0.5],
+                "p_value": [1e-9, 0.01, 1e-6, 0.5],
             }
         )
 
@@ -182,15 +180,24 @@ class TestManhattanSingleChromosome:
         """Manhattan plot with only one chromosome should work."""
         df = pd.DataFrame(
             {
-                "chrom": ["1"] * 10,
+                "chr": ["1"] * 10,
                 "pos": list(range(1000000, 11000000, 1000000)),
-                "p": [1e-8, 0.05, 0.01, 1e-6, 0.1, 0.001, 1e-10, 0.5, 0.005, 1e-3],
+                "p_value": [
+                    1e-8,
+                    0.05,
+                    0.01,
+                    1e-6,
+                    0.1,
+                    0.001,
+                    1e-10,
+                    0.5,
+                    0.005,
+                    1e-3,
+                ],
             }
         )
 
-        fig = manhattan_plotter.plot_manhattan(
-            df, config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p")
-        )
+        fig = manhattan_plotter.plot_manhattan(df)
 
         assert fig is not None
         # Verify x-axis has chromosome label
@@ -207,9 +214,9 @@ class TestManhattanStackedValidation:
         """Sample GWAS DataFrame."""
         return pd.DataFrame(
             {
-                "chrom": ["1", "1", "2", "2"],
+                "chr": ["1", "1", "2", "2"],
                 "pos": [1000000, 2000000, 1500000, 3000000],
-                "p": [1e-8, 0.05, 0.01, 1e-6],
+                "p_value": [1e-8, 0.05, 0.01, 1e-6],
             }
         )
 
@@ -247,13 +254,10 @@ class TestEmptyManhattanInput:
     def test_manhattan_with_empty_df_raises(self):
         """An empty frame is rejected at the boundary, before any layout."""
         plotter = ManhattanPlotter(species="human")
-        empty_df = pd.DataFrame(columns=["chrom", "pos", "p"])
+        empty_df = pd.DataFrame(columns=["chr", "pos", "p_value"])
 
         with pytest.raises(ValidationError, match="empty"):
-            plotter.plot_manhattan(
-                empty_df,
-                config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
-            )
+            plotter.plot_manhattan(empty_df)
 
 
 class TestGenomeWideBoundary:
@@ -267,26 +271,26 @@ class TestGenomeWideBoundary:
     def manhattan_chrom_df(self):
         return pd.DataFrame(
             {
-                "chrom": ["1", "1", "2", "2"],
+                "chr": ["1", "1", "2", "2"],
                 "pos": [100, 200, 100, 200],
-                "p": [0.5, 1e-9, 0.1, 1e-4],
+                "p_value": [0.5, 1e-9, 0.1, 1e-4],
             }
         )
 
     def test_missing_chrom_column_is_a_validation_error(self, plotter):
-        df = pd.DataFrame({"pos": [1, 2], "p": [0.5, 0.1]})
-        with pytest.raises(ValidationError, match="chrom"):
+        df = pd.DataFrame({"pos": [1, 2], "p_value": [0.5, 0.1]})
+        with pytest.raises(ValidationError, match="chr"):
             plotter.plot_manhattan(df)
 
     def test_configured_column_names_are_the_ones_required(self, plotter):
         df = pd.DataFrame({"CHR": ["1", "1"], "BP": [1, 2], "P": [0.5, 0.1]})
         config = GenomeWideConfig(chrom_col="CHR", pos_col="BP", p_col="P")
-        with pytest.raises(ValidationError, match="chrom"):
+        with pytest.raises(ValidationError, match="chr"):
             plotter.plot_manhattan(df)
         plotter.plot_manhattan(df, config=config)
 
     def test_empty_frame_is_a_validation_error(self, plotter):
-        df = pd.DataFrame({"chrom": [], "pos": [], "p": []})
+        df = pd.DataFrame({"chr": [], "pos": [], "p_value": []})
         with pytest.raises(ValidationError, match="empty"):
             plotter.plot_manhattan_qq(df)
 

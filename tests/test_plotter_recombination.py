@@ -49,8 +49,8 @@ class TestLocusZoomPlotterRecombination:
             {
                 "rs": [f"rs{i}" for i in range(10)],
                 "chr": [1] * 10,
-                "ps": list(range(1000000, 2000000, 100000)),
-                "p_wald": [1e-8, 1e-6, 1e-5, 1e-4, 0.01, 0.05, 0.1, 0.5, 0.8, 0.99],
+                "pos": list(range(1000000, 2000000, 100000)),
+                "p_value": [1e-8, 1e-6, 1e-5, 1e-4, 0.01, 0.05, 0.1, 0.5, 0.8, 0.99],
             }
         )
 

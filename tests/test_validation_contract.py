@@ -27,22 +27,22 @@ ACCEPTED = [
     (
         "gwas-minimal",
         Family.GWAS,
-        pd.DataFrame({"ps": [100], "p_wald": [0.5]}),
+        pd.DataFrame({"pos": [100], "p_value": [0.5]}),
     ),
     (
         "gwas-p-exactly-one",
         Family.GWAS,
-        pd.DataFrame({"ps": [1], "p_wald": [1.0]}),
+        pd.DataFrame({"pos": [1], "p_value": [1.0]}),
     ),
     (
         "gwas-tiny-p",
         Family.GWAS,
-        pd.DataFrame({"ps": [42], "p_wald": [1e-300]}),
+        pd.DataFrame({"pos": [42], "p_value": [1e-300]}),
     ),
     (
         "gwas-extra-columns",
         Family.GWAS,
-        pd.DataFrame({"ps": [100], "p_wald": [0.5], "beta": [0.3], "rs": ["rs1"]}),
+        pd.DataFrame({"pos": [100], "p_value": [0.5], "beta": [0.3], "rs": ["rs1"]}),
     ),
     (
         "eqtl-minimal",
@@ -78,56 +78,56 @@ REJECTED = [
     (
         "gwas-missing-pos",
         Family.GWAS,
-        pd.DataFrame({"p_wald": [0.5]}),
-        ["ps"],
+        pd.DataFrame({"p_value": [0.5]}),
+        ["pos"],
     ),
     (
         "gwas-missing-both",
         Family.GWAS,
         pd.DataFrame({"chr": [1]}),
-        ["ps", "p_wald"],
+        ["pos", "p_value"],
     ),
     (
         "gwas-position-zero",
         Family.GWAS,
-        pd.DataFrame({"ps": [0], "p_wald": [0.5]}),
-        ["ps"],
+        pd.DataFrame({"pos": [0], "p_value": [0.5]}),
+        ["pos"],
     ),
     (
         "gwas-position-negative",
         Family.GWAS,
-        pd.DataFrame({"ps": [-1], "p_wald": [0.5]}),
-        ["ps"],
+        pd.DataFrame({"pos": [-1], "p_value": [0.5]}),
+        ["pos"],
     ),
     (
         "gwas-null-position",
         Family.GWAS,
-        pd.DataFrame({"ps": [100, None], "p_wald": [0.5, 0.5]}),
-        ["ps"],
+        pd.DataFrame({"pos": [100, None], "p_value": [0.5, 0.5]}),
+        ["pos"],
     ),
     (
         "gwas-null-pvalue",
         Family.GWAS,
-        pd.DataFrame({"ps": [100, 200], "p_wald": [0.05, None]}),
-        ["p_wald"],
+        pd.DataFrame({"pos": [100, 200], "p_value": [0.05, None]}),
+        ["p_value"],
     ),
     (
         "gwas-pvalue-zero",
         Family.GWAS,
-        pd.DataFrame({"ps": [100], "p_wald": [0.0]}),
-        ["p_wald"],
+        pd.DataFrame({"pos": [100], "p_value": [0.0]}),
+        ["p_value"],
     ),
     (
         "gwas-pvalue-above-one",
         Family.GWAS,
-        pd.DataFrame({"ps": [100], "p_wald": [1.5]}),
-        ["p_wald"],
+        pd.DataFrame({"pos": [100], "p_value": [1.5]}),
+        ["p_value"],
     ),
     (
         "gwas-both-non-numeric",
         Family.GWAS,
-        pd.DataFrame({"ps": ["chr1:100"], "p_wald": ["not_a_number"]}),
-        ["ps", "p_wald"],
+        pd.DataFrame({"pos": ["chr1:100"], "p_value": ["not_a_number"]}),
+        ["pos", "p_value"],
     ),
     (
         "eqtl-missing-all",
@@ -284,13 +284,13 @@ def test_custom_gwas_column_names_are_honoured():
 
 def test_all_problems_are_reported_in_one_pass():
     """Validation accumulates rather than raising on the first fault."""
-    df = pd.DataFrame({"ps": [0, 100], "p_wald": [0.5, 2.0]})
+    df = pd.DataFrame({"pos": [0, 100], "p_value": [0.5, 2.0]})
     with pytest.raises(LoaderValidationError) as exc_info:
         check(df, spec(Family.GWAS, Tier.LOAD))
 
     message = str(exc_info.value)
-    assert "ps" in message
-    assert "p_wald" in message
+    assert "pos" in message
+    assert "p_value" in message
 
 
 class TestPValueDomainHasOneOwner:
@@ -300,7 +300,7 @@ class TestPValueDomainHasOneOwner:
     def _accepted_by_strict(value):
         from pylocuszoom.exceptions import LoaderValidationError
 
-        df = pd.DataFrame({"ps": [100], "p_wald": [value]})
+        df = pd.DataFrame({"pos": [100], "p_value": [value]})
         try:
             check(df, spec(Family.GWAS, Tier.LOAD))
         except LoaderValidationError:
@@ -334,7 +334,7 @@ class TestPValueDomainHasOneOwner:
         from pylocuszoom._data import P_VALUE_MAX
         from pylocuszoom.exceptions import LoaderValidationError
 
-        just_over = pd.DataFrame({"ps": [100], "p_wald": [P_VALUE_MAX * 1.000001]})
+        just_over = pd.DataFrame({"pos": [100], "p_value": [P_VALUE_MAX * 1.000001]})
         with pytest.raises(LoaderValidationError):
             check(just_over, spec(Family.GWAS, Tier.LOAD))
         assert self._accepted_by_strict(P_VALUE_MAX) is True

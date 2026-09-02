@@ -19,7 +19,7 @@ from ._plotter_utils import (
 )
 from ._stats_panels import ForestPanel, PhewasPanel
 from .backends import BackendType, get_backend
-from .schemas import validate_forest_df, validate_phewas_df
+from .schemas import Canonical, validate_forest_df, validate_phewas_df
 
 
 class StatsPlotter:
@@ -52,7 +52,7 @@ class StatsPlotter:
         phewas_df: pd.DataFrame,
         variant_id: str,
         phenotype_col: str = "phenotype",
-        p_col: str = "p_value",
+        p_col: str = Canonical.P,
         category_col: str = "category",
         effect_col: Optional[str] = None,
         significance_threshold: ThresholdArg = UNSET,

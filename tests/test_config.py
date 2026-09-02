@@ -89,8 +89,8 @@ class TestColumnConfig:
         from pylocuszoom.config import ColumnConfig
 
         config = ColumnConfig()
-        assert config.pos_col == "ps"
-        assert config.p_col == "p_wald"
+        assert config.pos_col == "pos"
+        assert config.p_col == "p_value"
         assert config.rs_col == "rs"
 
     def test_custom_values_accepted(self):
@@ -383,8 +383,8 @@ class TestPlotConfig:
         from pylocuszoom.config import PlotConfig, RegionConfig
 
         config = PlotConfig(region=RegionConfig(chrom=1, start=1000000, end=2000000))
-        assert config.columns.pos_col == "ps"
-        assert config.columns.p_col == "p_wald"
+        assert config.columns.pos_col == "pos"
+        assert config.columns.p_col == "p_value"
         assert config.display.snp_labels is True
         assert config.ld.lead_pos is None
         assert config.panels.genes_df is None
