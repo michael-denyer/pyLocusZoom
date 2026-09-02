@@ -129,3 +129,38 @@ adapter. What stays on `SupportsHeatmap` is the pair of calls only a rendering
 library can make. Batching is the cost. Bokeh drew all outline cells in one
 `rect()` call and now draws one renderer per cell, at most `2n - 1` renderers
 for `n` SNPs on the panel.
+
+## Addendum: `hbar` is removed and the protocol is renamed
+
+The decision above kept `hbar` on the grounds that it was a working, tested
+public primitive. That reasoning weighed a hypothetical downstream caller
+against ninety lines and did not count the cost to anyone writing a backend:
+a required member of an opt-in protocol has to be implemented correctly for a
+figure this library never draws. `StatsRenderer.render_forest` draws with
+`errorbar_h`, `scatter` and `axvline`; nothing in the tree ever called `hbar`.
+
+`hbar` leaves the protocol and all three adapters, and `SupportsBarCharts`
+becomes `SupportsErrorBars`, which now declares the one method it has. A
+third-party backend that implements `hbar` keeps working; the method is simply
+no longer part of any contract.
+
+## Addendum: four of the five protocols are folded back in
+
+The split above was correct in principle and one level too fine in practice.
+All three shipped backends implemented `SupportsHeatmap`, `SupportsErrorBars`,
+`SupportsSecondaryAxis` and `SupportsRegionHighlight`, so every `isinstance`
+gate on them guarded a branch no backend could reach. Worse, the unreachable
+branches had grown three different policies for the same question: the regional
+heatmap panel logged and skipped, the Miami highlight returned silently, and the
+forest plot and the standalone heatmap each raised a hand-written `TypeError`.
+
+The four are folded back into `PlotBackend`. `require_heatmap_backend`, the two
+bespoke `TypeError` messages and the `_SecondaryAxisBackend` intersection shim
+in `composition.py` go with them, and `render_recombination_overlay` takes a
+plain `PlotBackend`.
+
+`SupportsSNPLabels` stays optional, and it is the one that earns it: it needs
+adjustText, which has no plotly or bokeh equivalent, so the declining branch is
+reachable by two of the three backends the library ships. The rule ADR-0004 set
+still holds; the test it now has to pass is whether any shipped backend actually
+declines.

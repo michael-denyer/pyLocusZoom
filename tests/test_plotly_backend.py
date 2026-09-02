@@ -256,7 +256,7 @@ class TestPlotlyMegabaseTicksFollowTheAxisRange:
     def test_each_panel_is_ticked_from_its_own_limits(self):
         backend = PlotlyBackend()
         fig, panels = backend.create_figure(
-            n_panels=2, height_ratios=[1.0, 1.0], figsize=(8, 6), sharex=False
+            height_ratios=[1.0, 1.0], figsize=(8, 6), sharex=False
         )
         backend.set_xlim(panels[0], 1_000_000, 2_000_000)
         backend.set_xlim(panels[1], 50_000_000, 51_000_000)
@@ -280,7 +280,7 @@ class TestPlotlyMegabaseTicksFollowTheAxisRange:
         carry the region's tick ladder, taken from the axis it is matched to."""
         backend = PlotlyBackend()
         fig, panels = backend.create_figure(
-            n_panels=2, height_ratios=[1.0, 1.0], figsize=(8, 6), sharex=True
+            height_ratios=[1.0, 1.0], figsize=(8, 6), sharex=True
         )
         backend.set_xlim(panels[0], 1_000_000, 2_000_000)
         backend.scatter(
@@ -296,9 +296,7 @@ class TestPlotlyMegabaseTicksFollowTheAxisRange:
 
     def test_panel_with_no_range_anywhere_is_left_to_plotly(self):
         backend = PlotlyBackend()
-        fig, panels = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 6)
-        )
+        fig, panels = backend.create_figure(height_ratios=[1.0], figsize=(8, 6))
         backend.scatter(
             panels[0], pd.Series([1_410_000, 1_660_000]), pd.Series([1.0, 2.0]), "blue"
         )

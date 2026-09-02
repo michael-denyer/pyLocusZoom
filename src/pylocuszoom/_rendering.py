@@ -41,7 +41,6 @@ class ManhattanQQRenderer:
     ) -> Any:
         """Render one prepared Manhattan panel."""
         fig, axes = self._backend.create_figure(
-            n_panels=1,
             height_ratios=[1.0],
             figsize=figsize,
         )
@@ -68,7 +67,6 @@ class ManhattanQQRenderer:
     ) -> Any:
         """Render one prepared categorical Manhattan panel."""
         fig, axes = self._backend.create_figure(
-            n_panels=1,
             height_ratios=[1.0],
             figsize=figsize,
         )
@@ -103,7 +101,6 @@ class ManhattanQQRenderer:
     ) -> Any:
         """Render one prepared QQ panel."""
         fig, axes = self._backend.create_figure(
-            n_panels=1,
             height_ratios=[1.0],
             figsize=figsize,
         )
@@ -135,7 +132,6 @@ class ManhattanQQRenderer:
         """Render prepared Manhattan panels with shared x coordinates."""
         n_panels = len(prepared_dfs)
         fig, axes = self._backend.create_figure(
-            n_panels=n_panels,
             height_ratios=[figsize[1] / n_panels] * n_panels,
             figsize=figsize,
             sharex=True,

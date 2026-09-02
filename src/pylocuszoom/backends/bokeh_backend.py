@@ -39,6 +39,7 @@ from ._coerce import (
     pixels,
     split_pixels,
 )
+from .base import Mappable
 from .composition import LegendEntry
 from .hover import bokeh_tooltips
 
@@ -121,12 +122,11 @@ class BokehBackend:
 
     def create_figure(
         self,
-        n_panels: int,
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Any, List[figure]]:
-        """Create a layout with multiple panels."""
+        """Create a layout with one panel per height ratio."""
         width_px, total_height = pixels(figsize)
         heights = split_pixels(total_height, height_ratios, len(height_ratios))
 
@@ -198,7 +198,7 @@ class BokehBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-    ) -> Any:
+    ) -> None:
         """Create a scatter plot on the given figure."""
         # Prepare data source
         data = {"x": x.values, "y": y.values}
@@ -239,8 +239,6 @@ class BokehBackend:
             )
             ax.add_tools(hover)
 
-        return renderer
-
     def line(
         self,
         ax: Union[figure, _SecondaryAxis],
@@ -251,11 +249,11 @@ class BokehBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Create a line plot on the given figure or secondary axis."""
         target, y_range_name = _draw_target(ax)
 
-        return target.line(
+        target.line(
             x.values,
             y.values,
             line_color=color,
@@ -274,11 +272,11 @@ class BokehBackend:
         color: str = "blue",
         alpha: float = 0.3,
         zorder: int = 0,
-    ) -> Any:
+    ) -> None:
         """Fill area between two y-values."""
         target, y_range_name = _draw_target(ax)
         x_arr = x.values
-        return target.varea(
+        target.varea(
             x=x_arr,
             y1=broadcast(y1, len(x_arr)),
             y2=broadcast(y2, len(x_arr)),
@@ -296,7 +294,7 @@ class BokehBackend:
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a horizontal line across the figure."""
         line_dash = _DASH_MAP.get(linestyle, "dashed")
 
@@ -309,7 +307,6 @@ class BokehBackend:
             line_alpha=alpha,
         )
         ax.add_layout(span)
-        return span
 
     def add_text(
         self,
@@ -322,7 +319,7 @@ class BokehBackend:
         va: str = "bottom",
         rotation: float = 0,
         color: str = "black",
-    ) -> Any:
+    ) -> None:
         """Add text annotation to figure."""
         label = Label(
             x=x,
@@ -336,7 +333,6 @@ class BokehBackend:
             angle_units="deg",
         )
         ax.add_layout(label)
-        return label
 
     def add_rectangle(
         self,
@@ -348,12 +344,12 @@ class BokehBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a rectangle to the figure."""
         x_center = xy[0] + width / 2
         y_center = xy[1] + height / 2
 
-        return ax.rect(
+        ax.rect(
             x=[x_center],
             y=[y_center],
             width=[width],
@@ -371,13 +367,13 @@ class BokehBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a polygon (e.g., triangle for strand arrows) to the figure."""
         xs = [p[0] for p in points]
         ys = [p[1] for p in points]
 
         # Bokeh patch() uses x/y (singular) for single polygon
-        return ax.patch(
+        ax.patch(
             x=xs,
             y=ys,
             fill_color=facecolor,
@@ -617,7 +613,7 @@ class BokehBackend:
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a vertical line across the figure."""
         line_dash = _DASH_MAP.get(linestyle, "dashed")
 
@@ -630,33 +626,6 @@ class BokehBackend:
             line_alpha=alpha,
         )
         ax.add_layout(span)
-        return span
-
-    def hbar(
-        self,
-        ax: figure,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart."""
-        left_arr = per_point(left, len(y))
-        right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
-
-        return ax.hbar(
-            y=y.values,
-            right=right_arr,
-            left=left_arr,
-            height=height,
-            fill_color=color,
-            line_color=edgecolor,
-            line_width=linewidth,
-        )
 
     def errorbar_h(
         self,
@@ -669,7 +638,7 @@ class BokehBackend:
         linewidth: float = 1.5,
         capsize: float = 3,
         zorder: int = 3,
-    ) -> Any:
+    ) -> None:
         """Add horizontal error bars."""
         # Calculate bounds
         lower = x - xerr_lower
@@ -694,27 +663,17 @@ class BokehBackend:
             line_width=linewidth,
         )
         ax.add_layout(whisker)
-        return whisker
 
     def finalize_layout(
         self,
         fig: Any,
-        left: float = 0.08,
-        right: float = 0.95,
         top: float = 0.95,
-        bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust layout (limited support in bokeh).
-
-        Bokeh layouts are mostly automatic.
-        """
-        # Bokeh handles layout differently - column spacing is fixed
-        pass
+        """Do nothing: a Bokeh column sizes and spaces its own panels."""
 
     def add_region_highlight(
         self,
-        fig: Any,
         axes: List[figure],
         x_start: float,
         x_end: float,
@@ -741,7 +700,7 @@ class BokehBackend:
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Any:
+    ) -> Mappable:
         """Render a heatmap of an already-shaped matrix."""
         # Create custom palette from start to end color
         # For a simple 2-color gradient, create a palette of intermediate colors
@@ -807,10 +766,10 @@ class BokehBackend:
     def add_colorbar(
         self,
         ax: figure,
-        mappable: Any,
+        mappable: Mappable,
         label: str = "R²",
         orientation: str = "vertical",
-    ) -> Any:
+    ) -> None:
         """Add colorbar legend for heatmap."""
         color_bar = ColorBar(
             color_mapper=mappable,
@@ -820,7 +779,6 @@ class BokehBackend:
             orientation=orientation,
         )
         ax.add_layout(color_bar, "right")
-        return color_bar
 
 
 def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:

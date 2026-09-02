@@ -240,7 +240,7 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 4a | PlotBackend | Protocol defining required methods | [base.py](../src/pylocuszoom/backends/base.py) |
-| 4a | SupportsRegionHighlight, SupportsSNPLabels, SupportsSecondaryAxis, SupportsHeatmap, SupportsBarCharts | Optional `@runtime_checkable` capabilities, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
+| 4a | SupportsSNPLabels | The one optional `@runtime_checkable` capability, detected with `isinstance` | [base.py](../src/pylocuszoom/backends/base.py) |
 | 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
 | 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
@@ -251,22 +251,19 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 
 ### Backend Capabilities
 
-One row per `@runtime_checkable` protocol in
-[base.py](../src/pylocuszoom/backends/base.py). These five are the whole
-optional set; gate on `isinstance(backend, Supports*)`, never on the backend
-name.
+`SupportsSNPLabels` is the only `@runtime_checkable` protocol in
+[base.py](../src/pylocuszoom/backends/base.py); gate on
+`isinstance(backend, SupportsSNPLabels)`, never on the backend name.
 
 | Protocol | matplotlib | plotly | bokeh |
 |----------|:----------:|:------:|:-----:|
-| `SupportsRegionHighlight` | ✅ | ✅ | ✅ |
-| `SupportsSecondaryAxis` | ✅ | ✅ | ✅ |
-| `SupportsHeatmap` | ✅ | ✅ | ✅ |
-| `SupportsBarCharts` | ✅ | ✅ | ✅ |
 | `SupportsSNPLabels` | ✅ | ❌ | ❌ |
 
-`SupportsSNPLabels` needs adjustText, which has no plotly or bokeh equivalent.
-The recombination overlay is not a protocol: it composes above the seam in
-`composition.py` on top of `SupportsSecondaryAxis`. Static export and hover are
+It needs adjustText, which has no plotly or bokeh equivalent. Every other
+capability is a required `PlotBackend` method, because all three backends
+implemented all four of the protocols that used to hold them. The recombination
+overlay is not a protocol: it composes above the seam in `composition.py` on top
+of `create_twin_axis`. Static export and hover are
 backend properties rather than capabilities (matplotlib writes PNG/PDF/SVG and
 has no hover; plotly and bokeh write HTML and do). A custom backend opts in by
 implementing the methods and out by omitting them; see
@@ -363,23 +360,16 @@ classDiagram
         +axhline()
         +add_rectangle()
         +add_legend(entries)
-        +finalize_layout()
-    }
-    class SupportsSecondaryAxis {
-        <<Protocol>>
-        +create_twin_axis()
-        +set_secondary_ylim()
-        +set_secondary_ylabel()
-    }
-    class SupportsHeatmap {
-        <<Protocol>>
         +add_heatmap()
         +add_colorbar()
-    }
-    class SupportsBarCharts {
-        <<Protocol>>
-        +hbar()
         +errorbar_h()
+        +create_twin_axis()
+        +add_region_highlight()
+        +finalize_layout()
+    }
+    class SupportsSNPLabels {
+        <<Protocol>>
+        +add_snp_labels()
     }
     class composition {
         <<module>>
@@ -406,24 +396,14 @@ classDiagram
     PlotBackend <|.. MatplotlibBackend
     PlotBackend <|.. PlotlyBackend
     PlotBackend <|.. BokehBackend
-    SupportsSecondaryAxis <|.. MatplotlibBackend
-    SupportsSecondaryAxis <|.. PlotlyBackend
-    SupportsSecondaryAxis <|.. BokehBackend
-    SupportsHeatmap <|.. MatplotlibBackend
-    SupportsHeatmap <|.. PlotlyBackend
-    SupportsHeatmap <|.. BokehBackend
-    SupportsBarCharts <|.. MatplotlibBackend
-    SupportsBarCharts <|.. PlotlyBackend
-    SupportsBarCharts <|.. BokehBackend
+    SupportsSNPLabels <|.. MatplotlibBackend
     composition ..> PlotBackend : drives primitives
     gene_track ..> PlotBackend : drives primitives
     PlotlyBackend ..> hover : uses
     BokehBackend ..> hover : uses
 
     style PlotBackend fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style SupportsSecondaryAxis fill:#0277bd,stroke:#4fc3f7,color:#ffffff
-    style SupportsHeatmap fill:#0277bd,stroke:#4fc3f7,color:#ffffff
-    style SupportsBarCharts fill:#0277bd,stroke:#4fc3f7,color:#ffffff
+    style SupportsSNPLabels fill:#0277bd,stroke:#4fc3f7,color:#ffffff
     style MatplotlibBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style PlotlyBackend fill:#ad1457,stroke:#f06292,color:#ffffff
     style BokehBackend fill:#ad1457,stroke:#f06292,color:#ffffff

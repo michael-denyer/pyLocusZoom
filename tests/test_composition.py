@@ -84,7 +84,8 @@ class TestMatplotlibAddLegend:
             LegendEntry("Swatch", "#ff0000", marker="patch"),
             LegendEntry("Point", "#00ff00", marker="^"),
         ]
-        legend = MatplotlibBackend().add_legend(ax, entries, title="r²")
+        MatplotlibBackend().add_legend(ax, entries, title="r²")
+        legend = ax.get_legend()
         assert [t.get_text() for t in legend.get_texts()] == ["Swatch", "Point"]
         assert legend.get_title().get_text() == "r²"
 

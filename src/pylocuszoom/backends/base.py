@@ -19,22 +19,12 @@ import pandas as pd
 if TYPE_CHECKING:
     from .composition import LegendEntry
 
+Mappable = Any
+"""Opaque handle produced by ``add_heatmap`` and consumed by ``add_colorbar``.
 
-@runtime_checkable
-class SupportsRegionHighlight(Protocol):
-    """Optional backend capability for highlighting an x-range."""
-
-    def add_region_highlight(
-        self,
-        fig: Any,
-        axes: List[Any],
-        x_start: float,
-        x_end: float,
-        color: str = "yellow",
-        alpha: float = 0.3,
-    ) -> None:
-        """Highlight one x-range across a set of panels."""
-        ...
+The only backend return value that crosses the seam. Every drawing primitive
+returns ``None``: a caller draws, it does not collect handles.
+"""
 
 
 @runtime_checkable
@@ -57,155 +47,6 @@ class SupportsSNPLabels(Protocol):
         ...
 
 
-@runtime_checkable
-class SupportsSecondaryAxis(Protocol):
-    """Optional capability: a twin/secondary y-axis (recombination overlay)."""
-
-    def create_twin_axis(self, ax: Any) -> Any:
-        """Create a secondary y-axis and return a handle.
-
-        The handle is a drawing target: pass it to ``line`` or
-        ``fill_between`` in place of a panel to draw against the secondary
-        scale.
-        """
-        ...
-
-    def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
-        """Set the secondary y-axis limits."""
-        ...
-
-    def set_secondary_ylabel(
-        self,
-        secondary: Any,
-        label: str,
-        color: str = "black",
-        fontsize: int = 10,
-    ) -> None:
-        """Set the secondary y-axis label."""
-        ...
-
-
-@runtime_checkable
-class SupportsHeatmap(Protocol):
-    """Optional capability: matrix heatmaps with a colour scale (LD heatmaps)."""
-
-    def add_heatmap(
-        self,
-        ax: Any,
-        data: Any,
-        x_coords: List[float],
-        y_coords: List[float],
-        cmap_colors: List[str],
-        vmin: float = 0.0,
-        vmax: float = 1.0,
-    ) -> Any:
-        """Render a heatmap of an already-shaped matrix.
-
-        Used for LD heatmap visualization. Masking the upper triangle is the
-        caller's job via ``composition.lower_triangle``, so a backend draws
-        whatever it is handed. The colour scale is left off; ``add_colorbar``
-        turns it on.
-
-        Args:
-            ax: Axes or panel to plot on.
-            data: 2D array of values, masked or NaN where missing.
-            x_coords: X coordinates for cell positions.
-            y_coords: Y coordinates for cell positions.
-            cmap_colors: Color gradient endpoints [start_color, end_color].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-
-        Returns:
-            Heatmap object (mappable for colorbar attachment).
-        """
-        ...
-
-    def add_colorbar(
-        self,
-        ax: Any,
-        mappable: Any,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> Any:
-        """Show the colour scale for a heatmap.
-
-        Args:
-            ax: Axes or panel (or figure for some backends).
-            mappable: Heatmap object returned by add_heatmap.
-            label: Colorbar label (e.g., "R²" or "D'").
-            orientation: "vertical" or "horizontal".
-
-        Returns:
-            Colorbar object.
-        """
-        ...
-
-
-@runtime_checkable
-class SupportsBarCharts(Protocol):
-    """Optional capability: horizontal bars and error bars (forest plots)."""
-
-    def hbar(
-        self,
-        ax: Any,
-        y: pd.Series,
-        width: pd.Series,
-        height: float = 0.8,
-        left: Union[float, pd.Series] = 0,
-        color: Union[str, List[str]] = "blue",
-        edgecolor: str = "black",
-        linewidth: float = 0.5,
-        zorder: int = 2,
-    ) -> Any:
-        """Create horizontal bar chart.
-
-        Args:
-            ax: Axes or panel.
-            y: Y positions for bars.
-            width: Bar widths (x-extent).
-            height: Bar height.
-            left: Left edge positions.
-            color: Bar colors.
-            edgecolor: Edge color.
-            linewidth: Edge width.
-            zorder: Drawing order.
-
-        Returns:
-            The bar collection object.
-        """
-        ...
-
-    def errorbar_h(
-        self,
-        ax: Any,
-        x: pd.Series,
-        y: pd.Series,
-        xerr_lower: pd.Series,
-        xerr_upper: pd.Series,
-        color: str = "black",
-        linewidth: float = 1.5,
-        capsize: float = 3,
-        zorder: int = 3,
-    ) -> Any:
-        """Add horizontal error bars (for forest plots).
-
-        Args:
-            ax: Axes or panel.
-            x: X positions (effect sizes).
-            y: Y positions.
-            xerr_lower: Lower error (distance from x).
-            xerr_upper: Upper error (distance from x).
-            color: Line color.
-            linewidth: Line width.
-            capsize: Cap size in points.
-            zorder: Drawing order.
-
-        Returns:
-            The errorbar object.
-        """
-        ...
-
-
 class PlotBackend(Protocol):
     """Protocol defining the backend interface for LocusZoom plots.
 
@@ -220,11 +61,18 @@ class PlotBackend(Protocol):
     a depth key. Legend content is composed above the seam and rendered by
     ``add_legend``, so no drawing primitive takes a label.
 
-    Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
-    SupportsRegionHighlight, SupportsHeatmap, SupportsBarCharts) are separate
-    runtime_checkable protocols, checked with isinstance rather than a boolean
-    flag. A backend that implements none of them still renders every regional,
-    Manhattan, Miami, colocalisation, and PheWAS plot.
+    Every drawing primitive returns ``None``. A caller draws onto a panel and
+    reads the panel back from the figure; it does not collect artist handles.
+    ``add_heatmap`` is the one exception, returning a ``Mappable`` that only
+    ``add_colorbar`` consumes.
+
+    ``SupportsSNPLabels`` is the one optional capability, a separate
+    runtime_checkable protocol checked with isinstance rather than a boolean
+    flag. It stays optional because it needs adjustText, which has no plotly or
+    bokeh equivalent, so a backend really can decline it. Everything else is
+    required: the secondary axis, heatmaps, error bars and the region highlight
+    were optional protocols that all three shipped backends implemented, so
+    every gate on them guarded a branch no backend could reach.
     """
 
     # =========================================================================
@@ -246,16 +94,15 @@ class PlotBackend(Protocol):
 
     def create_figure(
         self,
-        n_panels: int,
         height_ratios: List[float],
         figsize: Tuple[float, float],
         sharex: bool = True,
     ) -> Tuple[Any, List[Any]]:
-        """Create a figure with multiple panels (subplots).
+        """Create a figure with one vertical panel per height ratio.
 
         Args:
-            n_panels: Number of vertical panels.
-            height_ratios: Relative heights for each panel.
+            height_ratios: Relative height of each panel; its length is the
+                panel count.
             figsize: Figure size as (width, height).
             sharex: Whether panels share the x-axis.
 
@@ -267,21 +114,21 @@ class PlotBackend(Protocol):
     def finalize_layout(
         self,
         fig: Any,
-        left: float = 0.08,
-        right: float = 0.95,
         top: float = 0.95,
-        bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
         """Finalize figure layout with margins and spacing.
 
+        Both fractions are advisory, in the same sense as ``zorder``: a backend
+        that lays panels out itself ignores them. The side and bottom margins
+        are not on the contract because no caller ever varied them; each
+        backend holds its own.
+
         Args:
             fig: Figure object.
-            left: Left margin fraction.
-            right: Right margin fraction.
-            top: Top margin fraction.
-            bottom: Bottom margin fraction.
-            hspace: Vertical space between subplots.
+            top: Top margin fraction, lowered to leave room for a suptitle.
+            hspace: Vertical space between panels, as a fraction of panel
+                height.
         """
         ...
 
@@ -326,7 +173,7 @@ class PlotBackend(Protocol):
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-    ) -> Any:
+    ) -> None:
         """Create a scatter plot on the given axes.
 
         Args:
@@ -340,9 +187,6 @@ class PlotBackend(Protocol):
             linewidth: Marker edge width.
             zorder: Drawing order.
             hover_data: DataFrame with columns for hover tooltips.
-
-        Returns:
-            The scatter plot object.
         """
         ...
 
@@ -356,7 +200,7 @@ class PlotBackend(Protocol):
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Create a line plot on the given axes.
 
         Args:
@@ -368,9 +212,6 @@ class PlotBackend(Protocol):
             alpha: Transparency.
             linestyle: Line style ('-', '--', ':', '-.').
             zorder: Drawing order.
-
-        Returns:
-            The line plot object.
         """
         ...
 
@@ -383,7 +224,7 @@ class PlotBackend(Protocol):
         color: str = "blue",
         alpha: float = 0.3,
         zorder: int = 0,
-    ) -> Any:
+    ) -> None:
         """Fill area between two y-values.
 
         Args:
@@ -394,9 +235,6 @@ class PlotBackend(Protocol):
             color: Fill color.
             alpha: Transparency.
             zorder: Drawing order.
-
-        Returns:
-            The fill object.
         """
         ...
 
@@ -409,7 +247,7 @@ class PlotBackend(Protocol):
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a horizontal line across the axes.
 
         Args:
@@ -420,9 +258,6 @@ class PlotBackend(Protocol):
             linewidth: Line width.
             alpha: Line transparency (0-1).
             zorder: Drawing order.
-
-        Returns:
-            The line object.
         """
         ...
 
@@ -435,7 +270,7 @@ class PlotBackend(Protocol):
         linewidth: float = 1.0,
         alpha: float = 1.0,
         zorder: int = 1,
-    ) -> Any:
+    ) -> None:
         """Add a vertical line across the axes.
 
         Args:
@@ -446,9 +281,33 @@ class PlotBackend(Protocol):
             linewidth: Line width.
             alpha: Line transparency (0-1).
             zorder: Drawing order.
+        """
+        ...
 
-        Returns:
-            The line object.
+    def errorbar_h(
+        self,
+        ax: Any,
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> None:
+        """Add horizontal error bars (for forest plots).
+
+        Args:
+            ax: Axes or panel.
+            x: X positions (effect sizes).
+            y: Y positions.
+            xerr_lower: Lower error (distance from x).
+            xerr_upper: Upper error (distance from x).
+            color: Line color.
+            linewidth: Line width.
+            capsize: Cap size in points.
+            zorder: Drawing order.
         """
         ...
 
@@ -467,7 +326,7 @@ class PlotBackend(Protocol):
         va: str = "bottom",
         rotation: float = 0,
         color: str = "black",
-    ) -> Any:
+    ) -> None:
         """Add text annotation to axes.
 
         Args:
@@ -480,9 +339,6 @@ class PlotBackend(Protocol):
             va: Vertical alignment.
             rotation: Text rotation in degrees.
             color: Text color.
-
-        Returns:
-            The text object.
         """
         ...
 
@@ -519,7 +375,7 @@ class PlotBackend(Protocol):
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add a rectangle patch to axes.
 
         Args:
@@ -531,9 +387,6 @@ class PlotBackend(Protocol):
             edgecolor: Edge color.
             linewidth: Edge width.
             zorder: Drawing order.
-
-        Returns:
-            The rectangle object.
         """
         ...
 
@@ -545,7 +398,7 @@ class PlotBackend(Protocol):
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-    ) -> Any:
+    ) -> None:
         """Add polygon patch to axes.
 
         Used for gene track directional arrows.
@@ -557,9 +410,6 @@ class PlotBackend(Protocol):
             edgecolor: Edge color.
             linewidth: Edge width.
             zorder: Drawing order.
-
-        Returns:
-            The polygon object.
         """
         ...
 
@@ -694,7 +544,7 @@ class PlotBackend(Protocol):
         entries: "List[LegendEntry]",
         loc: str = "upper left",
         title: Optional[str] = None,
-    ) -> Any:
+    ) -> None:
         """Add a legend rendering the given backend-neutral entries.
 
         Args:
@@ -702,8 +552,99 @@ class PlotBackend(Protocol):
             entries: Backend-neutral ``LegendEntry`` specs to render.
             loc: Legend location.
             title: Legend title.
+        """
+        ...
+
+    # =========================================================================
+    # Secondary Axis
+    # =========================================================================
+
+    def create_twin_axis(self, ax: Any) -> Any:
+        """Create a secondary y-axis and return a handle.
+
+        The handle is a drawing target: pass it to ``line`` or
+        ``fill_between`` in place of a panel to draw against the secondary
+        scale.
+        """
+        ...
+
+    def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
+        """Set the secondary y-axis limits."""
+        ...
+
+    def set_secondary_ylabel(
+        self,
+        secondary: Any,
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+    ) -> None:
+        """Set the secondary y-axis label."""
+        ...
+
+    # =========================================================================
+    # Heatmaps
+    # =========================================================================
+
+    def add_heatmap(
+        self,
+        ax: Any,
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: List[str],
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+    ) -> Mappable:
+        """Render a heatmap of an already-shaped matrix.
+
+        Used for LD heatmap visualization. Masking the upper triangle is the
+        caller's job via ``composition.lower_triangle``, so a backend draws
+        whatever it is handed. The colour scale is left off; ``add_colorbar``
+        turns it on.
+
+        Args:
+            ax: Axes or panel to plot on.
+            data: 2D array of values, masked or NaN where missing.
+            x_coords: X coordinates for cell positions.
+            y_coords: Y coordinates for cell positions.
+            cmap_colors: Color gradient endpoints [start_color, end_color].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
 
         Returns:
-            The legend object, if the backend produces one.
+            Heatmap object (mappable for colorbar attachment).
         """
+        ...
+
+    def add_colorbar(
+        self,
+        ax: Any,
+        mappable: Mappable,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> None:
+        """Show the colour scale for a heatmap.
+
+        Args:
+            ax: Axes or panel (or figure for some backends).
+            mappable: Heatmap object returned by add_heatmap.
+            label: Colorbar label (e.g., "R²" or "D'").
+            orientation: "vertical" or "horizontal".
+        """
+        ...
+
+    # =========================================================================
+    # Region Highlight
+    # =========================================================================
+
+    def add_region_highlight(
+        self,
+        axes: List[Any],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight one x-range across a set of panels."""
         ...

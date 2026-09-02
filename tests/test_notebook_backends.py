@@ -22,17 +22,7 @@ from tests.conftest import FIGURE_TYPES
 
 
 class TestBackendForestPlotMethods:
-    """Tests for forest plot backend methods (hbar, errorbar_h, axvline)."""
-
-    @staticmethod
-    def _draw_hbar(backend, ax):
-        backend.hbar(
-            ax,
-            y=pd.Series([0, 1, 2]),
-            width=pd.Series([0.5, 0.8, 0.3]),
-            height=0.5,
-            color="blue",
-        )
+    """Tests for forest plot backend methods (errorbar_h, axvline)."""
 
     @staticmethod
     def _draw_errorbar_h(backend, ax):
@@ -49,13 +39,11 @@ class TestBackendForestPlotMethods:
         backend.axvline(ax, x=0.5, color="red", linestyle="--")
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
-    @pytest.mark.parametrize(
-        "primitive", ["_draw_hbar", "_draw_errorbar_h", "_draw_axvline"]
-    )
+    @pytest.mark.parametrize("primitive", ["_draw_errorbar_h", "_draw_axvline"])
     def test_forest_primitive_does_not_raise(self, backend_name, primitive):
-        """Every backend accepts the three primitives a forest plot draws."""
+        """Every backend accepts the two primitives a forest plot draws."""
         backend = get_backend(backend_name)
-        _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        _, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
 
         getattr(self, primitive)(backend, axes[0])
 
@@ -243,7 +231,6 @@ class TestBokehNotebookCompatibility:
 
         # Create a figure
         layout, figures = backend.create_figure(
-            n_panels=1,
             height_ratios=[1.0],
             figsize=(12, 6),
         )
@@ -270,7 +257,6 @@ class TestBokehNotebookCompatibility:
 
         backend = BokehBackend()
         layout, figures = backend.create_figure(
-            n_panels=1,
             height_ratios=[1.0],
             figsize=(12, 6),
         )
@@ -288,7 +274,6 @@ class TestBokehNotebookCompatibility:
         # Creating figure should not produce validation warnings
         # (We can't easily test for warnings here, but we test the API is correct)
         layout, figures = backend.create_figure(
-            n_panels=2,
             height_ratios=[3.0, 1.0],
             figsize=(12, 8),
         )
@@ -824,7 +809,7 @@ class TestPlotlySecondaryAxisNaming:
         backend = PlotlyBackend()
 
         # Create a figure with 12 subplots (enough to trigger old collision)
-        fig, axes = backend.create_figure(12, [1.0] * 12, (12, 24))
+        fig, axes = backend.create_figure([1.0] * 12, (12, 24))
 
         # Create twin axis for the first subplot
         _, secondary_y = backend.create_twin_axis(axes[0])
@@ -841,7 +826,7 @@ class TestPlotlySecondaryAxisNaming:
         """Each subplot's secondary axis should have a unique name."""
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(5, [1.0] * 5, (12, 10))
+        fig, axes = backend.create_figure([1.0] * 5, (12, 10))
 
         secondary_names = []
         for ax in axes:
@@ -860,7 +845,7 @@ class TestHeatmapCoordinates:
         """Plotly heatmap should use passed x/y coords, not range(len(coords))."""
 
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        fig, axes = backend.create_figure([1.0], (10, 6))
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
@@ -883,7 +868,7 @@ class TestHeatmapCoordinates:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        fig, axes = backend.create_figure([1.0], (10, 6))
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
@@ -905,7 +890,7 @@ class TestHeatmapCoordinates:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        fig, axes = backend.create_figure([1.0], (10, 6))
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
@@ -930,7 +915,7 @@ class TestHeatmapCoordinates:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        fig, axes = backend.create_figure([1.0], (10, 6))
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
@@ -961,7 +946,7 @@ class TestHeatmapCoordinates:
         from pylocuszoom.backends.bokeh_backend import BokehBackend
 
         backend = BokehBackend()
-        fig, axes = backend.create_figure(1, [1.0], (10, 6))
+        fig, axes = backend.create_figure([1.0], (10, 6))
         ax = axes[0]
 
         # 3x3 matrix with non-uniform spacing

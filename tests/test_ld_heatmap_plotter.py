@@ -345,28 +345,3 @@ class TestLDHeatmapHighlighting:
         # Should have multiple patches for all highlights
         patches = [p for p in main_ax.patches if hasattr(p, "get_edgecolor")]
         assert len(patches) > 0
-
-
-class TestHeatmapCapabilityGate:
-    """The LD heatmap refuses a backend that cannot draw heatmaps."""
-
-    def test_backend_without_heatmap_support_is_rejected(self):
-        from pylocuszoom._ld_heatmap_renderer import require_heatmap_backend
-
-        class BarelyABackend:
-            pass
-
-        with pytest.raises(TypeError, match="does not support heatmaps"):
-            require_heatmap_backend(BarelyABackend())
-
-    def test_error_names_the_backend_and_the_protocol(self):
-        from pylocuszoom._ld_heatmap_renderer import require_heatmap_backend
-
-        class BarelyABackend:
-            pass
-
-        with pytest.raises(TypeError) as excinfo:
-            require_heatmap_backend(BarelyABackend())
-
-        assert "BarelyABackend" in str(excinfo.value)
-        assert "SupportsHeatmap" in str(excinfo.value)

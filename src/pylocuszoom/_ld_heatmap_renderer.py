@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
-from .backends.base import PlotBackend, SupportsHeatmap
+from .backends.base import PlotBackend
 from .backends.composition import heatmap_highlight_rects, lower_triangle
 from .colors import (
     LD_HEATMAP_COLORS,
@@ -31,27 +31,11 @@ class LDHeatmapRequest:
     show_colorbar: bool
 
 
-def require_heatmap_backend(backend: PlotBackend) -> SupportsHeatmap:
-    """Return the backend narrowed to ``SupportsHeatmap``.
-
-    Raises:
-        TypeError: If the backend does not implement ``SupportsHeatmap``. The
-            heatmap is the whole figure here, so there is nothing to degrade to.
-    """
-    if not isinstance(backend, SupportsHeatmap):
-        raise TypeError(
-            f"{type(backend).__name__} does not support heatmaps. "
-            "An LD heatmap needs a backend implementing SupportsHeatmap "
-            "(add_heatmap, add_colorbar)."
-        )
-    return backend
-
-
-def render_ld_heatmap(backend: SupportsHeatmap, req: LDHeatmapRequest) -> Any:
+def render_ld_heatmap(backend: PlotBackend, req: LDHeatmapRequest) -> Any:
     """Draw the lower-triangle heatmap, its highlights, ticks, and title."""
     n_snps = len(req.snp_ids)
     fig, axes = backend.create_figure(
-        n_panels=1, height_ratios=[1.0], figsize=req.figsize, sharex=False
+        height_ratios=[1.0], figsize=req.figsize, sharex=False
     )
     ax = axes[0]
     mappable = backend.add_heatmap(

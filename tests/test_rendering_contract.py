@@ -30,7 +30,8 @@ class RecordingBackend:
 
     def create_figure(self, **kwargs):
         self._record("create_figure", **kwargs)
-        return SimpleNamespace(), [SimpleNamespace() for _ in range(kwargs["n_panels"])]
+        n_panels = len(kwargs["height_ratios"])
+        return SimpleNamespace(), [SimpleNamespace() for _ in range(n_panels)]
 
     def create_figure_grid(self, **kwargs):
         self._record("create_figure_grid", **kwargs)
@@ -100,26 +101,26 @@ class RecordingBackend:
     def add_polygon(self, *args, **kwargs):
         return self._record("add_polygon", *args, **kwargs)
 
-
-class FullCapabilityBackend(RecordingBackend):
-    """RecordingBackend that also opts into every optional capability.
-
-    RecordingBackend deliberately implements no capability protocol, so it
-    doubles as the backend that declines them. Renderers whose whole figure is
-    a heatmap or a forest plot need one that accepts.
-    """
-
     def add_heatmap(self, *args, **kwargs):
         return self._record("add_heatmap", *args, **kwargs)
 
     def add_colorbar(self, *args, **kwargs):
         return self._record("add_colorbar", *args, **kwargs)
 
-    def hbar(self, *args, **kwargs):
-        return self._record("hbar", *args, **kwargs)
-
     def errorbar_h(self, *args, **kwargs):
         return self._record("errorbar_h", *args, **kwargs)
+
+    def add_region_highlight(self, *args, **kwargs):
+        self._record("add_region_highlight", *args, **kwargs)
+
+    def create_twin_axis(self, *args, **kwargs):
+        return self._record("create_twin_axis", *args, **kwargs)
+
+    def set_secondary_ylim(self, *args, **kwargs):
+        self._record("set_secondary_ylim", *args, **kwargs)
+
+    def set_secondary_ylabel(self, *args, **kwargs):
+        self._record("set_secondary_ylabel", *args, **kwargs)
 
 
 @pytest.fixture
@@ -203,8 +204,8 @@ def test_same_prepared_intent_renders_on_each_builtin_backend(
     assert all(figure is not None for figure in figures)
 
 
-def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):
-    """A pre-existing custom backend need not implement the new capability."""
+def test_miami_highlight_reaches_the_backend(prepared_data):
+    """A requested highlight region is drawn through add_region_highlight."""
     manhattan_df, _ = prepared_data
     backend = RecordingBackend()
 
@@ -230,38 +231,7 @@ def test_miami_region_highlight_is_optional_for_legacy_backends(prepared_data):
     )
 
     assert figure is not None
-
-
-def test_regional_renderer_skips_heatmap_panel_without_the_capability():
-    """A backend that declines SupportsHeatmap loses the panel, not the figure.
-
-    The heatmap is one panel among several in a regional plot, so an adapter
-    without it degrades the way the SNP-label and recombination gates do,
-    rather than failing the whole render.
-    """
-    import numpy as np
-
-    from pylocuszoom._regional import RegionalPlotComposer
-    from pylocuszoom._regional_panels import HeatmapPanel, RegionalFigurePlan
-
-    backend = RecordingBackend()
-    ld_matrix = pd.DataFrame(np.eye(3), index=list("abc"), columns=list("abc"))
-    panel = HeatmapPanel(
-        matrix=ld_matrix,
-        height=1.0,
-        x_positions=[1, 2, 3],
-        snp_ids=["a", "b", "c"],
-        metric="r2",
-        lead_snp_id="a",
-    )
-    plan = RegionalFigurePlan(
-        chrom=1, start=1, end=10, panels=[panel], figsize=(8.0, 1.0)
-    )
-
-    composer = RegionalPlotComposer(backend, genomewide_threshold=5e-8)
-    composer.render_panel(panel, SimpleNamespace(), SimpleNamespace(), plan)
-
-    assert backend.calls == []
+    assert [name for name, _, _ in backend.calls].count("add_region_highlight") == 1
 
 
 def test_ld_heatmap_renderer_owns_panel_policy():
@@ -270,7 +240,7 @@ def test_ld_heatmap_renderer_owns_panel_policy():
 
     from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
 
-    backend = FullCapabilityBackend()
+    backend = RecordingBackend()
 
     render_ld_heatmap(
         backend,
@@ -308,7 +278,7 @@ def test_ld_heatmap_renderer_skips_the_colorbar_when_not_asked():
 
     from pylocuszoom._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
 
-    backend = FullCapabilityBackend()
+    backend = RecordingBackend()
 
     render_ld_heatmap(
         backend,
@@ -335,7 +305,7 @@ def test_stats_renderer_owns_phewas_panel_policy():
     """PheWAS grouping, the significance line, and axis policy live above the seam."""
     from pylocuszoom._stats_renderer import StatsRenderer
 
-    backend = FullCapabilityBackend()
+    backend = RecordingBackend()
     df = pd.DataFrame(
         {
             "phenotype": ["a", "b", "c"],
@@ -368,7 +338,7 @@ def test_stats_renderer_owns_phewas_panel_policy():
 def test_stats_renderer_draws_no_significance_line_for_none():
     from pylocuszoom._stats_renderer import StatsRenderer
 
-    backend = FullCapabilityBackend()
+    backend = RecordingBackend()
     df = pd.DataFrame(
         {
             "phenotype": ["a"],
@@ -396,7 +366,7 @@ def test_stats_renderer_owns_forest_panel_policy():
     """Forest error bars, markers, null line, and x-padding live above the seam."""
     from pylocuszoom._stats_renderer import StatsRenderer
 
-    backend = FullCapabilityBackend()
+    backend = RecordingBackend()
     df = pd.DataFrame(
         {
             "study": ["A", "B"],
@@ -437,7 +407,7 @@ def test_coloc_renderer_owns_panel_policy():
     from pylocuszoom._coloc_renderer import ColocRequest, render_coloc
     from pylocuszoom.config import ColocConfig
 
-    backend = FullCapabilityBackend()
+    backend = RecordingBackend()
     merged = pd.DataFrame(
         {
             "neglog10_gwas": [8.0, 3.0],

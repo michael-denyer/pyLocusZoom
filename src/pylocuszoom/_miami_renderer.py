@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Tuple
 import pandas as pd
 
 from ._manhattan_panel import manhattan_spec, render_manhattan_panel
-from .backends.base import PlotBackend, SupportsRegionHighlight
+from .backends.base import PlotBackend
 from .backends.hover import HoverConfig
 
 
@@ -39,7 +39,6 @@ class MiamiRequest:
 def render_miami(backend: PlotBackend, req: MiamiRequest) -> Any:
     """Draw the two mirrored panels, their annotations, and their highlights."""
     fig, axes = backend.create_figure(
-        n_panels=2,
         height_ratios=[1.0, 1.0],
         figsize=req.figsize,
         sharex=True,
@@ -79,7 +78,6 @@ def render_miami(backend: PlotBackend, req: MiamiRequest) -> Any:
         for chrom, start, end in req.highlights:
             _add_region_highlight(
                 backend,
-                fig,
                 [top_ax, bottom_ax],
                 str(chrom),
                 start,
@@ -119,7 +117,6 @@ def _add_snp_annotations(
 
 def _add_region_highlight(
     backend: PlotBackend,
-    fig: Any,
     axes: List[Any],
     chrom: str,
     start: int,
@@ -130,10 +127,7 @@ def _add_region_highlight(
 ) -> None:
     if chrom not in offsets:
         return
-    if not isinstance(backend, SupportsRegionHighlight):
-        return
     backend.add_region_highlight(
-        fig,
         axes,
         offsets[chrom] + start,
         offsets[chrom] + end,

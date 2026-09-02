@@ -17,14 +17,7 @@ Error Behavior:
 
 from typing import Literal, get_args
 
-from .base import (
-    PlotBackend,
-    SupportsBarCharts,
-    SupportsHeatmap,
-    SupportsRegionHighlight,
-    SupportsSecondaryAxis,
-    SupportsSNPLabels,
-)
+from .base import Mappable, PlotBackend, SupportsSNPLabels
 
 BackendType = Literal["matplotlib", "plotly", "bokeh"]
 
@@ -137,12 +130,9 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "Mappable",
     "PlotBackend",
-    "SupportsBarCharts",
-    "SupportsHeatmap",
-    "SupportsRegionHighlight",
     "SupportsSNPLabels",
-    "SupportsSecondaryAxis",
     "BackendType",
     "BUILTIN_BACKENDS",
     "get_backend",

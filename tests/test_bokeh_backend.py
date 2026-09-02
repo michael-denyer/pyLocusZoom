@@ -18,9 +18,7 @@ class TestAddPanelLabelWithDataRange1d:
         from bokeh.models import Label
 
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         # DataRange1d has start=None before rendering — this should NOT crash
@@ -53,9 +51,7 @@ class TestAddPanelLabelWithDataRange1d:
         from bokeh.models import Label
 
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         backend.set_xlim(ax, 1_000_000, 2_000_000)
@@ -82,9 +78,7 @@ class TestScatterHoverColumnCollision:
     def test_hover_column_named_x_does_not_corrupt_scatter(self):
         """Hover data with column 'x' should not overwrite scatter x-coordinates."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         x = pd.Series([1.0, 2.0, 3.0])
@@ -96,18 +90,16 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        renderer = backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=hover_data)
 
         # The scatter coordinates must still be [1, 2, 3], not overwritten
-        source = renderer.data_source
+        source = ax.renderers[-1].data_source
         np.testing.assert_array_equal(source.data["x"], [1.0, 2.0, 3.0])
 
     def test_hover_column_named_color_does_not_corrupt_scatter(self):
         """Hover data with column 'color' should not overwrite point colors."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         x = pd.Series([1.0, 2.0, 3.0])
@@ -119,18 +111,16 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        renderer = backend.scatter(ax, x, y, colors="red", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="red", hover_data=hover_data)
 
         # The color data must still be the scatter colors, not overwritten
-        source = renderer.data_source
+        source = ax.renderers[-1].data_source
         assert list(source.data["color"]) == ["red", "red", "red"]
 
     def test_hover_column_named_size_does_not_corrupt_scatter(self):
         """Hover data with column 'size' should not overwrite point sizes."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         x = pd.Series([1.0, 2.0])
@@ -142,11 +132,9 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        renderer = backend.scatter(
-            ax, x, y, colors="red", sizes=60, hover_data=hover_data
-        )
+        backend.scatter(ax, x, y, colors="red", sizes=60, hover_data=hover_data)
 
-        source = renderer.data_source
+        source = ax.renderers[-1].data_source
         expected_size = max(6, 60**0.5)
         assert list(source.data["size"]) == [expected_size, expected_size]
 
@@ -182,36 +170,30 @@ class TestAddColorbarNoIdentityMap:
     def test_colorbar_vertical(self):
         """Vertical colorbar should work without identity map."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
         mapper = backend.add_heatmap(
             ax, data, [0, 1], [0, 1], cmap_colors=LD_HEATMAP_COLORS
         )
-        colorbar = backend.add_colorbar(ax, mapper, label="R²", orientation="vertical")
+        backend.add_colorbar(ax, mapper, label="R²", orientation="vertical")
 
-        assert colorbar.orientation == "vertical"
+        assert ax.right[-1].orientation == "vertical"
 
     def test_colorbar_horizontal(self):
         """Horizontal colorbar should work."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         ax = axes[0]
 
         data = np.array([[1.0, 0.5], [0.5, 1.0]])
         mapper = backend.add_heatmap(
             ax, data, [0, 1], [0, 1], cmap_colors=LD_HEATMAP_COLORS
         )
-        colorbar = backend.add_colorbar(
-            ax, mapper, label="R²", orientation="horizontal"
-        )
+        backend.add_colorbar(ax, mapper, label="R²", orientation="horizontal")
 
-        assert colorbar.orientation == "horizontal"
+        assert ax.right[-1].orientation == "horizontal"
 
 
 class TestAddTextAnchors:
@@ -230,7 +212,7 @@ class TestAddTextAnchors:
         from bokeh.models import Label
 
         backend = BokehBackend()
-        _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        _, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         backend.add_text(axes[0], 1.0, 2.0, "note", ha=ha, va=va)
 
         labels = [r for r in axes[0].center if isinstance(r, Label)]
@@ -249,9 +231,7 @@ class TestBokehSetXticksCorruptsYAxis:
     def test_bokeh_set_xticks_does_not_modify_yaxis(self):
         """set_xticks should not modify y-axis properties."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(12, 6))
         ax = axes[0]
 
         # Set custom y-axis labels first
@@ -291,9 +271,7 @@ class TestBokehSetYticksIgnoresLabels:
     def test_bokeh_set_yticks_applies_labels(self):
         """set_yticks should apply the provided custom labels."""
         backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
-        )
+        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(12, 6))
         ax = axes[0]
 
         # Set custom y-axis labels
@@ -399,7 +377,7 @@ class TestSetSuptitle:
 
     def test_suptitle_lands_on_single_column(self):
         backend = BokehBackend()
-        fig, _ = backend.create_figure(n_panels=2, height_ratios=[1, 1], figsize=(8, 6))
+        fig, _ = backend.create_figure(height_ratios=[1, 1], figsize=(8, 6))
 
         backend.set_suptitle(fig, "Cohort B")
 
@@ -415,7 +393,7 @@ class TestCreateTwinAxisKeepsExtraRanges:
         from pylocuszoom.backends.composition import LegendEntry
 
         backend = BokehBackend()
-        _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
+        _, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
         return backend, axes[0], [LegendEntry(label="a", color="#000000")]
 
     def test_twin_axis_after_legend_keeps_legend_range(self):

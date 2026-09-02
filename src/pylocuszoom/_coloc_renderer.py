@@ -39,9 +39,7 @@ def render_coloc(backend: PlotBackend, req: ColocRequest) -> Any:
     config = req.config
     gwas_threshold = config.gwas_threshold
     eqtl_threshold = config.eqtl_threshold
-    fig, axes = backend.create_figure(
-        n_panels=1, height_ratios=[1.0], figsize=config.figsize
-    )
+    fig, axes = backend.create_figure(height_ratios=[1.0], figsize=config.figsize)
     ax = axes[0]
     if req.lead_idx is not None:
         lead_row, other_rows = merged.loc[[req.lead_idx]], merged.drop(req.lead_idx)

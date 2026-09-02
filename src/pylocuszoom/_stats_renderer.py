@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .backends.base import PlotBackend, SupportsBarCharts
+from .backends.base import PlotBackend
 from .colors import get_phewas_category_palette
 
 UNCATEGORISED = "Uncategorised"
@@ -73,9 +73,7 @@ class StatsRenderer:
     ) -> Any:
         df, palette = _phewas_groups(df, category_col, p_col)
         df["y_pos"] = range(len(df))
-        fig, axes = self._backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=figsize
-        )
+        fig, axes = self._backend.create_figure(height_ratios=[1.0], figsize=figsize)
         ax = axes[0]
         for group, group_data in df.groupby("_group", sort=False):
             for mask, marker in _effect_subsets(group_data, effect_col):
@@ -126,19 +124,7 @@ class StatsRenderer:
         effect_label: str,
         figsize: Tuple[float, float],
     ) -> Any:
-        """Draw a forest plot of per-study effects and confidence intervals.
-
-        Raises:
-            TypeError: If the backend does not implement ``SupportsBarCharts``.
-                The bars are the whole figure here, so there is nothing to
-                degrade to.
-        """
-        if not isinstance(self._backend, SupportsBarCharts):
-            raise TypeError(
-                f"{type(self._backend).__name__} does not support bar charts. "
-                "A forest plot needs a backend implementing SupportsBarCharts "
-                "(hbar, errorbar_h)."
-            )
+        """Draw a forest plot of per-study effects and confidence intervals."""
         df = df.copy()
         df["y_pos"] = range(len(df) - 1, -1, -1)
         if weight_col and weight_col in df.columns:
@@ -151,9 +137,7 @@ class StatsRenderer:
             )
         else:
             sizes = 80
-        fig, axes = self._backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=figsize
-        )
+        fig, axes = self._backend.create_figure(height_ratios=[1.0], figsize=figsize)
         ax = axes[0]
         self._backend.errorbar_h(
             ax,
