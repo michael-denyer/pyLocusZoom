@@ -35,6 +35,16 @@ def test_validate_phewas_df_missing_column():
         validate_phewas_df(df)
 
 
+def test_validate_phewas_df_takes_no_category_col():
+    """The category column is optional at render time, so the validator
+    must not accept a name it cannot check."""
+    from pylocuszoom.schemas import validate_phewas_df
+
+    df = pd.DataFrame({"phenotype": ["Height"], "p_value": [1e-10]})
+    with pytest.raises(TypeError, match="category_col"):
+        validate_phewas_df(df, category_col="category")
+
+
 def test_validate_phewas_df_optional_effect():
     """Test validation allows optional effect_size column."""
     from pylocuszoom.schemas import validate_phewas_df
