@@ -52,13 +52,15 @@ class TestDogAliasReachesEverySubsystem:
         assert plotter.genome_build == "felCat9"
         assert plotter.species.ensembl_name == "felis_catus"
 
-    def test_unknown_species_is_rejected_at_construction(self):
-        with pytest.raises(ValidationError, match="Unknown species 'bovine'"):
-            LocusZoomPlotter(species="bovine", log_level=None)
+    def test_unknown_species_is_an_ensembl_only_record(self):
+        plotter = LocusZoomPlotter(species="Sus_scrofa", log_level=None)
+        assert plotter.species == Species(key="sus_scrofa", ensembl_name="sus_scrofa")
+        assert _plink_flags(plotter) == []
+        assert plotter.genome_build is None
 
-    def test_the_rejection_names_the_species_it_knows(self):
-        with pytest.raises(ValidationError, match="canine.*feline.*human"):
-            resolve_species("bovine")
+    def test_empty_name_is_rejected(self):
+        with pytest.raises(ValidationError, match="non-empty"):
+            resolve_species("")
 
 
 class TestResolveSpecies:

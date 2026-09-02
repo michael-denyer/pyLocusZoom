@@ -980,10 +980,11 @@ class TestAddSpeciesFlags:
         _add_species_flags(cmd, None)
         assert cmd == ["plink"]
 
-    def test_unknown_species_is_rejected(self):
-        """An unrecognised species is an error, not a silently human PLINK run."""
-        with pytest.raises(ValidationError, match="Unknown species 'bovine'"):
-            _add_species_flags(["plink"], "bovine")
+    def test_species_without_plink_flags_adds_none(self):
+        """A species the table does not know needs no chromosome-set flags."""
+        cmd = ["plink"]
+        _add_species_flags(cmd, "bovine")
+        assert cmd == ["plink"]
 
     def test_build_ld_command_uses_shared_helper(self):
         """build_ld_command should produce same species flags as _add_species_flags."""

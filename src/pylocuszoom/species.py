@@ -15,10 +15,11 @@ idempotent, so a public function can call it on an argument that may already be
 a record without knowing which it got.
 
 A species the library reaches only through Ensembl (Ensembl serves far more
-than this table names) still works: ``ensembl_species_name`` passes an
-unrecognised name through, and ``source_for`` accepts one. Only the entry
-points that need PLINK flags, a default build or a chromosome order require a
-record, and those reject a name this table does not know.
+than this table names) still works: ``resolve_species`` builds an Ensembl-only
+record for a name the table does not carry, with no PLINK flags, no default
+build and no chromosome order. The entry points that need one of those say so
+when they find it empty, and the recombination path reports the missing maps
+as a warning, so an unknown name is audible without being fatal.
 """
 
 from dataclasses import dataclass
@@ -120,31 +121,23 @@ def resolve_species(species: str | Species | None) -> Species | None:
         species: Canonical name, alias, an already-resolved record, or None
             for no species-specific behaviour.
 
+    A name the table does not carry becomes an Ensembl-only record: the gene
+    track works for any Ensembl species, and the README promises that.
+
     Returns:
         The record, or None if None was passed.
 
     Raises:
-        ValidationError: If the name is not one this package knows.
+        ValidationError: If the name is empty.
     """
     if species is None or isinstance(species, Species):
         return species
-    try:
-        return _BY_NAME[species.lower()]
-    except KeyError:
-        raise ValidationError(
-            f"Unknown species {species!r}; known species are "
-            f"{sorted(SPECIES)} (aliases: {sorted(set(_BY_NAME) - set(SPECIES))})"
-        ) from None
+    name = species.lower()
+    if not name:
+        raise ValidationError("species must be a non-empty name or None")
+    return _BY_NAME.get(name, Species(key=name, ensembl_name=name))
 
 
 def ensembl_species_name(species: str | Species) -> str:
-    """Return the Ensembl species name for a record or a caller's name.
-
-    Unlike ``resolve_species`` this accepts a name the package's table does not
-    carry, because Ensembl serves many more species than pyLocusZoom models and
-    the gene track works for all of them.
-    """
-    if isinstance(species, Species):
-        return species.ensembl_name
-    record = _BY_NAME.get(species.lower())
-    return record.ensembl_name if record else species.lower()
+    """Return the Ensembl species name for a record or a caller's name."""
+    return resolve_species(species).ensembl_name

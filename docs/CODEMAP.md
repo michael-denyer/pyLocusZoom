@@ -562,7 +562,7 @@ complete reference; this table is the complete one.
 | Name | Purpose |
 |------|---------|
 | `Species` | Everything pyLocusZoom knows about one species: Ensembl name, PLINK flags, default build, chromosome order. |
-| `resolve_species` | Resolve a species name or alias to its record, raising on an unknown name. |
+| `resolve_species` | Resolve a species name or alias to its record; an unknown name becomes an Ensembl-only record. |
 
 ### Backends
 
