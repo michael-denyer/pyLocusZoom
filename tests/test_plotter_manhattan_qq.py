@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
+from tests.conftest import FIGURE_TYPES
 
 
 class TestPlotManhattan:
@@ -108,21 +110,14 @@ class TestPlotManhattan:
         with pytest.raises((ValueError, Exception)):
             manhattan_plotter.plot_manhattan(df)
 
-    def test_plot_manhattan_plotly_backend(self, manhattan_gwas_df):
-        """plot_manhattan should work with plotly backend."""
-        import plotly.graph_objects as go
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_plot_manhattan_on_every_backend(self, backend, manhattan_gwas_df):
+        """plot_manhattan() returns each backend's figure type."""
+        plotter = ManhattanPlotter(species="human", backend=backend)
 
-        plotter = ManhattanPlotter(species="human", backend="plotly")
         fig = plotter.plot_manhattan(manhattan_gwas_df)
-        assert isinstance(fig, go.Figure)
 
-    def test_plot_manhattan_bokeh_backend(self, manhattan_gwas_df):
-        """plot_manhattan should work with bokeh backend."""
-
-        plotter = ManhattanPlotter(species="human", backend="bokeh")
-        fig = plotter.plot_manhattan(manhattan_gwas_df)
-        # Bokeh returns a column layout or figure
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
 
 class TestPlotQQ:
@@ -216,20 +211,14 @@ class TestPlotQQ:
         with pytest.raises(ValueError, match="No valid"):
             default_manhattan_plotter.plot_qq(df)
 
-    def test_plot_qq_plotly_backend(self, sample_pvalues_df):
-        """plot_qq should work with plotly backend."""
-        import plotly.graph_objects as go
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_plot_qq_on_every_backend(self, backend, sample_pvalues_df):
+        """plot_qq() returns each backend's figure type."""
+        plotter = ManhattanPlotter(backend=backend)
 
-        plotter = ManhattanPlotter(backend="plotly")
         fig = plotter.plot_qq(sample_pvalues_df)
-        assert isinstance(fig, go.Figure)
 
-    def test_plot_qq_bokeh_backend(self, sample_pvalues_df):
-        """plot_qq should work with bokeh backend."""
-
-        plotter = ManhattanPlotter(backend="bokeh")
-        fig = plotter.plot_qq(sample_pvalues_df)
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
 
 class TestPlotManhattanCategorical:
@@ -362,20 +351,14 @@ class TestPlotManhattanStacked:
         with pytest.raises(ValueError, match="At least one"):
             manhattan_plotter.plot_manhattan_stacked([])
 
-    def test_plot_manhattan_stacked_plotly_backend(self, sample_gwas_dfs):
-        """plot_manhattan_stacked should work with plotly backend."""
-        import plotly.graph_objects as go
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_plot_manhattan_stacked_on_every_backend(self, backend, sample_gwas_dfs):
+        """plot_manhattan_stacked() returns each backend's figure type."""
+        plotter = ManhattanPlotter(species="human", backend=backend)
 
-        plotter = ManhattanPlotter(species="human", backend="plotly")
         fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
-        assert isinstance(fig, go.Figure)
 
-    def test_plot_manhattan_stacked_bokeh_backend(self, sample_gwas_dfs):
-        """plot_manhattan_stacked should work with bokeh backend."""
-
-        plotter = ManhattanPlotter(species="human", backend="bokeh")
-        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
 
 class TestPlotManhattanQQSideBySide:
@@ -428,20 +411,14 @@ class TestPlotManhattanQQSideBySide:
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
-    def test_plot_manhattan_qq_plotly_backend(self, manhattan_gwas_df):
-        """plot_manhattan_qq should work with plotly backend."""
-        import plotly.graph_objects as go
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_plot_manhattan_qq_on_every_backend(self, backend, manhattan_gwas_df):
+        """plot_manhattan_qq() returns each backend's figure type."""
+        plotter = ManhattanPlotter(species="human", backend=backend)
 
-        plotter = ManhattanPlotter(species="human", backend="plotly")
         fig = plotter.plot_manhattan_qq(manhattan_gwas_df)
-        assert isinstance(fig, go.Figure)
 
-    def test_plot_manhattan_qq_bokeh_backend(self, manhattan_gwas_df):
-        """plot_manhattan_qq should work with bokeh backend."""
-
-        plotter = ManhattanPlotter(species="human", backend="bokeh")
-        fig = plotter.plot_manhattan_qq(manhattan_gwas_df)
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
 
 class TestPlotManhattanQQStacked:
@@ -530,20 +507,14 @@ class TestPlotManhattanQQStacked:
         assert len(axes) == 6  # 3 GWAS * 2 plots each
         plt.close(fig)
 
-    def test_plot_manhattan_qq_stacked_plotly_backend(self, sample_gwas_dfs):
-        """plot_manhattan_qq_stacked should work with plotly backend."""
-        import plotly.graph_objects as go
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_plot_manhattan_qq_stacked_on_every_backend(self, backend, sample_gwas_dfs):
+        """plot_manhattan_qq_stacked() returns each backend's figure type."""
+        plotter = ManhattanPlotter(species="human", backend=backend)
 
-        plotter = ManhattanPlotter(species="human", backend="plotly")
         fig = plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)
-        assert isinstance(fig, go.Figure)
 
-    def test_plot_manhattan_qq_stacked_bokeh_backend(self, sample_gwas_dfs):
-        """plot_manhattan_qq_stacked should work with bokeh backend."""
-
-        plotter = ManhattanPlotter(species="human", backend="bokeh")
-        fig = plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
 
 class TestYlimClamp:

@@ -3,7 +3,9 @@
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.miami_plotter import MiamiPlotter
+from tests.conftest import FIGURE_TYPES
 
 
 class TestMiamiPlotter:
@@ -44,35 +46,15 @@ class TestMiamiPlotter:
         fig = miami_plotter.plot_miami(top_df, bottom_df)
         assert fig is not None
 
-    def test_matplotlib_backend(self, miami_panel_dfs):
-        """Test MiamiPlotter with matplotlib backend."""
-        from matplotlib.figure import Figure
-
-        plotter = MiamiPlotter(species="canine", backend="matplotlib")
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_returns_the_backends_figure_type(self, backend, miami_panel_dfs):
+        """Each backend returns its own figure type."""
+        plotter = MiamiPlotter(species="canine", backend=backend)
         top_df, bottom_df = miami_panel_dfs
+
         fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
-        assert isinstance(fig, Figure)
 
-    def test_plotly_backend(self, miami_panel_dfs):
-        """Test MiamiPlotter with plotly backend."""
-        import plotly.graph_objects as go
-
-        plotter = MiamiPlotter(species="canine", backend="plotly")
-        top_df, bottom_df = miami_panel_dfs
-        fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
-        assert isinstance(fig, go.Figure)
-
-    def test_bokeh_backend(self, miami_panel_dfs):
-        """Test MiamiPlotter with bokeh backend."""
-        from bokeh.models.layouts import LayoutDOM
-
-        plotter = MiamiPlotter(species="canine", backend="bokeh")
-        top_df, bottom_df = miami_panel_dfs
-        fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
-        assert isinstance(fig, LayoutDOM)
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
     def test_chromosome_colors_match(self, miami_plotter, miami_panel_dfs):
         """Test that same chromosome has same color in both panels.

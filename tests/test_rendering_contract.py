@@ -7,7 +7,7 @@ import pytest
 
 from pylocuszoom._miami_renderer import MiamiRenderer
 from pylocuszoom._rendering import ManhattanQQRenderer
-from pylocuszoom.backends import get_backend
+from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.manhattan import prepare_manhattan_data
 from pylocuszoom.qq import prepare_qq_data
 
@@ -176,7 +176,7 @@ def test_renderer_owns_qq_panel_policy(prepared_data):
     assert names[-1] == "finalize_layout"
 
 
-@pytest.mark.parametrize("backend_name", ["matplotlib", "plotly", "bokeh"])
+@pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
 def test_same_prepared_intent_renders_on_each_builtin_backend(
     backend_name, prepared_data
 ):

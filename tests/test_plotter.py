@@ -11,9 +11,11 @@ from hypothesis import given
 from hypothesis import settings as hyp_settings
 
 from pylocuszoom._data import prepare_pvalue_data
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.conftest import FIGURE_TYPES
 from tests.strategies import gwas_dataframes
 
 
@@ -1017,28 +1019,34 @@ class TestBackendEQTLFinemapping:
             }
         )
 
-    def test_matplotlib_eqtl_with_effects(self, small_regional_gwas_df, sample_eqtl_df):
-        """Matplotlib backend should handle eQTL panel with effect sizes."""
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE1",
-        )
-
-        assert fig is not None
-        plt.close(fig)
-
-    def test_matplotlib_eqtl_without_effects(
-        self, small_regional_gwas_df, sample_eqtl_df_no_effect
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    @pytest.mark.parametrize(
+        "eqtl_fixture,with_finemapping",
+        [
+            pytest.param("sample_eqtl_df", False, id="eqtl-with-effects"),
+            pytest.param("sample_eqtl_df_no_effect", False, id="eqtl-no-effects"),
+            pytest.param(None, True, id="finemapping"),
+            pytest.param("sample_eqtl_df", True, id="eqtl-and-finemapping"),
+        ],
+    )
+    def test_optional_panels_render_on_every_backend(
+        self,
+        request,
+        backend,
+        eqtl_fixture,
+        with_finemapping,
+        small_regional_gwas_df,
+        sample_finemapping_df,
     ):
-        """Matplotlib backend should handle eQTL panel without effect sizes."""
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        """Every backend renders the eQTL and fine-mapping panels."""
+        plotter = LocusZoomPlotter(species=None, backend=backend, log_level=None)
+
+        panels = {}
+        if eqtl_fixture is not None:
+            panels["eqtl_df"] = request.getfixturevalue(eqtl_fixture)
+            panels["eqtl_gene"] = "GENE1"
+        if with_finemapping:
+            panels["finemapping_df"] = sample_finemapping_df
 
         fig = plotter.plot_stacked(
             [small_regional_gwas_df],
@@ -1046,30 +1054,12 @@ class TestBackendEQTLFinemapping:
             start=1000000,
             end=2000000,
             show_recombination=False,
-            eqtl_df=sample_eqtl_df_no_effect,
-            eqtl_gene="GENE1",
+            **panels,
         )
 
         assert fig is not None
-        plt.close(fig)
-
-    def test_matplotlib_finemapping(
-        self, small_regional_gwas_df, sample_finemapping_df
-    ):
-        """Matplotlib backend should handle fine-mapping panel."""
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-        )
-
-        assert fig is not None
-        plt.close(fig)
+        if backend == "matplotlib":
+            plt.close(fig)
 
     def test_plot_accepts_eqtl_and_finemapping_panels(
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
@@ -1093,143 +1083,6 @@ class TestBackendEQTLFinemapping:
         assert axes[1].get_ylabel() == "PIP"
         assert "eQTL" in axes[2].get_ylabel()
         plt.close(fig)
-
-    def test_plotly_eqtl_with_effects(self, small_regional_gwas_df, sample_eqtl_df):
-        """Plotly backend should handle eQTL panel with effect sizes without error."""
-        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE1",
-        )
-
-        assert fig is not None
-        # Plotly figures are go.Figure objects
-
-    def test_plotly_eqtl_without_effects(
-        self, small_regional_gwas_df, sample_eqtl_df_no_effect
-    ):
-        """Plotly backend should handle eQTL panel without effect sizes."""
-        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df_no_effect,
-            eqtl_gene="GENE1",
-        )
-
-        assert fig is not None
-
-    def test_plotly_finemapping(self, small_regional_gwas_df, sample_finemapping_df):
-        """Plotly backend should handle fine-mapping panel without error."""
-        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-        )
-
-        assert fig is not None
-
-    def test_bokeh_eqtl_with_effects(self, small_regional_gwas_df, sample_eqtl_df):
-        """Bokeh backend should handle eQTL panel with effect sizes without error."""
-        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE1",
-        )
-
-        assert fig is not None
-
-    def test_bokeh_eqtl_without_effects(
-        self, small_regional_gwas_df, sample_eqtl_df_no_effect
-    ):
-        """Bokeh backend should handle eQTL panel without effect sizes."""
-        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df_no_effect,
-            eqtl_gene="GENE1",
-        )
-
-        assert fig is not None
-
-    def test_bokeh_finemapping(self, small_regional_gwas_df, sample_finemapping_df):
-        """Bokeh backend should handle fine-mapping panel without error."""
-        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            finemapping_df=sample_finemapping_df,
-        )
-
-        assert fig is not None
-
-    def test_plotly_combined_eqtl_finemapping(
-        self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
-    ):
-        """Plotly backend should handle both eQTL and fine-mapping panels together."""
-        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE1",
-            finemapping_df=sample_finemapping_df,
-        )
-
-        assert fig is not None
-
-    def test_bokeh_combined_eqtl_finemapping(
-        self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
-    ):
-        """Bokeh backend should handle both eQTL and fine-mapping panels together."""
-        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
-
-        fig = plotter.plot_stacked(
-            [small_regional_gwas_df],
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE1",
-            finemapping_df=sample_finemapping_df,
-        )
-
-        assert fig is not None
 
     def test_eqtl_chr_filtering(self, small_regional_gwas_df):
         """Test that eQTL panel filters by chromosome, not just position."""
@@ -1465,65 +1318,24 @@ def test_plotter_uses_ensure_recomb_maps():
 class TestPlotterProperties:
     """Property-based tests for plotter crash-resistance."""
 
-    @hyp_settings(max_examples=15, deadline=None)
-    @given(gwas_dataframes(min_snps=3, max_snps=50))
-    def test_plot_renders_valid_data_matplotlib(self, df):
-        """plot() should render any valid GWAS data without crashing (matplotlib)."""
-        plotter = LocusZoomPlotter(species="canine")
-        chrom = df["chr"].iloc[0]
-        start = int(df["ps"].min())
-        end = int(df["ps"].max())
-
-        fig = plotter.plot(
-            df,
-            chrom=chrom,
-            start=start,
-            end=end,
-            show_recombination=False,
-        )
-
-        assert fig is not None
-        plt.close(fig)
-
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
     @hyp_settings(max_examples=10, deadline=None)
     @given(gwas_dataframes(min_snps=3, max_snps=30))
-    def test_plot_renders_valid_data_plotly(self, df):
-        """plot() should render any valid GWAS data without crashing (plotly)."""
-        import plotly.graph_objects as go
-
-        plotter = LocusZoomPlotter(species="canine", backend="plotly")
-        chrom = df["chr"].iloc[0]
-        start = int(df["ps"].min())
-        end = int(df["ps"].max())
+    def test_plot_renders_valid_data(self, backend, df):
+        """plot() renders any valid GWAS data on any backend without crashing."""
+        plotter = LocusZoomPlotter(species="canine", backend=backend)
 
         fig = plotter.plot(
             df,
-            chrom=chrom,
-            start=start,
-            end=end,
+            chrom=df["chr"].iloc[0],
+            start=int(df["ps"].min()),
+            end=int(df["ps"].max()),
             show_recombination=False,
         )
 
-        assert isinstance(fig, go.Figure)
-
-    @hyp_settings(max_examples=10, deadline=None)
-    @given(gwas_dataframes(min_snps=3, max_snps=30))
-    def test_plot_renders_valid_data_bokeh(self, df):
-        """plot() should render any valid GWAS data without crashing (bokeh)."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh")
-        chrom = df["chr"].iloc[0]
-        start = int(df["ps"].min())
-        end = int(df["ps"].max())
-
-        fig = plotter.plot(
-            df,
-            chrom=chrom,
-            start=start,
-            end=end,
-            show_recombination=False,
-        )
-
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
+        if backend == "matplotlib":
+            plt.close(fig)
 
 
 class TestPlotStackedProperties:

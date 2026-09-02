@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.ld_heatmap_plotter import LDHeatmapPlotter
+from tests.conftest import FIGURE_TYPES
 
 
 @pytest.fixture
@@ -220,49 +222,20 @@ class TestPlotLDHeatmap:
 class TestLDHeatmapBackends:
     """Tests for LDHeatmapPlotter with different backends."""
 
-    def test_matplotlib_returns_figure(self, small_ld_matrix):
-        """Test that matplotlib backend returns matplotlib Figure."""
-        from matplotlib.figure import Figure
-
-        plotter = LDHeatmapPlotter(backend="matplotlib")
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_returns_the_backends_figure_type(self, backend, small_ld_matrix):
+        """Each backend returns its own figure type."""
+        plotter = LDHeatmapPlotter(backend=backend)
         fig = plotter.plot_ld_heatmap(small_ld_matrix)
 
-        assert isinstance(fig, Figure)
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
-    def test_plotly_returns_figure(self, small_ld_matrix):
-        """Test that plotly backend returns plotly Figure."""
-        import plotly.graph_objects as go
-
-        plotter = LDHeatmapPlotter(backend="plotly")
-        fig = plotter.plot_ld_heatmap(small_ld_matrix)
-
-        assert isinstance(fig, go.Figure)
-
-    def test_bokeh_returns_figure(self, small_ld_matrix):
-        """Test that bokeh backend returns bokeh layout."""
-        from bokeh.models.layouts import LayoutDOM
-
-        plotter = LDHeatmapPlotter(backend="bokeh")
-        fig = plotter.plot_ld_heatmap(small_ld_matrix)
-
-        assert isinstance(fig, LayoutDOM)
-
-    def test_matplotlib_handles_nan_values(self, matrix_with_nan):
-        """Test that matplotlib backend handles NaN values."""
-        plotter = LDHeatmapPlotter(backend="matplotlib")
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_handles_nan_values(self, backend, matrix_with_nan):
+        """Each backend renders a matrix containing NaN."""
+        plotter = LDHeatmapPlotter(backend=backend)
         fig = plotter.plot_ld_heatmap(matrix_with_nan)
-        assert fig is not None
 
-    def test_plotly_handles_nan_values(self, matrix_with_nan):
-        """Test that plotly backend handles NaN values."""
-        plotter = LDHeatmapPlotter(backend="plotly")
-        fig = plotter.plot_ld_heatmap(matrix_with_nan)
-        assert fig is not None
-
-    def test_bokeh_handles_nan_values(self, matrix_with_nan):
-        """Test that bokeh backend handles NaN values."""
-        plotter = LDHeatmapPlotter(backend="bokeh")
-        fig = plotter.plot_ld_heatmap(matrix_with_nan)
         assert fig is not None
 
 

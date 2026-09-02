@@ -15,7 +15,7 @@ Error Behavior:
     get_backend() raises ImportError with installation instructions.
 """
 
-from typing import Literal
+from typing import Literal, get_args
 
 from .base import (
     PlotBackend,
@@ -27,6 +27,9 @@ from .base import (
 )
 
 BackendType = Literal["matplotlib", "plotly", "bokeh"]
+
+BUILTIN_BACKENDS: tuple[str, ...] = get_args(BackendType)
+"""Every backend name shipped with pyLocusZoom, in registration order."""
 
 # LaTeX to Unicode conversion table for interactive backends
 _LATEX_TO_UNICODE = [
@@ -141,6 +144,7 @@ __all__ = [
     "SupportsSNPLabels",
     "SupportsSecondaryAxis",
     "BackendType",
+    "BUILTIN_BACKENDS",
     "get_backend",
     "register_backend",
     "MatplotlibBackend",

@@ -21,6 +21,22 @@ import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
 
+def _figure_types() -> dict[str, type]:
+    """Map each built-in backend to the figure type its plotters return."""
+    import bokeh.models
+    import matplotlib.figure
+    import plotly.graph_objects
+
+    return {
+        "matplotlib": matplotlib.figure.Figure,
+        "plotly": plotly.graph_objects.Figure,
+        "bokeh": bokeh.models.LayoutDOM,
+    }
+
+
+FIGURE_TYPES = _figure_types()
+
+
 @pytest.fixture
 def sample_gwas_df():
     """Sample GWAS results DataFrame for testing."""

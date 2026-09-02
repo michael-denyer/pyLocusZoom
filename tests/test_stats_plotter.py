@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.stats_plotter import StatsPlotter
 
 
@@ -239,14 +240,10 @@ class TestStatsPlotterInit:
         plotter = StatsPlotter(genomewide_threshold=1e-5)
         assert plotter.genomewide_threshold == 1e-5
 
-    def test_plotly_backend(self):
-        """StatsPlotter should work with plotly backend."""
-        plotter = StatsPlotter(backend="plotly")
-        assert plotter._backend is not None
-
-    def test_bokeh_backend(self):
-        """StatsPlotter should work with bokeh backend."""
-        plotter = StatsPlotter(backend="bokeh")
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_accepts_every_builtin_backend(self, backend):
+        """StatsPlotter constructs against any built-in backend."""
+        plotter = StatsPlotter(backend=backend)
         assert plotter._backend is not None
 
 

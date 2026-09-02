@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.composition import lower_triangle
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
@@ -21,134 +22,40 @@ from pylocuszoom.plotter import LocusZoomPlotter
 class TestBackendForestPlotMethods:
     """Tests for forest plot backend methods (hbar, errorbar_h, axvline)."""
 
-    def test_hbar_matplotlib(self):
-        """Test horizontal bar chart in matplotlib backend."""
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+    @staticmethod
+    def _draw_hbar(backend, ax):
+        backend.hbar(
+            ax,
+            y=pd.Series([0, 1, 2]),
+            width=pd.Series([0.5, 0.8, 0.3]),
+            height=0.5,
+            color="blue",
         )
-        ax = axes[0]
 
-        y = pd.Series([0, 1, 2])
-        width = pd.Series([0.5, 0.8, 0.3])
-
-        backend.hbar(ax, y=y, width=width, height=0.5, color="blue")
-        # Should not raise
-
-    def test_errorbar_h_matplotlib(self):
-        """Test horizontal error bar in matplotlib backend."""
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
+    @staticmethod
+    def _draw_errorbar_h(backend, ax):
+        backend.errorbar_h(
+            ax,
+            x=pd.Series([0.5, 0.8, 0.3]),
+            y=pd.Series([0, 1, 2]),
+            xerr_lower=pd.Series([0.1, 0.2, 0.1]),
+            xerr_upper=pd.Series([0.1, 0.1, 0.2]),
         )
-        ax = axes[0]
 
-        x = pd.Series([0.5, 0.8, 0.3])
-        y = pd.Series([0, 1, 2])
-        xerr_lower = pd.Series([0.1, 0.2, 0.1])
-        xerr_upper = pd.Series([0.1, 0.1, 0.2])
-
-        backend.errorbar_h(ax, x=x, y=y, xerr_lower=xerr_lower, xerr_upper=xerr_upper)
-        # Should not raise
-
-    def test_axvline_matplotlib(self):
-        """Test vertical line in matplotlib backend."""
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
+    @staticmethod
+    def _draw_axvline(backend, ax):
         backend.axvline(ax, x=0.5, color="red", linestyle="--")
-        # Should not raise
 
-    def test_axvline_plotly(self):
-        """Test vertical line in plotly backend."""
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    @pytest.mark.parametrize(
+        "primitive", ["_draw_hbar", "_draw_errorbar_h", "_draw_axvline"]
+    )
+    def test_forest_primitive_does_not_raise(self, backend_name, primitive):
+        """Every backend accepts the three primitives a forest plot draws."""
+        backend = get_backend(backend_name)
+        _, axes = backend.create_figure(n_panels=1, height_ratios=[1.0], figsize=(8, 4))
 
-        backend.axvline(ax, x=0.5, color="red", linestyle="--")
-        # Should not raise
-
-    def test_axvline_bokeh(self):
-        """Test vertical line in bokeh backend."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        backend.axvline(ax, x=0.5, color="red", linestyle="--")
-        # Should not raise
-
-    def test_hbar_plotly(self):
-        """Test horizontal bar in plotly backend."""
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        y = pd.Series([0, 1, 2])
-        width = pd.Series([0.5, 0.8, 0.3])
-
-        backend.hbar(ax, y=y, width=width, height=0.5, color="blue")
-        # Should not raise
-
-    def test_errorbar_h_plotly(self):
-        """Test horizontal error bar in plotly backend."""
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        x = pd.Series([0.5, 0.8, 0.3])
-        y = pd.Series([0, 1, 2])
-        xerr_lower = pd.Series([0.1, 0.2, 0.1])
-        xerr_upper = pd.Series([0.1, 0.1, 0.2])
-
-        backend.errorbar_h(ax, x=x, y=y, xerr_lower=xerr_lower, xerr_upper=xerr_upper)
-        # Should not raise
-
-    def test_hbar_bokeh(self):
-        """Test horizontal bar in bokeh backend."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        y = pd.Series([0, 1, 2])
-        width = pd.Series([0.5, 0.8, 0.3])
-
-        backend.hbar(ax, y=y, width=width, height=0.5, color="blue")
-        # Should not raise
-
-    def test_errorbar_h_bokeh(self):
-        """Test horizontal error bar in bokeh backend."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        x = pd.Series([0.5, 0.8, 0.3])
-        y = pd.Series([0, 1, 2])
-        xerr_lower = pd.Series([0.1, 0.2, 0.1])
-        xerr_upper = pd.Series([0.1, 0.1, 0.2])
-
-        backend.errorbar_h(ax, x=x, y=y, xerr_lower=xerr_lower, xerr_upper=xerr_upper)
-        # Should not raise
+        getattr(self, primitive)(backend, axes[0])
 
 
 class TestPlotlyNotebookCompatibility:
@@ -416,7 +323,7 @@ class TestBackendConsistency:
 
     def test_all_backends_return_figure(self, regional_gwas_df):
         """All backends should return a figure object."""
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
@@ -435,7 +342,7 @@ class TestBackendConsistency:
 
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
 
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
@@ -450,7 +357,7 @@ class TestBackendConsistency:
 
     def test_all_backends_handle_lead_position(self, regional_gwas_df):
         """All backends should handle lead_pos parameter."""
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
@@ -469,7 +376,7 @@ class TestBackendConsistency:
         df = regional_gwas_df.copy()
         df["R2"] = np.random.default_rng(0).uniform(0, 1, len(df))
 
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             plotter = LocusZoomPlotter(
                 species="canine", backend=backend_name, log_level=None
             )
@@ -912,7 +819,6 @@ class TestPlotlySecondaryAxisNaming:
         Regression test: create_twin_axis used offset of 10, which collides
         with primary yaxis10+ when figures have 10+ subplots.
         """
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
 
@@ -932,7 +838,6 @@ class TestPlotlySecondaryAxisNaming:
 
     def test_plotly_secondary_axes_unique_across_subplots(self):
         """Each subplot's secondary axis should have a unique name."""
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
         fig, axes = backend.create_figure(5, [1.0] * 5, (12, 10))
@@ -952,7 +857,6 @@ class TestHeatmapCoordinates:
 
     def test_plotly_heatmap_uses_actual_coords(self):
         """Plotly heatmap should use passed x/y coords, not range(len(coords))."""
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
 
         backend = PlotlyBackend()
         fig, axes = backend.create_figure(1, [1.0], (10, 6))

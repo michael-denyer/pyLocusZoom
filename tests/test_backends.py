@@ -2,6 +2,8 @@
 
 import pytest
 
+from pylocuszoom.backends import BUILTIN_BACKENDS
+
 
 class TestRegisterBackend:
     """Tests for the @register_backend decorator."""
@@ -385,7 +387,7 @@ class TestBackendTypeLiteral:
         from pylocuszoom.backends import get_backend
 
         # These should all work without type errors at runtime
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             # Type checkers would verify BackendType compatibility
             backend = get_backend(backend_name)
             assert backend is not None
@@ -548,7 +550,7 @@ class TestHeatmapMethods:
         """All backends should have add_heatmap and add_colorbar methods."""
         from pylocuszoom.backends import get_backend
 
-        for backend_name in ["matplotlib", "plotly", "bokeh"]:
+        for backend_name in BUILTIN_BACKENDS:
             backend = get_backend(backend_name)
             assert hasattr(backend, "add_heatmap"), (
                 f"{backend_name} missing add_heatmap"
@@ -645,7 +647,7 @@ class TestCustomBackendCompatibility:
         assert not isinstance(MinimalBackend(), SupportsBarCharts)
         assert isinstance(BarBackend(), SupportsBarCharts)
 
-    @pytest.mark.parametrize("backend_name", ["matplotlib", "plotly", "bokeh"])
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
     def test_bundled_backends_declare_every_optional_capability(self, backend_name):
         """The three shipped backends opt into heatmaps and bar charts."""
         from pylocuszoom.backends import (
