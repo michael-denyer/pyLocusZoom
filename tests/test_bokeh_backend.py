@@ -174,62 +174,6 @@ class TestCreateColorPalette:
         assert palette[-1] == "#ff0000"
 
 
-class TestHighlightHeatmapSnpBatched:
-    """Medium #5: highlight_heatmap_snp should use batched renderers."""
-
-    def test_highlight_creates_two_renderers(self):
-        """Should create exactly 2 renderers (row batch + column batch), not O(n)."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        initial_renderer_count = len(ax.renderers)
-        backend.highlight_heatmap_snp(ax, layout, snp_idx=5, n_snps=20)
-
-        new_renderers = len(ax.renderers) - initial_renderer_count
-        # Should be at most 2 renderers (one for row, one for column), not 20
-        assert new_renderers <= 2, (
-            f"Expected at most 2 batched renderers, got {new_renderers}. "
-            "Each highlight cell should not create a separate renderer."
-        )
-
-    def test_highlight_still_correct(self):
-        """Batched highlight should still highlight the correct cells."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(8, 4)
-        )
-        ax = axes[0]
-
-        initial_renderer_count = len(ax.renderers)
-        backend.highlight_heatmap_snp(ax, layout, snp_idx=1, n_snps=3)
-
-        # snp_idx=1, n_snps=3:
-        # Row highlights: cells (j=0,i=1) and (j=1,i=1) — 2 cells
-        # Column highlights: cells (j=1,i=2) — 1 cell
-        # Total: 3 highlighted cells
-        new_renderers = ax.renderers[initial_renderer_count:]
-
-        # Collect all highlight cell coordinates from new renderers
-        all_xs = []
-        all_ys = []
-        for r in new_renderers:
-            if hasattr(r, "data_source"):
-                data = r.data_source.data
-                # Bokeh rect uses 'x' and 'y' keys for center coordinates
-                if "x" in data:
-                    all_xs.extend(data["x"])
-                    all_ys.extend(data["y"])
-
-        assert len(all_xs) == 3, f"Expected 3 highlight cells, got {len(all_xs)}"
-        # Row cells: (0,1) and (1,1); Column cell: (1,2)
-        expected = {(0, 1), (1, 1), (1, 2)}
-        actual = {(int(x), int(y)) for x, y in zip(all_xs, all_ys)}
-        assert actual == expected, f"Expected cells {expected}, got {actual}"
-
-
 class TestAddColorbarNoIdentityMap:
     """Low #6: add_colorbar should not use identity orientation_map."""
 

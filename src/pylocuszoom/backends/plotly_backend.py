@@ -17,7 +17,7 @@ from ._coerce import (
     normalize_ratios,
     pixels,
 )
-from .composition import LegendEntry, heatmap_highlight_cells, mb_tick_positions
+from .composition import LegendEntry, mb_tick_positions
 from .hover import plotly_hovertemplate
 from .plotly_layout import (
     _Panel,
@@ -334,7 +334,7 @@ class PlotlyBackend:
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -352,7 +352,7 @@ class PlotlyBackend:
             y0=y0,
             x1=x1,
             y1=y1,
-            fillcolor=facecolor,
+            fillcolor=facecolor or "rgba(0,0,0,0)",
             line=dict(color=edgecolor, width=linewidth),
             row=row,
             col=col,
@@ -908,27 +908,6 @@ class PlotlyBackend:
                 line_width=0,
                 row=row,
                 col=1,
-            )
-
-    def highlight_heatmap_snp(
-        self,
-        ax: Tuple[go.Figure, int],
-        fig: go.Figure,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in the heatmap."""
-        for x, y in heatmap_highlight_cells(snp_idx, n_snps):
-            fig.add_shape(
-                type="rect",
-                x0=x - 0.5,
-                x1=x + 0.5,
-                y0=y - 0.5,
-                y1=y + 0.5,
-                line=dict(color=color, width=linewidth),
-                fillcolor="rgba(0,0,0,0)",
             )
 
     def add_heatmap(

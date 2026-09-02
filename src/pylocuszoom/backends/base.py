@@ -162,33 +162,6 @@ class SupportsHeatmap(Protocol):
         """
         ...
 
-    def highlight_heatmap_snp(
-        self,
-        ax: Any,
-        fig: Any,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in a heatmap.
-
-        Draws unfilled rectangles around the cells that
-        ``composition.heatmap_highlight_cells`` selects, to mark the lead SNP.
-
-        Args:
-            ax: Axes/figure object.
-            fig: Figure object (used by plotly for shapes).
-            snp_idx: Index of SNP to highlight (0-indexed, must be < n_snps).
-            n_snps: Total number of SNPs in matrix (must be > 0).
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
-
-        Raises:
-            ValueError: If snp_idx is out of bounds or n_snps < 1.
-        """
-        ...
-
 
 @runtime_checkable
 class SupportsBarCharts(Protocol):
@@ -563,7 +536,7 @@ class PlotBackend(Protocol):
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -575,7 +548,7 @@ class PlotBackend(Protocol):
             xy: Bottom-left corner coordinates.
             width: Rectangle width.
             height: Rectangle height.
-            facecolor: Fill color.
+            facecolor: Fill color, or None for an outline with no fill.
             edgecolor: Edge color.
             linewidth: Edge width.
             zorder: Drawing order.

@@ -144,7 +144,7 @@ class TestRecombinationOverlay:
 
 
 class TestHeatmapHighlightCells:
-    """The cell geometry every backend's highlight_heatmap_snp draws."""
+    """The cell walk behind the lead-SNP outline."""
 
     def test_lead_snp_covers_row_left_of_diagonal_then_column_below(self):
         from pylocuszoom.backends.composition import heatmap_highlight_cells
@@ -183,3 +183,53 @@ class TestHeatmapHighlightCells:
 
         with pytest.raises(ValueError, match="Invalid snp_idx"):
             heatmap_highlight_cells(snp_idx, n_snps)
+
+
+class TestHeatmapHighlightRects:
+    """Outline geometry in the same coordinates the heatmap was drawn in."""
+
+    def test_cell_edges_sit_at_midpoints_between_neighbours(self):
+        from pylocuszoom.backends.composition import cell_edges
+
+        assert cell_edges([0.0, 1.0, 2.0]) == [(-0.5, 0.5), (0.5, 1.5), (1.5, 2.5)]
+
+    def test_cell_edges_of_uneven_spacing_mirror_the_outer_gaps(self):
+        from pylocuszoom.backends.composition import cell_edges
+
+        assert cell_edges([0.0, 10.0, 12.0]) == [
+            (-5.0, 5.0),
+            (5.0, 11.0),
+            (11.0, 13.0),
+        ]
+
+    def test_single_cell_spans_one_unit(self):
+        from pylocuszoom.backends.composition import cell_edges
+
+        assert cell_edges([7.0]) == [(6.5, 7.5)]
+
+    def test_index_coordinates_give_unit_cells(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_rects
+
+        coords = [0, 1, 2]
+
+        assert heatmap_highlight_rects(2, coords, coords) == [
+            (-0.5, 1.5, 1.0, 1.0),
+            (0.5, 1.5, 1.0, 1.0),
+            (1.5, 1.5, 1.0, 1.0),
+        ]
+
+    def test_genomic_x_coordinates_size_cells_by_spacing(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_rects
+
+        rects = heatmap_highlight_rects(0, [1_000_000, 1_000_500], [0, 1])
+
+        assert [(x, width) for x, _, width, _ in rects] == [
+            (999_750.0, 500.0),
+            (999_750.0, 500.0),
+        ]
+
+    def test_out_of_bounds_raises(self):
+        from pylocuszoom.backends.composition import heatmap_highlight_rects
+
+        with pytest.raises(ValueError, match="Invalid snp_idx"):
+            heatmap_highlight_rects(3, [0, 1, 2], [0, 1, 2])

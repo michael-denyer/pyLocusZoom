@@ -13,7 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
-from .composition import LegendEntry, heatmap_highlight_cells
+from .composition import LegendEntry
 
 
 @register_backend("matplotlib")
@@ -254,7 +254,7 @@ class MatplotlibBackend:
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -264,6 +264,7 @@ class MatplotlibBackend:
             xy,
             width,
             height,
+            fill=facecolor is not None,
             facecolor=facecolor,
             edgecolor=edgecolor,
             linewidth=linewidth,
@@ -557,29 +558,6 @@ class MatplotlibBackend:
         """Highlight an x-range across multiple matplotlib axes."""
         for ax in axes:
             ax.axvspan(x_start, x_end, color=color, alpha=alpha, zorder=0)
-
-    def highlight_heatmap_snp(
-        self,
-        ax: Axes,
-        fig: Figure,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in the heatmap."""
-        for x, y in heatmap_highlight_cells(snp_idx, n_snps):
-            ax.add_patch(
-                Rectangle(
-                    (x - 0.5, y - 0.5),
-                    1.0,
-                    1.0,
-                    fill=False,
-                    edgecolor=color,
-                    linewidth=linewidth,
-                    zorder=10,
-                )
-            )
 
     def add_heatmap(
         self,

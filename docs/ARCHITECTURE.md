@@ -332,12 +332,12 @@ Two more clusters left `PlotBackend` in 2.1, following the same rule
 
 | Protocol | Methods | Used by |
 |----------|---------|---------|
-| `SupportsHeatmap` | `add_heatmap`, `add_colorbar`, `highlight_heatmap_snp` | LD heatmaps (standalone and the regional heatmap panel) |
+| `SupportsHeatmap` | `add_heatmap`, `add_colorbar` | LD heatmaps (standalone and the regional heatmap panel) |
 | `SupportsBarCharts` | `hbar`, `errorbar_h` | Forest plots |
 
-Signatures are unchanged, so a 2.0 backend that implements all five of those
+Signatures are unchanged, so a 2.0 backend that implements all four of those
 methods needs no edits: it satisfies both new protocols structurally. A backend
-that implements none of the five optional protocols still renders every
+that implements none of the optional protocols still renders every
 regional, Manhattan, Miami, colocalisation, and PheWAS plot.
 
 How a caller reacts to a missing capability depends on what is left without it.
@@ -347,8 +347,9 @@ because the rest of the regional figure still renders. `LDHeatmapRenderer` and
 missing protocol, because there the capability is the whole figure.
 
 Two pieces of shared drawing knowledge sit above the seam rather than in each
-adapter. `composition.heatmap_highlight_cells(snp_idx, n_snps)` returns the
-matrix cells a SNP highlight covers, so a backend implementing
-`highlight_heatmap_snp` supplies only the drawing call. `hover.plotly_hovertemplate`
+adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`
+returns the outline rectangles marking a SNP, in the same data coordinates the
+heatmap was drawn in, and the renderer draws them through `add_rectangle`, so no
+adapter derives cell geometry. `hover.plotly_hovertemplate`
 and `hover.bokeh_tooltips` build the tooltip spec from a hover DataFrame, so the
 column-name-to-number-format heuristic has one owner.

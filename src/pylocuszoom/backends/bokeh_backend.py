@@ -39,7 +39,7 @@ from ._coerce import (
     pixels,
     split_pixels,
 )
-from .composition import LegendEntry, heatmap_highlight_cells
+from .composition import LegendEntry
 from .hover import bokeh_tooltips
 
 # Style mappings (matplotlib -> Bokeh)
@@ -333,7 +333,7 @@ class BokehBackend:
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -789,35 +789,6 @@ class BokehBackend:
                     fill_alpha=alpha,
                 )
             )
-
-    def highlight_heatmap_snp(
-        self,
-        ax: figure,
-        fig: Any,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in the heatmap.
-
-        Uses batched rect() calls for efficiency instead of one renderer
-        per cell.
-        """
-        cells = heatmap_highlight_cells(snp_idx, n_snps)
-        source = ColumnDataSource(
-            data={"x": [x for x, _ in cells], "y": [y for _, y in cells]}
-        )
-        ax.rect(
-            x="x",
-            y="y",
-            width=1,
-            height=1,
-            fill_alpha=0,
-            line_color=color,
-            line_width=linewidth,
-            source=source,
-        )
 
     def add_heatmap(
         self,

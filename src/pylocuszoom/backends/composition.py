@@ -7,8 +7,8 @@ owned once instead of duplicated in every adapter.
 
 The same rule applies to any geometry a backend would otherwise recompute:
 ``render_recombination_overlay`` drives the secondary-axis primitives, and
-``heatmap_highlight_cells`` decides which matrix cells a SNP highlight covers,
-leaving each adapter to draw them.
+``heatmap_highlight_rects`` decides where a SNP highlight is drawn, leaving
+each adapter to draw plain rectangles.
 """
 
 import math
@@ -218,3 +218,52 @@ def heatmap_highlight_cells(snp_idx: int, n_snps: int) -> List[Tuple[int, int]]:
     cells = [(j, snp_idx) for j in range(snp_idx + 1)]
     cells.extend((snp_idx, i) for i in range(snp_idx + 1, n_snps))
     return cells
+
+
+def cell_edges(coords: Sequence[float]) -> List[Tuple[float, float]]:
+    """Left and right boundary of each heatmap cell, at midpoints between centres.
+
+    A heatmap places one cell per coordinate, so a cell reaches halfway to each
+    neighbour. The outer cells mirror the gap on their populated side. Owning
+    this above the seam keeps cell geometry identical whether the coordinates
+    are matrix indices or genomic positions.
+
+    Args:
+        coords: Cell centres along one axis, in ascending order.
+
+    Returns:
+        One ``(low, high)`` boundary pair per coordinate.
+    """
+    if len(coords) == 1:
+        return [(coords[0] - 0.5, coords[0] + 0.5)]
+    mids = [(a + b) / 2 for a, b in zip(coords, coords[1:])]
+    first = coords[0] - (mids[0] - coords[0])
+    last = coords[-1] + (coords[-1] - mids[-1])
+    bounds = [first, *mids, last]
+    return list(zip(bounds, bounds[1:]))
+
+
+def heatmap_highlight_rects(
+    snp_idx: int, x_coords: Sequence[float], y_coords: Sequence[float]
+) -> List[Tuple[float, float, float, float]]:
+    """Outline rectangles marking one SNP in a lower-triangular LD heatmap.
+
+    Args:
+        snp_idx: Index of the SNP to highlight (0-indexed, must be < n_snps).
+        x_coords: Cell centres along the x-axis, one per SNP.
+        y_coords: Cell centres along the y-axis, one per SNP.
+
+    Returns:
+        One ``(x, y, width, height)`` rectangle per highlighted cell, in the
+        same data coordinates the heatmap was drawn in.
+
+    Raises:
+        ValueError: If snp_idx is out of bounds or x_coords is empty.
+    """
+    cells = heatmap_highlight_cells(snp_idx, len(x_coords))
+    x_edges, y_edges = cell_edges(x_coords), cell_edges(y_coords)
+    rects = []
+    for x, y in cells:
+        (x0, x1), (y0, y1) = x_edges[x], y_edges[y]
+        rects.append((x0, y0, x1 - x0, y1 - y0))
+    return rects

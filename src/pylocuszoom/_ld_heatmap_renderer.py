@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from .backends.base import PlotBackend, SupportsHeatmap
-from .backends.composition import lower_triangle
+from .backends.composition import heatmap_highlight_rects, lower_triangle
 from .colors import (
     LD_HEATMAP_COLORS,
     LEAD_SNP_HIGHLIGHT_COLOR,
@@ -26,7 +26,7 @@ class LDHeatmapRenderer:
             raise TypeError(
                 f"{type(backend).__name__} does not support heatmaps. "
                 "An LD heatmap needs a backend implementing SupportsHeatmap "
-                "(add_heatmap, add_colorbar, highlight_heatmap_snp)."
+                "(add_heatmap, add_colorbar)."
             )
         self._backend = backend
 
@@ -61,9 +61,9 @@ class LDHeatmapRenderer:
                 ax, mappable, label="R²" if metric == "r2" else "D'"
             )
         if lead_idx is not None:
-            self._highlight(ax, fig, lead_idx, n_snps, LEAD_SNP_HIGHLIGHT_COLOR)
+            self._highlight(ax, lead_idx, n_snps, LEAD_SNP_HIGHLIGHT_COLOR)
         for idx in highlight_indices:
-            self._highlight(ax, fig, idx, n_snps, SECONDARY_HIGHLIGHT_COLOR)
+            self._highlight(ax, idx, n_snps, SECONDARY_HIGHLIGHT_COLOR)
         ticks = list(range(n_snps))
         self._backend.set_xticks(ax, ticks, snp_ids, rotation=90)
         self._backend.set_yticks(ax, ticks, snp_ids)
@@ -72,7 +72,16 @@ class LDHeatmapRenderer:
         self._backend.finalize_layout(fig)
         return fig
 
-    def _highlight(self, ax: Any, fig: Any, idx: int, n_snps: int, color: str) -> None:
-        self._backend.highlight_heatmap_snp(
-            ax, fig, idx, n_snps, color=color, linewidth=2
-        )
+    def _highlight(self, ax: Any, idx: int, n_snps: int, color: str) -> None:
+        coords = list(range(n_snps))
+        for x0, y0, width, height in heatmap_highlight_rects(idx, coords, coords):
+            self._backend.add_rectangle(
+                ax,
+                (x0, y0),
+                width,
+                height,
+                facecolor=None,
+                edgecolor=color,
+                linewidth=2,
+                zorder=10,
+            )

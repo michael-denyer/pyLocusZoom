@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The lead-SNP outline on a regional LD heatmap is drawn in genomic coordinates.** `highlight_heatmap_snp` received only a SNP index and a SNP count, so every adapter outlined unit cells at matrix indices while the regional heatmap panel is drawn at base-pair positions. The outline landed between x = -0.5 and x = 2.5 on an axis spanning the whole region, and on Plotly the shapes carried no axis reference, which bound them to the first subplot. Both renderers now compute the rectangles with `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)` and draw them through `add_rectangle`, which targets the panel it is given. Standalone LD heatmaps are unaffected: their coordinates are matrix indices, so the geometry is what it was.
+
+### Changed
+
+- **`SupportsHeatmap` drops `highlight_heatmap_snp` (breaking for custom backends).** The protocol is now `add_heatmap` and `add_colorbar`. Split cell geometry caused the defect above: `add_heatmap` knew the coordinates and `highlight_heatmap_snp` did not, so three adapters each invented a third rule. A custom backend can delete the method; `runtime_checkable` protocols check names, so one that keeps it still satisfies `SupportsHeatmap`.
+- **`add_rectangle` accepts `facecolor=None` for an outline with no fill.** Matplotlib draws it with `fill=False`, Plotly with a transparent `fillcolor`, Bokeh with `fill_color=None`.
+
 ## [3.0.0] - 2026-09-02
 
 ### Added

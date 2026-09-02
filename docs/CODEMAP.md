@@ -370,7 +370,6 @@ classDiagram
         <<Protocol>>
         +add_heatmap()
         +add_colorbar()
-        +highlight_heatmap_snp()
     }
     class SupportsBarCharts {
         <<Protocol>>
@@ -382,7 +381,7 @@ classDiagram
         +LegendEntry
         +ld_legend_entries()
         +render_recombination_overlay()
-        +heatmap_highlight_cells()
+        +heatmap_highlight_rects()
     }
     class hover {
         <<module>>

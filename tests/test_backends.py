@@ -627,8 +627,6 @@ class TestCustomBackendCompatibility:
 
             def add_colorbar(self, *args, **kwargs): ...
 
-            def highlight_heatmap_snp(self, *args, **kwargs): ...
-
         assert not isinstance(MinimalBackend(), SupportsHeatmap)
         assert isinstance(HeatmapBackend(), SupportsHeatmap)
 

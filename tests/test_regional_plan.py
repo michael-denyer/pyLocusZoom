@@ -201,7 +201,7 @@ def test_heatmap_panel_renders_on_a_capable_backend():
     names = _names(_render(panel, FullCapabilityBackend()))
 
     assert names.count("add_heatmap") == 1
-    assert names.count("highlight_heatmap_snp") == 1
+    assert names.count("add_rectangle") == 3
 
 
 def test_render_panel_rejects_unknown_panel_types():
