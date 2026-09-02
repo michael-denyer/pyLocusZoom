@@ -12,7 +12,7 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import pandas as pd
 
@@ -23,6 +23,24 @@ from .logging import logger
 def _log_rmtree_error(func, path, exc_info):
     """Log shutil.rmtree cleanup failures instead of silently ignoring them."""
     logger.debug(f"Failed to clean up temp file {path}: {exc_info[1]}")
+
+
+LDMetric = Literal["r2", "dprime"]
+
+_METRIC_FLAGS: dict[str, tuple[str, ...]] = {
+    "r2": ("--r2", "square"),
+    "dprime": ("--r", "dprime", "square"),
+}
+
+
+def _metric_flags(metric: str) -> tuple[str, ...]:
+    """Return the PLINK flags for an LD metric, rejecting any other spelling."""
+    try:
+        return _METRIC_FLAGS[metric]
+    except KeyError:
+        raise ValidationError(
+            f"Unknown LD metric {metric!r}; expected one of {sorted(_METRIC_FLAGS)}"
+        ) from None
 
 
 def _add_species_flags(cmd: list[str], species: str | None) -> None:
@@ -47,7 +65,7 @@ def build_pairwise_ld_command(
     start: Optional[int] = None,
     end: Optional[int] = None,
     species: Optional[str] = "canine",
-    metric: str = "r2",
+    metric: LDMetric = "r2",
 ) -> list:
     """Build PLINK command for pairwise LD matrix computation.
 
@@ -75,11 +93,7 @@ def build_pairwise_ld_command(
     cmd.extend(["--bfile", bfile_path])
     cmd.extend(["--out", output_path])
 
-    # LD metric and square matrix flag
-    if metric == "dprime":
-        cmd.extend(["--r", "dprime", "square"])
-    else:
-        cmd.extend(["--r2", "square"])
+    cmd.extend(_metric_flags(metric))
 
     # Track SNP order in output
     cmd.append("--write-snplist")
@@ -450,7 +464,7 @@ def calculate_pairwise_ld(
     plink_path: str | None = None,
     working_dir: str | None = None,
     species: str | None = "canine",
-    metric: str = "r2",
+    metric: LDMetric = "r2",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Calculate pairwise LD matrix for a set of variants.
 
@@ -486,6 +500,7 @@ def calculate_pairwise_ld(
         >>> # matrix is 3x3 DataFrame with LD values
         >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2
     """
+    _metric_flags(metric)
     plink_path = _resolve_plink(plink_path)
     validate_plink_files(bfile_path)
 
