@@ -243,9 +243,6 @@ class TestGeneTrackProperties:
     @given(gene_dataframes(min_genes=2, max_genes=20))
     def test_overlapping_genes_never_share_row(self, genes_df):
         """Overlapping genes should never be assigned to the same row."""
-        if len(genes_df) < 2:
-            return
-
         start = int(genes_df["start"].min())
         end = int(genes_df["end"].max())
         positions = assign_gene_positions(genes_df, start, end)
@@ -270,9 +267,6 @@ class TestGeneTrackProperties:
     @given(gene_dataframes(min_genes=1, max_genes=15))
     def test_gene_panel_draws(self, genes_df):
         """GenePanel.draw should render without crashing."""
-        if len(genes_df) == 0:
-            return
-
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         chrom = genes_df["chr"].iloc[0]

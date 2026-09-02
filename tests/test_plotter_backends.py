@@ -7,8 +7,6 @@ from hypothesis import settings as hyp_settings
 
 from pylocuszoom import DisplayConfig, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
-from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
 from tests.strategies import gwas_dataframes
@@ -17,20 +15,19 @@ from tests.strategies import gwas_dataframes
 class TestBackendIntegration:
     """Tests for backend protocol integration."""
 
-    def test_default_backend_is_matplotlib(self):
-        """Default backend should be matplotlib."""
-        plotter = LocusZoomPlotter()
-        assert isinstance(plotter._backend, MatplotlibBackend)
+    def test_default_backend_draws_a_matplotlib_figure(self, tiny_regional_gwas_df):
+        """An unconfigured plotter renders through matplotlib."""
+        plotter = LocusZoomPlotter(species="canine")
 
-    def test_explicit_matplotlib_backend(self):
-        """backend='matplotlib' should use MatplotlibBackend."""
-        plotter = LocusZoomPlotter(backend="matplotlib")
-        assert isinstance(plotter._backend, MatplotlibBackend)
+        fig = plotter.plot(
+            tiny_regional_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+        )
 
-    def test_explicit_plotly_backend(self):
-        """backend='plotly' should use PlotlyBackend."""
-        plotter = LocusZoomPlotter(backend="plotly")
-        assert isinstance(plotter._backend, PlotlyBackend)
+        assert isinstance(fig, FIGURE_TYPES["matplotlib"])
 
     def test_plotly_backend_creates_figure(self, tiny_regional_gwas_df):
         """plot() with backend='plotly' produces a plotly Figure.

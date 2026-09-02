@@ -69,7 +69,7 @@ class TestPheWASNaNCategory:
     NaN == NaN is False in pandas.
     """
 
-    def test_phewas_nan_category_included_in_plot(self, tmp_path):
+    def test_phewas_nan_category_included_in_plot(self):
         """Rows with NaN category should be included, not silently dropped."""
         import numpy as np
 

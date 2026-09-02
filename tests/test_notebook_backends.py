@@ -251,7 +251,7 @@ class TestBokehNotebookCompatibility:
         # Should have renderers
         assert len(ax.renderers) > 0
 
-    def test_bokeh_uses_customjs_tick_formatter(self, regional_gwas_df):
+    def test_bokeh_uses_customjs_tick_formatter(self):
         """Bokeh backend must use CustomJSTickFormatter not deprecated FuncTickFormatter."""
         from bokeh.models import CustomJSTickFormatter
 
@@ -267,19 +267,26 @@ class TestBokehNotebookCompatibility:
         # Should use CustomJSTickFormatter
         assert isinstance(ax.xaxis.formatter, CustomJSTickFormatter)
 
-    def test_bokeh_column_layout_no_sizing_mode_warning(self, regional_gwas_df):
-        """Bokeh column layout should not trigger FIXED_SIZING_MODE warning."""
-        backend = BokehBackend()
+    def test_bokeh_column_layout_no_sizing_mode_warning(self):
+        """A stacked layout passes bokeh's own integrity check.
 
-        # Creating figure should not produce validation warnings
-        # (We can't easily test for warnings here, but we test the API is correct)
+        Bokeh's FIXED_SIZING_MODE warning fires when a layout asks for fixed
+        sizing without a width and height, which is what a notebook user sees
+        as a blank or clipped column. ``check_integrity`` is the same pass
+        bokeh runs on save, so it fails here rather than in the browser.
+        """
+        from bokeh.core.validation import check_integrity
+
+        backend = BokehBackend()
         layout, figures = backend.create_figure(
             height_ratios=[3.0, 1.0],
             figsize=(12, 8),
         )
 
-        # Should create valid layout without errors
-        assert layout is not None
+        issues = check_integrity([layout])
+
+        assert [w.name for w in issues.warning] == []
+        assert [e.name for e in issues.error] == []
         assert len(figures) == 2
 
     def test_bokeh_stacked_figure(self, regional_gwas_df):
@@ -611,12 +618,17 @@ class TestBokehEQTLFinemappingMarkers:
             ),
         )
 
-        # Bokeh returns a column layout - get the figures
-        from bokeh.models import Column
+        from bokeh.models import Column, GlyphRenderer, Scatter
 
         assert isinstance(fig, Column)
-        # Should have multiple figures (GWAS + eQTL + gene track)
-        assert len(fig.children) >= 2
+        scatters = [
+            renderer
+            for child in fig.children
+            for renderer in getattr(child, "renderers", [])
+            if isinstance(renderer, GlyphRenderer)
+            and isinstance(renderer.glyph, Scatter)
+        ]
+        assert scatters, "the eQTL panel drew no scatter renderer"
 
     def test_bokeh_eqtl_triangle_markers(
         self, regional_gwas_df, sample_eqtl_df, sample_genes_df

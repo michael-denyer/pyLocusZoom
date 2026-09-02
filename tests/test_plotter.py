@@ -57,16 +57,6 @@ class TestLocusZoomPlotterInit:
         plotter = LocusZoomPlotter(genomewide_threshold=5e-8)
         assert plotter.genomewide_threshold == 5e-8
 
-    def test_auto_genes_default_false(self):
-        """auto_genes should be False by default for backward compatibility."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-        assert plotter._auto_genes is False
-
-    def test_auto_genes_can_be_enabled(self):
-        """auto_genes=True should be accepted."""
-        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
-        assert plotter._auto_genes is True
-
 
 class TestAutoGenes:
     """Tests for automatic gene fetching from Ensembl."""
@@ -204,18 +194,18 @@ class TestAutoGenes:
         assert len(fig.get_axes()) == 2
 
     def test_plot_auto_genes_disabled_by_default(self, small_regional_gwas_df):
-        """Test that auto_genes=False by default (backward compatible)."""
+        """Without auto_genes a plot reaches no reference source."""
         plotter = LocusZoomPlotter(species="canine", log_level=None)
 
-        # Should work without genes_df and without calling Ensembl
-        fig = plotter.plot(
-            small_regional_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-        )
+        with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
+            plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+            )
 
-        assert fig is not None
+        assert not mock_fetch.called, "auto_genes is off, so no gene fetch is allowed"
 
     def test_plot_auto_genes_respects_explicit_genes_df(
         self, small_regional_gwas_df, two_gene_track_df

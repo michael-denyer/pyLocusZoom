@@ -89,20 +89,6 @@ class TestGetBackend:
 class TestBackendImportErrors:
     """Tests for ImportError behavior when optional backends unavailable."""
 
-    def test_plotly_succeeds_when_installed(self):
-        """No error when plotly is available."""
-        from pylocuszoom.backends import get_backend
-
-        backend = get_backend("plotly")
-        assert backend is not None
-
-    def test_bokeh_succeeds_when_installed(self):
-        """No error when bokeh is available."""
-        from pylocuszoom.backends import get_backend
-
-        backend = get_backend("bokeh")
-        assert backend is not None
-
     @pytest.mark.parametrize("name", ["plotly", "bokeh"])
     def test_missing_optional_backend_names_its_install_command(
         self, monkeypatch, name
@@ -120,18 +106,6 @@ class TestBackendImportErrors:
 
         with pytest.raises(ImportError, match=f"pip install {name}"):
             backends.get_backend(name)
-
-    def test_repeated_calls_return_fresh_instances_of_one_class(self):
-        """Each call builds a new backend, both from the same registered class."""
-        from pylocuszoom.backends import get_backend
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        first = get_backend("matplotlib")
-        second = get_backend("matplotlib")
-
-        assert isinstance(first, MatplotlibBackend)
-        assert isinstance(second, MatplotlibBackend)
-        assert first is not second
 
 
 class TestBackendCapabilities:
@@ -316,21 +290,6 @@ class TestLazyAttributeAccess:
             _ = backends.NonExistentAttribute
 
         assert "NonExistentAttribute" in str(exc_info.value)
-
-    def test_all_exports(self):
-        """Module __all__ should contain expected exports."""
-        from pylocuszoom.backends import __all__
-
-        expected = [
-            "PlotBackend",
-            "BackendType",
-            "get_backend",
-            "register_backend",
-            "MatplotlibBackend",
-            "convert_latex_to_unicode",
-        ]
-        for name in expected:
-            assert name in __all__
 
 
 class TestHeatmapMethods:

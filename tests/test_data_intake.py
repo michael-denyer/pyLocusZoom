@@ -178,7 +178,7 @@ class TestPValueValidation:
         )
         assert isinstance(fig, Figure)
 
-    def test_prepare_pvalue_data_filters_invalid_range(self, speciesless_plotter):
+    def test_prepare_pvalue_data_filters_invalid_range(self):
         """prepare_pvalue_data filters out-of-range p-values (< 0 or > 1)."""
         import io
 
@@ -215,7 +215,7 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "2 p-values outside [0, 1]" in log_output
 
-    def test_prepare_pvalue_data_filters_nan(self, speciesless_plotter):
+    def test_prepare_pvalue_data_filters_nan(self):
         """prepare_pvalue_data filters NaN p-values."""
         import io
 
@@ -249,7 +249,7 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "1 NaN p-values" in log_output
 
-    def test_prepare_pvalue_data_clips_very_small(self, speciesless_plotter):
+    def test_prepare_pvalue_data_clips_very_small(self):
         """prepare_pvalue_data clips very small p-values to 1e-300."""
         import io
 
@@ -284,7 +284,7 @@ class TestPValueValidation:
         log_output = log_capture.getvalue()
         assert "Clipping" in log_output
 
-    def test_prepare_pvalue_data_preserves_valid_data(self, speciesless_plotter):
+    def test_prepare_pvalue_data_preserves_valid_data(self):
         """prepare_pvalue_data passes through all-valid data unchanged."""
         df = pd.DataFrame(
             {

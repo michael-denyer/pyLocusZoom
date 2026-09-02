@@ -28,7 +28,6 @@ from pylocuszoom.colors import (
     get_ld_color,
     get_ld_color_palette,
 )
-from tests.strategies import ld_values
 
 HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}")
 
@@ -283,12 +282,10 @@ class TestLdColorProperties:
         valid_labels = [label for _, label, _ in LD_BINS] + [LD_NA_LABEL]
         assert bin_label in valid_labels
 
-    @given(ld_values(allow_nan=True))
-    def test_ld_nan_handled_gracefully(self, r2):
-        """NaN values should return NA color/label."""
-        if math.isnan(r2) if isinstance(r2, float) else False:
-            assert get_ld_color(r2) == LD_NA_COLOR
-            assert get_ld_bin(r2) == LD_NA_LABEL
+    def test_ld_nan_handled_gracefully(self):
+        """NaN maps to the NA colour and label."""
+        assert get_ld_color(float("nan")) == LD_NA_COLOR
+        assert get_ld_bin(float("nan")) == LD_NA_LABEL
 
     @given(
         st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
