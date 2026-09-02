@@ -69,9 +69,10 @@ markdown, mermaid, link-check, or test failures will not merge.
 - **Docs:** update `README.md`, `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`,
   or `docs/CONFIGURATION.md` when your change alters public APIs, adds
   features, or changes behavior that users rely on.
-- **Example plots:** if your change affects rendering, regenerate them with
-  `uv run python examples/generate_example_plots.py` and commit the updated
-  images.
+- **Example plots:** if your change touches a backend or a renderer, run
+  `scripts/example_diff.sh`. It regenerates the examples and lists the exports
+  whose content changed after normalising generated ids; the suite does not
+  see serialised output. Commit only the files it reports, using `--keep`.
 - **Commits:** keep messages focused on *what* changed and *why*. Do not
   include AI or tool attribution.
 - **Scope:** one logical change per PR. Refactors and feature work belong in
