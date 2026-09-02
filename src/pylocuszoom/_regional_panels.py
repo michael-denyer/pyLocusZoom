@@ -34,13 +34,15 @@ from .colors import (
     LD_HEATMAP_COLORS,
     LEAD_SNP_COLOR,
     LEAD_SNP_HIGHLIGHT_COLOR,
+    PIP_LINE_COLOR,
+    get_credible_set_color,
     get_eqtl_color,
     get_ld_bin,
     get_ld_color_palette,
 )
 from .config import ColumnConfig, DisplayConfig, RegionConfig
 from .eqtl import prepare_eqtl_for_plotting
-from .finemapping import plot_finemapping, prepare_finemapping_for_plotting
+from .finemapping import get_credible_sets, prepare_finemapping_for_plotting
 from .gene_track import (
     EXON_HEIGHT,
     GENE_AREA,
@@ -54,6 +56,7 @@ from .gene_track import (
 from .logging import logger
 
 REGIONAL_LINE_ALPHA = 0.65
+PIP_SCATTER_THRESHOLD = 0.01
 
 
 def hover_for_association(
@@ -100,6 +103,7 @@ class FinemappingPanel:
     height: float
     cs_col: Optional[str]
     credible_sets: List[int]
+    hover: HoverConfig
 
     @classmethod
     def from_frame(
@@ -115,12 +119,16 @@ class FinemappingPanel:
             end=region.end,
         )
         resolved = cs_col if cs_col and cs_col in data.columns else None
-        credible_sets = (
-            sorted(value for value in data[resolved].dropna().unique() if value != 0)
-            if resolved
-            else []
+        extra_cols = {"pip": "PIP"}
+        if resolved:
+            extra_cols[resolved] = "Credible Set"
+        return cls(
+            data=data,
+            height=1.5,
+            cs_col=resolved,
+            credible_sets=get_credible_sets(data, resolved) if resolved else [],
+            hover=HoverConfig(pos_col="pos", extra_cols=extra_cols),
         )
-        return cls(data=data, height=1.5, cs_col=resolved, credible_sets=credible_sets)
 
 
 @dataclass(frozen=True)
@@ -389,19 +397,62 @@ def _draw_association_points(
             )
 
 
+def _finemapping_groups(
+    panel: FinemappingPanel,
+) -> List[Tuple[pd.DataFrame, str, int, float, int]]:
+    """Split the PIP points into scatter groups, each with its own styling."""
+    data = panel.data
+    if not panel.credible_sets:
+        above = data[data["pip"] >= PIP_SCATTER_THRESHOLD]
+        return [(above, PIP_LINE_COLOR, 50, 0.5, 3)]
+
+    cs_values = data[panel.cs_col]
+    groups = [
+        (data[cs_values == cs_id], get_credible_set_color(cs_id), 50, 0.5, 3)
+        for cs_id in panel.credible_sets
+    ]
+    unassigned = data[cs_values.isna() | (cs_values == 0)]
+    groups.append(
+        (
+            unassigned[unassigned["pip"] >= PIP_SCATTER_THRESHOLD],
+            "#BEBEBE",
+            30,
+            0.3,
+            2,
+        )
+    )
+    return groups
+
+
 def draw_finemapping(backend: PlotBackend, ax: Any, panel: FinemappingPanel) -> None:
     """Draw the PIP line, credible-set points, and their legend."""
-    if not panel.data.empty:
-        plot_finemapping(
-            backend,
+    data = panel.data
+    if not data.empty:
+        backend.line(
             ax,
-            panel.data,
-            pos_col="pos",
-            pip_col="pip",
-            cs_col=panel.cs_col,
-            show_credible_sets=True,
-            pip_threshold=0.01,
+            data["pos"],
+            data["pip"],
+            color=PIP_LINE_COLOR,
+            linewidth=1.5,
+            alpha=0.8,
+            zorder=1,
         )
+        hover_builder = HoverDataBuilder(panel.hover)
+        for subset, color, size, linewidth, zorder in _finemapping_groups(panel):
+            if subset.empty:
+                continue
+            backend.scatter(
+                ax,
+                subset["pos"],
+                subset["pip"],
+                colors=color,
+                sizes=size,
+                marker="o",
+                edgecolor="black",
+                linewidth=linewidth,
+                zorder=zorder,
+                hover_data=hover_builder.build_dataframe(subset),
+            )
         if panel.credible_sets:
             backend.add_legend(
                 ax,

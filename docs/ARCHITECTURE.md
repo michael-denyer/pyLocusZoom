@@ -275,7 +275,7 @@ pyLocusZoom/
 │   ├── _http.py               # Retrying JSON GET and file download
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
-│   ├── finemapping.py         # SuSiE / fine-mapping validation + plot_finemapping()
+│   ├── finemapping.py         # SuSiE / fine-mapping validation, filtering, credible sets
 │   ├── loaders.py             # Format adapters (PLINK, REGENIE, GTEx, SuSiE, GTF, BED, …)
 │   ├── schemas.py             # Every family's column contract, at both tiers
 │   ├── validation.py          # Shared validation primitives

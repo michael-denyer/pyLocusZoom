@@ -8,11 +8,11 @@ def test_ensure_recomb_maps_exported():
     assert callable(ensure_recomb_maps)
 
 
-def test_plot_finemapping_exported():
-    """Test that plot_finemapping is exported from package."""
-    from pylocuszoom import plot_finemapping
+def test_prepare_finemapping_for_plotting_exported():
+    """Test that prepare_finemapping_for_plotting is exported from package."""
+    from pylocuszoom import prepare_finemapping_for_plotting
 
-    assert callable(plot_finemapping)
+    assert callable(prepare_finemapping_for_plotting)
 
 
 def test_version_matches_pyproject():
