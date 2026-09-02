@@ -52,7 +52,7 @@ visualization concepts the library renders. Settled decisions live in
 
 - **GWAS two-tier strictness** — load-time validation (`schemas.py`) is strict
   (numeric, `(0, 1]`, non-positive positions); plot-time validation
-  (`utils.validate_gwas_df`) checks only columns + non-empty, deferring p-value
+  (`validation.validate_gwas_df`) checks only columns + non-empty, deferring p-value
   policy to `prepare_pvalue_data` so the Manhattan `p=0` convention survives.
 - **eQTL `gene` requirement** — required at load (multi-gene GTEx files keyed by
   gene) but optional at plot (frames may already be gene-filtered). Same
@@ -67,8 +67,8 @@ visualization concepts the library renders. Settled decisions live in
 ## Deepenings from the design grill
 
 Approved in a design grill and recorded in ADR-0004. The composition module, the
-`CoordinateLifter` port, and the capability protocols have shipped; the
-validation engine/spec split is still outstanding.
+`CoordinateLifter` port, the capability protocols and the validation
+engine/spec split have all shipped.
 
 - **Composition module** (`backends/composition.py`, ADR-0004) — pure functions
   that drive backend primitives above the seam:

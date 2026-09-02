@@ -280,7 +280,7 @@ sequenceDiagram
         participant P as LocusZoomPlotter (1a)
     end
     box rgb(216, 67, 21) Validation
-        participant V as utils.validate_gwas_df
+        participant V as validation.validate_gwas_df
         participant C as PlotConfig (2c)
     end
     box rgb(46, 125, 50) Core
