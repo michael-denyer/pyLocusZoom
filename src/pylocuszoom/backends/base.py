@@ -62,33 +62,12 @@ class SupportsSecondaryAxis(Protocol):
     """Optional capability: a twin/secondary y-axis (recombination overlay)."""
 
     def create_twin_axis(self, ax: Any) -> Any:
-        """Create a secondary y-axis and return an opaque handle."""
-        ...
+        """Create a secondary y-axis and return a handle.
 
-    def line_secondary(
-        self,
-        secondary: Any,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Draw a line on the secondary axis."""
-        ...
-
-    def fill_between_secondary(
-        self,
-        secondary: Any,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill an area on the secondary axis."""
+        The handle is a drawing target: pass it to ``line`` or
+        ``fill_between`` in place of a panel to draw against the secondary
+        scale.
+        """
         ...
 
     def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
@@ -116,7 +95,7 @@ class SupportsHeatmap(Protocol):
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
@@ -133,7 +112,6 @@ class SupportsHeatmap(Protocol):
             x_coords: X coordinates for cell positions.
             y_coords: Y coordinates for cell positions.
             cmap_colors: Color gradient endpoints [start_color, end_color].
-                Defaults to white-to-red ["#FFFFFF", "#FF0000"].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
 
@@ -159,33 +137,6 @@ class SupportsHeatmap(Protocol):
 
         Returns:
             Colorbar object.
-        """
-        ...
-
-    def highlight_heatmap_snp(
-        self,
-        ax: Any,
-        fig: Any,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in a heatmap.
-
-        Draws unfilled rectangles around the cells that
-        ``composition.heatmap_highlight_cells`` selects, to mark the lead SNP.
-
-        Args:
-            ax: Axes/figure object.
-            fig: Figure object (used by plotly for shapes).
-            snp_idx: Index of SNP to highlight (0-indexed, must be < n_snps).
-            n_snps: Total number of SNPs in matrix (must be > 0).
-            color: Highlight color.
-            linewidth: Line width for highlight rectangles.
-
-        Raises:
-            ValueError: If snp_idx is out of bounds or n_snps < 1.
         """
         ...
 
@@ -263,6 +214,11 @@ class PlotBackend(Protocol):
 
     Capability Properties:
         supports_hover: Whether backend supports hover tooltips.
+
+    ``zorder`` is advisory. Matplotlib honours it; the interactive backends
+    accept it and draw in call order, because neither library orders glyphs by
+    a depth key. Legend content is composed above the seam and rendered by
+    ``add_legend``, so no drawing primitive takes a label.
 
     Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
     SupportsRegionHighlight, SupportsHeatmap, SupportsBarCharts) are separate
@@ -370,7 +326,6 @@ class PlotBackend(Protocol):
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given axes.
 
@@ -385,7 +340,6 @@ class PlotBackend(Protocol):
             linewidth: Marker edge width.
             zorder: Drawing order.
             hover_data: DataFrame with columns for hover tooltips.
-            label: Legend label.
 
         Returns:
             The scatter plot object.
@@ -402,12 +356,11 @@ class PlotBackend(Protocol):
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given axes.
 
         Args:
-            ax: Axes or panel to plot on.
+            ax: Axes or panel to plot on, or a ``create_twin_axis`` handle.
             x: X-axis values.
             y: Y-axis values.
             color: Line color.
@@ -415,7 +368,6 @@ class PlotBackend(Protocol):
             alpha: Transparency.
             linestyle: Line style ('-', '--', ':', '-.').
             zorder: Drawing order.
-            label: Legend label.
 
         Returns:
             The line plot object.
@@ -435,7 +387,7 @@ class PlotBackend(Protocol):
         """Fill area between two y-values.
 
         Args:
-            ax: Axes or panel to plot on.
+            ax: Axes or panel to plot on, or a ``create_twin_axis`` handle.
             x: X-axis values.
             y1: Lower y boundary.
             y2: Upper y boundary.
@@ -563,7 +515,7 @@ class PlotBackend(Protocol):
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -575,7 +527,7 @@ class PlotBackend(Protocol):
             xy: Bottom-left corner coordinates.
             width: Rectangle width.
             height: Rectangle height.
-            facecolor: Fill color.
+            facecolor: Fill color, or None for an outline with no fill.
             edgecolor: Edge color.
             linewidth: Edge width.
             zorder: Drawing order.

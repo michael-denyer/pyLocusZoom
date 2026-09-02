@@ -244,7 +244,7 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | 4e | hover | `HoverDataBuilder` plus the shared `plotly_hovertemplate` / `bokeh_tooltips` builders | [hover.py](../src/pylocuszoom/backends/hover.py) |
 | 4f | composition | Legend, recombination-overlay, and heatmap-highlight composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
 | 4g | _coerce | Coercions out of matplotlib's vocabulary (figure sizing, marker area, scalar broadcast) shared by the interactive backends | [_coerce.py](../src/pylocuszoom/backends/_coerce.py) |
-| 4h | plotly_layout | Plotly subplot geometry: the `_Panel` value type and pure layout helpers | [plotly_layout.py](../src/pylocuszoom/backends/plotly_layout.py) |
+| 4h | plotly_layout | Plotly subplot geometry: the `_Panel` and `_SecondaryAxis` value types and pure layout helpers | [plotly_layout.py](../src/pylocuszoom/backends/plotly_layout.py) |
 
 ### Backend Capabilities
 
@@ -340,7 +340,7 @@ sequenceDiagram
     G->>B: add_rectangle(), add_polygon(), add_text()
     opt Recombination
         P->>O: render_recombination_overlay()
-        O->>B: create_twin_axis(), fill_between_secondary()
+        O->>B: create_twin_axis(), fill_between(), line()
     end
     B-->>U: figure
     deactivate B
@@ -364,14 +364,13 @@ classDiagram
     class SupportsSecondaryAxis {
         <<Protocol>>
         +create_twin_axis()
-        +line_secondary()
-        +fill_between_secondary()
+        +set_secondary_ylim()
+        +set_secondary_ylabel()
     }
     class SupportsHeatmap {
         <<Protocol>>
         +add_heatmap()
         +add_colorbar()
-        +highlight_heatmap_snp()
     }
     class SupportsBarCharts {
         <<Protocol>>
@@ -383,7 +382,7 @@ classDiagram
         +LegendEntry
         +ld_legend_entries()
         +render_recombination_overlay()
-        +heatmap_highlight_cells()
+        +heatmap_highlight_rects()
     }
     class hover {
         <<module>>

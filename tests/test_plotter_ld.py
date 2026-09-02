@@ -6,8 +6,6 @@ import pandas as pd
 import pytest
 
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
-from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.plotter import LocusZoomPlotter
 
@@ -511,62 +509,107 @@ class TestLDHeatmapIntegration:
             )
 
 
-class TestHighlightHeatmapSnpBackendProtocol:
-    """Tests that highlight_heatmap_snp works on all backends."""
+def _glyph_values(renderer, prop):
+    """Per-item values of a Bokeh glyph property, whether column or literal."""
+    spec = getattr(renderer.glyph, prop)
+    data = renderer.data_source.data
+    if isinstance(spec, str):
+        return list(data[spec])
+    return [spec] * len(data[renderer.glyph.x])
 
-    def test_matplotlib_highlight_heatmap_snp(self):
-        """Matplotlib backend highlight_heatmap_snp creates rectangle patches."""
 
-        backend = MatplotlibBackend()
-        fig, axes = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
+class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
+    START = 999000
+    END = 1003000
+
+    @pytest.fixture
+    def heatmap_gwas_df(self):
+        return pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+                "chr": [1, 1, 1, 1, 1],
+                "ps": [1000000, 1000500, 1001000, 1001500, 1002000],
+                "p_wald": [1e-8, 1e-6, 1e-4, 1e-3, 0.05],
+            }
         )
-        ax = axes[0]
 
-        # Should not raise
-        backend.highlight_heatmap_snp(ax, fig, snp_idx=2, n_snps=5)
+    @pytest.fixture
+    def heatmap_ld_matrix(self):
+        ids = ["rs1", "rs2", "rs3", "rs4", "rs5"]
+        values = np.array(
+            [
+                [1.0, 0.9, 0.7, 0.4, 0.2],
+                [0.9, 1.0, 0.8, 0.5, 0.3],
+                [0.7, 0.8, 1.0, 0.6, 0.4],
+                [0.4, 0.5, 0.6, 1.0, 0.7],
+                [0.2, 0.3, 0.4, 0.7, 1.0],
+            ]
+        )
+        return pd.DataFrame(values, index=ids, columns=ids)
 
-        # Verify patches were added (3 for row + 2 for column = 5 total)
-        rect_patches = [
-            p for p in ax.patches if hasattr(p, "get_edgecolor") and not p.get_fill()
+    def _plot(self, backend, gwas_df, ld_matrix):
+        return LocusZoomPlotter(species=None, log_level=None, backend=backend).plot(
+            gwas_df,
+            chrom=1,
+            start=self.START,
+            end=self.END,
+            lead_pos=1000000,
+            show_recombination=False,
+            ld_heatmap_df=ld_matrix,
+            ld_heatmap_snp_ids=list(ld_matrix.index),
+        )
+
+    def _assert_inside_region(self, spans):
+        assert spans, "the lead SNP should be outlined on the heatmap panel"
+        for x0, x1 in spans:
+            assert self.START <= x0 <= x1 <= self.END, (
+                f"outline spans {x0}-{x1}, outside the region {self.START}-{self.END}"
+            )
+
+    def test_matplotlib_outline_uses_genomic_coordinates(
+        self, heatmap_gwas_df, heatmap_ld_matrix
+    ):
+        fig = self._plot("matplotlib", heatmap_gwas_df, heatmap_ld_matrix)
+
+        heatmap_ax = fig.axes[1]
+        spans = [
+            (p.get_x(), p.get_x() + p.get_width())
+            for p in heatmap_ax.patches
+            if not p.get_fill()
         ]
-        assert len(rect_patches) == 5
+
+        self._assert_inside_region(spans)
         plt.close(fig)
 
-    def test_plotly_highlight_heatmap_snp(self):
-        """Plotly backend highlight_heatmap_snp adds shapes to figure."""
+    def test_plotly_outline_uses_genomic_coordinates_on_its_own_panel(
+        self, heatmap_gwas_df, heatmap_ld_matrix
+    ):
+        fig = self._plot("plotly", heatmap_gwas_df, heatmap_ld_matrix)
 
-        backend = PlotlyBackend()
-        fig, panels = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
-        )
-        ax = panels[0]
+        heatmap = next(trace for trace in fig.data if trace.type == "heatmap")
+        outlines = [s for s in fig.layout.shapes if s.type == "rect"]
 
-        # Should not raise
-        backend.highlight_heatmap_snp(ax, fig, snp_idx=2, n_snps=5)
+        self._assert_inside_region([(s.x0, s.x1) for s in outlines])
+        for shape in outlines:
+            assert shape.xref == heatmap.xaxis
+            assert shape.yref == heatmap.yaxis
 
-        # Verify shapes were added
-        shapes = fig.layout.shapes
-        assert len(shapes) == 5  # 3 for row + 2 for column
+    def test_bokeh_outline_uses_genomic_coordinates(
+        self, heatmap_gwas_df, heatmap_ld_matrix
+    ):
+        from bokeh.models import Rect
 
-    def test_bokeh_highlight_heatmap_snp(self):
-        """Bokeh backend highlight_heatmap_snp adds rect glyphs to figure."""
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
+        layout = self._plot("bokeh", heatmap_gwas_df, heatmap_ld_matrix)
 
-        backend = BokehBackend()
-        layout, figures = backend.create_figure(
-            n_panels=1, height_ratios=[1.0], figsize=(6, 4)
-        )
-        ax = figures[0]
-        renderers_before = len(ax.renderers)
+        heatmap_figure = layout.children[1]
+        spans = []
+        for renderer in heatmap_figure.renderers:
+            if not isinstance(renderer.glyph, Rect):
+                continue
+            if "value" in renderer.data_source.data:
+                continue
+            xs = _glyph_values(renderer, "x")
+            widths = _glyph_values(renderer, "width")
+            spans.extend((x - w / 2, x + w / 2) for x, w in zip(xs, widths))
 
-        # Should not raise
-        backend.highlight_heatmap_snp(ax, layout, snp_idx=2, n_snps=5)
-
-        # Verify renderer was added (batched into single rect call)
-        assert len(ax.renderers) == renderers_before + 1
-
-        # Verify the batched renderer has correct number of cells
-        # snp_idx=2, n_snps=5: row cells (0,2),(1,2),(2,2) + col cells (2,3),(2,4) = 5
-        renderer = ax.renderers[-1]
-        assert len(renderer.data_source.data["x"]) == 5
+        self._assert_inside_region(spans)

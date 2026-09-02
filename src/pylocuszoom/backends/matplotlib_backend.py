@@ -13,7 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
-from .composition import LegendEntry, heatmap_highlight_cells
+from .composition import LegendEntry
 
 
 @register_backend("matplotlib")
@@ -110,7 +110,6 @@ class MatplotlibBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a scatter plot on the given axes.
 
@@ -125,7 +124,6 @@ class MatplotlibBackend:
             edgecolor=edgecolor,
             linewidth=linewidth,
             zorder=zorder,
-            label=label,
         )
 
     def line(
@@ -138,7 +136,6 @@ class MatplotlibBackend:
         alpha: float = 1.0,
         linestyle: str = "-",
         zorder: int = 1,
-        label: Optional[str] = None,
     ) -> Any:
         """Create a line plot on the given axes."""
         (line,) = ax.plot(
@@ -149,7 +146,6 @@ class MatplotlibBackend:
             alpha=alpha,
             linestyle=linestyle,
             zorder=zorder,
-            label=label,
         )
         return line
 
@@ -254,7 +250,7 @@ class MatplotlibBackend:
         xy: Tuple[float, float],
         width: float,
         height: float,
-        facecolor: str = "blue",
+        facecolor: Optional[str] = "blue",
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
@@ -264,6 +260,7 @@ class MatplotlibBackend:
             xy,
             width,
             height,
+            fill=facecolor is not None,
             facecolor=facecolor,
             edgecolor=edgecolor,
             linewidth=linewidth,
@@ -352,41 +349,6 @@ class MatplotlibBackend:
         ax.spines["right"].set_visible(True)
         secondary.spines["top"].set_visible(False)
         return secondary
-
-    def line_secondary(
-        self,
-        secondary: Axes,
-        x: pd.Series,
-        y: pd.Series,
-        color: str = "blue",
-        linewidth: float = 1.5,
-        alpha: float = 1.0,
-        linestyle: str = "-",
-        label: Optional[str] = None,
-    ) -> Any:
-        """Create a line on the secondary (twin) axes."""
-        return self.line(
-            secondary,
-            x,
-            y,
-            color=color,
-            linewidth=linewidth,
-            alpha=alpha,
-            linestyle=linestyle,
-            label=label,
-        )
-
-    def fill_between_secondary(
-        self,
-        secondary: Axes,
-        x: pd.Series,
-        y1: Union[float, pd.Series],
-        y2: Union[float, pd.Series],
-        color: str = "blue",
-        alpha: float = 0.3,
-    ) -> Any:
-        """Fill area on the secondary (twin) axes."""
-        return self.fill_between(secondary, x, y1, y2, color=color, alpha=alpha)
 
     def set_secondary_ylim(
         self,
@@ -558,45 +520,18 @@ class MatplotlibBackend:
         for ax in axes:
             ax.axvspan(x_start, x_end, color=color, alpha=alpha, zorder=0)
 
-    def highlight_heatmap_snp(
-        self,
-        ax: Axes,
-        fig: Figure,
-        snp_idx: int,
-        n_snps: int,
-        color: str = "#FF0000",
-        linewidth: float = 2,
-    ) -> None:
-        """Highlight a SNP's row and column in the heatmap."""
-        for x, y in heatmap_highlight_cells(snp_idx, n_snps):
-            ax.add_patch(
-                Rectangle(
-                    (x - 0.5, y - 0.5),
-                    1.0,
-                    1.0,
-                    fill=False,
-                    edgecolor=color,
-                    linewidth=linewidth,
-                    zorder=10,
-                )
-            )
-
     def add_heatmap(
         self,
         ax: Axes,
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
         """Render a heatmap of an already-shaped matrix."""
         from matplotlib.colors import LinearSegmentedColormap
-
-        # Default white-to-red gradient
-        if cmap_colors is None:
-            cmap_colors = ["#FFFFFF", "#FF0000"]
 
         cmap = LinearSegmentedColormap.from_list("ld_heatmap", cmap_colors, N=256)
 
