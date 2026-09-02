@@ -17,13 +17,13 @@ from tests.reference_mocks import ok_response, refseq_payload, ros_cfam_gene_pay
 class TestUCSCGeneFetch:
     def test_transcripts_collapse_to_one_gene(self):
         """Two transcripts of one symbol become one row spanning both."""
-        from pylocuszoom.ucsc import fetch_genes_from_ucsc
+        from pylocuszoom.ucsc import fetch_track_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ):
-            genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
+            genes, _ = fetch_track_frames("canFam3", "1", 1_000_000, 1_200_000)
 
         assert genes["gene_name"].tolist() == ["NFATC1"]
         row = genes.iloc[0]
@@ -33,13 +33,13 @@ class TestUCSCGeneFetch:
 
     def test_biotype_filter_drops_non_coding(self):
         """The default protein_coding filter drops XR_/NR_ only genes."""
-        from pylocuszoom.ucsc import fetch_genes_from_ucsc
+        from pylocuszoom.ucsc import fetch_track_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ):
-            all_genes = fetch_genes_from_ucsc(
+            all_genes, _ = fetch_track_frames(
                 "canFam3", "1", 1_000_000, 1_200_000, biotype=""
             )
 
@@ -49,55 +49,51 @@ class TestUCSCGeneFetch:
 
     def test_rows_record_the_assembly(self):
         """Every row names the assembly, matching the Ensembl frame's shape."""
-        from pylocuszoom.ucsc import fetch_genes_from_ucsc
+        from pylocuszoom.ucsc import fetch_track_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ):
-            genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
+            genes, _ = fetch_track_frames("canFam3", "1", 1_000_000, 1_200_000)
 
         assert genes["assembly"].tolist() == ["CanFam3.1"]
 
     def test_exons_carry_their_gene_name(self):
         """Exons name their gene, so the gene track can match them to a row."""
-        from pylocuszoom.ucsc import fetch_exons_from_ucsc
+        from pylocuszoom.ucsc import fetch_track_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ):
-            exons = fetch_exons_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
+            _, exons = fetch_track_frames("canFam3", "1", 1_000_000, 1_200_000)
 
         assert set(exons["gene_name"]) == {"NFATC1", "LOC111090558"}
         assert exons["start"].min() == 1003648, "exonStarts are 0-based too"
         assert exons["assembly"].unique().tolist() == ["CanFam3.1"]
 
-    def test_api_error_returns_empty_frame_with_columns(self):
-        """An outage yields an empty frame that still round-trips through CSV."""
-        import requests
+    def test_empty_region_keeps_the_columns(self):
+        """A gene-free region yields frames that still round-trip through CSV."""
+        from pylocuszoom.ucsc import fetch_track_frames
 
-        from pylocuszoom.ucsc import fetch_genes_from_ucsc
-
-        with (
-            patch("pylocuszoom._http.time.sleep"),
-            patch(
-                "pylocuszoom._http.requests.get",
-                side_effect=requests.exceptions.ConnectionError("network down"),
-            ),
+        with patch(
+            "pylocuszoom._http.requests.get",
+            return_value=ok_response({"ncbiRefSeq": []}),
         ):
-            genes = fetch_genes_from_ucsc("canFam3", "1", 1_000_000, 1_200_000)
+            genes, exons = fetch_track_frames("canFam3", "1", 1_000_000, 1_200_000)
 
-        assert genes.empty
+        assert genes.empty and exons.empty
         assert "gene_name" in genes.columns
         assert "assembly" in genes.columns
+        assert "exon_id" in exons.columns
 
-    def test_api_error_raises_when_asked(self):
-        """raise_on_error keeps a service failure distinct from an empty region."""
+    def test_api_error_raises(self):
+        """A service failure stays distinct from an empty region."""
         import requests
 
         from pylocuszoom.exceptions import UCSCAPIError
-        from pylocuszoom.ucsc import fetch_genes_from_ucsc
+        from pylocuszoom.ucsc import fetch_track_frames
 
         with (
             patch("pylocuszoom._http.time.sleep"),
@@ -107,24 +103,33 @@ class TestUCSCGeneFetch:
             ),
             pytest.raises(UCSCAPIError),
         ):
-            fetch_genes_from_ucsc(
-                "canFam3", "1", 1_000_000, 1_200_000, raise_on_error=True
-            )
+            fetch_track_frames("canFam3", "1", 1_000_000, 1_200_000)
 
 
 class TestUCSCCaching:
     def test_second_call_is_served_from_cache(self, tmp_path):
-        from pylocuszoom.ucsc import get_genes_for_region_ucsc
+        from pylocuszoom.reference_genes import get_genes_for_build
+        from pylocuszoom.ucsc import ucsc_source
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ) as mock_get:
-            first = get_genes_for_region_ucsc(
-                "canFam3", "1", 1_000_000, 1_200_000, tmp_path
+            first = get_genes_for_build(
+                "",
+                "1",
+                1_000_000,
+                1_200_000,
+                cache_dir=tmp_path,
+                source=ucsc_source("canFam3"),
             )
-            second = get_genes_for_region_ucsc(
-                "canFam3", "1", 1_000_000, 1_200_000, tmp_path
+            second = get_genes_for_build(
+                "",
+                "1",
+                1_000_000,
+                1_200_000,
+                cache_dir=tmp_path,
+                source=ucsc_source("canFam3"),
             )
 
         assert mock_get.call_count == 1
@@ -134,7 +139,9 @@ class TestUCSCCaching:
         """An outage must not poison the region with a permanent empty result."""
         import requests
 
-        from pylocuszoom.ucsc import get_genes_for_region_ucsc
+        from pylocuszoom.exceptions import UCSCAPIError
+        from pylocuszoom.reference_genes import get_genes_for_build
+        from pylocuszoom.ucsc import ucsc_source
 
         with (
             patch("pylocuszoom._http.time.sleep"),
@@ -142,31 +149,48 @@ class TestUCSCCaching:
                 "pylocuszoom._http.requests.get",
                 side_effect=requests.exceptions.ConnectionError("network down"),
             ),
+            pytest.raises(UCSCAPIError),
         ):
-            during_outage = get_genes_for_region_ucsc(
-                "canFam3", "1", 1_000_000, 1_200_000, tmp_path
+            get_genes_for_build(
+                "",
+                "1",
+                1_000_000,
+                1_200_000,
+                cache_dir=tmp_path,
+                source=ucsc_source("canFam3"),
             )
-        assert during_outage.empty
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ):
-            after = get_genes_for_region_ucsc(
-                "canFam3", "1", 1_000_000, 1_200_000, tmp_path
+            after = get_genes_for_build(
+                "",
+                "1",
+                1_000_000,
+                1_200_000,
+                cache_dir=tmp_path,
+                source=ucsc_source("canFam3"),
             )
         assert after["gene_name"].tolist() == ["NFATC1"]
 
     def test_exons_share_the_gene_request(self, tmp_path):
         """ncbiRefSeq rows carry exons, so one track request serves both."""
-        from pylocuszoom.ucsc import get_genes_for_region_ucsc
+        from pylocuszoom.reference_genes import get_genes_for_build
+        from pylocuszoom.ucsc import ucsc_source
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ) as mock_get:
-            genes, exons = get_genes_for_region_ucsc(
-                "canFam3", "1", 1_000_000, 1_200_000, tmp_path, include_exons=True
+            genes, exons = get_genes_for_build(
+                "",
+                "1",
+                1_000_000,
+                1_200_000,
+                cache_dir=tmp_path,
+                include_exons=True,
+                source=ucsc_source("canFam3"),
             )
 
         assert mock_get.call_count == 1
@@ -174,14 +198,22 @@ class TestUCSCCaching:
         assert set(exons["gene_name"]) == {"NFATC1", "LOC111090558"}
 
     def test_two_genomes_do_not_share_an_entry(self, tmp_path):
-        from pylocuszoom.ucsc import get_genes_for_region_ucsc
+        from pylocuszoom.reference_genes import get_genes_for_build
+        from pylocuszoom.ucsc import ucsc_source
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(refseq_payload()),
         ) as mock_get:
-            get_genes_for_region_ucsc("canFam3", "1", 1_000_000, 1_200_000, tmp_path)
-            get_genes_for_region_ucsc("canFam4", "1", 1_000_000, 1_200_000, tmp_path)
+            for genome in ("canFam3", "canFam4"):
+                get_genes_for_build(
+                    "",
+                    "1",
+                    1_000_000,
+                    1_200_000,
+                    cache_dir=tmp_path,
+                    source=ucsc_source(genome),
+                )
 
         assert mock_get.call_count == 2
 

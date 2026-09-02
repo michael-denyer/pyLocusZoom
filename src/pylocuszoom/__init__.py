@@ -61,13 +61,7 @@ from .colors import (
 # Configuration classes (internal - use kwargs directly on plot()/plot_stacked())
 # from .config import PlotConfig, StackedPlotConfig  # Internal use only
 # Ensembl integration
-from .ensembl import (
-    clear_ensembl_cache,
-    fetch_exons_from_ensembl,
-    fetch_genes_from_ensembl,
-    get_ensembl_species_name,
-    get_genes_for_region,
-)
+from .ensembl import get_ensembl_species_name
 
 # eQTL support
 from .eqtl import (
@@ -168,17 +162,11 @@ from .recombination import (
     load_recombination_map,
 )
 
-# Gene source routing, and the UCSC client behind it
-from .reference_genes import get_genes_for_build
+# Gene source routing over the Ensembl and UCSC clients
+from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
 
 # Statistical visualizations (PheWAS, forest plots)
 from .stats_plotter import StatsPlotter
-from .ucsc import (
-    clear_ucsc_cache,
-    fetch_exons_from_ucsc,
-    fetch_genes_from_ucsc,
-    get_genes_for_region_ucsc,
-)
 
 # Validation utilities
 from .utils import to_pandas
@@ -277,16 +265,9 @@ __all__ = [
     "load_ensembl_genes",
     # Schema validation
     "LoaderValidationError",
-    # Ensembl integration
-    "get_genes_for_region",
-    "fetch_genes_from_ensembl",
-    "fetch_exons_from_ensembl",
-    "get_ensembl_species_name",
-    "clear_ensembl_cache",
-    # UCSC integration, for the builds Ensembl has retired
+    # Gene annotations, from Ensembl or from UCSC for the builds it retired
     "get_genes_for_build",
-    "fetch_genes_from_ucsc",
-    "fetch_exons_from_ucsc",
-    "get_genes_for_region_ucsc",
-    "clear_ucsc_cache",
+    "source_for",
+    "clear_gene_cache",
+    "get_ensembl_species_name",
 ]

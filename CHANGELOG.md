@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The per-source gene wrappers are removed (breaking).** `get_genes_for_region`, `fetch_genes_from_ensembl`, `fetch_exons_from_ensembl`, `clear_ensembl_cache`, `get_genes_for_region_ucsc`, `fetch_genes_from_ucsc`, `fetch_exons_from_ucsc` and `clear_ucsc_cache` were eight names for two operations that `get_genes_for_build` and `clear_gene_cache` already performed, and each source also carried a private copy of the same failure-to-empty helper. `get_genes_for_build` and `clear_gene_cache` are exported in their place, along with `source_for`, which returns the `GeneSource` for a species and build so a caller can still address one source directly. `ensembl.get_ensembl_cache_dir` and `ucsc.get_ucsc_cache_dir` are gone too; `_gene_cache.cache_root` was always what they returned.
+- **A gene-source failure always raises (breaking).** `raise_on_error` is removed from every signature. It defaulted to False, which turned an outage into an empty frame indistinguishable from a region with no genes, and the one caller in the library opted out of it. `LocusZoomPlotter` still catches `ReferenceAPIError` under `auto_genes=True`, warns, and draws the plot without a gene track.
+- **`GeneSource` and the frame schema move to `_gene_source.py`.** `ensembl.py` and `ucsc.py` imported the shared vocabulary from `reference_genes.py` while `reference_genes.py` imported the sources back inside its function bodies to break the cycle. The vocabulary now lives in a leaf that imports neither source, each source exports one `GeneSource` constructor, and the routing module imports both at the top of the file. `GeneSource.error_cls` is gone: both source errors subclass `ReferenceAPIError`, which the orchestration catches once.
+
 ### Fixed
 
 - **An automatic gene track now draws exon structure.** `LocusZoomPlotter` with `auto_genes=True` asked its gene source for genes only, so every automatically fetched gene was drawn as a plain rectangle. On the Ensembl path the exons were unusable anyway: exon features name their transcript and nothing else, so every fetched exon carried an empty `gene_name` and the renderer, which matches exons to genes by that column, never found one. Ensembl is now asked for genes, transcripts and exons in one request and the transcript joins each exon to its gene symbol, and the plotter asks for exons. An exon whose gene is absent from the response is dropped rather than returned unattached.

@@ -39,7 +39,7 @@ Resolved cache paths by platform:
 Implementation:
 
 - [`recombination.get_default_data_dir()`](../src/pylocuszoom/recombination.py)
-- [`ensembl.get_ensembl_cache_dir()`](../src/pylocuszoom/ensembl.py)
+- [`_gene_cache.cache_root()`](../src/pylocuszoom/_gene_cache.py)
 
 You can also override the cache location explicitly by passing `output_dir`
 to `download_canine_recombination_maps()` / `ensure_recomb_maps()` — this

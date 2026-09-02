@@ -463,7 +463,6 @@ class LocusZoomPlotter:
                     end=region.end,
                     genome_build=self.genome_build,
                     include_exons=True,
-                    raise_on_error=True,
                 )
             except ReferenceAPIError as e:
                 warnings.warn(

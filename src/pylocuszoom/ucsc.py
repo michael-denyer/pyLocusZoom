@@ -15,21 +15,12 @@ Frames match the shape ``ensembl.py`` returns, including the ``assembly``
 column, so either source drops into the same plot.
 """
 
-from pathlib import Path
-
 import pandas as pd
 
-from ._gene_cache import cache_root
+from ._gene_source import EXON_COLUMNS, GENE_COLUMNS, GeneSource, empty_frame
 from ._http import request_json
 from .exceptions import UCSCAPIError
 from .logging import logger
-from .reference_genes import (
-    EXON_COLUMNS,
-    GENE_COLUMNS,
-    clear_gene_cache,
-    get_genes_for_build,
-    ucsc_source,
-)
 from .utils import normalize_chrom
 
 UCSC_REST_URL = "https://api.genome.ucsc.edu"
@@ -148,7 +139,7 @@ def _genes_from_rows(
 
     if not records:
         logger.debug(f"No genes found in {ucsc_genome} {chrom_str}")
-        return pd.DataFrame(columns=list(GENE_COLUMNS))
+        return empty_frame(GENE_COLUMNS)
 
     logger.debug(f"Fetched {len(records)} genes from UCSC {ucsc_genome}")
     return pd.DataFrame(records)
@@ -175,7 +166,7 @@ def _exons_from_rows(
 
     if not records:
         logger.debug(f"No exons found in {ucsc_genome} {chrom_str}")
-        return pd.DataFrame(columns=list(EXON_COLUMNS))
+        return empty_frame(EXON_COLUMNS)
 
     logger.debug(f"Fetched {len(records)} exons from UCSC {ucsc_genome}")
     return pd.DataFrame(records)
@@ -198,10 +189,16 @@ def fetch_track_frames(
         chrom: Chromosome name or number.
         start: Region start position (1-based).
         end: Region end position (1-based).
-        biotype: Gene biotype filter, as on ``fetch_genes_from_ucsc``.
+        biotype: Gene biotype filter. ncbiRefSeq carries no finer biotypes
+            than the accession prefix, so the only meaningful values are
+            ``"protein_coding"`` (at least one NM_/XM_ transcript),
+            ``"non_coding"`` (none), and None or "" to keep everything; any
+            other value matches nothing.
 
     Returns:
-        Tuple of (genes_df, exons_df).
+        Tuple of (genes_df, exons_df). UCSC coordinates are 0-based half-open
+        and are converted to the 1-based inclusive convention Ensembl and the
+        rest of pyLocusZoom use.
 
     Raises:
         UCSCAPIError: If the API fails.
@@ -215,148 +212,13 @@ def fetch_track_frames(
     )
 
 
-def _frames_or_empty(
-    ucsc_genome: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    raise_on_error: bool,
-    biotype: str = "protein_coding",
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fetch frames, translating a service failure to empties if allowed."""
-    try:
-        return fetch_track_frames(ucsc_genome, chrom, start, end, biotype)
-    except UCSCAPIError:
-        if raise_on_error:
-            raise
-        return (
-            pd.DataFrame(columns=list(GENE_COLUMNS)),
-            pd.DataFrame(columns=list(EXON_COLUMNS)),
-        )
-
-
-def fetch_genes_from_ucsc(
-    ucsc_genome: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    biotype: str = "protein_coding",
-    raise_on_error: bool = False,
-) -> pd.DataFrame:
-    """Fetch gene annotations from UCSC, collapsed from transcripts to genes.
-
-    UCSC coordinates are 0-based half-open and are converted to the 1-based
-    inclusive convention Ensembl and the rest of pyLocusZoom use.
-
-    Args:
-        ucsc_genome: UCSC genome name, e.g. ``"canFam3"``.
-        chrom: Chromosome name or number.
-        start: Region start position (1-based).
-        end: Region end position (1-based).
-        biotype: Gene biotype filter. ncbiRefSeq carries no finer biotypes
-            than the accession prefix, so the only meaningful values are
-            ``"protein_coding"`` (at least one NM_/XM_ transcript),
-            ``"non_coding"`` (none), and None or "" to keep everything; any
-            other value matches nothing.
-        raise_on_error: If True, raise UCSCAPIError on API errors.
-
-    Returns:
-        DataFrame with the columns in ``reference_genes.GENE_COLUMNS``.
-        Empty on API error unless raise_on_error=True.
-
-    Raises:
-        UCSCAPIError: If raise_on_error=True and the API fails.
-    """
-    return _frames_or_empty(
-        ucsc_genome, chrom, start, end, raise_on_error, biotype=biotype
-    )[0]
-
-
-def fetch_exons_from_ucsc(
-    ucsc_genome: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    raise_on_error: bool = False,
-) -> pd.DataFrame:
-    """Fetch exon annotations from UCSC.
-
-    Every transcript's exons are returned, matching what Ensembl's overlap
-    endpoint gives for the same region rather than picking one transcript.
-
-    Args:
-        ucsc_genome: UCSC genome name, e.g. ``"canFam3"``.
-        chrom: Chromosome name or number.
-        start: Region start position (1-based).
-        end: Region end position (1-based).
-        raise_on_error: If True, raise UCSCAPIError on API errors.
-
-    Returns:
-        DataFrame with the columns in ``reference_genes.EXON_COLUMNS``.
-        Empty on API error unless raise_on_error=True.
-
-    Raises:
-        UCSCAPIError: If raise_on_error=True and the API fails.
-    """
-    return _frames_or_empty(ucsc_genome, chrom, start, end, raise_on_error)[1]
-
-
-def get_genes_for_region_ucsc(
-    ucsc_genome: str,
-    chrom: str | int,
-    start: int,
-    end: int,
-    cache_dir: Path | None = None,
-    use_cache: bool = True,
-    include_exons: bool = False,
-    raise_on_error: bool = False,
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
-    """Get gene annotations for a region from UCSC, with disk caching.
-
-    Args:
-        ucsc_genome: UCSC genome name, e.g. ``"canFam3"``.
-        chrom: Chromosome name or number.
-        start: Region start position (1-based).
-        end: Region end position (1-based).
-        cache_dir: Cache directory (uses default if None).
-        use_cache: Whether to use the disk cache.
-        include_exons: If True, return a (genes_df, exons_df) tuple.
-        raise_on_error: If True, raise UCSCAPIError on API errors.
-
-    Returns:
-        Gene annotations, or a (genes_df, exons_df) tuple when include_exons.
-
-    Raises:
-        UCSCAPIError: If raise_on_error=True and the API fails.
-    """
-    return get_genes_for_build(
-        "",
-        chrom,
-        start,
-        end,
-        cache_dir=cache_dir,
-        use_cache=use_cache,
-        include_exons=include_exons,
-        raise_on_error=raise_on_error,
-        source=ucsc_source(ucsc_genome),
+def ucsc_source(ucsc_genome: str) -> GeneSource:
+    """Build the GeneSource for one UCSC genome."""
+    return GeneSource(
+        name="ucsc",
+        cache_species=ucsc_genome,
+        build_token="",
+        fetch=lambda chrom, start, end: fetch_track_frames(
+            ucsc_genome, chrom, start, end
+        ),
     )
-
-
-def get_ucsc_cache_dir() -> Path:
-    """Get the cache directory for UCSC gene data."""
-    return cache_root("ucsc")
-
-
-def clear_ucsc_cache(
-    cache_dir: Path | None = None, ucsc_genome: str | None = None
-) -> int:
-    """Clear cached UCSC gene data.
-
-    Args:
-        cache_dir: Cache directory (uses default if None).
-        ucsc_genome: If given, only clear this genome's cache.
-
-    Returns:
-        Number of files deleted.
-    """
-    return clear_gene_cache("ucsc", cache_dir, ucsc_genome)

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
-from pylocuszoom.reference_genes import EXON_COLUMNS
+from pylocuszoom._gene_source import EXON_COLUMNS
 from tests.reference_mocks import ok_response, ros_cfam_gene_payload
 
 
@@ -37,7 +37,7 @@ def test_get_ensembl_species_name_unknown():
 
 def test_fetch_genes_from_ensembl_success():
     """Test fetching genes from Ensembl API with mocked response."""
-    from pylocuszoom.ensembl import fetch_genes_from_ensembl
+    from pylocuszoom.ensembl import fetch_overlap_frames
 
     mock_response = Mock()
     mock_response.ok = True
@@ -65,7 +65,7 @@ def test_fetch_genes_from_ensembl_success():
     ]
 
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-        df = fetch_genes_from_ensembl("human", chrom="13", start=32000000, end=33000000)
+        df, _ = fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 2
@@ -79,35 +79,36 @@ def test_fetch_genes_from_ensembl_success():
     assert df_sorted["gene_name"].tolist() == ["BRCA2", "BRCA1"]
 
 
-def test_fetch_genes_from_ensembl_api_error_warns():
-    """Test handling of API errors - should warn and return empty DataFrame."""
-    from pylocuszoom.ensembl import fetch_genes_from_ensembl
+def test_fetch_genes_from_ensembl_api_error_raises():
+    """A service failure raises rather than passing as a gene-free region."""
+    from pylocuszoom.ensembl import fetch_overlap_frames
+    from pylocuszoom.exceptions import EnsemblAPIError
 
     mock_response = Mock()
     mock_response.ok = False
     mock_response.status_code = 503
     mock_response.text = "Service Unavailable"
 
-    with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-        df = fetch_genes_from_ensembl("human", chrom="13", start=32000000, end=33000000)
-
-    # Should return empty DataFrame on error
-    assert isinstance(df, pd.DataFrame)
-    assert len(df) == 0
+    with (
+        patch("pylocuszoom._http.time.sleep"),
+        patch("pylocuszoom._http.requests.get", return_value=mock_response),
+        pytest.raises(EnsemblAPIError),
+    ):
+        fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
 
 
 def test_fetch_genes_region_too_large():
     """Test that regions > 5Mb raise ValidationError."""
-    from pylocuszoom.ensembl import fetch_genes_from_ensembl
+    from pylocuszoom.ensembl import fetch_overlap_frames
     from pylocuszoom.utils import ValidationError
 
     with pytest.raises(ValidationError, match="5Mb"):
-        fetch_genes_from_ensembl("human", chrom="1", start=1000000, end=10000000)
+        fetch_overlap_frames("human", chrom="1", start=1000000, end=10000000)
 
 
 def test_fetch_genes_retry_on_429():
     """Test that 429 rate limit responses trigger retry."""
-    from pylocuszoom.ensembl import fetch_genes_from_ensembl
+    from pylocuszoom.ensembl import fetch_overlap_frames
 
     # First call returns 429, second returns success
     mock_429 = Mock()
@@ -132,7 +133,7 @@ def test_fetch_genes_retry_on_429():
 
     with patch("pylocuszoom._http.requests.get", side_effect=[mock_429, mock_success]):
         with patch("pylocuszoom._http.time.sleep"):  # Skip actual sleep
-            df = fetch_genes_from_ensembl(
+            df, _ = fetch_overlap_frames(
                 "human", chrom="13", start=32000000, end=33000000
             )
 
@@ -185,14 +186,14 @@ def _brca2_annotation_features():
 
 def test_fetch_exons_from_ensembl_success():
     """Exons carry the symbol of the gene their transcript belongs to."""
-    from pylocuszoom.ensembl import fetch_exons_from_ensembl
+    from pylocuszoom.ensembl import fetch_overlap_frames
 
     mock_response = Mock()
     mock_response.ok = True
     mock_response.json.return_value = _brca2_annotation_features()
 
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-        df = fetch_exons_from_ensembl("human", chrom="13", start=32000000, end=33000000)
+        _, df = fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 2
@@ -203,7 +204,7 @@ def test_fetch_exons_from_ensembl_success():
 
 def test_exons_without_their_gene_are_dropped():
     """An exon whose gene the response omits cannot be drawn, so it is dropped."""
-    from pylocuszoom.ensembl import fetch_exons_from_ensembl
+    from pylocuszoom.ensembl import fetch_overlap_frames
 
     orphaned = [
         feature
@@ -215,29 +216,20 @@ def test_exons_without_their_gene_are_dropped():
     mock_response.json.return_value = orphaned
 
     with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-        df = fetch_exons_from_ensembl("human", chrom="13", start=32000000, end=33000000)
+        _, df = fetch_overlap_frames("human", chrom="13", start=32000000, end=33000000)
 
     assert df.empty
     assert list(df.columns) == list(EXON_COLUMNS)
 
 
-def test_fetch_exons_region_too_large():
-    """Test that regions > 5Mb raise ValidationError."""
-    from pylocuszoom.ensembl import fetch_exons_from_ensembl
-    from pylocuszoom.utils import ValidationError
-
-    with pytest.raises(ValidationError, match="5Mb"):
-        fetch_exons_from_ensembl("human", chrom="1", start=1000000, end=10000000)
-
-
 # --- Caching tests ---
 
 
-def test_get_ensembl_cache_dir():
+def test_ensembl_cache_dir():
     """Test cache directory follows pylocuszoom convention."""
-    from pylocuszoom.ensembl import get_ensembl_cache_dir
+    from pylocuszoom._gene_cache import cache_root
 
-    cache_dir = get_ensembl_cache_dir()
+    cache_dir = cache_root("ensembl")
     assert isinstance(cache_dir, Path)
     assert "pylocuszoom" in str(cache_dir)
     assert "ensembl" in str(cache_dir)
@@ -245,29 +237,29 @@ def test_get_ensembl_cache_dir():
 
 def test_ensembl_cache_dir_honors_xdg_on_macos(tmp_path, monkeypatch):
     """macOS honors XDG_CACHE_HOME (previously hardcoded ~/.cache)."""
-    from pylocuszoom.ensembl import get_ensembl_cache_dir
+    from pylocuszoom._gene_cache import cache_root
 
     monkeypatch.setattr("sys.platform", "darwin")
     monkeypatch.setattr("os.path.exists", lambda _: False)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
 
-    assert get_ensembl_cache_dir() == tmp_path / "pylocuszoom" / "ensembl"
+    assert cache_root("ensembl") == tmp_path / "pylocuszoom" / "ensembl"
 
 
 def test_ensembl_cache_dir_routes_to_dbfs_on_databricks(monkeypatch):
     """Databricks routes the Ensembl cache under /dbfs (previously ~/.cache)."""
-    from pylocuszoom.ensembl import get_ensembl_cache_dir
+    from pylocuszoom._gene_cache import cache_root
 
     monkeypatch.setattr("sys.platform", "linux")
     monkeypatch.setattr("os.path.exists", lambda p: p == "/dbfs")
     monkeypatch.setattr(Path, "mkdir", lambda self, *a, **k: None)
 
-    assert get_ensembl_cache_dir() == Path("/dbfs/FileStore/reference_data/ensembl")
+    assert cache_root("ensembl") == Path("/dbfs/FileStore/reference_data/ensembl")
 
 
 def test_cache_resolvers_share_base(tmp_path, monkeypatch):
     """Recombination and Ensembl caches resolve under one shared root."""
-    from pylocuszoom.ensembl import get_ensembl_cache_dir
+    from pylocuszoom._gene_cache import cache_root
     from pylocuszoom.recombination import get_default_data_dir
 
     monkeypatch.setattr("sys.platform", "darwin")
@@ -276,8 +268,8 @@ def test_cache_resolvers_share_base(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "mkdir", lambda self, *a, **k: None)
 
     assert get_default_data_dir() == tmp_path / "pylocuszoom" / "recombination_maps"
-    assert get_ensembl_cache_dir() == tmp_path / "pylocuszoom" / "ensembl"
-    assert get_ensembl_cache_dir().parent == get_default_data_dir().parent
+    assert cache_root("ensembl") == tmp_path / "pylocuszoom" / "ensembl"
+    assert cache_root("ensembl").parent == get_default_data_dir().parent
 
 
 def test_load_genes_miss():
@@ -340,13 +332,13 @@ def test_save_and_load_cached_genes():
         assert loaded_sorted["gene_name"].tolist() == ["BRCA2", "TEST"]
 
 
-# --- get_genes_for_region tests ---
+# --- get_genes_for_build tests ---
 
 
-def test_get_genes_for_region_uses_cache():
-    """Test that get_genes_for_region uses cache when available."""
+def test_get_genes_for_build_uses_cache():
+    """Test that get_genes_for_build uses cache when available."""
     from pylocuszoom._gene_cache import save_genes
-    from pylocuszoom.ensembl import get_genes_for_region
+    from pylocuszoom.reference_genes import get_genes_for_build
 
     # Pre-populate cache
     cached_df = pd.DataFrame(
@@ -365,7 +357,7 @@ def test_get_genes_for_region_uses_cache():
 
         # Mock the API call - should NOT be called due to cache hit
         with patch("pylocuszoom._http.requests.get") as mock_get:
-            result = get_genes_for_region(
+            result = get_genes_for_build(
                 species="human",
                 chrom="13",
                 start=32000000,
@@ -380,9 +372,9 @@ def test_get_genes_for_region_uses_cache():
         assert result["gene_name"].iloc[0] == "CACHED_GENE"
 
 
-def test_get_genes_for_region_fetches_and_caches():
-    """Test that get_genes_for_region fetches from API and caches result."""
-    from pylocuszoom.ensembl import get_genes_for_region
+def test_get_genes_for_build_fetches_and_caches():
+    """Test that get_genes_for_build fetches from API and caches result."""
+    from pylocuszoom.reference_genes import get_genes_for_build
 
     mock_response = Mock()
     mock_response.ok = True
@@ -403,7 +395,7 @@ def test_get_genes_for_region_fetches_and_caches():
         cache_dir = Path(tmpdir)
 
         with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-            result = get_genes_for_region(
+            result = get_genes_for_build(
                 species="human",
                 chrom="13",
                 start=32000000,
@@ -419,9 +411,9 @@ def test_get_genes_for_region_fetches_and_caches():
         assert len(csv_files) == 1
 
 
-def test_get_genes_for_region_include_exons():
+def test_get_genes_for_build_include_exons():
     """Test fetching genes with exons included."""
-    from pylocuszoom.ensembl import get_genes_for_region
+    from pylocuszoom.reference_genes import get_genes_for_build
 
     mock_response = Mock()
     mock_response.ok = True
@@ -431,7 +423,7 @@ def test_get_genes_for_region_include_exons():
         cache_dir = Path(tmpdir)
 
         with patch("pylocuszoom._http.requests.get", return_value=mock_response):
-            genes_df, exons_df = get_genes_for_region(
+            genes_df, exons_df = get_genes_for_build(
                 species="human",
                 chrom="13",
                 start=32000000,
@@ -445,13 +437,13 @@ def test_get_genes_for_region_include_exons():
         assert exons_df["gene_name"].unique().tolist() == ["BRCA2"]
 
 
-# --- clear_ensembl_cache tests ---
+# --- clear_gene_cache tests ---
 
 
-def test_clear_ensembl_cache():
+def test_clear_gene_cache():
     """Test clearing the Ensembl cache."""
     from pylocuszoom._gene_cache import save_genes
-    from pylocuszoom.ensembl import clear_ensembl_cache
+    from pylocuszoom.reference_genes import clear_gene_cache
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -474,16 +466,16 @@ def test_clear_ensembl_cache():
         assert len(csv_files) == 2
 
         # Clear cache
-        deleted = clear_ensembl_cache(cache_dir)
+        deleted = clear_gene_cache("ensembl", cache_dir)
 
         assert deleted == 2
         assert len(list(cache_dir.glob("**/*.csv"))) == 0
 
 
-def test_clear_ensembl_cache_species_specific():
+def test_clear_gene_cache_species_specific():
     """Test clearing cache for specific species only."""
     from pylocuszoom._gene_cache import save_genes
-    from pylocuszoom.ensembl import clear_ensembl_cache
+    from pylocuszoom.reference_genes import clear_gene_cache
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
@@ -501,7 +493,7 @@ def test_clear_ensembl_cache_species_specific():
         save_genes(df, cache_dir, "mus_musculus", "1", 100, 200)
 
         # Clear only human cache
-        deleted = clear_ensembl_cache(cache_dir, species="human")
+        deleted = clear_gene_cache("ensembl", cache_dir, "homo_sapiens")
 
         assert deleted == 1
         # Mouse cache should still exist
@@ -528,17 +520,19 @@ class TestNormalizeChromConsolidation:
 # --- Export tests ---
 
 
-def test_ensembl_functions_exported():
-    """Test that Ensembl functions are exported from main package."""
+def test_gene_source_functions_exported():
+    """Test that the gene-source entry points are exported from the package."""
     from pylocuszoom import (
-        clear_ensembl_cache,
-        fetch_genes_from_ensembl,
-        get_genes_for_region,
+        clear_gene_cache,
+        get_ensembl_species_name,
+        get_genes_for_build,
+        source_for,
     )
 
-    assert callable(get_genes_for_region)
-    assert callable(fetch_genes_from_ensembl)
-    assert callable(clear_ensembl_cache)
+    assert callable(get_genes_for_build)
+    assert callable(source_for)
+    assert callable(clear_gene_cache)
+    assert callable(get_ensembl_species_name)
 
 
 class TestPathTraversalProtection:
@@ -586,13 +580,13 @@ class TestPathTraversalProtection:
         with pytest.raises(ValidationError, match="Invalid species name"):
             save_genes(df, tmp_path, "../../etc/passwd", "1", 1, 100)
 
-    def test_clear_ensembl_cache_rejects_traversal(self, tmp_path):
-        """clear_ensembl_cache should reject path traversal species."""
-        from pylocuszoom.ensembl import clear_ensembl_cache
+    def test_clear_gene_cache_rejects_traversal(self, tmp_path):
+        """clear_gene_cache should reject path traversal species."""
+        from pylocuszoom.reference_genes import clear_gene_cache
         from pylocuszoom.utils import ValidationError
 
         with pytest.raises(ValidationError, match="Invalid species name"):
-            clear_ensembl_cache(tmp_path, species="../../etc/passwd")
+            clear_gene_cache("ensembl", tmp_path, "../../etc/passwd")
 
 
 class TestEmptyResultCaching:
@@ -619,15 +613,19 @@ class TestEmptyResultCaching:
 
     def test_gene_sparse_region_reloads_from_cache(self, tmp_path):
         """A region with no genes caches and reloads without raising."""
-        from pylocuszoom.ensembl import get_genes_for_region
+        from pylocuszoom.reference_genes import get_genes_for_build
 
         with patch(
             "pylocuszoom._http.requests.get", return_value=ok_response([])
         ) as mock_get:
-            first = get_genes_for_region("human", "1", 1_000_000, 1_100_000, tmp_path)
+            first = get_genes_for_build(
+                "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+            )
             assert mock_get.call_count == 1
 
-            second = get_genes_for_region("human", "1", 1_000_000, 1_100_000, tmp_path)
+            second = get_genes_for_build(
+                "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+            )
 
         assert first.empty
         assert second.empty
@@ -639,7 +637,8 @@ class TestEmptyResultCaching:
         """An API outage must not poison the cache for the region."""
         import requests
 
-        from pylocuszoom.ensembl import get_genes_for_region
+        from pylocuszoom.exceptions import EnsemblAPIError
+        from pylocuszoom.reference_genes import get_genes_for_build
 
         with (
             patch("pylocuszoom._http.time.sleep"),
@@ -648,10 +647,10 @@ class TestEmptyResultCaching:
                 side_effect=requests.exceptions.ConnectionError("network down"),
             ),
         ):
-            during_outage = get_genes_for_region(
-                "human", "1", 1_000_000, 1_100_000, tmp_path
-            )
-        assert during_outage.empty
+            with pytest.raises(EnsemblAPIError):
+                get_genes_for_build(
+                    "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
+                )
 
         assert not list(tmp_path.rglob("genes_*.csv")), (
             "a failed fetch must leave no cache file"
@@ -661,8 +660,8 @@ class TestEmptyResultCaching:
             "pylocuszoom._http.requests.get",
             return_value=ok_response(self._gene_payload()),
         ) as mock_get:
-            after_recovery = get_genes_for_region(
-                "human", "1", 1_000_000, 1_100_000, tmp_path
+            after_recovery = get_genes_for_build(
+                "human", "1", 1_000_000, 1_100_000, cache_dir=tmp_path
             )
 
         assert mock_get.called, "recovery must retry the API, not reuse a failed result"
@@ -700,38 +699,42 @@ class TestAssemblyMismatch:
 
     def test_two_builds_do_not_share_a_cache_entry(self, tmp_path):
         """The same region under two builds must not share a cache entry."""
-        from pylocuszoom.ensembl import get_genes_for_region
+        from pylocuszoom.ensembl import ensembl_source
+        from pylocuszoom.reference_genes import get_genes_for_build
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(ros_cfam_gene_payload()),
         ) as mock_get:
-            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                get_genes_for_region(
-                    "canine", "1", 1, 100, tmp_path, genome_build="canfam3.1"
-                )
-            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                get_genes_for_region(
-                    "canine", "1", 1, 100, tmp_path, genome_build="canfam4"
-                )
+            for build in ("canfam3.1", "canfam4"):
+                with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                    get_genes_for_build(
+                        "canine",
+                        "1",
+                        1,
+                        100,
+                        cache_dir=tmp_path,
+                        genome_build=build,
+                        source=ensembl_source("canine", build),
+                    )
 
         assert mock_get.call_count == 2, "each build must fetch its own entry"
 
     def test_gene_record_carries_assembly(self):
         """Every gene row records the assembly Ensembl served it on."""
-        from pylocuszoom.ensembl import fetch_genes_from_ensembl
+        from pylocuszoom.ensembl import fetch_overlap_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(ros_cfam_gene_payload()),
         ):
-            genes = fetch_genes_from_ensembl("canine", "1", 900_000, 1_200_000)
+            genes, _ = fetch_overlap_frames("canine", "1", 900_000, 1_200_000)
 
         assert genes["assembly"].tolist() == ["ROS_Cfam_1.0"]
 
     def test_exon_record_carries_assembly(self):
         """Exon rows record their assembly too, not just genes."""
-        from pylocuszoom.ensembl import fetch_exons_from_ensembl
+        from pylocuszoom.ensembl import fetch_overlap_frames
 
         gene = ros_cfam_gene_payload()[0]
         transcript = dict(
@@ -749,7 +752,7 @@ class TestAssemblyMismatch:
         payload = [gene, transcript, exon]
         with patch("pylocuszoom._http.requests.get", return_value=ok_response(payload)):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                exons = fetch_exons_from_ensembl(
+                _, exons = fetch_overlap_frames(
                     "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"
                 )
 
@@ -757,26 +760,26 @@ class TestAssemblyMismatch:
 
     def test_fetch_warns_when_assembly_differs(self):
         """A CanFam3.1 caller is told the genes came back on ROS_Cfam_1.0."""
-        from pylocuszoom.ensembl import fetch_genes_from_ensembl
+        from pylocuszoom.ensembl import fetch_overlap_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(ros_cfam_gene_payload()),
         ):
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                fetch_genes_from_ensembl(
+                fetch_overlap_frames(
                     "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"
                 )
 
     def test_fetch_silent_when_assembly_matches(self, recwarn):
         """No warning when the caller already works in Ensembl's assembly."""
-        from pylocuszoom.ensembl import fetch_genes_from_ensembl
+        from pylocuszoom.ensembl import fetch_overlap_frames
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(ros_cfam_gene_payload()),
         ):
-            fetch_genes_from_ensembl(
+            fetch_overlap_frames(
                 "canine", "1", 900_000, 1_200_000, genome_build="ROS_Cfam_1.0"
             )
 
@@ -784,29 +787,33 @@ class TestAssemblyMismatch:
 
     def test_cache_hit_still_warns(self, tmp_path):
         """Reloading from cache in a fresh session repeats the warning."""
-        from pylocuszoom.ensembl import get_genes_for_region
+        from pylocuszoom.ensembl import ensembl_source
+        from pylocuszoom.reference_genes import get_genes_for_build
 
         with patch(
             "pylocuszoom._http.requests.get",
             return_value=ok_response(ros_cfam_gene_payload()),
         ) as mock_get:
+            source = ensembl_source("canine", "canfam3.1")
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                get_genes_for_region(
+                get_genes_for_build(
                     "canine",
                     "1",
                     900_000,
                     1_200_000,
-                    tmp_path,
+                    cache_dir=tmp_path,
                     genome_build="canfam3.1",
+                    source=source,
                 )
             with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
-                cached = get_genes_for_region(
+                cached = get_genes_for_build(
                     "canine",
                     "1",
                     900_000,
                     1_200_000,
-                    tmp_path,
+                    cache_dir=tmp_path,
                     genome_build="canfam3.1",
+                    source=source,
                 )
 
         assert mock_get.call_count == 1, "second call must be served from cache"

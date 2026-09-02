@@ -13,21 +13,22 @@ anything else from Ensembl. Both sources return the same columns, including
 ``assembly``, so callers do not branch on which one answered.
 
 A ``GeneSource`` is everything the fetch-and-cache orchestration needs to know
-about a source: where it caches, which error it raises, and how to ask it for
-genes and exons. ``get_genes_for_build`` holds the one copy of that
-orchestration, so the cache policy and the error translation exist once rather
-than once per source.
+about a source: where it caches and how to ask it for genes and exons. Its
+definition lives in ``_gene_source.py`` so that the two source modules can be
+imported here rather than the other way round. ``get_genes_for_build`` holds
+the one copy of the orchestration, so the cache policy exists once rather than
+once per source.
 """
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
 from ._gene_cache import cache_root, clear_cache, load_genes, save_genes
-from .exceptions import EnsemblAPIError, ReferenceAPIError, UCSCAPIError
+from ._gene_source import GeneSource
+from .ensembl import ensembl_source
 from .logging import logger
+from .ucsc import ucsc_source
 from .utils import assembly_token, normalize_chrom
 
 # Build token (from utils.assembly_token) -> UCSC genome name.
@@ -39,103 +40,12 @@ UCSC_BUILDS: dict[str, str] = {
     "felcat9": "felCat9",
 }
 
-# The frame schema both sources are contractually required to produce. The
-# cache CSV round-trip depends on it: a column-less empty frame serialises to a
-# one-byte file that pd.read_csv cannot parse back.
-GENE_COLUMNS = (
-    "chr",
-    "start",
-    "end",
-    "gene_name",
-    "strand",
-    "gene_id",
-    "biotype",
-    "assembly",
-)
-EXON_COLUMNS = (
-    "chr",
-    "start",
-    "end",
-    "gene_name",
-    "exon_id",
-    "transcript_id",
-    "assembly",
-)
-
-# Fetch (genes, exons) for (chrom, start, end). Both sources answer from one
-# request, so neither frame costs anything the other did not.
-FetchFn = Callable[[str, int, int], "tuple[pd.DataFrame, pd.DataFrame]"]
-
-
-@dataclass(frozen=True)
-class GeneSource:
-    """One gene-annotation source, parametrising the shared orchestration.
-
-    Attributes:
-        name: Cache leaf directory, e.g. ``"ensembl"`` or ``"ucsc"``.
-        error_cls: Error the fetchers raise when the service fails.
-        cache_species: Key the cache is partitioned by, e.g. the Ensembl
-            species name or the UCSC genome name.
-        build_token: Extra cache-key component. Ensembl serves every build of a
-            species from one URL, so its entries have to be keyed by build;
-            a UCSC genome already names one build, so it needs none.
-        fetch: Fetch (genes, exons) for (chrom, start, end). Always raises
-            ``error_cls`` on failure rather than returning an empty frame.
-        on_cache_hit: Inspect a frame reloaded from cache. Ensembl uses it to
-            repeat its assembly-mismatch warning in a later session.
-    """
-
-    name: str
-    error_cls: type[ReferenceAPIError]
-    cache_species: str
-    build_token: str
-    fetch: FetchFn
-    on_cache_hit: Callable[[pd.DataFrame], None] = lambda cached: None
-
 
 def ucsc_genome_for_build(genome_build: str | None) -> str | None:
     """Return the UCSC genome serving this build, or None to use Ensembl."""
     if not genome_build:
         return None
     return UCSC_BUILDS.get(assembly_token(genome_build))
-
-
-def ucsc_source(ucsc_genome: str) -> GeneSource:
-    """Build the GeneSource for one UCSC genome."""
-    from .ucsc import fetch_track_frames
-
-    return GeneSource(
-        name="ucsc",
-        error_cls=UCSCAPIError,
-        cache_species=ucsc_genome,
-        build_token="",
-        fetch=lambda chrom, start, end: fetch_track_frames(
-            ucsc_genome, chrom, start, end
-        ),
-    )
-
-
-def ensembl_source(species: str, genome_build: str | None = None) -> GeneSource:
-    """Build the GeneSource for one species on Ensembl's current assembly."""
-    from .ensembl import (
-        fetch_overlap_frames,
-        get_ensembl_species_name,
-        warn_on_cached_assembly,
-    )
-
-    ensembl_species = get_ensembl_species_name(species)
-    return GeneSource(
-        name="ensembl",
-        error_cls=EnsemblAPIError,
-        cache_species=ensembl_species,
-        build_token=assembly_token(genome_build or ""),
-        fetch=lambda chrom, start, end: fetch_overlap_frames(
-            species, chrom, start, end, genome_build=genome_build
-        ),
-        on_cache_hit=lambda cached: warn_on_cached_assembly(
-            cached, genome_build, ensembl_species
-        ),
-    )
 
 
 def source_for(species: str, genome_build: str | None = None) -> GeneSource:
@@ -169,7 +79,6 @@ def get_genes_for_build(
     cache_dir: Path | None = None,
     use_cache: bool = True,
     include_exons: bool = False,
-    raise_on_error: bool = False,
     source: GeneSource | None = None,
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """Get gene annotations for a region in the caller's genome build.
@@ -190,9 +99,8 @@ def get_genes_for_build(
         cache_dir: Cache directory (the source's default if None).
         use_cache: Whether to use the disk cache.
         include_exons: If True, return a (genes_df, exons_df) tuple.
-        raise_on_error: If True, raise on API errors instead of returning empty.
         source: Source to fetch from. Derived from species and genome_build if
-            None; the public per-source entry points pass their own.
+            None.
 
     Returns:
         Gene annotations in the requested build, or a (genes_df, exons_df)
@@ -201,8 +109,8 @@ def get_genes_for_build(
     Raises:
         ValidationError: If an Ensembl-served build asks for a region over
             5Mb. UCSC imposes no region limit, so UCSC-served builds don't.
-        ReferenceAPIError: If raise_on_error=True and the serving API fails
-            (EnsemblAPIError or UCSCAPIError, depending on the source).
+        ReferenceAPIError: If the serving API fails (EnsemblAPIError or
+            UCSCAPIError, depending on the source).
     """
     if source is None:
         source = source_for(species, genome_build)
@@ -210,17 +118,6 @@ def get_genes_for_build(
         cache_dir = cache_root(source.name)
 
     chrom_str = normalize_chrom(chrom)
-    empty_genes = pd.DataFrame(columns=list(GENE_COLUMNS))
-    empty_exons = pd.DataFrame(columns=list(EXON_COLUMNS))
-
-    def fetch() -> tuple[pd.DataFrame, pd.DataFrame, bool]:
-        try:
-            genes_df, exons_df = source.fetch(chrom_str, start, end)
-        except source.error_cls:
-            if raise_on_error:
-                raise
-            return empty_genes, empty_exons, True
-        return genes_df, exons_df, False
 
     if use_cache:
         cached = load_genes(
@@ -235,11 +132,11 @@ def get_genes_for_build(
             source.on_cache_hit(cached)
             if not include_exons:
                 return cached
-            return cached, fetch()[1]
+            return cached, source.fetch(chrom_str, start, end)[1]
 
-    genes_df, exons_df, fetch_failed = fetch()
+    genes_df, exons_df = source.fetch(chrom_str, start, end)
 
-    if use_cache and not fetch_failed:
+    if use_cache:
         save_genes(
             genes_df,
             cache_dir,

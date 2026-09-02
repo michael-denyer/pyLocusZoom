@@ -141,7 +141,7 @@ class TestAutoGenes:
         unavailable = Mock(ok=False, status_code=503, text="Service Unavailable")
 
         with (
-            patch("pylocuszoom.ucsc.get_ucsc_cache_dir", return_value=tmp_path),
+            patch("pylocuszoom.reference_genes.cache_root", return_value=tmp_path),
             patch("pylocuszoom._http.time.sleep"),
             patch("pylocuszoom._http.requests.get", return_value=unavailable),
             pytest.warns(UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"),

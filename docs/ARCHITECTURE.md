@@ -257,7 +257,8 @@ pyLocusZoom/
 │   ├── gene_track.py          # Gene/exon rendering with overlap resolution
 │   ├── ensembl.py             # Ensembl REST client with caching
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired
-│   ├── reference_genes.py     # GeneSource, and the one fetch-and-cache orchestrator
+│   ├── reference_genes.py     # Build-to-source routing and the one fetch-and-cache orchestrator
+│   ├── _gene_source.py        # GeneSource and the frame schema both sources produce
 │   ├── _gene_cache.py         # Disk cache shared by both gene sources
 │   ├── _http.py               # Retrying JSON GET and file download
 │   ├── labels.py              # adjustText-based SNP label placement

@@ -1273,19 +1273,43 @@ UCSC's `ncbiRefSeq` is a transcript-level track, so transcripts sharing a symbol
 
 `genome_build` also selects the recombination map, where CanFam3.1 and CanFam4 are both supported.
 
-**Error Handling:** By default, API errors result in warnings and an empty gene track. Use `raise_on_error=True` in low-level functions to get exceptions instead.
+**Error Handling:** A source failure raises `EnsemblAPIError` or `UCSCAPIError`, both catchable as `ReferenceAPIError`. Under `auto_genes=True` the plotter catches it, warns, and draws the plot without the gene track.
 
-**Cache Location:**
+**Cache Location:** each source caches under its own leaf, so a region fetched from Ensembl and the same region fetched from UCSC never collide.
 
-- Linux/macOS: `~/.cache/pylocuszoom/ensembl/{species}/`
-- Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{species}/`
+- Linux/macOS: `~/.cache/pylocuszoom/ensembl/{ensembl_species}/` and `~/.cache/pylocuszoom/ucsc/{ucsc_genome}/`
+- Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{ensembl_species}/` and `%LOCALAPPDATA%/pylocuszoom/ucsc/{ucsc_genome}/`
+
+A CanFam3.1 or FelCat9 plot caches under `ucsc/canFam3/` or `ucsc/felCat9/`, not under `ensembl/`.
 
 ```python
 # Clear cache when needed
-from pylocuszoom import clear_ensembl_cache
-clear_ensembl_cache()  # Clear all
-clear_ensembl_cache(species="human")  # Clear specific species
+from pylocuszoom import clear_gene_cache, get_ensembl_species_name
+
+clear_gene_cache("ensembl")  # Every species cached from Ensembl
+clear_gene_cache("ensembl", cache_species=get_ensembl_species_name("human"))
+clear_gene_cache("ucsc", cache_species="canFam3")
 ```
+
+The species subdirectory is named the way the source names it, so an Ensembl
+one is `homo_sapiens` rather than `human`; `get_ensembl_species_name` resolves
+an alias to it.
+
+**Fetching genes without plotting:** `get_genes_for_build` returns the genes
+and exons for a region, going through the same cache the plotter uses.
+
+```python
+from pylocuszoom import get_genes_for_build
+
+genes_df, exons_df = get_genes_for_build(
+    species="canine", chrom=1, start=1_000_000, end=2_000_000,
+    genome_build="canfam3.1", include_exons=True,
+)
+```
+
+`source_for(species, genome_build)` returns the `GeneSource` that routing would
+pick, which is the way to ask one source directly for a build the other would
+otherwise serve.
 
 **Note:** Recombination rates are NOT available from Ensembl for most species. Continue to provide recombination maps separately.
 
