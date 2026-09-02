@@ -157,10 +157,17 @@ stages:
    CanFam4 and FelCat9, `ensembl.py` for everything else. Recombination rates
    are loaded via `recombination.py`, which handles download of bundled canine
    maps and CanFam3.1 → CanFam4 liftover through pyliftover.
-6. **Regional composition and backend dispatch.** `LocusZoomPlotter` routes
-   both single and stacked association panels through `RegionalPlotComposer`,
-   which owns shared axes, labels, significance line, LD legend, SNP-label,
-   and recombination policy. Manhattan and QQ plotters hand prepared data and
+6. **Regional composition and backend dispatch.** `plot()` and
+   `plot_stacked()` share one private pipeline, `_render_regional`, which
+   builds each optional panel through its own constructor
+   (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
+   `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and hands an ordered
+   `RegionalFigurePlan` to `RegionalPlotComposer`. The composer creates the
+   figure and dispatches each panel by type through
+   `render_panel`, a `singledispatchmethod`, owning shared axes, labels,
+   significance line, LD legend, SNP-label, and recombination policy
+   ([ADR-0006](adr/0006-one-regional-pipeline.md)). Manhattan and QQ
+   plotters hand prepared data and
    figure intent to semantic renderers: `ManhattanQQRenderer`,
    `MiamiRenderer`, `StatsRenderer`, `ColocRenderer`, and
    `LDHeatmapRenderer`. These renderers own panel composition, labels, axes,
@@ -177,7 +184,7 @@ stages:
 | Abstraction | Kind | Location | Purpose |
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
-| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders ordered typed panel plans for single and stacked regional figures |
+| `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders an ordered `RegionalFigurePlan`, dispatching each panel by type through `render_panel` (`singledispatchmethod`); the panel dataclasses own their own construction from raw input |
 | Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
@@ -328,7 +335,7 @@ that implements none of the five optional protocols still renders every
 regional, Manhattan, Miami, colocalisation, and PheWAS plot.
 
 How a caller reacts to a missing capability depends on what is left without it.
-`RegionalPlotComposer.render_heatmap_panel` skips the panel with a debug log,
+`RegionalPlotComposer.render_panel` skips a `HeatmapPanel` with a debug log,
 because the rest of the regional figure still renders. `LDHeatmapRenderer` and
 `StatsRenderer.render_forest` raise `TypeError` naming the backend class and the
 missing protocol, because there the capability is the whole figure.
