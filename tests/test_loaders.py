@@ -10,11 +10,11 @@ import io
 import pytest
 
 from pylocuszoom.loaders import (
-    _detect_format,
     load_gwas,
     load_plink_assoc,
     load_susie,
 )
+from pylocuszoom.loaders.gwas import _detect_format
 
 
 class TestAutoFormatDetection:

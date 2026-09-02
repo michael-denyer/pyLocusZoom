@@ -13,7 +13,7 @@ flowchart TB
         ST["StatsPlotter<br/><small>1d</small>"]
         HM["LDHeatmapPlotter<br/><small>1e</small>"]
         CP["ColocPlotter<br/><small>1f</small>"]
-        LD_IN["load_gwas + loaders<br/><small>1g</small>"]
+        LD_IN["load_gwas + loaders/<br/><small>1g</small>"]
     end
 
     subgraph Layer2["⚙️ Validation"]
@@ -145,8 +145,8 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 | 1d | StatsPlotter | PheWAS and forest plots | [stats_plotter.py](../src/pylocuszoom/stats_plotter.py) |
 | 1e | LDHeatmapPlotter | Pairwise LD heatmaps | [ld_heatmap_plotter.py](../src/pylocuszoom/ld_heatmap_plotter.py) |
 | 1f | ColocPlotter | Colocalisation scatter (GWAS × eQTL) | [coloc_plotter.py](../src/pylocuszoom/coloc_plotter.py) |
-| 1g | load_gwas | Auto-detecting GWAS format loader | [loaders.py](../src/pylocuszoom/loaders.py) |
-| 1g | LoaderSpec | Frozen per-format loader contract (separator, renames, p-value and first-present candidates, transform) driven by one `_load_tabular` engine | [loaders.py](../src/pylocuszoom/loaders.py) |
+| 1g | load_gwas | Auto-detecting GWAS format loader | [loaders/gwas.py](../src/pylocuszoom/loaders/gwas.py) |
+| 1g | LoaderSpec | Frozen per-format loader contract (separator, renames, p-value and first-present candidates, transform) driven by one `_load_tabular` engine | [loaders/_engine.py](../src/pylocuszoom/loaders/_engine.py) |
 
 ### File Loaders [1g]
 
@@ -154,10 +154,10 @@ Each static format is a `LoaderSpec` constant plus a thin public wrapper. `load_
 
 | Domain | Formats | Entry points |
 |--------|---------|--------------|
-| GWAS | PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog | [loaders.py](../src/pylocuszoom/loaders.py) |
-| eQTL | GTEx, eQTL Catalogue, MatrixEQTL | [loaders.py](../src/pylocuszoom/loaders.py) |
-| Fine-mapping | SuSiE, FINEMAP, CAVIAR, PolyFun | [loaders.py](../src/pylocuszoom/loaders.py) |
-| Genes | GTF, BED, Ensembl | [loaders.py](../src/pylocuszoom/loaders.py) |
+| GWAS | PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog | [loaders/gwas.py](../src/pylocuszoom/loaders/gwas.py) |
+| eQTL | GTEx, eQTL Catalogue, MatrixEQTL | [loaders/eqtl.py](../src/pylocuszoom/loaders/eqtl.py) |
+| Fine-mapping | SuSiE, FINEMAP, CAVIAR, PolyFun | [loaders/finemapping.py](../src/pylocuszoom/loaders/finemapping.py) |
+| Genes | GTF, BED, Ensembl | [loaders/annotation.py](../src/pylocuszoom/loaders/annotation.py) |
 
 ---
 
@@ -644,7 +644,7 @@ complete reference; this table is the complete one.
 | PheWAS / forest | [stats_plotter.py](../src/pylocuszoom/stats_plotter.py) |
 | LD heatmap | [ld_heatmap_plotter.py](../src/pylocuszoom/ld_heatmap_plotter.py) |
 | Colocalisation | [coloc_plotter.py](../src/pylocuszoom/coloc_plotter.py) |
-| Data loaders | [loaders.py](../src/pylocuszoom/loaders.py) |
+| Data loaders | [loaders/](../src/pylocuszoom/loaders/) |
 | DataFrame validator | [validation.py](../src/pylocuszoom/validation.py) |
 | Pydantic config | [config.py](../src/pylocuszoom/config.py) |
 | Backend protocol | [backends/base.py](../src/pylocuszoom/backends/base.py) |

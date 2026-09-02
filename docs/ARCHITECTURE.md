@@ -21,7 +21,7 @@ graph TD
     subgraph Input["Input Layer"]
         GWAS[GWAS / eQTL / PheWAS DataFrames]
         REF[Reference Data: genes, recomb maps, PLINK]
-        LOAD[loaders.py: format adapters]
+        LOAD[loaders/: format adapters, one module per family]
     end
 
     subgraph Validate["Validation Layer"]
@@ -252,7 +252,7 @@ stages:
 | `BUILTIN_BACKENDS` | Constant | `src/pylocuszoom/backends/__init__.py` | The backend names shipped with the library, derived from `BackendType` so the two cannot drift; contract tests parametrize over it |
 | `get_backend(name)` | Function | `src/pylocuszoom/backends/__init__.py` | Lazy-imports and returns a backend instance by name, raising `ImportError` with install instructions when an optional backend is missing |
 | `PyLocusZoomError` hierarchy | Exceptions | `src/pylocuszoom/exceptions.py` | Root type for all library errors; specialized subclasses (`ValidationError`, `PlinkError`, `DataDownloadError` with `ReferenceAPIError` beneath it, plus per-data-type validation errors) |
-| Loader functions | Functions | `src/pylocuszoom/loaders.py` | Format adapters that read PLINK `.assoc`, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog, GTEx, SuSiE, FINEMAP, CAVIAR, PolyFun, GTF, BED, and Ensembl into canonical DataFrames |
+| Loader functions | Package | `src/pylocuszoom/loaders/` | Format adapters that read PLINK `.assoc`, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog, GTEx, SuSiE, FINEMAP, CAVIAR, PolyFun, GTF, BED, and Ensembl into canonical DataFrames. One module per family (`gwas.py`, `eqtl.py`, `finemapping.py`, `annotation.py`) over the shared `_engine.py` `LoaderSpec` table and `_load_tabular` |
 
 ## Directory Structure Rationale
 
@@ -311,7 +311,12 @@ pyLocusZoom/
 │   ├── labels.py              # adjustText-based SNP label placement
 │   ├── eqtl.py                # eQTL validation and filtering
 │   ├── finemapping.py         # SuSiE / fine-mapping validation, filtering, credible sets
-│   ├── loaders.py             # Format adapters (PLINK, REGENIE, GTEx, SuSiE, GTF, BED, …)
+│   ├── loaders/               # Format adapters, one module per family
+│   │   ├── _engine.py         # LoaderSpec table and the one _load_tabular engine
+│   │   ├── gwas.py            # PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog, load_gwas
+│   │   ├── eqtl.py            # GTEx, eQTL Catalogue, MatrixEQTL
+│   │   ├── finemapping.py     # SuSiE, FINEMAP, CAVIAR, PolyFun
+│   │   └── annotation.py      # GTF/GFF3, BED, Ensembl BioMart
 │   ├── schemas.py             # Every family's column contract, at both tiers
 │   ├── validation.py          # Shared validation primitives
 │   ├── utils.py               # DataFrame helpers; to_pandas() handles PySpark
