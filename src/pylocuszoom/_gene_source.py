@@ -46,8 +46,8 @@ def empty_frame(columns: tuple[str, ...]) -> pd.DataFrame:
 class GeneAnnotations(NamedTuple):
     """What a source returns for a region: the genes and their exons.
 
-    Both sources answer from one request, so the exons cost nothing beyond the
-    genes and there is no reason for a caller to ask for one without the other.
+    Both sources answer from one request, so there is no reason for a caller
+    to ask for one without the other.
     """
 
     genes: pd.DataFrame
@@ -59,7 +59,6 @@ def empty_annotations() -> "GeneAnnotations":
     return GeneAnnotations(empty_frame(GENE_COLUMNS), empty_frame(EXON_COLUMNS))
 
 
-# Fetch the annotations for (chrom, start, end).
 FetchFn = Callable[[str, int, int], GeneAnnotations]
 
 

@@ -13,11 +13,9 @@ anything else from Ensembl. Both sources return the same columns, including
 ``assembly``, so callers do not branch on which one answered.
 
 A ``GeneSource`` is everything the fetch-and-cache orchestration needs to know
-about a source: where it caches and how to ask it for genes and exons. Its
-definition lives in ``_gene_source.py`` so that the two source modules can be
-imported here rather than the other way round. ``get_genes_for_build`` holds
-the one copy of the orchestration, so the cache policy exists once rather than
-once per source.
+about a source: where it caches and how to ask it for genes and exons.
+``get_genes_for_build`` holds the one copy of that orchestration, so the cache
+policy exists once rather than once per source.
 """
 
 from pathlib import Path

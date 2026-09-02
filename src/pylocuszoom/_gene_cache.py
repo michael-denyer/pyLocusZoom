@@ -6,8 +6,8 @@ same rules, so the key derivation and the CSV round-trip live here rather than
 once per client. Each source owns its own cache root, so a region fetched from
 Ensembl and the same region fetched from UCSC never collide.
 
-An entry is the genes and the exons together. Half an entry is a miss, which
-is what retires the gene-only entries written by earlier releases.
+Half an entry is a miss, which is what retires the gene-only entries written
+by earlier releases.
 """
 
 import hashlib

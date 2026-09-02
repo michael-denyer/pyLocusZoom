@@ -111,13 +111,12 @@ def warn_on_cached_assembly(
     _warn_on_assembly_mismatch(str(cached["assembly"].iloc[0]), genome_build, species)
 
 
-def _validate_region_size(start: int, end: int, context: str) -> None:
+def _validate_region_size(start: int, end: int) -> None:
     """Validate region size is within Ensembl API limits.
 
     Args:
         start: Region start position.
         end: Region end position.
-        context: Context for error message (e.g., "genes_df", "exons_df").
 
     Raises:
         ValidationError: If region exceeds 5Mb limit.
@@ -126,7 +125,7 @@ def _validate_region_size(start: int, end: int, context: str) -> None:
     if region_size > ENSEMBL_MAX_REGION_SIZE:
         raise ValidationError(
             f"Region size {region_size:,} bp exceeds Ensembl API limit of 5Mb. "
-            f"Please use a smaller region or provide {context} directly."
+            f"Please use a smaller region or provide genes_df directly."
         )
 
 
@@ -205,14 +204,13 @@ def fetch_overlap_frames(
         biotype: Gene biotype filter.
 
     Returns:
-        The region's annotations, each frame carrying its full column set even
-        when the region has nothing of that kind.
+        The region's annotations.
 
     Raises:
         ValidationError: If region > 5Mb.
         EnsemblAPIError: If the API fails.
     """
-    _validate_region_size(start, end, "genes_df")
+    _validate_region_size(start, end)
 
     ensembl_species = get_ensembl_species_name(species)
     chrom_str = normalize_chrom(chrom)

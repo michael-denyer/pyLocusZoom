@@ -43,21 +43,21 @@ class RecombSource:
     """Where one species' built-in recombination maps come from.
 
     Attributes:
-        species: Species name callers pass, and the key in ``RECOMB_SOURCES``.
+        species: Species name callers pass.
         filenames: The complete map set. A directory holding exactly these is
             a cache hit; anything else is downloaded again.
         native_build: Build the published maps are in.
         liftover_chains: Target build token -> chain URL, for the builds the
             maps can be lifted to. A build absent from here is served in
             ``native_build`` coordinates.
-        download: Downloads the set, taking ``output_dir`` and ``force``.
+        download: Downloads the set into a directory and returns it.
     """
 
     species: str
     filenames: frozenset[str]
     native_build: str
     liftover_chains: dict[str, str]
-    download: Callable[..., Path]
+    download: Callable[[str], Path]
 
 
 _CANONICAL_RECOMB_HEADER = "chr\tpos\trate\tcM\n"
@@ -372,8 +372,7 @@ CANINE_SOURCE = RecombSource(
     download=download_canine_recombination_maps,
 )
 
-# Species with built-in maps. A species absent from here has no built-in
-# source, and its caller supplies data_dir instead.
+# A species absent from here has no built-in maps and supplies its own.
 RECOMB_SOURCES: dict[str, RecombSource] = {CANINE_SOURCE.species: CANINE_SOURCE}
 
 
@@ -458,7 +457,6 @@ def get_recombination_rate_for_region(
     """
     df = load_recombination_map(chrom, species=species, data_dir=data_dir)
 
-    # Liftover if the source publishes a chain to the caller's build
     source = RECOMB_SOURCES.get(species)
     target_build = assembly_token(genome_build) if genome_build else ""
     if source is not None and target_build in source.liftover_chains:
@@ -514,7 +512,7 @@ def ensure_recomb_maps(
     # Download maps with error handling
     logger.info(f"Downloading {source.species} recombination maps...")
     try:
-        return source.download(output_dir=str(output_path))
+        return source.download(str(output_path))
     except (DataDownloadError, OSError) as e:
         warnings.warn(
             f"Recombination overlay skipped; could not download recombination "
