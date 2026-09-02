@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import convert_latex_to_unicode, register_backend
-from .composition import LegendEntry, heatmap_highlight_cells
+from .composition import LegendEntry, heatmap_highlight_cells, mb_tick_positions
 from .hover import plotly_hovertemplate
 
 # Style mappings (matplotlib -> Plotly)
@@ -881,8 +881,10 @@ class PlotlyBackend:
         """
         panel = _Panel.of(ax)
         fig, row = panel.fig, panel.row
-        count = getattr(fig, "_legend_count", 0) + 1
-        fig._legend_count = count
+        # to_plotly_json reports only legends that have been configured, so the
+        # count of existing ones gives the next free key.
+        existing = [k for k in fig.to_plotly_json()["layout"] if k.startswith("legend")]
+        count = len(existing) + 1
         legend_key = "legend" if count == 1 else f"legend{count}"
         for entry in entries:
             symbol = (
@@ -918,17 +920,34 @@ class PlotlyBackend:
         )
 
     def format_xaxis_mb(self, ax: Tuple[go.Figure, int]) -> None:
-        """Format x-axis to show megabase values.
-
-        Stores the subplot info for later tick formatting in finalize_layout.
-        """
+        """Format x-axis to show megabase values."""
         panel = _Panel.of(ax)
-        fig, row, col, n_cols = panel
-        # Store that this axis needs Mb formatting
-        if not hasattr(fig, "_mb_format_rows"):
-            fig._mb_format_rows = []
-        # Store (row, col, n_cols) tuple for proper axis naming later
-        fig._mb_format_rows.append((row, col, n_cols))
+        xaxis_name = panel.axis("xaxis")
+        x_range = self._x_range(panel, xaxis_name)
+        if not x_range:
+            return
+        tickvals, ticktext = mb_tick_positions(x_range[0], x_range[1])
+        panel.fig.update_layout(
+            **{
+                xaxis_name: dict(
+                    tickvals=tickvals,
+                    ticktext=ticktext,
+                    ticksuffix=" Mb",
+                )
+            }
+        )
+
+    @staticmethod
+    def _x_range(panel: _Panel, xaxis_name: str) -> Optional[Tuple[float, float]]:
+        """Resolve a panel's x-range, falling back to the extent of trace data."""
+        xaxis = getattr(panel.fig.layout, xaxis_name, None)
+        if xaxis and xaxis.range:
+            return xaxis.range
+        x_vals = []
+        for trace in panel.fig.data:
+            if getattr(trace, "x", None) is not None:
+                x_vals.extend([v for v in trace.x if v is not None])
+        return (min(x_vals), max(x_vals)) if x_vals else None
 
     def axvline(
         self,
@@ -1037,7 +1056,7 @@ class PlotlyBackend:
         bottom: float = 0.1,
         hspace: float = 0.08,
     ) -> None:
-        """Adjust layout margins and apply Mb tick formatting.
+        """Adjust layout margins.
 
         Args:
             fig: Figure object.
@@ -1052,66 +1071,6 @@ class PlotlyBackend:
                 b=int(bottom * fig.layout.height) if fig.layout.height else 80,
             )
         )
-
-        # Apply Mb tick formatting to marked axes
-        if hasattr(fig, "_mb_format_rows"):
-            import numpy as np
-
-            for item in fig._mb_format_rows:
-                # Handle both old format (row) and new format (row, col, n_cols)
-                if isinstance(item, tuple):
-                    row, col, n_cols = item
-                else:
-                    row, col, n_cols = item, 1, 1
-                xaxis_name = _Panel(fig, row, col, n_cols).axis("xaxis")
-                xaxis = getattr(fig.layout, xaxis_name, None)
-
-                # Get x-range from the axis or compute from data
-                x_range = None
-                if xaxis and xaxis.range:
-                    x_range = xaxis.range
-                else:
-                    # Compute from trace data (filter out None values from legend traces)
-                    x_vals = []
-                    for trace in fig.data:
-                        if hasattr(trace, "x") and trace.x is not None:
-                            x_vals.extend([v for v in trace.x if v is not None])
-                    if x_vals:
-                        x_range = [min(x_vals), max(x_vals)]
-
-                if x_range:
-                    x_min_mb, x_max_mb = x_range[0] / 1e6, x_range[1] / 1e6
-                    span_mb = x_max_mb - x_min_mb
-
-                    # Choose tick spacing based on range
-                    if span_mb <= 0.5:
-                        tick_step = 0.1
-                    elif span_mb <= 2:
-                        tick_step = 0.25
-                    elif span_mb <= 5:
-                        tick_step = 0.5
-                    elif span_mb <= 20:
-                        tick_step = 2
-                    else:
-                        tick_step = 5
-
-                    # Generate ticks
-                    first_tick = np.ceil(x_min_mb / tick_step) * tick_step
-                    tickvals_mb = np.arange(
-                        first_tick, x_max_mb + tick_step / 2, tick_step
-                    )
-                    tickvals_bp = [v * 1e6 for v in tickvals_mb]
-                    ticktext = [f"{v:.2f}" for v in tickvals_mb]
-
-                    fig.update_layout(
-                        **{
-                            xaxis_name: dict(
-                                tickvals=tickvals_bp,
-                                ticktext=ticktext,
-                                ticksuffix=" Mb",
-                            )
-                        }
-                    )
 
     def add_region_highlight(
         self,

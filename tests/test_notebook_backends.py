@@ -913,15 +913,16 @@ class TestGeneTrackMbFormatting:
             show_recombination=False,
         )
 
-        # With gene track, row 2 is the gene track axis
-        # Check that _mb_format_rows includes the gene track row
-        # Format is (row, col, n_cols) tuples
-        assert hasattr(fig, "_mb_format_rows"), "Plotly figure missing _mb_format_rows"
-        rows_in_format = [
-            item[0] if isinstance(item, tuple) else item for item in fig._mb_format_rows
-        ]
-        assert 2 in rows_in_format, (
-            f"Gene track axis (row 2) not in _mb_format_rows: {fig._mb_format_rows}"
+        # With gene track, row 2 is the gene track axis, so xaxis2 is its x-axis.
+        gene_track_xaxis = fig.layout.xaxis2
+        assert gene_track_xaxis.ticksuffix == " Mb", (
+            f"Gene track axis ticksuffix is {gene_track_xaxis.ticksuffix!r}, "
+            "expected ' Mb'"
+        )
+        assert gene_track_xaxis.ticktext, "Gene track axis has no Mb tick labels"
+        assert gene_track_xaxis.ticktext[0] == "1.00", (
+            f"Gene track ticks start at {gene_track_xaxis.ticktext[0]!r}, "
+            "expected '1.00' for a region starting at 1 Mb"
         )
 
     def test_bokeh_gene_track_has_mb_formatting(self, sample_gwas_df, sample_genes_df):
