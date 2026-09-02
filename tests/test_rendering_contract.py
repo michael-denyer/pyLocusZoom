@@ -1,10 +1,13 @@
 """Contract tests for the semantic Manhattan/QQ renderer."""
 
+import dataclasses
+import inspect
 from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
+from pylocuszoom._manhattan_panel import ManhattanPanelSpec, manhattan_spec
 from pylocuszoom._miami_renderer import MiamiRenderer
 from pylocuszoom._rendering import ManhattanQQRenderer
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
@@ -463,3 +466,26 @@ def test_coloc_renderer_owns_panel_policy():
     assert "set_title" in names
     # Correlation and H4 posterior are both annotations.
     assert names.count("add_text") >= 2
+
+
+def test_manhattan_spec_defaults_match_the_spec():
+    """``manhattan_spec``'s keyword defaults must not drift from the dataclass.
+
+    The helper enumerates the policy fields its three call sites vary so a
+    misspelled keyword is a type error rather than a runtime ``TypeError``.
+    That means restating those defaults, and this is what keeps the two
+    copies honest.
+    """
+    spec_defaults = {
+        field.name: field.default
+        for field in dataclasses.fields(ManhattanPanelSpec)
+        if field.default is not dataclasses.MISSING
+    }
+    helper_defaults = {
+        name: parameter.default
+        for name, parameter in inspect.signature(manhattan_spec).parameters.items()
+        if parameter.default is not inspect.Parameter.empty
+    }
+
+    assert helper_defaults
+    assert helper_defaults == {name: spec_defaults[name] for name in helper_defaults}

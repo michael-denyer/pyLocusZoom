@@ -1,12 +1,36 @@
 """Semantic renderers for statistical plot families."""
 
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 from .backends.base import PlotBackend, SupportsBarCharts
 from .colors import get_phewas_category_palette
+
+# The group a null category joins, and the group every point joins when the
+# frame has no category column. The colour applies only to the second case,
+# where a palette index would be arbitrary.
+UNCATEGORISED = "Uncategorised"
+UNCATEGORISED_COLOR = "#4169E1"
+
+
+def _effect_subsets(
+    data: pd.DataFrame, effect_col: Optional[str]
+) -> List[Tuple[pd.Series, str]]:
+    """Split one PheWAS group into the marker shapes it is drawn with.
+
+    Args:
+        data: Rows of one category.
+        effect_col: Column holding effect direction, or None to draw one shape.
+
+    Returns:
+        One (row mask, marker) pair per shape.
+    """
+    if effect_col and effect_col in data.columns:
+        effects = data[effect_col]
+        return [(effects.isna(), "o"), (effects >= 0, "^"), (effects < 0, "v")]
+    return [(pd.Series(True, index=data.index), "o")]
 
 
 class StatsRenderer:
@@ -28,57 +52,30 @@ class StatsRenderer:
         figsize: Tuple[float, float],
     ) -> Any:
         if category_col in df.columns:
-            df = df.sort_values([category_col, p_col])
-            categories = df[category_col].unique().tolist()
-            palette = get_phewas_category_palette(categories)
+            df = df.sort_values([category_col, p_col]).copy()
+            df["_group"] = df[category_col].fillna(UNCATEGORISED)
+            palette = get_phewas_category_palette(df["_group"].unique().tolist())
         else:
-            df = df.sort_values(p_col)
-            categories, palette = [], {}
-        df = df.copy()
+            df = df.sort_values(p_col).copy()
+            df["_group"] = UNCATEGORISED
+            palette = {UNCATEGORISED: UNCATEGORISED_COLOR}
         df["y_pos"] = range(len(df))
         fig, axes = self._backend.create_figure(
             n_panels=1, height_ratios=[1.0], figsize=figsize
         )
         ax = axes[0]
-        groups = categories or [None]
-        for cat in groups:
-            if cat is None:
-                cat_data, color = df, "#4169E1"
-            elif pd.isna(cat):
-                cat_data, color = df[df[category_col].isna()], palette[cat]
-            else:
-                cat_data, color = df[df[category_col] == cat], palette[cat]
-            if cat_data.empty:
-                continue
-            if effect_col and effect_col in cat_data.columns:
-                effect_vals = cat_data[effect_col]
-                subsets = [
-                    (effect_vals.isna(), "o"),
-                    (effect_vals >= 0, "^"),
-                    (effect_vals < 0, "v"),
-                ]
-                for mask, marker in subsets:
-                    subset = cat_data[mask]
-                    if not subset.empty:
-                        self._backend.scatter(
-                            ax,
-                            subset["neglog10p"],
-                            subset["y_pos"],
-                            colors=color,
-                            sizes=60,
-                            marker=marker,
-                            edgecolor="black",
-                            linewidth=0.5,
-                            zorder=2,
-                        )
-            else:
+        for group, group_data in df.groupby("_group", sort=False):
+            for mask, marker in _effect_subsets(group_data, effect_col):
+                subset = group_data[mask]
+                if subset.empty:
+                    continue
                 self._backend.scatter(
                     ax,
-                    cat_data["neglog10p"],
-                    cat_data["y_pos"],
-                    colors=color,
+                    subset["neglog10p"],
+                    subset["y_pos"],
+                    colors=palette[group],
                     sizes=60,
-                    marker="o",
+                    marker=marker,
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=2,

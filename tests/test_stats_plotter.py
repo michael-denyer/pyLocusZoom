@@ -3,8 +3,10 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
+from matplotlib.colors import to_hex
 
 from pylocuszoom.backends import BUILTIN_BACKENDS
+from pylocuszoom.colors import get_phewas_category_color
 from pylocuszoom.stats_plotter import StatsPlotter
 
 
@@ -147,7 +149,7 @@ class TestPheWASEdgeCases:
         plt.close(fig)
 
     def test_phewas_with_nan_category(self, stats_plotter):
-        """PheWAS plot should handle NaN category values."""
+        """A null category is its own group and takes the next palette colour."""
         df = pd.DataFrame(
             {
                 "phenotype": ["Height", "Weight", "Unknown"],
@@ -155,8 +157,17 @@ class TestPheWASEdgeCases:
                 "p_value": [0.01, 0.001, 1e-5],
             }
         )
+
         fig = stats_plotter.plot_phewas(df, variant_id="rs12345")
-        assert fig is not None
+
+        drawn = [
+            (to_hex(collection.get_facecolor()[0]), len(collection.get_offsets()))
+            for collection in fig.get_axes()[0].collections
+        ]
+        assert drawn == [
+            (get_phewas_category_color(0).lower(), 2),
+            (get_phewas_category_color(1).lower(), 1),
+        ]
         plt.close(fig)
 
 

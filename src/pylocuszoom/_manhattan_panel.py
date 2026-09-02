@@ -78,14 +78,37 @@ class ManhattanPanelSpec:
 
 def manhattan_spec(
     prepared_df: pd.DataFrame,
-    **policy: Any,
+    *,
+    significance_threshold: Optional[float] = None,
+    x_label: Optional[str] = None,
+    y_label_fontsize: int = 12,
+    title: Optional[str] = None,
+    title_fontsize: int = 14,
+    panel_label: Optional[str] = None,
+    panel_label_y_frac: float = 0.95,
+    invert_y: bool = False,
+    hover: Optional[HoverConfig] = None,
 ) -> ManhattanPanelSpec:
     """Build a genomic-position panel spec from a prepared Manhattan frame.
+
+    The keyword arguments are the :class:`ManhattanPanelSpec` fields the
+    single, stacked and Miami call sites vary; the tick styling fields keep
+    the spec's own defaults. ``test_manhattan_spec_defaults_match_the_spec``
+    fails if the two lists of defaults drift.
 
     Args:
         prepared_df: Frame from ``prepare_manhattan_data``, carrying the
             shared :class:`~.manhattan.GenomeLayout` in ``attrs["layout"]``.
-        **policy: Any other :class:`ManhattanPanelSpec` field.
+        significance_threshold: P-value to draw the significance line at, or
+            None to draw no line.
+        x_label: X axis label, or None for none.
+        y_label_fontsize: Y axis label size.
+        title: Panel title, or None for none.
+        title_fontsize: Panel title size.
+        panel_label: Corner label, or None for none.
+        panel_label_y_frac: Fractional height of the corner label.
+        invert_y: Draw the y axis descending, as the lower Miami panel does.
+        hover: Hover column mapping, or None for no tooltips.
 
     Returns:
         The panel spec.
@@ -95,7 +118,15 @@ def manhattan_spec(
         x_col="_cumulative_pos",
         group_col="_chrom_str",
         layout=prepared_df.attrs["layout"],
-        **policy,
+        significance_threshold=significance_threshold,
+        x_label=x_label,
+        y_label_fontsize=y_label_fontsize,
+        title=title,
+        title_fontsize=title_fontsize,
+        panel_label=panel_label,
+        panel_label_y_frac=panel_label_y_frac,
+        invert_y=invert_y,
+        hover=hover,
     )
 
 
