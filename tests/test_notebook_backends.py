@@ -5,8 +5,6 @@ are compatible with Jupyter/Databricks notebook environments.
 """
 
 import json
-import tempfile
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,6 +18,7 @@ from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.colors import LD_HEATMAP_COLORS
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import INTERACTIVE_BACKENDS, PROBES
 
 
 class TestBackendForestPlotMethods:
@@ -49,11 +48,67 @@ class TestBackendForestPlotMethods:
         getattr(self, primitive)(backend, axes[0])
 
 
+@pytest.fixture
+def regional_figure(backend_name, regional_gwas_df):
+    """The single-panel regional figure the export tests inspect."""
+    plotter = LocusZoomPlotter(species="canine", backend=backend_name, log_level=None)
+    return plotter.plot(
+        regional_gwas_df,
+        chrom=1,
+        start=1_000_000,
+        end=2_000_000,
+        display=DisplayConfig(show_recombination=False),
+    )
+
+
+@pytest.mark.parametrize("backend_name", INTERACTIVE_BACKENDS)
+class TestNotebookExport:
+    """Every interactive backend produces what a notebook needs to display it."""
+
+    def test_figure_exports_a_standalone_html_document(
+        self, backend_name, regional_figure
+    ):
+        """Databricks displayHTML() is handed one string carrying its own library."""
+        html = PROBES[backend_name].standalone_html(regional_figure)
+
+        assert "<html" in html or "<!DOCTYPE" in html
+        assert backend_name in html.lower()
+
+    def test_figure_serialises_to_json(self, backend_name, regional_figure):
+        """The front end is handed a payload it can post as JSON."""
+        payload = PROBES[backend_name].json_payload(regional_figure)
+
+        assert isinstance(payload, dict)
+        assert payload
+        json.dumps(payload)
+
+    def test_stacked_figure_exports_the_same_way(self, backend_name, regional_gwas_df):
+        """Two stacked panels export as one document, not two."""
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        fig = plotter.plot_stacked(
+            [regional_gwas_df, regional_gwas_df.copy()],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            display=DisplayConfig(show_recombination=False, snp_labels=False),
+        )
+
+        html = PROBES[backend_name].standalone_html(fig)
+
+        assert "<html" in html or "<!DOCTYPE" in html
+
+    def test_figure_carries_hover(self, backend_name, regional_figure):
+        """A regional plot is explorable, not a static image."""
+        assert PROBES[backend_name].has_hover(regional_figure)
+
+
 class TestPlotlyNotebookCompatibility:
-    """Tests for Plotly backend notebook compatibility."""
+    """Plotly-only notebook affordances."""
 
     def test_plotly_figure_has_repr_html(self, regional_gwas_df):
-        """Plotly figures must have _repr_html_() for notebook display."""
+        """Jupyter renders a plotly figure through _repr_html_()."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
             regional_gwas_df,
@@ -63,53 +118,10 @@ class TestPlotlyNotebookCompatibility:
             display=DisplayConfig(show_recombination=False),
         )
 
-        # Plotly figures have _repr_html_ for notebook rendering
-        assert hasattr(fig, "_repr_html_")
-        assert callable(fig._repr_html_)
-
-        # Should produce valid HTML
         html = fig._repr_html_()
+
         assert isinstance(html, str)
-        assert len(html) > 0
         assert "plotly" in html.lower() or "div" in html.lower()
-
-    def test_plotly_figure_to_json(self, regional_gwas_df):
-        """Plotly figures must be JSON-serializable for Databricks."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        # Databricks uses JSON serialization
-        json_str = fig.to_json()
-        assert isinstance(json_str, str)
-
-        # Should be valid JSON
-        parsed = json.loads(json_str)
-        assert "data" in parsed
-        assert "layout" in parsed
-
-    def test_plotly_figure_to_html(self, regional_gwas_df):
-        """Plotly figures must save to HTML for notebook export."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            fig.write_html(f.name)
-            html_content = Path(f.name).read_text()
-
-        assert len(html_content) > 0
-        assert "<html" in html_content or "<!DOCTYPE" in html_content
 
     def test_plotly_figure_has_data(self, regional_gwas_df):
         """Plotly figures must contain scatter data."""
@@ -128,66 +140,13 @@ class TestPlotlyNotebookCompatibility:
         # First trace should be scatter
         assert fig.data[0].type == "scatter"
 
-    def test_plotly_hover_data(self, regional_gwas_df):
-        """Plotly figures should have hover text for interactive exploration."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        # Check that traces have hovertemplate (plotly's hover mechanism)
-        assert len(fig.data) > 0
-        # At least one trace should have hover info
-        has_hover = any(
-            hasattr(trace, "hovertemplate") and trace.hovertemplate
-            for trace in fig.data
-        )
-        assert has_hover, "No traces have hovertemplate"
-
-    def test_plotly_stacked_figure(self, regional_gwas_df):
-        """Plotly backend should work with plot_stacked()."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df, regional_gwas_df.copy()],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False, snp_labels=False),
-        )
-
-        # Should have data from both panels
-        assert len(fig.data) >= 2
-
-        # Should be JSON-serializable
-        json_str = fig.to_json()
-        assert isinstance(json_str, str)
-
 
 class TestBokehNotebookCompatibility:
-    """Tests for Bokeh backend notebook compatibility."""
+    """Bokeh-only notebook affordances."""
 
-    def test_bokeh_figure_creation_no_errors(self, regional_gwas_df):
-        """Bokeh figure creation should not raise errors."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-
-        # Should complete without errors
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        assert fig is not None
-
-    def test_bokeh_figure_saves_to_html(self, regional_gwas_df):
-        """Bokeh figures must save to HTML for notebook export."""
-        from bokeh.io import output_file, save
+    def test_bokeh_components_for_embedding(self, regional_gwas_df):
+        """Bokeh should provide components for Databricks embedding."""
+        from bokeh.embed import components
 
         plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
         fig = plotter.plot(
@@ -198,32 +157,10 @@ class TestBokehNotebookCompatibility:
             display=DisplayConfig(show_recombination=False),
         )
 
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            output_file(f.name)
-            save(fig)
-            html_content = Path(f.name).read_text()
+        script, div = components(fig)
 
-        assert len(html_content) > 0
-        assert "<html" in html_content or "<!DOCTYPE" in html_content
-        assert "bokeh" in html_content.lower()
-
-    def test_bokeh_figure_json_serialization(self, regional_gwas_df):
-        """Bokeh figures must be JSON-serializable for notebook display."""
-        from bokeh.embed import json_item
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        # Bokeh uses json_item for embedding
-        json_data = json_item(fig)
-        assert isinstance(json_data, dict)
-        assert "doc" in json_data or "root_id" in json_data
+        assert "<script" in script
+        assert "<div" in div
 
     def test_bokeh_uses_scatter_not_deprecated_circle(self, regional_gwas_df):
         """Bokeh backend must use scatter() not deprecated circle() method."""
@@ -288,27 +225,6 @@ class TestBokehNotebookCompatibility:
         assert [w.name for w in issues.warning] == []
         assert [e.name for e in issues.error] == []
         assert len(figures) == 2
-
-    def test_bokeh_stacked_figure(self, regional_gwas_df):
-        """Bokeh backend should work with plot_stacked()."""
-        from bokeh.io import output_file, save
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df, regional_gwas_df.copy()],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False, snp_labels=False),
-        )
-
-        # Should save to HTML without errors
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-            output_file(f.name)
-            save(fig)
-            html_content = Path(f.name).read_text()
-
-        assert len(html_content) > 0
 
 
 class TestBackendConsistency:
@@ -383,47 +299,6 @@ class TestBackendConsistency:
         assert isinstance(fig, FIGURE_TYPES[backend_name])
 
 
-class TestDatabricksSpecific:
-    """Tests specific to Databricks notebook environment."""
-
-    def test_plotly_displayhtml_compatible(self, regional_gwas_df):
-        """Plotly output should be compatible with Databricks displayHTML()."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        # Databricks displayHTML() expects a complete HTML string
-        html = fig.to_html(include_plotlyjs=True, full_html=True)
-        assert isinstance(html, str)
-        assert "<html" in html or "<!DOCTYPE" in html
-        assert "plotly" in html.lower()
-
-    def test_bokeh_components_for_embedding(self, regional_gwas_df):
-        """Bokeh should provide components for Databricks embedding."""
-        from bokeh.embed import components
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        # components() returns (script, div) for embedding
-        script, div = components(fig)
-        assert isinstance(script, str)
-        assert isinstance(div, str)
-        assert "<script" in script
-        assert "<div" in div
-
-
 @pytest.fixture
 def sample_eqtl_no_effect_df():
     """Sample eQTL DataFrame without effect sizes."""
@@ -436,319 +311,87 @@ def sample_eqtl_no_effect_df():
     )
 
 
-class TestPlotlyEQTLFinemappingMarkers:
-    """Tests for eQTL and fine-mapping marker rendering in Plotly."""
+@pytest.fixture
+def eqtl_figure(backend_name, regional_gwas_df, sample_eqtl_df, sample_genes_df):
+    """GWAS, an eQTL panel with signed effects, and a gene track."""
+    return _stacked(
+        backend_name,
+        regional_gwas_df,
+        sample_genes_df,
+        eqtl_df=sample_eqtl_df,
+        eqtl_gene="GENE_A",
+    )
 
-    def test_plotly_eqtl_positive_effect_markers(
-        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
+
+@pytest.fixture
+def finemapping_figure(
+    backend_name, regional_gwas_df, sample_finemapping_df, sample_genes_df
+):
+    """GWAS, a fine-mapping panel and a gene track."""
+    return _stacked(
+        backend_name,
+        regional_gwas_df,
+        sample_genes_df,
+        finemapping_df=sample_finemapping_df,
+    )
+
+
+def _stacked(backend_name, gwas_df, genes_df, **panels):
+    plotter = LocusZoomPlotter(species="canine", backend=backend_name, log_level=None)
+    return plotter.plot_stacked(
+        [gwas_df],
+        chrom=1,
+        start=1_000_000,
+        end=2_000_000,
+        display=DisplayConfig(show_recombination=False),
+        panels=PanelInputs(genes_df=genes_df, **panels),
+    )
+
+
+@pytest.mark.parametrize("backend_name", INTERACTIVE_BACKENDS)
+class TestOptionalPanelMarkers:
+    """Marker choice is a library-independent decision, so both backends make it."""
+
+    def test_effect_direction_gets_its_own_triangle(self, backend_name, eqtl_figure):
+        """An eQTL panel points a triangle up or down per the sign of the effect.
+
+        Both directions are asserted. The bokeh half of this used to pass with
+        the negative-effect glyph never drawn.
+        """
+        symbols = PROBES[backend_name].marker_symbols(eqtl_figure)
+
+        assert "triangle-up" in symbols
+        assert "triangle-down" in symbols
+
+    def test_eqtl_without_effects_draws_no_triangles(
+        self, backend_name, regional_gwas_df, sample_eqtl_no_effect_df, sample_genes_df
     ):
-        """Plotly eQTL positive effects should render as triangle-up markers."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
-            ),
+        """With no effect column there is no direction, so the marker is neutral."""
+        fig = _stacked(
+            backend_name,
+            regional_gwas_df,
+            sample_genes_df,
+            eqtl_df=sample_eqtl_no_effect_df,
+            eqtl_gene="GENE_A",
         )
 
-        # Find traces with triangle-up markers (positive effects)
-        triangle_up_traces = [
-            t
-            for t in fig.data
-            if hasattr(t, "marker") and t.marker.symbol == "triangle-up"
-        ]
-        assert len(triangle_up_traces) > 0, (
-            "No triangle-up markers for positive effects"
-        )
+        symbols = PROBES[backend_name].marker_symbols(fig)
 
-    def test_plotly_eqtl_negative_effect_markers(
-        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
-    ):
-        """Plotly eQTL negative effects should render as triangle-down markers."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
-            ),
-        )
+        assert "diamond" in symbols
+        assert "triangle-up" not in symbols
+        assert "triangle-down" not in symbols
 
-        # Find traces with triangle-down markers (negative effects)
-        triangle_down_traces = [
-            t
-            for t in fig.data
-            if hasattr(t, "marker") and t.marker.symbol == "triangle-down"
-        ]
-        assert len(triangle_down_traces) > 0, (
-            "No triangle-down markers for negative effects"
-        )
+    def test_finemapping_uses_circles(self, backend_name, finemapping_figure):
+        """A PIP has no direction, so fine-mapping draws circles."""
+        assert "circle" in PROBES[backend_name].marker_symbols(finemapping_figure)
 
-    def test_plotly_eqtl_no_effect_diamond_markers(
-        self, regional_gwas_df, sample_eqtl_no_effect_df, sample_genes_df
-    ):
-        """Plotly eQTL without effect sizes should render as diamond markers."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_no_effect_df,
-                eqtl_gene="GENE_A",
-                genes_df=sample_genes_df,
-            ),
-        )
+    def test_eqtl_panel_carries_hover(self, backend_name, eqtl_figure):
+        """An eQTL point is worth hovering: it carries a gene, a p-value, an effect."""
+        assert PROBES[backend_name].has_hover(eqtl_figure)
 
-        # Find traces with diamond markers
-        diamond_traces = [
-            t for t in fig.data if hasattr(t, "marker") and t.marker.symbol == "diamond"
-        ]
-        assert len(diamond_traces) > 0, (
-            "No diamond markers for eQTL without effect sizes"
-        )
-
-    def test_plotly_finemapping_circle_markers(
-        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
-    ):
-        """Plotly fine-mapping should render as circle markers."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
-            ),
-        )
-
-        # Find traces with circle markers (fine-mapping uses circles)
-        circle_traces = [
-            t for t in fig.data if hasattr(t, "marker") and t.marker.symbol == "circle"
-        ]
-        assert len(circle_traces) > 0, "No circle markers for fine-mapping"
-
-    def test_plotly_eqtl_hover_data(
-        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
-    ):
-        """Plotly eQTL scatter should have hover data with position, p-value, effect."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
-            ),
-        )
-
-        # Find eQTL data traces (triangle markers with actual data, not legend traces)
-        eqtl_traces = [
-            t
-            for t in fig.data
-            if hasattr(t, "marker")
-            and t.marker.symbol in ("triangle-up", "triangle-down")
-            and t.x is not None
-            and len(t.x) > 0
-            and t.x[0] is not None  # Exclude legend traces with None values
-        ]
-        assert len(eqtl_traces) > 0, "No eQTL data traces found"
-
-        # Check hover data exists
-        for trace in eqtl_traces:
-            assert trace.customdata is not None, "eQTL trace missing customdata"
-
-    def test_plotly_finemapping_hover_data(
-        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
-    ):
-        """Plotly fine-mapping scatter should have hover data with position, PIP, CS."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
-            ),
-        )
-
-        # Find fine-mapping traces (circle markers with PIP data)
-        fm_traces = [
-            t
-            for t in fig.data
-            if hasattr(t, "marker")
-            and t.marker.symbol == "circle"
-            and hasattr(t, "customdata")
-            and t.customdata is not None
-        ]
-        assert len(fm_traces) > 0, "No fine-mapping traces with hover data found"
-
-
-class TestBokehEQTLFinemappingMarkers:
-    """Tests for eQTL and fine-mapping marker rendering in Bokeh."""
-
-    def test_bokeh_eqtl_with_effects_creates_renderers(
-        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
-    ):
-        """Bokeh eQTL with effect sizes should create scatter renderers."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
-            ),
-        )
-
-        from bokeh.models import Column, GlyphRenderer, Scatter
-
-        assert isinstance(fig, Column)
-        scatters = [
-            renderer
-            for child in fig.children
-            for renderer in getattr(child, "renderers", [])
-            if isinstance(renderer, GlyphRenderer)
-            and isinstance(renderer.glyph, Scatter)
-        ]
-        assert scatters, "the eQTL panel drew no scatter renderer"
-
-    def test_bokeh_eqtl_triangle_markers(
-        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
-    ):
-        """Bokeh eQTL should use triangle markers for directional effects."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
-            ),
-        )
-
-        from bokeh.models import GlyphRenderer, Scatter
-
-        # Get all scatter renderers from all figures
-        scatter_markers = []
-        for child in fig.children:
-            if hasattr(child, "renderers"):
-                for r in child.renderers:
-                    if isinstance(r, GlyphRenderer) and isinstance(r.glyph, Scatter):
-                        scatter_markers.append(r.glyph.marker)
-
-        # Should have triangle and inverted_triangle markers
-        assert (
-            "triangle" in scatter_markers or "inverted_triangle" in scatter_markers
-        ), f"No triangle markers found in Bokeh plot. Markers: {scatter_markers}"
-
-    def test_bokeh_finemapping_circle_markers(
-        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
-    ):
-        """Bokeh fine-mapping should use circle markers."""
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
-            ),
-        )
-
-        from bokeh.models import GlyphRenderer, Scatter
-
-        # Get all scatter renderers
-        scatter_markers = []
-        for child in fig.children:
-            if hasattr(child, "renderers"):
-                for r in child.renderers:
-                    if isinstance(r, GlyphRenderer) and isinstance(r.glyph, Scatter):
-                        scatter_markers.append(r.glyph.marker)
-
-        # Should have circle markers for fine-mapping
-        assert "circle" in scatter_markers, (
-            f"No circle markers found in Bokeh plot. Markers: {scatter_markers}"
-        )
-
-    def test_bokeh_eqtl_has_hover_tool(
-        self, regional_gwas_df, sample_eqtl_df, sample_genes_df
-    ):
-        """Bokeh eQTL panels should have HoverTool for interactivity."""
-        from bokeh.models import HoverTool
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                eqtl_df=sample_eqtl_df, eqtl_gene="GENE_A", genes_df=sample_genes_df
-            ),
-        )
-
-        # Check for HoverTool in any figure
-        has_hover = False
-        for child in fig.children:
-            if hasattr(child, "tools"):
-                for tool in child.tools:
-                    if isinstance(tool, HoverTool):
-                        has_hover = True
-                        break
-
-        assert has_hover, "No HoverTool found in Bokeh eQTL plot"
-
-    def test_bokeh_finemapping_has_hover_tool(
-        self, regional_gwas_df, sample_finemapping_df, sample_genes_df
-    ):
-        """Bokeh fine-mapping panels should have HoverTool for interactivity."""
-        from bokeh.models import HoverTool
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot_stacked(
-            [regional_gwas_df],
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(
-                finemapping_df=sample_finemapping_df, genes_df=sample_genes_df
-            ),
-        )
-
-        # Check for HoverTool in any figure
-        has_hover = False
-        for child in fig.children:
-            if hasattr(child, "tools"):
-                for tool in child.tools:
-                    if isinstance(tool, HoverTool):
-                        has_hover = True
-                        break
-
-        assert has_hover, "No HoverTool found in Bokeh fine-mapping plot"
+    def test_finemapping_panel_carries_hover(self, backend_name, finemapping_figure):
+        """A fine-mapping point carries its PIP and credible set."""
+        assert PROBES[backend_name].has_hover(finemapping_figure)
 
 
 class TestGeneTrackMbFormatting:
@@ -858,49 +501,23 @@ class TestPlotlySecondaryAxisNaming:
 class TestHeatmapCoordinates:
     """Tests that heatmap backends use actual genomic coordinates, not indices."""
 
-    def test_plotly_heatmap_uses_actual_coords(self):
-        """Plotly heatmap should use passed x/y coords, not range(len(coords))."""
-
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure([1.0], (10, 6))
+    @pytest.mark.parametrize("backend_name", INTERACTIVE_BACKENDS)
+    def test_heatmap_uses_the_coordinates_it_was_given(self, backend_name):
+        """A heatmap is drawn at genomic positions, not at matrix indices."""
+        backend = get_backend(backend_name)
+        _, axes = backend.create_figure([1.0], (10, 6))
         ax = axes[0]
+        coords = [1_000_000.0, 2_000_000.0]
 
-        data = np.array([[1.0, 0.5], [0.5, 1.0]])
-        x_coords = [1_000_000.0, 2_000_000.0]
-        y_coords = [1_000_000.0, 2_000_000.0]
-
-        backend.add_heatmap(ax, data, x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS)
-
-        fig_obj = ax[0]
-        heatmap_trace = [t for t in fig_obj.data if hasattr(t, "z")][0]
-        assert list(heatmap_trace.x) == [1_000_000.0, 2_000_000.0], (
-            f"Expected genomic x-coords, got {heatmap_trace.x}"
-        )
-        assert list(heatmap_trace.y) == [1_000_000.0, 2_000_000.0], (
-            f"Expected genomic y-coords, got {heatmap_trace.y}"
+        backend.add_heatmap(
+            ax,
+            np.array([[1.0, 0.5], [0.5, 1.0]]),
+            coords,
+            coords,
+            cmap_colors=LD_HEATMAP_COLORS,
         )
 
-    def test_bokeh_heatmap_uses_actual_coords(self):
-        """Bokeh heatmap should use passed x/y coords, not index values."""
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
-
-        backend = BokehBackend()
-        fig, axes = backend.create_figure([1.0], (10, 6))
-        ax = axes[0]
-
-        data = np.array([[1.0, 0.5], [0.5, 1.0]])
-        x_coords = [1_000_000.0, 2_000_000.0]
-        y_coords = [1_000_000.0, 2_000_000.0]
-
-        backend.add_heatmap(ax, data, x_coords, y_coords, cmap_colors=LD_HEATMAP_COLORS)
-
-        # Get the rect glyph data source
-        renderers = ax.renderers
-        rect_renderer = [r for r in renderers if hasattr(r, "glyph")][-1]
-        xs = sorted(set(rect_renderer.data_source.data["x"]))
-        ys = sorted(set(rect_renderer.data_source.data["y"]))
-        assert xs == [1_000_000.0, 2_000_000.0], f"Expected genomic x-coords, got {xs}"
-        assert ys == [1_000_000.0, 2_000_000.0], f"Expected genomic y-coords, got {ys}"
+        assert PROBES[backend_name].heatmap_coords(ax) == (coords, coords)
 
     def test_bokeh_heatmap_lower_triangle_uses_actual_coords(self):
         """Bokeh heatmap of a lower-triangle matrix should still use actual coords."""

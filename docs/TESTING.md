@@ -68,7 +68,8 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 - `tests/test_ld.py` — PLINK wrapper (driven through the `fake_plink` fixture; no real PLINK binary required)
 - `tests/test_backends.py` — the shared `PlotBackend` surface and the matplotlib backend
 - `tests/test_plotly_backend.py`, `tests/test_bokeh_backend.py` — the interactive backends
-- `tests/test_notebook_backends.py` — Plotly/Bokeh notebook compatibility
+- `tests/test_notebook_backends.py` — Plotly/Bokeh notebook compatibility, parametrised over both backends through `tests/figure_probes.py`
+- `tests/figure_probes.py` — one probe object per interactive backend, translating `marker_symbols`, `has_hover`, `standalone_html`, `json_payload` and `heatmap_coords` into one vocabulary; the only place in the suite that knows plotly's or bokeh's internals
 - `tests/test_recombination.py` — recombination map loading and CanFam4 liftover
 - `tests/test_ucsc.py` — the UCSC gene client and the build-to-source routing (HTTP mocked)
 - `tests/test_fixture_hygiene.py` — fails if one fixture name gains a second schema
@@ -103,6 +104,7 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
 - **Assert on observable outputs, not mock call counts.** Check returned figures, DataFrame columns/shapes, written files, and raised exceptions. Reserve `assert_called_once_with` for true system boundaries (PLINK subprocess, HTTP, filesystem dispatch).
 - **Drive PLINK through `fake_plink`** — tests must not require a real PLINK installation. The `fake_plink` fixture in `conftest.py` patches `subprocess.run` and writes a real `.ld` file at the path the command asked for, so command construction, output parsing and the R2 merge all stay inside the test. Assert on the frame `calculate_ld` returns, not on what the mock received: a command flag is already pinned by `TestBuildLdCommand` and `TestBuildPairwiseLdCommand`, which call the pure builders and assert on the list they return.
+- **State a rendering behaviour once, not once per backend.** A fact about the figure (which marker, whether it hovers, whether it exports) belongs in one `@pytest.mark.parametrize("backend_name", INTERACTIVE_BACKENDS)` test reading a probe from `tests/figure_probes.py`. Hand-written per-backend twins drift: the bokeh eQTL marker test used to pass with the negative-effect glyph never drawn. A genuine library-specific regression still belongs in `test_plotly_backend.py` or `test_bokeh_backend.py`.
 - **Cover edge cases**: empty DataFrames, missing required columns, mismatched list lengths, single-SNP regions, and cross-chromosome filtering.
 - **Respect the 30s timeout.** If a test is legitimately slow, override with `@pytest.mark.timeout(60)` rather than raising the global default.
 - **Randomization-safe**: tests must not depend on execution order. If a test only passes under a specific seed, that is a bug in the test.
