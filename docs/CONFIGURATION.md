@@ -120,8 +120,9 @@ Cross-field rules:
 ### Composite configs
 
 - `PlotConfig` composes `RegionConfig`, `ColumnConfig`, `DisplayConfig`,
-  `LDConfig`, and `PanelInputs`. Use `PlotConfig.from_kwargs(...)` to
-  construct one from the same flat kwargs that `plot()` accepts.
+  `LDConfig`, and `PanelInputs`. `plot()` builds one from its arguments and
+  the cross-model rules (a PLINK fileset needs a lead) live on it; callers
+  pass the four nested models to `plot()` and never build the composite.
 - `StackedPlotConfig` extends the pattern with `n_panels` and the list-valued
   `lead_positions`, `panel_labels`, and `ld_reference_files` fields for
   multi-panel plots. Each list, when set, must hold exactly `n_panels`

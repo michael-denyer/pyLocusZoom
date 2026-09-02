@@ -25,7 +25,8 @@ from ._plotter_utils import (
 )
 from ._qq_panel import QQPanelSpec, qq_title
 from .backends import BackendType, get_backend
-from .manhattan import prepare_categorical_data, prepare_manhattan_frames
+from .config import GenomeWideConfig
+from .manhattan import prepare_categorical_data, prepare_genomewide_frames
 from .qq import prepare_qq_data
 from .species import Species, resolve_species
 
@@ -48,10 +49,18 @@ class ManhattanPlotter:
         backend: Plotting backend ('matplotlib', 'plotly', or 'bokeh').
         genomewide_threshold: P-value threshold for significance line.
 
+    Every method takes a :class:`~pylocuszoom.GenomeWideConfig` naming the
+    chromosome, position and p-value columns and an optional chromosome
+    order, and validates each frame against it before laying it out.
+
     Example:
         >>> plotter = ManhattanPlotter(species="human")
         >>> fig = plotter.plot_manhattan(gwas_df)
         >>> fig.savefig("manhattan.png", dpi=150)
+        >>>
+        >>> from pylocuszoom import GenomeWideConfig
+        >>> columns = GenomeWideConfig(chrom_col="CHR", pos_col="BP", p_col="P")
+        >>> fig = plotter.plot_manhattan(plink_df, config=columns)
     """
 
     def __init__(
@@ -68,10 +77,8 @@ class ManhattanPlotter:
     def plot_manhattan(
         self,
         df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
+        *,
+        config: GenomeWideConfig = GenomeWideConfig(),
         category_col: Optional[str] = None,
         category_order: Optional[List[str]] = None,
         significance_threshold: ThresholdArg = UNSET,
@@ -86,10 +93,8 @@ class ManhattanPlotter:
 
         Args:
             df: DataFrame with GWAS results.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
+            config: Column names and chromosome order. A categorical plot
+                reads only ``config.p_col``.
             category_col: If provided, creates a categorical Manhattan plot
                 (like PheWAS) using this column instead of genomic positions.
             category_order: Custom category order for categorical plots.
@@ -102,15 +107,18 @@ class ManhattanPlotter:
         Returns:
             Figure object (type depends on backend).
 
+        Raises:
+            ValidationError: If ``df`` is empty or lacks a configured column.
+
         Example:
             >>> # Standard Manhattan plot
-            >>> fig = plotter.plot_manhattan(gwas_df, species="human")
+            >>> fig = plotter.plot_manhattan(gwas_df)
             >>>
             >>> # Categorical Manhattan (PheWAS-style)
             >>> fig = plotter.plot_manhattan(
             ...     phewas_df,
             ...     category_col="phenotype_category",
-            ...     p_col="pvalue",
+            ...     config=GenomeWideConfig(p_col="pvalue"),
             ... )
         """
         significance_threshold = resolve_threshold(
@@ -122,7 +130,7 @@ class ManhattanPlotter:
             return self._plot_manhattan_categorical(
                 df=df,
                 category_col=category_col,
-                p_col=p_col,
+                p_col=config.p_col,
                 category_order=category_order,
                 significance_threshold=significance_threshold,
                 figsize=figsize,
@@ -130,14 +138,7 @@ class ManhattanPlotter:
             )
 
         # Standard Manhattan plot
-        prepared = prepare_manhattan_frames(
-            [df],
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )[0]
+        prepared = prepare_genomewide_frames([df], config, species=self.species)[0]
 
         panel = manhattan_spec(
             prepared,
@@ -178,7 +179,8 @@ class ManhattanPlotter:
     def plot_qq(
         self,
         df: pd.DataFrame,
-        p_col: str = "p",
+        *,
+        config: GenomeWideConfig = GenomeWideConfig(),
         show_confidence_band: bool = True,
         show_lambda: bool = True,
         figsize: Tuple[float, float] = (6, 6),
@@ -191,7 +193,7 @@ class ManhattanPlotter:
 
         Args:
             df: DataFrame with p-values.
-            p_col: Column name for p-value.
+            config: Column names; only ``config.p_col`` is read.
             show_confidence_band: If True, show 95% confidence band.
             show_lambda: If True, show genomic inflation factor in title.
             figsize: Figure size as (width, height).
@@ -201,10 +203,9 @@ class ManhattanPlotter:
             Figure object (type depends on backend).
 
         Example:
-            >>> fig = plotter.plot_qq(gwas_df, p_col="pvalue")
+            >>> fig = plotter.plot_qq(gwas_df, config=GenomeWideConfig(p_col="pvalue"))
         """
-        # Prepare data
-        qq = prepare_qq_data(df, p_col=p_col)
+        qq = prepare_qq_data(df, p_col=config.p_col)
         panel = QQPanelSpec(
             qq_df=qq.frame,
             show_confidence_band=show_confidence_band,
@@ -217,10 +218,8 @@ class ManhattanPlotter:
     def plot_manhattan_stacked(
         self,
         gwas_dfs: List[pd.DataFrame],
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
+        *,
+        config: GenomeWideConfig = GenomeWideConfig(),
         significance_threshold: ThresholdArg = UNSET,
         panel_labels: Optional[List[str]] = None,
         figsize: Tuple[float, float] = (12, 8),
@@ -233,10 +232,7 @@ class ManhattanPlotter:
 
         Args:
             gwas_dfs: List of GWAS results DataFrames.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
+            config: Column names and chromosome order, shared by every frame.
             significance_threshold: P-value threshold for the genome-wide
                 significance line. Defaults to the plotter's
                 ``genomewide_threshold``; pass None to draw no line.
@@ -266,14 +262,7 @@ class ManhattanPlotter:
                 f"number of GWAS DataFrames ({n_gwas})"
             )
 
-        prepared = prepare_manhattan_frames(
-            gwas_dfs,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )
+        prepared = prepare_genomewide_frames(gwas_dfs, config, species=self.species)
         return render_figure(
             self._backend,
             FigurePlan(
@@ -292,10 +281,8 @@ class ManhattanPlotter:
     def plot_manhattan_qq(
         self,
         df: pd.DataFrame,
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
+        *,
+        config: GenomeWideConfig = GenomeWideConfig(),
         significance_threshold: ThresholdArg = UNSET,
         show_confidence_band: bool = True,
         show_lambda: bool = True,
@@ -309,10 +296,7 @@ class ManhattanPlotter:
 
         Args:
             df: GWAS results DataFrame.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
+            config: Column names and chromosome order.
             significance_threshold: P-value threshold for the genome-wide
                 significance line. Defaults to the plotter's
                 ``genomewide_threshold``; pass None to draw no line.
@@ -332,15 +316,8 @@ class ManhattanPlotter:
             significance_threshold, self.genomewide_threshold
         )
 
-        manhattan = prepare_manhattan_frames(
-            [df],
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )[0]
-        qq = prepare_qq_data(df, p_col=p_col)
+        manhattan = prepare_genomewide_frames([df], config, species=self.species)[0]
+        qq = prepare_qq_data(df, p_col=config.p_col)
         return render_figure(
             self._backend,
             FigurePlan(
@@ -372,10 +349,8 @@ class ManhattanPlotter:
     def plot_manhattan_qq_stacked(
         self,
         gwas_dfs: List[pd.DataFrame],
-        chrom_col: str = "chrom",
-        pos_col: str = "pos",
-        p_col: str = "p",
-        custom_chrom_order: Optional[List[str]] = None,
+        *,
+        config: GenomeWideConfig = GenomeWideConfig(),
         significance_threshold: ThresholdArg = UNSET,
         show_confidence_band: bool = True,
         show_lambda: bool = True,
@@ -390,10 +365,7 @@ class ManhattanPlotter:
 
         Args:
             gwas_dfs: List of GWAS results DataFrames.
-            chrom_col: Column name for chromosome.
-            pos_col: Column name for position.
-            p_col: Column name for p-value.
-            custom_chrom_order: Custom chromosome order (overrides species).
+            config: Column names and chromosome order, shared by every frame.
             significance_threshold: P-value threshold for the genome-wide
                 significance line. Defaults to the plotter's
                 ``genomewide_threshold``; pass None to draw no line.
@@ -419,14 +391,7 @@ class ManhattanPlotter:
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
 
-        manhattans = prepare_manhattan_frames(
-            gwas_dfs,
-            chrom_col=chrom_col,
-            pos_col=pos_col,
-            p_col=p_col,
-            species=self.species,
-            custom_order=custom_chrom_order,
-        )
+        manhattans = prepare_genomewide_frames(gwas_dfs, config, species=self.species)
         specs = stacked_manhattan_specs(
             manhattans,
             significance_threshold=significance_threshold,
@@ -434,7 +399,7 @@ class ManhattanPlotter:
         )
         panels = []
         for index, (spec, df) in enumerate(zip(specs, gwas_dfs)):
-            qq = prepare_qq_data(df, p_col=p_col)
+            qq = prepare_qq_data(df, p_col=config.p_col)
             panels.append(spec)
             panels.append(
                 QQPanelSpec(

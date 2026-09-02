@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from matplotlib.figure import Figure
 
+from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom._regional_panels import AssociationPanel
 from pylocuszoom.plotter import LocusZoomPlotter
@@ -137,7 +138,7 @@ class TestAutoGenes:
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
         introns = [
@@ -167,7 +168,7 @@ class TestAutoGenes:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
         assert fig is not None
@@ -196,8 +197,7 @@ class TestAutoGenes:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=False,
-                auto_genes=True,
+                display=DisplayConfig(show_recombination=False, auto_genes=True),
             )
 
         mock_fetch.assert_called_once()
@@ -229,7 +229,7 @@ class TestAutoGenes:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                genes_df=two_gene_track_df,
+                panels=PanelInputs(genes_df=two_gene_track_df),
             )
 
             # Ensembl should NOT be called when genes_df is provided
@@ -260,7 +260,7 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            genes_df=sample_genes_df,
+            panels=PanelInputs(genes_df=sample_genes_df),
         )
         # Should have 2 axes (association + gene track)
         assert len(fig.axes) >= 2
@@ -273,7 +273,7 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            lead_pos=lead_pos,
+            ld=LDConfig(lead_pos=lead_pos),
         )
         assert isinstance(fig, Figure)
         # Test passes if no exception
@@ -305,9 +305,7 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            pos_col="position",
-            p_col="pvalue",
-            rs_col="snp_id",
+            columns=ColumnConfig(pos_col="position", p_col="pvalue", rs_col="snp_id"),
         )
         assert isinstance(fig, Figure)
 
@@ -317,11 +315,7 @@ class TestLocusZoomPlotterPlot:
         df["R2"] = np.random.default_rng(0).uniform(0, 1, len(df))
 
         fig = canine_plotter.plot(
-            df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            ld_col="R2",
+            df, chrom=1, start=1000000, end=2000000, ld=LDConfig(ld_col="R2")
         )
         assert isinstance(fig, Figure)
 
@@ -334,7 +328,7 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            recomb_df=sample_recomb_df,
+            panels=PanelInputs(recomb_df=sample_recomb_df),
         )
         assert isinstance(fig, Figure)
 
@@ -345,7 +339,7 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            snp_labels=False,
+            display=DisplayConfig(snp_labels=False),
         )
         assert isinstance(fig, Figure)
 
@@ -356,7 +350,7 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, Figure)
 
@@ -389,8 +383,7 @@ class TestPlotEdgeCases:
             chrom=1,
             start=1000000,
             end=2000000,
-            lead_pos=1500000,
-            ld_reference_file="/path/to/genotypes",
+            ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
         )
 
         assert fig.get_axes()[0].get_legend() is None
@@ -427,8 +420,8 @@ class TestPlotStackedEdgeCases:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=False,
-                eqtl_df=bad_eqtl_df,
+                display=DisplayConfig(show_recombination=False),
+                panels=PanelInputs(eqtl_df=bad_eqtl_df),
             )
 
     def test_plot_stacked_validates_list_lengths(
@@ -456,7 +449,7 @@ class TestPlotStackedEdgeCases:
                 start=1000000,
                 end=2000000,
                 lead_positions=lead_positions,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
     def test_plot_stacked_validates_panel_labels_length(
@@ -475,7 +468,7 @@ class TestPlotStackedEdgeCases:
                 start=1000000,
                 end=2000000,
                 panel_labels=panel_labels,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
 
@@ -506,7 +499,7 @@ class TestPlotterDelegation:
                 chrom=1,
                 start=1,
                 end=3000,
-                finemapping_df=fm_df,
+                panels=PanelInputs(finemapping_df=fm_df),
             )
 
         pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
@@ -577,9 +570,8 @@ class TestStackedPlotLeadDetectionCrossChrom:
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
-                pos_col="ps",
-                p_col="p_wald",
-                show_recombination=False,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(show_recombination=False),
             )
         )
 
@@ -601,7 +593,12 @@ class TestLeadAutoDetectionAgreesAcrossEntryPoints:
                 "p_wald": [1e-3, 1e-9, 1e-5],
             }
         )
-        kwargs = dict(chrom=1, start=1_000_000, end=2_000_000, show_recombination=False)
+        kwargs = dict(
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            display=DisplayConfig(show_recombination=False),
+        )
         single = _captured_association_leads(
             lambda: canine_plotter.plot(gwas_df, **kwargs)
         )
@@ -635,10 +632,9 @@ class TestLeadPosBoundary:
                 chrom=1,
                 start=1,
                 end=300_000,
-                pos_col="ps",
-                p_col="p_wald",
-                lead_pos=1,
-                show_recombination=False,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1),
             )
         )
 
@@ -665,10 +661,9 @@ class TestLeadPosBoundary:
                 chrom=1,
                 start=1,
                 end=300_000,
-                pos_col="ps",
-                p_col="p_wald",
-                lead_pos=0,
-                show_recombination=False,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=0),
             )
 
 
@@ -696,9 +691,8 @@ class TestEmptyDataFrames:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                pos_col="ps",
-                p_col="p_wald",
-                show_recombination=False,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(show_recombination=False),
             )
 
 
@@ -724,7 +718,7 @@ class TestNaNPvalues:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert fig is not None
 
@@ -747,7 +741,7 @@ class TestNaNPvalues:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert fig is not None
 
@@ -773,7 +767,7 @@ class TestStackedPlotMismatchedLengths:
                 start=1000000,
                 end=2000000,
                 lead_positions=lead_positions,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
     def test_stacked_mismatched_panel_labels_raises(
@@ -790,7 +784,7 @@ class TestStackedPlotMismatchedLengths:
                 start=1000000,
                 end=2000000,
                 panel_labels=panel_labels,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
     def test_stacked_mismatched_ld_reference_files_raises(
@@ -807,7 +801,7 @@ class TestStackedPlotMismatchedLengths:
                 start=1000000,
                 end=2000000,
                 ld_reference_files=ld_reference_files,
-                show_recombination=False,
+                display=DisplayConfig(show_recombination=False),
             )
 
 
@@ -840,9 +834,8 @@ class TestFinemappingManyCredibleSets:
             chrom=1,
             start=900000,
             end=1700000,
-            show_recombination=False,
-            finemapping_df=finemapping_df,
-            finemapping_cs_col="cs",
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(finemapping_df=finemapping_df, finemapping_cs_col="cs"),
         )
 
         assert fig is not None
@@ -903,3 +896,141 @@ class TestRegionalPlotColumnValidation:
                 start=1000000,
                 end=2000000,
             )
+
+
+class TestRegionalOptionSurface:
+    """The regional options are declared once, on the config models."""
+
+    def _thresholds(self, call):
+        captured = []
+        original = AssociationPanel.draw
+
+        def spy(panel, backend, ax):
+            captured.append(panel.genomewide_threshold)
+            return original(panel, backend, ax)
+
+        with patch.object(AssociationPanel, "draw", spy):
+            call()
+        return captured
+
+    def _label_top_ns(self, call):
+        captured = []
+        original = AssociationPanel.draw
+
+        def spy(panel, backend, ax):
+            captured.append(panel.display.label_top_n)
+            return original(panel, backend, ax)
+
+        with patch.object(AssociationPanel, "draw", spy):
+            call()
+        return captured
+
+    @pytest.fixture
+    def quiet(self):
+        return DisplayConfig(show_recombination=False)
+
+    def test_threshold_omitted_inherits_the_plotter(self, small_regional_gwas_df):
+        plotter = LocusZoomPlotter(
+            species="canine", genomewide_threshold=1e-5, log_level=None
+        )
+        seen = self._thresholds(
+            lambda: plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+            )
+        )
+        assert seen == [1e-5]
+
+    def test_threshold_none_draws_no_line(self, canine_plotter, small_regional_gwas_df):
+        seen = self._thresholds(
+            lambda: canine_plotter.plot_stacked(
+                [small_regional_gwas_df, small_regional_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                significance_threshold=None,
+            )
+        )
+        assert seen == [None, None]
+
+    def test_threshold_overrides_for_one_call(
+        self, canine_plotter, small_regional_gwas_df
+    ):
+        seen = self._thresholds(
+            lambda: canine_plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                significance_threshold=1e-6,
+            )
+        )
+        assert seen == [1e-6]
+        assert canine_plotter.genomewide_threshold == 5e-8
+
+    def test_label_top_n_takes_the_method_default(
+        self, canine_plotter, small_regional_gwas_df, quiet
+    ):
+        single = self._label_top_ns(
+            lambda: canine_plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=quiet,
+            )
+        )
+        stacked = self._label_top_ns(
+            lambda: canine_plotter.plot_stacked(
+                [small_regional_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=quiet,
+            )
+        )
+        assert (single, stacked) == ([5], [3])
+
+    def test_label_top_n_set_wins_on_both_methods(
+        self, canine_plotter, small_regional_gwas_df
+    ):
+        display = DisplayConfig(show_recombination=False, label_top_n=2)
+        single = self._label_top_ns(
+            lambda: canine_plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=display,
+            )
+        )
+        stacked = self._label_top_ns(
+            lambda: canine_plotter.plot_stacked(
+                [small_regional_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=display,
+            )
+        )
+        assert (single, stacked) == ([2], [2])
+
+    def test_config_models_are_exported(self):
+        import pylocuszoom
+
+        for name in ("ColumnConfig", "DisplayConfig", "LDConfig", "PanelInputs"):
+            assert name in pylocuszoom.__all__
+            assert getattr(pylocuszoom, name) is getattr(
+                __import__("pylocuszoom.config", fromlist=[name]), name
+            )
+
+    def test_from_kwargs_is_gone(self):
+        from pylocuszoom.config import PlotConfig, StackedPlotConfig
+
+        assert not hasattr(PlotConfig, "from_kwargs")
+        assert not hasattr(StackedPlotConfig, "from_kwargs")

@@ -78,7 +78,7 @@ pip install pylocuszoom[spark]
 
 ```python
 import pandas as pd
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LDConfig, LocusZoomPlotter
 
 # Sample GWAS data
 gwas_df = pd.DataFrame({
@@ -90,13 +90,13 @@ gwas_df = pd.DataFrame({
 # Create plotter
 plotter = LocusZoomPlotter(species="canine")
 
-# Create plot with kwargs
+# The region is passed directly; every other option lives on a config model
 fig = plotter.plot(
     gwas_df,
     chrom=1,
     start=999000,
     end=1003000,
-    lead_pos=1001000,  # Highlight the most significant SNP
+    ld=LDConfig(lead_pos=1001000),  # Highlight the most significant SNP
 )
 
 # Save
@@ -114,18 +114,26 @@ The basic single-panel plot showing association signals with LD coloring.
 ![Regional association plot](../examples/matplotlib/regional_plot.png)
 
 ```python
+from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
+
 fig = plotter.plot(
     gwas_df,
     chrom=1,
     start=1000000,
     end=2000000,
-    lead_pos=1500000,           # Lead SNP position
-    ld_reference_file="geno",   # PLINK fileset for LD calculation
-    show_recombination=True,    # Recombination rate overlay
-    snp_labels=True,            # Label top SNPs (matplotlib only)
-    label_top_n=5,              # How many to label
-    genes_df=genes_df,          # Gene annotations
-    exons_df=exons_df,          # Exon structure (optional)
+    ld=LDConfig(
+        lead_pos=1500000,           # Lead SNP position
+        ld_reference_file="geno",   # PLINK fileset for LD calculation
+    ),
+    display=DisplayConfig(
+        show_recombination=True,    # Recombination rate overlay
+        snp_labels=True,            # Label top SNPs (matplotlib only)
+        label_top_n=5,              # How many to label
+    ),
+    panels=PanelInputs(
+        genes_df=genes_df,          # Gene annotations
+        exons_df=exons_df,          # Exon structure (optional)
+    ),
 )
 ```
 
@@ -152,7 +160,7 @@ fig = plotter.plot_stacked(
     end=2000000,
     lead_positions=[1500000, 1480000, 1520000],  # Per-panel leads
     panel_labels=["Height", "BMI", "WHR"],
-    genes_df=genes_df,
+    panels=PanelInputs(genes_df=genes_df),
 )
 ```
 
@@ -182,9 +190,11 @@ fig = plotter.plot_stacked(
     chrom=1,
     start=1000000,
     end=2000000,
-    eqtl_df=eqtl_df,
-    eqtl_gene="BRCA1",  # Filter to specific gene
-    genes_df=genes_df,
+    panels=PanelInputs(
+        eqtl_df=eqtl_df,
+        eqtl_gene="BRCA1",  # Filter to specific gene
+        genes_df=genes_df,
+    ),
 )
 ```
 
@@ -212,9 +222,11 @@ fig = plotter.plot_stacked(
     chrom=1,
     start=1000000,
     end=2000000,
-    finemapping_df=finemapping_df,
-    finemapping_cs_col="cs",
-    genes_df=genes_df,
+    panels=PanelInputs(
+        finemapping_df=finemapping_df,
+        finemapping_cs_col="cs",
+        genes_df=genes_df,
+    ),
 )
 ```
 
@@ -268,10 +280,12 @@ fig = plotter.plot(
     chrom=1,
     start=1000000,
     end=2000000,
-    lead_pos=1500000,
-    ld_heatmap_df=ld_matrix,         # Pairwise LD matrix
-    ld_heatmap_snp_ids=snp_ids,      # SNP IDs in matrix
-    ld_heatmap_height=0.25,          # Panel height ratio
+    ld=LDConfig(lead_pos=1500000),
+    panels=PanelInputs(
+        ld_heatmap_df=ld_matrix,     # Pairwise LD matrix
+        ld_heatmap_snp_ids=snp_ids,  # SNP IDs in matrix
+        ld_heatmap_height=0.25,      # Panel height ratio
+    ),
 )
 ```
 
@@ -469,8 +483,9 @@ Miami plots (mirrored Manhattan plots) compare two GWAS datasets side-by-side wi
 ![Miami plot](../examples/matplotlib/miami_plot.png)
 
 ```python
-from pylocuszoom import MiamiPlotter
 import pandas as pd
+
+from pylocuszoom import GenomeWideConfig, MiamiPlotter
 
 # Two GWAS datasets to compare
 gwas1 = pd.read_csv("gwas_study1.csv")
@@ -480,12 +495,10 @@ plotter = MiamiPlotter()
 fig = plotter.plot_miami(
     top_df=gwas1,
     bottom_df=gwas2,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     top_label="Study 1",
     bottom_label="Study 2",
     figsize=(14, 8),
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("miami.png", dpi=150)
 ```
@@ -503,19 +516,19 @@ fig.savefig("miami.png", dpi=150)
 **Customization options:**
 
 ```python
+from pylocuszoom import GenomeWideConfig
+
 fig = plotter.plot_miami(
     top_df=gwas1,
     bottom_df=gwas2,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
     # Per-panel thresholds
     top_threshold=5e-8,
     bottom_threshold=1e-5,
     # Panel labels
     top_label="Discovery Cohort",
     bottom_label="Replication Cohort",
-    # SNP annotations (list of SNP IDs — requires rs_col to be set)
+    # SNP annotations (list of SNP IDs; requires rs_col to be set)
     rs_col="rs",
     top_snp_annotations=["rs123"],
     bottom_snp_annotations=["rs456"],
@@ -589,16 +602,14 @@ Genome-wide Manhattan plots showing associations across all chromosomes.
 ![Manhattan plot](../examples/matplotlib/manhattan_plot.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan(
     gwas_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     significance_threshold=5e-8,
     figsize=(12, 5),
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan.png", dpi=150)
 ```
@@ -617,15 +628,15 @@ Quantile-quantile plots for assessing p-value distribution and detecting systema
 ![QQ plot](../examples/matplotlib/qq_plot.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_qq(
     gwas_df,
-    p_col="p",
     show_confidence_band=True,
     show_lambda=True,
     figsize=(6, 6),
+    config=GenomeWideConfig(p_col="p"),
 )
 fig.savefig("qq_plot.png", dpi=150)
 ```
@@ -644,18 +655,16 @@ Compare multiple GWAS studies in vertically stacked Manhattan plots with shared 
 ![Stacked Manhattan plot](../examples/matplotlib/manhattan_stacked.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_stacked(
     [gwas_study1, gwas_study2, gwas_study3],
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     panel_labels=["Study 1", "Study 2", "Study 3"],
     significance_threshold=5e-8,
     figsize=(12, 8),
     title="Multi-study GWAS Comparison",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_stacked.png", dpi=150)
 ```
@@ -675,19 +684,17 @@ Combined Manhattan and QQ plots in a single figure for comprehensive GWAS summar
 ![Manhattan and QQ side-by-side](../examples/matplotlib/manhattan_qq_sidebyside.png)
 
 ```python
-from pylocuszoom import ManhattanPlotter
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
 
 plotter = ManhattanPlotter()
 fig = plotter.plot_manhattan_qq(
     gwas_df,
-    chrom_col="chrom",
-    pos_col="pos",
-    p_col="p",
     significance_threshold=5e-8,
     show_confidence_band=True,
     show_lambda=True,
     figsize=(14, 5),
     title="GWAS Results",
+    config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
 )
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
@@ -831,31 +838,23 @@ plotter = LocusZoomPlotter(
 
 ### plot() Method
 
-Create a single regional association plot.
+Create a single regional association plot. The region is passed directly;
+every other option is a field of one of four frozen config models, so each is
+declared once and a model built in a notebook can serve many calls.
 
 ```python
+from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
+
 fig = plotter.plot(
     gwas_df,                    # Required: GWAS results
     chrom=1,                    # Required: chromosome
     start=1000000,              # Required: start position
     end=2000000,                # Required: end position
-    lead_pos=1500000,           # Lead SNP to highlight
-    ld_reference_file=None,     # PLINK fileset for LD
-    ld_col=None,                # Column with pre-computed LD
-    show_recombination=True,    # Show recomb overlay
-    snp_labels=True,            # Label top SNPs
-    label_top_n=5,              # Number to label
-    pos_col="ps",               # Position column name
-    p_col="p_wald",             # P-value column name
-    rs_col="rs",                # SNP ID column name
-    figsize=(12, 8),            # Figure dimensions
-    genes_df=None,              # Gene annotations
-    exons_df=None,              # Exon annotations
-    recomb_df=None,             # Custom recombination data
-    eqtl_df=None,               # eQTL data
-    eqtl_gene=None,             # Filter eQTL to gene
-    finemapping_df=None,        # Fine-mapping results
-    finemapping_cs_col="cs",    # Credible set column
+    columns=ColumnConfig(),     # Column names in gwas_df
+    display=DisplayConfig(),    # Labels, overlay, gene fetching, figure size
+    ld=LDConfig(),              # Lead SNP and LD source
+    panels=PanelInputs(),       # Frames for the optional panels
+    significance_threshold=5e-8,  # Omit to inherit the plotter; None for no line
 )
 ```
 
@@ -864,19 +863,47 @@ fig = plotter.plot(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `gwas_df` | DataFrame | Required | GWAS results with position and p-value columns. |
-| `chrom` | int | Required | Chromosome number. |
-| `start` | int | Required | Region start position (bp). |
-| `end` | int | Required | Region end position (bp). |
-| `lead_pos` | int | None | Lead SNP position to highlight. |
-| `ld_reference_file` | str | None | PLINK fileset (without extension) for LD calculation. |
-| `ld_col` | str | None | Column name if LD is pre-computed in gwas_df. |
-| `show_recombination` | bool | True | Whether to show recombination overlay. |
-| `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
-| `label_top_n` | int | 5 | Number of top SNPs to label. |
+| `chrom` | int or str | Required | Chromosome. |
+| `start` | int | Required | Region start position (bp, `>= 1`). |
+| `end` | int | Required | Region end position (bp, `> start`). |
+| `columns` | `ColumnConfig` | `ColumnConfig()` | Column names, below. |
+| `display` | `DisplayConfig` | `DisplayConfig()` | Display options, below. |
+| `ld` | `LDConfig` | `LDConfig()` | LD options, below. |
+| `panels` | `PanelInputs` | `PanelInputs()` | Optional-panel frames, below. |
+| `significance_threshold` | float or None | plotter's `genomewide_threshold` | P-value for the significance line; `None` draws none. |
+
+> **Note:** all arguments after `gwas_df` are keyword-only.
+
+#### ColumnConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
 | `pos_col` | str | `"ps"` | Position column name in gwas_df. |
 | `p_col` | str | `"p_wald"` | P-value column name in gwas_df. |
 | `rs_col` | str | `"rs"` | SNP ID column name in gwas_df. |
-| `figsize` | tuple | `(12, 8)` | Figure size (width, height) in inches. |
+
+#### DisplayConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
+| `label_top_n` | int | None | Number of top SNPs to label per panel. `None` takes the method default: 5 on `plot()`, 3 on `plot_stacked()`. |
+| `show_recombination` | bool | True | Whether to show recombination overlay. |
+| `auto_genes` | bool | None | Fetch the gene track with exon structure when `genes_df` is not supplied; `None` inherits the constructor setting. |
+| `figsize` | tuple | `(12, 8)` | Figure size (width, height) in inches. `plot_stacked()` uses the height as a floor and grows with the panel count. |
+
+#### LDConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `lead_pos` | int | None | Lead SNP position to highlight. Auto-detected as the strongest in-region p-value when omitted. |
+| `ld_reference_file` | str | None | PLINK fileset (without extension) for LD calculation. Requires a lead. |
+| `ld_col` | str | None | Column name if LD is pre-computed in gwas_df. Mutually exclusive with `ld_reference_file`. |
+
+#### PanelInputs
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
 | `genes_df` | DataFrame | None | Gene annotations for track. |
 | `exons_df` | DataFrame | None | Exon annotations for gene structure. |
 | `recomb_df` | DataFrame | None | Custom recombination rate data. |
@@ -890,11 +917,10 @@ fig = plotter.plot(
 | `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
 | `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
 
-> **Note:** all arguments after `gwas_df` are keyword-only.
-
 ### plot_stacked() Method
 
-Create stacked plots comparing multiple GWAS. The optional eQTL, fine-mapping, gene-track and LD-heatmap panels are the same ones `plot()` accepts.
+Create stacked plots comparing multiple GWAS. It takes the same four config
+models as `plot()`, plus one list per panel-specific value.
 
 ```python
 fig = plotter.plot_stacked(
@@ -902,26 +928,14 @@ fig = plotter.plot_stacked(
     chrom=1,                    # Required: chromosome
     start=1000000,              # Required: start position
     end=2000000,                # Required: end position
+    columns=ColumnConfig(),     # As on plot()
+    display=DisplayConfig(),    # As on plot(); label_top_n defaults to 3
+    ld=LDConfig(),              # lead_pos and ld_reference_file apply to every panel
+    panels=PanelInputs(),       # As on plot()
     lead_positions=None,        # Per-panel lead SNP positions
     panel_labels=None,          # Labels for each panel
-    ld_reference_file=None,     # Single PLINK fileset (broadcast to all panels)
     ld_reference_files=None,    # Per-panel PLINK filesets
-    ld_col=None,                # Pre-computed LD column
-    auto_genes=None,            # Override the constructor's auto_genes
-    show_recombination=True,    # Show recomb overlay
-    snp_labels=True,            # Label top SNPs
-    label_top_n=3,              # SNPs to label per panel
-    pos_col="ps",               # Position column
-    p_col="p_wald",             # P-value column
-    rs_col="rs",                # SNP ID column
-    figsize=(12, None),         # Width, auto-height
-    genes_df=None,              # Gene annotations
-    exons_df=None,              # Exon annotations
-    eqtl_df=None,               # eQTL data
-    eqtl_gene=None,             # Filter eQTL to gene
-    finemapping_df=None,        # Fine-mapping results
-    finemapping_cs_col="cs",    # Credible set column
-    recomb_df=None,             # Recombination data
+    significance_threshold=5e-8,  # As on plot()
 )
 ```
 
@@ -930,44 +944,21 @@ fig = plotter.plot_stacked(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `gwas_dfs` | list | Required | List of GWAS DataFrames. |
-| `chrom` | int | Required | Chromosome number. |
+| `chrom` | int or str | Required | Chromosome. |
 | `start` | int | Required | Region start position (bp). |
 | `end` | int | Required | Region end position (bp). |
-| `lead_positions` | list | None | Lead SNP positions per panel. |
-| `panel_labels` | list | None | Labels for each panel. |
-| `ld_reference_file` | str | None | Single PLINK fileset (broadcast to all panels with lead_positions). |
-| `ld_reference_files` | list | None | Per-panel PLINK filesets. |
-| `ld_col` | str | None | Pre-computed LD column name. |
-| `auto_genes` | bool | None | Fetch the gene track with exon structure when `genes_df` is not supplied; `None` inherits the constructor setting. |
-| `show_recombination` | bool | True | Whether to show recombination overlay. |
-| `snp_labels` | bool | True | Whether to label top SNPs (matplotlib only). |
-| `label_top_n` | int | 3 | Number of top SNPs to label per panel. |
-| `pos_col` | str | `"ps"` | Position column name. |
-| `p_col` | str | `"p_wald"` | P-value column name. |
-| `rs_col` | str | `"rs"` | SNP ID column name. |
-| `figsize` | tuple | `(12, None)` | Figure size (width, auto-height). |
-| `genes_df` | DataFrame | None | Gene annotations for track. |
-| `exons_df` | DataFrame | None | Exon annotations. |
-| `eqtl_df` | DataFrame | None | eQTL data for additional panel. |
-| `eqtl_gene` | str | None | Filter eQTL to specific gene; requires a `gene` column. |
-| `eqtl_threshold` | float | `1e-5` | eQTL significance line. |
-| `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
-| `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
-| `recomb_df` | DataFrame | None | Custom recombination data. |
-| `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel at bottom. |
-| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. Ids must match the GWAS SNP id column, and at least one must fall inside the region, or the call raises. |
-| `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
-| `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
+| `columns`, `display`, `ld`, `panels` | models | defaults | As on `plot()`. |
+| `lead_positions` | list | None | Lead SNP positions, one per panel. Required with a broadcast `ld.ld_reference_file`. |
+| `panel_labels` | list | None | Labels, one per panel. |
+| `ld_reference_files` | list | None | PLINK filesets, one per panel, replacing the broadcast `ld.ld_reference_file`. |
+| `significance_threshold` | float or None | plotter's `genomewide_threshold` | As on `plot()`. |
 
 ### Parameter Naming Conventions
 
-Note the difference in parameter naming between single-region and multi-region methods:
-
-- `plot()` uses `lead_pos` (singular) - for single region plots
-- `plot_stacked()` uses `lead_positions` (plural list) - one per region
-
-This naming convention distinguishes between methods that take a single value
-versus those that take a list matching the number of regions/panels.
+`LDConfig.lead_pos` and `ld_reference_file` are singular: on `plot()` they
+describe the one panel, on `plot_stacked()` they apply to every panel.
+`lead_positions` and `ld_reference_files` are the per-panel lists, one entry
+per GWAS frame, and override the broadcast value.
 
 ---
 
@@ -1051,7 +1042,7 @@ fm_df = load_finemap("finemap_output.snp")
 fig = plotter.plot_stacked(
     [gwas_df],
     chrom=1, start=1e6, end=2e6,
-    finemapping_df=fm_df,
+    panels=PanelInputs(finemapping_df=fm_df),
 )
 ```
 
@@ -1078,8 +1069,7 @@ genes_df = load_bed("genes.bed")
 # Use in plot
 fig = plotter.plot(
     gwas_df, chrom=1, start=1e6, end=2e6,
-    genes_df=genes_df,
-    exons_df=exons_df,
+    panels=PanelInputs(genes_df=genes_df, exons_df=exons_df),
 )
 ```
 
@@ -1224,7 +1214,7 @@ plotter = LocusZoomPlotter(species="feline")
 # Provide recombination data per-plot
 fig = plotter.plot(
     gwas_df, chrom=1, start=1e6, end=2e6,
-    recomb_df=my_feline_recomb_df,
+    panels=PanelInputs(recomb_df=my_feline_recomb_df),
 )
 ```
 
@@ -1335,7 +1325,7 @@ region makes no request at all.
 fig = plotter.plot(
     gwas_df,
     chrom=1, start=1e6, end=2e6,
-    # No lead_pos or ld_reference_file
+    # No LDConfig: neither a lead nor an LD source
 )
 ```
 
@@ -1350,8 +1340,7 @@ gwas_df["r2"] = [1.0, 0.8, 0.5, 0.2, 0.0]
 fig = plotter.plot(
     gwas_df,
     chrom=1, start=1e6, end=2e6,
-    lead_pos=1500000,
-    ld_col="r2",  # Use pre-computed LD
+    ld=LDConfig(lead_pos=1500000, ld_col="r2"),  # Use pre-computed LD
 )
 ```
 
@@ -1390,13 +1379,16 @@ plotter = LocusZoomPlotter(
 )
 ```
 
-Some plot methods also take a per-call threshold argument. Omit it to inherit
-the plotter's `genomewide_threshold`, pass a p-value to override it for one
-call, or pass `None` to draw no line. The argument is not spelled the same way
-everywhere, and two methods do not take one at all:
+Every plot method with a significance line also takes a per-call threshold
+argument. Omit it to inherit the plotter's `genomewide_threshold`, pass a
+p-value to override it for one call, or pass `None` to draw no line. The
+argument is not spelled the same way everywhere, and two methods do not take
+one at all:
 
 | Method | Per-call argument |
 |--------|-------------------|
+| `LocusZoomPlotter.plot` | `significance_threshold` |
+| `LocusZoomPlotter.plot_stacked` | `significance_threshold` |
 | `ManhattanPlotter.plot_manhattan` | `significance_threshold` |
 | `ManhattanPlotter.plot_manhattan_stacked` | `significance_threshold` |
 | `ManhattanPlotter.plot_manhattan_qq` | `significance_threshold` |
@@ -1406,9 +1398,6 @@ everywhere, and two methods do not take one at all:
 | `ColocPlotter.plot_coloc` | `gwas_threshold` and `eqtl_threshold` |
 | `ManhattanPlotter.plot_qq` | none |
 | `StatsPlotter.plot_forest` | none |
-
-`LocusZoomPlotter.plot` and `plot_stacked` have no per-call significance
-threshold either; the constructor value is the only control.
 
 ```python
 plotter = ManhattanPlotter(genomewide_threshold=1e-5)

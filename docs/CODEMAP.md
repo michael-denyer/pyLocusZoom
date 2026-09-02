@@ -174,9 +174,9 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2b | spec | Returns the `ColumnSpec` for one family at one tier | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_gwas_df, validate_genes_df | Plot-time GWAS and gene-annotation checks | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_phewas_df, validate_forest_df, validate_coloc_df | Plot-time checks for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2c | PlotConfig | Pydantic model for `plot()` kwargs | [config.py](../src/pylocuszoom/config.py) |
-| 2c | StackedPlotConfig | Pydantic model for `plot_stacked()` | [config.py](../src/pylocuszoom/config.py) |
-| 2c | PanelInputs | Optional-panel data carried on `PlotConfig.panels` | [config.py](../src/pylocuszoom/config.py) |
+| 2c | ColumnConfig, DisplayConfig, LDConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
+| 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
+| 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 
 ---
 
@@ -329,8 +329,8 @@ sequenceDiagram
         participant B as Backend (4a-d)
     end
 
-    U->>P: plot(gwas_df, chrom, start, end, ...)
-    P->>C: validate kwargs
+    U->>P: plot(gwas_df, chrom, start, end, columns, display, ld, panels)
+    P->>C: compose the config values
     C-->>P: PlotConfig
     P->>V: required columns present?
     V-->>P: OK
@@ -433,12 +433,17 @@ complete reference; this table is the complete one.
 | Name | Purpose |
 |------|---------|
 | `LocusZoomPlotter` | Regional association plot generator with LD coloring and annotations. |
+| `ColumnConfig` | Position, p-value and SNP id column names of a GWAS frame. |
+| `DisplayConfig` | SNP labels, recombination overlay, automatic gene fetching and figure size. |
+| `LDConfig` | Lead SNP and LD source: a pre-computed column or a PLINK fileset. |
+| `PanelInputs` | Frames for the optional gene, eQTL, fine-mapping and LD-heatmap panels. |
 
 ### Manhattan and QQ plots
 
 | Name | Purpose |
 |------|---------|
 | `ManhattanPlotter` | Manhattan and QQ plot generator for genome-wide visualizations. |
+| `GenomeWideConfig` | Chromosome, position and p-value column names plus chromosome order, shared with `MiamiPlotter`. |
 
 ### Miami plots
 

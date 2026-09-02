@@ -174,8 +174,10 @@ stages:
    one `UserWarning` pointing at the caller's own line, so every reason the
    overlay is missing reaches the user the same way.
 6. **Regional composition and backend dispatch.** `plot()` and
-   `plot_stacked()` validate every keyword through `PlotConfig`, whose
-   `panels` field (`PanelInputs`) carries the optional-panel data, then
+   `plot_stacked()` take the region plus four frozen config values
+   (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`), so each
+   option is declared once, on the model that owns it. They compose those
+   into a `PlotConfig`, which holds the cross-model rules, then
    share one private pipeline, `_render_regional`, which
    builds each optional panel through its own constructor
    (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
@@ -189,7 +191,12 @@ stages:
    and recombination policy live on the association panel, and both the
    association and eQTL significance lines go through the same
    `add_significance_line` the Manhattan family uses
-   ([ADR-0006](adr/0006-one-regional-pipeline.md)). `ManhattanPlotter`
+   ([ADR-0006](adr/0006-one-regional-pipeline.md)). Every `ManhattanPlotter`
+   and `MiamiPlotter` method takes a `GenomeWideConfig` (column names and
+   chromosome order) and hands its frames to
+   `manhattan.prepare_genomewide_frames`, which runs `validate_gwas_df`
+   against those names before any frame is laid out, so the genome-wide
+   families guard the boundary the way `plot()` does. `ManhattanPlotter`
    builds `ManhattanPanelSpec` and `QQPanelSpec` values through
    `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` and
    puts them on a `FigurePlan` as one panel, a vertical stack, or a
@@ -301,7 +308,7 @@ pyLocusZoom/
 │   ├── schemas.py             # Every family's column contract, at both tiers
 │   ├── validation.py          # Shared validation primitives
 │   ├── utils.py               # DataFrame helpers; to_pandas() handles PySpark
-│   ├── config.py              # Internal PlotConfig / StackedPlotConfig (not public)
+│   ├── config.py              # The config models plot methods take as values
 │   ├── exceptions.py          # PyLocusZoomError hierarchy
 │   ├── logging.py             # enable_logging / disable_logging (loguru)
 │   └── py.typed               # PEP 561 marker — ships with type hints

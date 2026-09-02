@@ -6,6 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from pylocuszoom import GenomeWideConfig
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from pylocuszoom.qq import calculate_confidence_band, calculate_lambda_gc
 from tests.strategies import pvalues
@@ -219,7 +220,9 @@ class TestQQWithVariousPvalueDistributions:
         rng = np.random.default_rng(42)
         df = pd.DataFrame({"p": rng.uniform(0, 1, 1000)})
 
-        fig = default_manhattan_plotter.plot_qq(df, p_col="p", show_lambda=True)
+        fig = default_manhattan_plotter.plot_qq(
+            df, show_lambda=True, config=GenomeWideConfig(p_col="p")
+        )
         assert fig is not None
 
         # Check title contains lambda close to 1
@@ -235,7 +238,7 @@ class TestQQWithVariousPvalueDistributions:
             }
         )
 
-        fig = default_manhattan_plotter.plot_qq(df, p_col="p")
+        fig = default_manhattan_plotter.plot_qq(df, config=GenomeWideConfig(p_col="p"))
         assert fig is not None
 
 
@@ -252,4 +255,4 @@ class TestEmptyQQInput:
         empty_df = pd.DataFrame({"p": pd.Series([], dtype=float)})
 
         with pytest.raises(ValueError, match="No valid p-values"):
-            plotter.plot_qq(empty_df, p_col="p")
+            plotter.plot_qq(empty_df, config=GenomeWideConfig(p_col="p"))

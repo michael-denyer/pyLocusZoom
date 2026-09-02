@@ -63,7 +63,7 @@ The fastest path from install to a working plot is a regional association plot a
 
 ```python
 import pandas as pd
-from pylocuszoom import LocusZoomPlotter
+from pylocuszoom import LDConfig, LocusZoomPlotter
 
 # Minimal GWAS DataFrame: chrom, pos, p_value (rs optional but recommended for labels)
 gwas_df = pd.DataFrame({
@@ -79,7 +79,7 @@ fig = plotter.plot(
     chrom=1,
     start=1_000_000,
     end=2_000_000,
-    lead_pos=1_500_000,
+    ld=LDConfig(lead_pos=1_500_000),
 )
 fig.savefig("regional_plot.png", dpi=150)
 ```

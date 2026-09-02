@@ -5,6 +5,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom import DisplayConfig, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
@@ -48,7 +49,7 @@ class TestBackendIntegration:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         assert isinstance(fig, go.Figure)
@@ -67,7 +68,7 @@ class TestBackendIntegration:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         ax = fig.axes[0]
 
@@ -99,7 +100,7 @@ class TestBackendIntegration:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         # Each GWAS gets its own association axes; gene track axes
         # may also be present but at minimum we need two scatter axes.
@@ -157,8 +158,8 @@ class TestBackendEQTLFinemapping:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
-            **panels,
+            panels=PanelInputs(**panels),
+            display=DisplayConfig(show_recombination=False),
         )
 
         assert fig is not None
@@ -174,10 +175,12 @@ class TestBackendEQTLFinemapping:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
-            eqtl_df=sample_eqtl_df,
-            eqtl_gene="GENE1",
-            finemapping_df=sample_finemapping_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                eqtl_df=sample_eqtl_df,
+                eqtl_gene="GENE1",
+                finemapping_df=sample_finemapping_df,
+            ),
         )
 
         axes = fig.get_axes()
@@ -206,9 +209,8 @@ class TestBackendEQTLFinemapping:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
-            eqtl_df=eqtl_df,
-            eqtl_gene="GENE1",
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(eqtl_df=eqtl_df, eqtl_gene="GENE1"),
         )
 
         assert fig is not None
@@ -235,9 +237,8 @@ class TestBackendEQTLFinemapping:
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=False,
-                eqtl_df=eqtl_df_no_gene_col,
-                eqtl_gene="GENE1",
+                display=DisplayConfig(show_recombination=False),
+                panels=PanelInputs(eqtl_df=eqtl_df_no_gene_col, eqtl_gene="GENE1"),
             )
 
     def test_eqtl_zero_pvalue_is_dropped(self, small_regional_gwas_df):
@@ -255,8 +256,8 @@ class TestBackendEQTLFinemapping:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
-            eqtl_df=eqtl_df,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(eqtl_df=eqtl_df),
         )
 
         eqtl_ax = fig.get_axes()[1]
@@ -279,7 +280,7 @@ class TestPlotterProperties:
             chrom=df["chr"].iloc[0],
             start=int(df["ps"].min()),
             end=int(df["ps"].max()),
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend])

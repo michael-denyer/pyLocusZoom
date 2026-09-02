@@ -83,7 +83,8 @@ class _MergedColoc:
     beside the frame keeps that resolution in one place.
 
     Attributes:
-        data: Merged rows carrying ``neglog10_gwas`` and ``neglog10_eqtl``.
+        data: Merged rows carrying ``neglog10_gwas``, ``neglog10_eqtl`` and
+            one ``color`` per row.
         rs_col: Post-merge SNP ID column, or None if the frames had none.
         ld_col: Post-merge LD column, or None if the caller supplied none.
     """
@@ -106,7 +107,7 @@ def _merge_and_transform(
         config: Validated plot configuration.
 
     Returns:
-        The merged frame and its resolved column names.
+        The merged, coloured frame and its resolved column names.
 
     Raises:
         ValueError: If the frames share no positions.
@@ -121,49 +122,50 @@ def _merge_and_transform(
     if len(merged) == 0:
         raise ValueError("No overlapping positions between GWAS and eQTL DataFrames")
 
+    ld_col = _resolve_merged_column(merged, config.ld_col, "_gwas")
+    merged["color"] = _assign_colors(merged, ld_col, config)
     return _MergedColoc(
         data=merged,
         rs_col=_resolve_merged_column(merged, config.rs_col, "_gwas"),
-        ld_col=_resolve_merged_column(merged, config.ld_col, "_gwas"),
+        ld_col=ld_col,
     )
 
 
-def _assign_colors(merged: _MergedColoc, config: ColocConfig) -> pd.Series:
+def _assign_colors(
+    merged: pd.DataFrame, ld_col: Optional[str], config: ColocConfig
+) -> pd.Series:
     """Colour every merged point by effect agreement, by LD, or not at all.
 
     Args:
-        merged: Output of ``_merge_and_transform``.
+        merged: The merged frame, before its colour column exists.
+        ld_col: Post-merge LD column, or None if the caller supplied none.
         config: Validated plot configuration.
 
     Returns:
-        One hex colour per row, aligned to ``merged.data``.
+        One hex colour per row, aligned to ``merged``.
 
     Raises:
         ValueError: If ``color_by_effect`` is set but either effect column is
             absent from the merged frame.
     """
     if config.color_by_effect:
-        gwas_effect = _resolve_merged_column(
-            merged.data, config.gwas_effect_col, "_gwas"
-        )
+        gwas_effect = _resolve_merged_column(merged, config.gwas_effect_col, "_gwas")
         if gwas_effect is None:
             raise ValueError(
                 f"gwas_effect_col '{config.gwas_effect_col}' not found in merged data"
             )
-        eqtl_effect = _resolve_merged_column(
-            merged.data, config.eqtl_effect_col, "_eqtl"
-        )
+        eqtl_effect = _resolve_merged_column(merged, config.eqtl_effect_col, "_eqtl")
         if eqtl_effect is None:
             raise ValueError(
                 f"eqtl_effect_col '{config.eqtl_effect_col}' not found in merged data"
             )
-        return merged.data.apply(
+        return merged.apply(
             lambda row: _get_effect_agreement_color(row[gwas_effect], row[eqtl_effect]),
             axis=1,
         )
-    if merged.ld_col is not None:
-        return merged.data[merged.ld_col].apply(get_ld_color)
-    return pd.Series(LD_NA_COLOR, index=merged.data.index)
+    if ld_col is not None:
+        return merged[ld_col].apply(get_ld_color)
+    return pd.Series(LD_NA_COLOR, index=merged.index)
 
 
 def _resolve_lead_idx(merged: _MergedColoc, config: ColocConfig) -> Optional[Any]:
@@ -334,7 +336,6 @@ class ColocPlotter:
         )
 
         merged = _merge_and_transform(gwas_df, eqtl_df, config)
-        merged.data["color"] = _assign_colors(merged, config)
         lead_idx = _resolve_lead_idx(merged, config)
 
         panel = ColocPanel(

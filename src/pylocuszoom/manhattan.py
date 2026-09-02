@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
+from .config import GenomeWideConfig
 from .exceptions import ValidationError
+from .schemas import validate_gwas_df
 from .species import Species, resolve_species
 
 CHROMOSOME_GAP = 1_000_000
@@ -209,6 +211,47 @@ class PreparedManhattan:
 
     frame: pd.DataFrame
     layout: PanelLayout
+
+
+def prepare_genomewide_frames(
+    dfs: Sequence[pd.DataFrame],
+    config: GenomeWideConfig,
+    *,
+    species: Species | None,
+    rs_col: str | None = None,
+) -> list[PreparedManhattan]:
+    """Validate each frame against ``config`` and lay them out on one genome.
+
+    The boundary for the genome-wide families: every frame is checked for
+    the chromosome, position and p-value columns the config names (and
+    ``rs_col`` when given) before any of them is laid out.
+
+    Args:
+        dfs: GWAS results DataFrames, in panel order.
+        config: Column names and chromosome order.
+        species: Species whose chromosome order lays the axis out, unless
+            ``config.custom_chrom_order`` overrides it.
+        rs_col: SNP id column to require as well, or None.
+
+    Raises:
+        ValidationError: If a frame is empty or lacks a named column.
+    """
+    for df in dfs:
+        validate_gwas_df(
+            df,
+            pos_col=config.pos_col,
+            p_col=config.p_col,
+            rs_col=rs_col,
+            chrom_col=config.chrom_col,
+        )
+    return prepare_manhattan_frames(
+        dfs,
+        chrom_col=config.chrom_col,
+        pos_col=config.pos_col,
+        p_col=config.p_col,
+        species=species,
+        custom_order=config.custom_chrom_order,
+    )
 
 
 def prepare_manhattan_frames(

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom import GenomeWideConfig
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from tests.conftest import FIGURE_TYPES
@@ -28,7 +29,10 @@ class TestPlotManhattan:
             }
         )
         fig = manhattan_plotter.plot_manhattan(
-            df, chrom_col="chromosome", pos_col="position", p_col="pvalue"
+            df,
+            config=GenomeWideConfig(
+                chrom_col="chromosome", pos_col="position", p_col="pvalue"
+            ),
         )
         assert isinstance(fig, plt.Figure)
 
@@ -43,7 +47,8 @@ class TestPlotManhattan:
     ):
         """plot_manhattan should accept custom chromosome order."""
         fig = manhattan_plotter.plot_manhattan(
-            manhattan_gwas_df, custom_chrom_order=["3", "2", "1"]
+            manhattan_gwas_df,
+            config=GenomeWideConfig(custom_chrom_order=["3", "2", "1"]),
         )
         assert isinstance(fig, plt.Figure)
 
@@ -91,7 +96,7 @@ class TestPlotManhattan:
     def test_plot_manhattan_validates_columns(self, manhattan_plotter):
         """plot_manhattan should raise on missing columns."""
         df = pd.DataFrame({"wrong": [1], "columns": [2]})
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="Missing columns"):
             manhattan_plotter.plot_manhattan(df)
 
     def test_plot_manhattan_handles_empty_df(self, manhattan_plotter):
@@ -133,7 +138,9 @@ class TestPlotQQ:
     def test_plot_qq_with_custom_column(self, default_manhattan_plotter):
         """plot_qq should work with custom p-value column name."""
         df = pd.DataFrame({"pvalue": np.random.default_rng(0).uniform(0, 1, 100)})
-        fig = default_manhattan_plotter.plot_qq(df, p_col="pvalue")
+        fig = default_manhattan_plotter.plot_qq(
+            df, config=GenomeWideConfig(p_col="pvalue")
+        )
         assert isinstance(fig, plt.Figure)
 
     def test_plot_qq_shows_confidence_band(
@@ -230,7 +237,7 @@ class TestPlotManhattanCategorical:
         fig = default_manhattan_plotter.plot_manhattan(
             sample_phewas_df,
             category_col="category",
-            p_col="p",
+            config=GenomeWideConfig(p_col="p"),
         )
         assert isinstance(fig, plt.Figure)
 
@@ -241,8 +248,8 @@ class TestPlotManhattanCategorical:
         fig = default_manhattan_plotter.plot_manhattan(
             sample_phewas_df,
             category_col="category",
-            p_col="p",
             category_order=["neuro", "cardio", "immuno"],
+            config=GenomeWideConfig(p_col="p"),
         )
         assert isinstance(fig, plt.Figure)
 
@@ -380,7 +387,10 @@ class TestPlotManhattanQQSideBySide:
             }
         )
         fig = manhattan_plotter.plot_manhattan_qq(
-            df, chrom_col="chromosome", pos_col="position", p_col="pvalue"
+            df,
+            config=GenomeWideConfig(
+                chrom_col="chromosome", pos_col="position", p_col="pvalue"
+            ),
         )
         assert isinstance(fig, plt.Figure)
 

@@ -7,6 +7,7 @@ from hypothesis import given
 from hypothesis import settings as hyp_settings
 from matplotlib.figure import Figure
 
+from pylocuszoom import DisplayConfig
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
 from pylocuszoom.manhattan import prepare_categorical_data, prepare_manhattan_frames
@@ -120,7 +121,7 @@ class TestPValueValidation:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, Figure)
 
@@ -147,7 +148,7 @@ class TestPValueValidation:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, Figure)
 
@@ -168,7 +169,7 @@ class TestPValueValidation:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, Figure)
 
@@ -320,7 +321,7 @@ class TestPValueValidation:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, Figure)
 
@@ -340,7 +341,7 @@ class TestPValueValidation:
             chrom=1,
             start=1000000,
             end=2000000,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
         assert isinstance(fig, Figure)
 
@@ -388,7 +389,7 @@ class TestPlotStackedProperties:
             chrom=chrom,
             start=start,
             end=end,
-            show_recombination=False,
+            display=DisplayConfig(show_recombination=False),
         )
 
         assert fig is not None

@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`plot()` and `plot_stacked()` take the config models as values (breaking).** Each declared 26 and 29 keyword parameters, 24 of them identical, and every one was restated in the `PlotConfig.from_kwargs` call and the docstring while twelve were already fields of `PanelInputs`; `from_kwargs` then ran every nested validator twice. Both methods now take the region (`chrom`, `start`, `end`) plus `columns: ColumnConfig`, `display: DisplayConfig`, `ld: LDConfig` and `panels: PanelInputs`, each option declared once on the model that owns it, and `plot_stacked()` keeps its per-panel lists (`lead_positions`, `panel_labels`, `ld_reference_files`). The four models are exported from `pylocuszoom` and are frozen, so one built in a notebook serves many calls. `PlotConfig.from_kwargs` and `StackedPlotConfig.from_kwargs` no longer exist. No compatibility shim is provided; `scripts/migrate_to_config_models.py` rewrites `.py` and `.ipynb` callers in place. ADR-0008 records the decision.
+
+  ```python
+  # before
+  fig = plotter.plot(gwas_df, chrom=1, start=1_000_000, end=2_000_000,
+                     lead_pos=1_500_000, ld_reference_file="ref", genes_df=genes_df)
+  fig = plotter.plot_stacked([gwas_a, gwas_b], chrom=1, start=1_000_000, end=2_000_000,
+                             lead_positions=[1_500_000, 1_700_000], ld_col="R2",
+                             panel_labels=["A", "B"], genes_df=genes_df, label_top_n=1)
+
+  # after
+  from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
+  fig = plotter.plot(gwas_df, chrom=1, start=1_000_000, end=2_000_000,
+                     ld=LDConfig(lead_pos=1_500_000, ld_reference_file="ref"),
+                     panels=PanelInputs(genes_df=genes_df))
+  fig = plotter.plot_stacked([gwas_a, gwas_b], chrom=1, start=1_000_000, end=2_000_000,
+                             lead_positions=[1_500_000, 1_700_000], panel_labels=["A", "B"],
+                             ld=LDConfig(ld_col="R2"), panels=PanelInputs(genes_df=genes_df),
+                             display=DisplayConfig(label_top_n=1))
+  ```
+
+- **`plot()` and `plot_stacked()` take a per-call `significance_threshold`.** Every other family already let a call override the plotter's `genomewide_threshold` or pass `None` for no line; the regional path had only the constructor value. Omit it to inherit the plotter, as before.
+- **`auto_genes` is a `DisplayConfig` field, and `plot()` honours it too.** It was a `plot_stacked()` parameter special-cased in the plotter, the one regional option that was not a config field. `DisplayConfig(auto_genes=None)`, the default, inherits the constructor setting; the constructor keyword is unchanged.
+- **The Manhattan family takes a `GenomeWideConfig` and validates at the boundary (breaking).** `ManhattanPlotter`'s five methods and `MiamiPlotter.plot_miami` each restated `chrom_col`, `pos_col`, `p_col` and `custom_chrom_order`, imported no config model and ran no boundary check, so a frame lacking a column reached the layout code before it was rejected and an empty frame reached matplotlib. All six now take `config: GenomeWideConfig` (defaults `chrom`, `pos`, `p`, species order) and hand every frame to `manhattan.prepare_genomewide_frames`, which runs `validate_gwas_df` against the configured names, and `rs_col` on `plot_miami`, before any layout. Two error surfaces change: a missing column raises `ValidationError` (`Missing columns: [...]`, still a `ValueError`) instead of the preparation step's `Column '...' not found`, and an empty frame raises `ValidationError` instead of matplotlib's axis-limit error. Every option after the frame is now keyword-only. `validate_gwas_df` gains `chrom_col`. `GenomeWideConfig` is exported from `pylocuszoom`.
+
+  ```python
+  # before
+  fig = plotter.plot_manhattan(gwas_df, chrom_col="CHR", pos_col="BP", p_col="P",
+                               significance_threshold=5e-8)
+
+  # after
+  from pylocuszoom import GenomeWideConfig
+  fig = plotter.plot_manhattan(gwas_df, config=GenomeWideConfig(chrom_col="CHR", pos_col="BP", p_col="P"),
+                               significance_threshold=5e-8)
+  ```
+
+- **`ColocPlotter` colours the merged frame inside the constructor that builds it.** `_MergedColoc` is a frozen value, and `plot_coloc` wrote a `color` column into its payload one line after construction. Internal; rendered output is unchanged.
+- **`DisplayConfig.label_top_n` defaults to `None`, meaning the method default.** `plot()` labelled 5 SNPs and `plot_stacked()` 3 per panel, a difference the two signatures carried. With one model serving both, `None` keeps each method's default and an explicit value applies to whichever method receives it. Rendered output is unchanged.
+
 - **`LDHeatmapRequest` is `LDHeatmapPanel` and draws itself (breaking).** `pylocuszoom._ld_heatmap_renderer` is now `pylocuszoom._ld_heatmap_panel`; the request is renamed `LDHeatmapPanel`, loses its `figsize` field (the figure's size belongs to the `FigurePlan` the plotter builds), and gains `draw(backend, ax)` holding what `render_ld_heatmap` drew. `render_ld_heatmap` no longer exists. Rendered output is unchanged.
 
 - **`ColocRequest` is `ColocPanel` and draws itself (breaking).** `render_coloc` opened with `create_figure` and closed with `finalize_layout` around one panel's drawing. `pylocuszoom._coloc_renderer` is now `pylocuszoom._coloc_panel`, the request is renamed `ColocPanel` with the same fields, its `draw(backend, ax)` holds what `render_coloc` drew, and `ColocPlotter` puts it on a `FigurePlan`. Both grey threshold lines go through `add_significance_line`. `render_coloc` no longer exists. Rendered output is unchanged.

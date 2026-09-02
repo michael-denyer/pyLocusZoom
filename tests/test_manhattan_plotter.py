@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom import GenomeWideConfig
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
 
@@ -95,7 +97,9 @@ class TestCategoricalManhattanRendersIntegerCategories:
             }
         )
         plotter = ManhattanPlotter(species="human")
-        fig = plotter.plot_manhattan(df, category_col="cat", p_col="p")
+        fig = plotter.plot_manhattan(
+            df, category_col="cat", config=GenomeWideConfig(p_col="p")
+        )
         assert fig is not None
 
         ax = fig.axes[0]
@@ -185,10 +189,7 @@ class TestManhattanSingleChromosome:
         )
 
         fig = manhattan_plotter.plot_manhattan(
-            df,
-            chrom_col="chrom",
-            pos_col="pos",
-            p_col="p",
+            df, config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p")
         )
 
         assert fig is not None
@@ -244,18 +245,62 @@ class TestEmptyManhattanInput:
     """Empty input has no axis limits to compute."""
 
     def test_manhattan_with_empty_df_raises(self):
-        """Manhattan plot with empty DataFrame raises ValueError.
-
-        Empty DataFrames have no data to compute axis limits,
-        resulting in NaN limits which matplotlib cannot handle.
-        """
+        """An empty frame is rejected at the boundary, before any layout."""
         plotter = ManhattanPlotter(species="human")
         empty_df = pd.DataFrame(columns=["chrom", "pos", "p"])
 
-        with pytest.raises(ValueError, match="(NaN|Inf|cannot)"):
+        with pytest.raises(ValidationError, match="empty"):
             plotter.plot_manhattan(
                 empty_df,
-                chrom_col="chrom",
-                pos_col="pos",
-                p_col="p",
+                config=GenomeWideConfig(chrom_col="chrom", pos_col="pos", p_col="p"),
             )
+
+
+class TestGenomeWideBoundary:
+    """The genome-wide families validate each frame before laying it out."""
+
+    @pytest.fixture
+    def plotter(self):
+        return ManhattanPlotter(species="human")
+
+    @pytest.fixture
+    def manhattan_chrom_df(self):
+        return pd.DataFrame(
+            {
+                "chrom": ["1", "1", "2", "2"],
+                "pos": [100, 200, 100, 200],
+                "p": [0.5, 1e-9, 0.1, 1e-4],
+            }
+        )
+
+    def test_missing_chrom_column_is_a_validation_error(self, plotter):
+        df = pd.DataFrame({"pos": [1, 2], "p": [0.5, 0.1]})
+        with pytest.raises(ValidationError, match="chrom"):
+            plotter.plot_manhattan(df)
+
+    def test_configured_column_names_are_the_ones_required(self, plotter):
+        df = pd.DataFrame({"CHR": ["1", "1"], "BP": [1, 2], "P": [0.5, 0.1]})
+        config = GenomeWideConfig(chrom_col="CHR", pos_col="BP", p_col="P")
+        with pytest.raises(ValidationError, match="chrom"):
+            plotter.plot_manhattan(df)
+        plotter.plot_manhattan(df, config=config)
+
+    def test_empty_frame_is_a_validation_error(self, plotter):
+        df = pd.DataFrame({"chrom": [], "pos": [], "p": []})
+        with pytest.raises(ValidationError, match="empty"):
+            plotter.plot_manhattan_qq(df)
+
+    def test_every_stacked_frame_is_checked(self, plotter, manhattan_chrom_df):
+        bad = manhattan_chrom_df.drop(columns=["pos"])
+        with pytest.raises(ValidationError, match="pos"):
+            plotter.plot_manhattan_stacked([manhattan_chrom_df, bad])
+
+    def test_options_are_keyword_only(self, plotter, manhattan_chrom_df):
+        with pytest.raises(TypeError):
+            plotter.plot_manhattan(manhattan_chrom_df, GenomeWideConfig())
+
+    def test_genomewide_config_is_exported(self):
+        import pylocuszoom
+
+        assert "GenomeWideConfig" in pylocuszoom.__all__
+        assert pylocuszoom.GenomeWideConfig is GenomeWideConfig

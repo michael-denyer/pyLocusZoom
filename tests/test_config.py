@@ -120,7 +120,8 @@ class TestDisplayConfig:
 
         config = DisplayConfig()
         assert config.snp_labels is True
-        assert config.label_top_n == 5
+        assert config.label_top_n is None
+        assert config.auto_genes is None
         assert config.show_recombination is True
         assert config.figsize == (12.0, 8.0)
 
@@ -138,6 +139,18 @@ class TestDisplayConfig:
         assert config.label_top_n == 10
         assert config.show_recombination is False
         assert config.figsize == (8.0, 6.0)
+
+    def test_with_defaults_fills_only_the_unset_fields(self):
+        """None fields take the caller's defaults; set fields are kept."""
+        from pylocuszoom.config import DisplayConfig
+
+        unset = DisplayConfig().with_defaults(label_top_n=3, auto_genes=True)
+        assert (unset.label_top_n, unset.auto_genes) == (3, True)
+        chosen = DisplayConfig(label_top_n=0, auto_genes=False).with_defaults(
+            label_top_n=3, auto_genes=True
+        )
+        assert (chosen.label_top_n, chosen.auto_genes) == (0, False)
+        assert chosen.show_recombination is True
 
     def test_label_top_n_must_be_non_negative(self):
         """label_top_n must be >= 0."""
@@ -365,84 +378,23 @@ class TestPlotConfig:
         with pytest.raises(ValidationError):
             config.display = None
 
-    def test_plot_config_from_kwargs_minimal(self):
-        """from_kwargs should work with just region parameters."""
-        from pylocuszoom.config import PlotConfig
+    def test_plot_config_defaults(self):
+        """A region alone yields the documented column, display and LD defaults."""
+        from pylocuszoom.config import PlotConfig, RegionConfig
 
-        config = PlotConfig.from_kwargs(chrom=1, start=1000000, end=2000000)
-        assert config.region.chrom == 1
-        assert config.region.start == 1000000
-        assert config.region.end == 2000000
-        # Defaults should match plotter.py
+        config = PlotConfig(region=RegionConfig(chrom=1, start=1000000, end=2000000))
         assert config.columns.pos_col == "ps"
         assert config.columns.p_col == "p_wald"
         assert config.display.snp_labels is True
-        assert config.display.label_top_n == 5
+        assert config.ld.lead_pos is None
+        assert config.panels.genes_df is None
 
-    def test_plot_config_from_kwargs_with_ld_params(self):
-        """from_kwargs should map LD parameters to LDConfig."""
-        from pylocuszoom.config import PlotConfig
+    def test_plot_config_rejects_invalid_region(self):
+        """The region rule fires when the composite is built."""
+        from pylocuszoom.config import PlotConfig, RegionConfig
 
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            lead_pos=1500000,
-            ld_reference_file="/path/to/plink",
-        )
-        assert config.ld.lead_pos == 1500000
-        assert config.ld.ld_reference_file == "/path/to/plink"
-
-    def test_plot_config_from_kwargs_with_display_params(self):
-        """from_kwargs should map display parameters to DisplayConfig."""
-        from pylocuszoom.config import PlotConfig
-
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            snp_labels=False,
-            label_top_n=10,
-            show_recombination=False,
-            figsize=(8.0, 6.0),
-        )
-        assert config.display.snp_labels is False
-        assert config.display.label_top_n == 10
-        assert config.display.show_recombination is False
-        assert config.display.figsize == (8.0, 6.0)
-
-    def test_plot_config_from_kwargs_with_column_params(self):
-        """from_kwargs should map column parameters to ColumnConfig."""
-        from pylocuszoom.config import PlotConfig
-
-        config = PlotConfig.from_kwargs(
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            pos_col="position",
-            p_col="pvalue",
-            rs_col="snp_id",
-        )
-        assert config.columns.pos_col == "position"
-        assert config.columns.p_col == "pvalue"
-        assert config.columns.rs_col == "snp_id"
-
-    def test_plot_config_from_kwargs_validates_on_construction(self):
-        """from_kwargs should fail fast on invalid region."""
-        from pylocuszoom.config import PlotConfig
-
-        # Invalid region: start >= end
         with pytest.raises(ValidationError, match="start.*must be.*end"):
-            PlotConfig.from_kwargs(chrom=1, start=2000, end=1000)
-
-    def test_plot_config_from_kwargs_ld_col_param(self):
-        """from_kwargs should accept ld_col for pre-computed LD."""
-        from pylocuszoom.config import PlotConfig
-
-        config = PlotConfig.from_kwargs(
-            chrom=1, start=1000000, end=2000000, ld_col="R2"
-        )
-        assert config.ld.ld_col == "R2"
+            PlotConfig(region=RegionConfig(chrom=1, start=2000, end=1000))
 
 
 class TestStackedPlotConfig:
@@ -500,111 +452,49 @@ class TestStackedPlotConfig:
         with pytest.raises(ValidationError):
             config.lead_positions = [1500]
 
-    def test_stacked_config_from_kwargs_minimal(self):
-        """from_kwargs should work with just region parameters."""
-        from pylocuszoom.config import StackedPlotConfig
-
-        config = StackedPlotConfig.from_kwargs(
-            n_panels=1, chrom=1, start=1000000, end=2000000
-        )
-        assert config.region.chrom == 1
-        assert config.lead_positions is None
-        assert config.panel_labels is None
-
-    def test_stacked_config_from_kwargs_with_list_params(self):
-        """from_kwargs should accept list parameters."""
-        from pylocuszoom.config import StackedPlotConfig
-
-        config = StackedPlotConfig.from_kwargs(
-            n_panels=2,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            lead_positions=[1500000, 1600000],
-            panel_labels=["Study A", "Study B"],
-            ld_reference_files=["/path/a", "/path/b"],
-        )
-        assert config.lead_positions == [1500000, 1600000]
-        assert config.panel_labels == ["Study A", "Study B"]
-        assert config.ld_reference_files == ["/path/a", "/path/b"]
-
-    def test_stacked_config_from_kwargs_validates_on_construction(self):
-        """from_kwargs should fail fast on invalid region."""
-        from pylocuszoom.config import StackedPlotConfig
-
-        with pytest.raises(ValidationError, match="start.*must be.*end"):
-            StackedPlotConfig.from_kwargs(n_panels=1, chrom=1, start=2000, end=1000)
-
-    def test_stacked_config_from_kwargs_inherits_plot_config_params(self):
-        """from_kwargs should accept all PlotConfig parameters too."""
-        from pylocuszoom.config import StackedPlotConfig
-
-        config = StackedPlotConfig.from_kwargs(
-            n_panels=2,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            pos_col="position",
-            p_col="pvalue",
-            snp_labels=False,
-            label_top_n=3,  # stacked default is 3
-        )
-        assert config.columns.pos_col == "position"
-        assert config.columns.p_col == "pvalue"
-        assert config.display.snp_labels is False
-        assert config.display.label_top_n == 3
-
     def test_stacked_config_defaults_list_to_none(self):
         """List parameters should default to None, not empty lists."""
-        from pylocuszoom.config import StackedPlotConfig
+        from pylocuszoom.config import RegionConfig, StackedPlotConfig
 
-        config = StackedPlotConfig.from_kwargs(
-            n_panels=1, chrom=1, start=1000, end=2000
+        config = StackedPlotConfig(
+            region=RegionConfig(chrom=1, start=1000, end=2000), n_panels=1
         )
         assert config.lead_positions is None
         assert config.panel_labels is None
         assert config.ld_reference_files is None
 
-    def test_stacked_config_from_kwargs_broadcast_ld_reference_file(self):
-        """from_kwargs should accept broadcast ld_reference_file with lead_positions.
+    def test_stacked_config_broadcast_ld_reference_file(self):
+        """A broadcast ld_reference_file needs lead_positions, not ld.lead_pos.
 
         Bug fix: pyLocusZoom-vtf
-        When ld_reference_file is provided for broadcast and lead_positions list
-        is provided, it should not require lead_pos in LDConfig.
+        LD is computed per panel against that panel's lead, so the per-panel
+        list satisfies the lead requirement.
         """
-        from pylocuszoom.config import StackedPlotConfig
+        from pylocuszoom.config import LDConfig, RegionConfig, StackedPlotConfig
 
-        # This should NOT raise - LD calculation will use lead_positions per panel
-        config = StackedPlotConfig.from_kwargs(
+        config = StackedPlotConfig(
+            region=RegionConfig(chrom=1, start=1000000, end=2000000),
             n_panels=2,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            ld_reference_file="/shared/plink_file",  # broadcast to all panels
-            lead_positions=[1500000, 1600000],  # per-panel lead positions
+            ld=LDConfig(ld_reference_file="/shared/plink_file"),
+            lead_positions=[1500000, 1600000],
         )
         assert config.ld.ld_reference_file == "/shared/plink_file"
-        assert config.ld.lead_pos is None  # Not set at LDConfig level
+        assert config.ld.lead_pos is None
         assert config.lead_positions == [1500000, 1600000]
 
-    def test_stacked_config_from_kwargs_broadcast_ld_without_lead_positions_fails(self):
+    def test_stacked_config_broadcast_ld_without_lead_positions_fails(self):
         """Broadcast ld_reference_file without lead_positions should still fail.
 
         If no lead_positions provided, there's no way to know which SNP to use
         as the LD reference for each panel.
         """
-        from pydantic import ValidationError
-
-        from pylocuszoom.config import StackedPlotConfig
+        from pylocuszoom.config import LDConfig, RegionConfig, StackedPlotConfig
 
         with pytest.raises(ValidationError, match="lead_pos.*required|lead_positions"):
-            StackedPlotConfig.from_kwargs(
+            StackedPlotConfig(
+                region=RegionConfig(chrom=1, start=1000000, end=2000000),
                 n_panels=2,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                ld_reference_file="/shared/plink_file",  # broadcast
-                # No lead_positions - should fail
+                ld=LDConfig(ld_reference_file="/shared/plink_file"),
             )
 
 
