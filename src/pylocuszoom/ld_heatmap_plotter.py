@@ -9,11 +9,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from ._ld_heatmap_renderer import (
-    LDHeatmapRequest,
-    render_ld_heatmap,
-    require_heatmap_backend,
-)
+from ._ld_heatmap_renderer import LDHeatmapRequest, render_ld_heatmap
 from .backends import BackendType, get_backend
 
 
@@ -42,12 +38,8 @@ class LDHeatmapPlotter:
         self,
         backend: BackendType = "matplotlib",
     ):
-        """Initialize the LD heatmap plotter.
-
-        Raises:
-            TypeError: If the backend cannot draw heatmaps.
-        """
-        self._backend = require_heatmap_backend(get_backend(backend))
+        """Initialize the LD heatmap plotter."""
+        self._backend = get_backend(backend)
 
     def plot_ld_heatmap(
         self,

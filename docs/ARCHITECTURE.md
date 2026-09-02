@@ -204,11 +204,11 @@ stages:
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
 | `LDHeatmapPlotter` | Class | `src/pylocuszoom/ld_heatmap_plotter.py` | Pairwise LD heatmaps |
 | `ColocPlotter` | Class | `src/pylocuszoom/coloc_plotter.py` | Colocalization visualizations |
-| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, neutral `add_legend`). Heatmap and bar-chart drawing left the contract in 2.1 and are optional protocols (ADR-0005) |
+| `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, heatmaps, error bars, the secondary axis, the region highlight, neutral `add_legend`). `add_snp_labels` is the one method left outside it |
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
 | `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands renderers and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
-| `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsErrorBars` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
+| `SupportsSNPLabels` | Optional protocol | `src/pylocuszoom/backends/base.py` | The one `@runtime_checkable` capability a backend opts into by implementing `add_snp_labels`; detected with `isinstance` |
 | `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and builds the `ManhattanPanelSpec` and `QQPanelSpec` values its panels are drawn from |
 | `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
 | `QQPanelSpec`, `render_qq_panel` | Internal module | `src/pylocuszoom/_qq_panel.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
@@ -333,7 +333,8 @@ against the secondary scale.
 `supports_secondary_axis` properties are removed. Optional capabilities are
 detected with `isinstance` against `@runtime_checkable` protocols, so a backend
 declares support by implementing the methods and declines by omitting them:
-`SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`.
+`SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`. Only
+`SupportsSNPLabels` is still optional; see "One optional capability" below.
 `supports_hover` stays a boolean, because it is a rendering-quality flag with no
 method to key on.
 
@@ -341,28 +342,23 @@ No compatibility shim is provided. See
 [ADR-0004](adr/0004-complete-rendering-seam-and-capability-protocols.md) for the
 reasoning.
 
-### Optional capabilities in 2.1
+### One optional capability
 
-Two more clusters left `PlotBackend` in 2.1, following the same rule
-([ADR-0005](adr/0005-heatmap-and-bar-chart-capability-protocols.md)):
+`SupportsHeatmap`, `SupportsErrorBars`, `SupportsSecondaryAxis` and
+`SupportsRegionHighlight` were folded back into `PlotBackend`. All three shipped
+backends implemented all four, so every `isinstance` gate on them guarded a
+branch no backend reached, and the three call sites had invented three different
+policies for a case that could not occur. `SupportsSNPLabels` remains the one
+optional protocol, because it needs adjustText and plotly and bokeh really do
+decline it. See
+[ADR-0005](adr/0005-heatmap-and-bar-chart-capability-protocols.md) for the split
+and why it was reversed.
 
-| Protocol | Methods | Used by |
-|----------|---------|---------|
-| `SupportsHeatmap` | `add_heatmap`, `add_colorbar` | LD heatmaps (standalone and the regional heatmap panel) |
-| `SupportsErrorBars` | `errorbar_h` | Forest plots |
-
-Signatures are unchanged, so a 2.0 backend that implements all four of those
-methods needs no edits: it satisfies both new protocols structurally. A backend
-that implements none of the optional protocols still renders every
-regional, Manhattan, Miami, colocalisation, and PheWAS plot.
-
-How a caller reacts to a missing capability depends on what is left without it.
-`RegionalPlotComposer.render_panel` skips a `HeatmapPanel` with a debug log,
-because the rest of the regional figure still renders.
-`_ld_heatmap_renderer.require_heatmap_backend`, which `LDHeatmapPlotter` calls
-when it is constructed, and `StatsRenderer.render_forest` raise `TypeError`
-naming the backend class and the missing protocol, because there the capability
-is the whole figure.
+`add_heatmap`, `add_colorbar`, `errorbar_h`, `create_twin_axis`,
+`set_secondary_ylim`, `set_secondary_ylabel` and `add_region_highlight` are
+required methods again. A backend that implements every required method and no
+`add_snp_labels` still renders every regional, Manhattan, Miami, colocalisation
+and PheWAS plot.
 
 Two pieces of shared drawing knowledge sit above the seam rather than in each
 adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`

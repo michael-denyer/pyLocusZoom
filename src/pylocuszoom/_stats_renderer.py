@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .backends.base import PlotBackend, SupportsErrorBars
+from .backends.base import PlotBackend
 from .colors import get_phewas_category_palette
 
 UNCATEGORISED = "Uncategorised"
@@ -124,19 +124,7 @@ class StatsRenderer:
         effect_label: str,
         figsize: Tuple[float, float],
     ) -> Any:
-        """Draw a forest plot of per-study effects and confidence intervals.
-
-        Raises:
-            TypeError: If the backend does not implement ``SupportsErrorBars``.
-                The error bars are the whole figure here, so there is nothing
-                to degrade to.
-        """
-        if not isinstance(self._backend, SupportsErrorBars):
-            raise TypeError(
-                f"{type(self._backend).__name__} does not support error bars. "
-                "A forest plot needs a backend implementing SupportsErrorBars "
-                "(errorbar_h)."
-            )
+        """Draw a forest plot of per-study effects and confidence intervals."""
         df = df.copy()
         df["y_pos"] = range(len(df) - 1, -1, -1)
         if weight_col and weight_col in df.columns:

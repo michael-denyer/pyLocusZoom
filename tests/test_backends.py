@@ -138,42 +138,27 @@ class TestBackendCapabilities:
     """Tests that registered backends have expected capability properties."""
 
     def test_matplotlib_has_capabilities(self):
-        """MatplotlibBackend supports SNP labels and secondary axis, not hover."""
-        from pylocuszoom.backends import (
-            SupportsSecondaryAxis,
-            SupportsSNPLabels,
-            get_backend,
-        )
+        """MatplotlibBackend supports SNP labels, not hover."""
+        from pylocuszoom.backends import SupportsSNPLabels, get_backend
 
         backend = get_backend("matplotlib")
         assert isinstance(backend, SupportsSNPLabels)
-        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is False
 
     def test_plotly_has_capabilities(self):
-        """PlotlyBackend supports secondary axis and hover, not SNP labels."""
-        from pylocuszoom.backends import (
-            SupportsSecondaryAxis,
-            SupportsSNPLabels,
-            get_backend,
-        )
+        """PlotlyBackend supports hover, not SNP labels."""
+        from pylocuszoom.backends import SupportsSNPLabels, get_backend
 
         backend = get_backend("plotly")
         assert not isinstance(backend, SupportsSNPLabels)
-        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is True
 
     def test_bokeh_has_capabilities(self):
-        """BokehBackend supports secondary axis and hover, not SNP labels."""
-        from pylocuszoom.backends import (
-            SupportsSecondaryAxis,
-            SupportsSNPLabels,
-            get_backend,
-        )
+        """BokehBackend supports hover, not SNP labels."""
+        from pylocuszoom.backends import SupportsSNPLabels, get_backend
 
         backend = get_backend("bokeh")
         assert not isinstance(backend, SupportsSNPLabels)
-        assert isinstance(backend, SupportsSecondaryAxis)
         assert backend.supports_hover is True
 
 
@@ -507,13 +492,6 @@ class TestHeatmapMethods:
 
         assert [type(m) for m in axes[0].right] == [ColorBar]
 
-    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
-    def test_every_backend_supports_heatmaps(self, backend_name):
-        """Every backend satisfies the SupportsHeatmap protocol."""
-        from pylocuszoom.backends import SupportsHeatmap, get_backend
-
-        assert isinstance(get_backend(backend_name), SupportsHeatmap)
-
     def test_matplotlib_custom_colors(self, ld_matrix_array):
         """Matplotlib add_heatmap should accept custom color gradient."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
@@ -557,61 +535,18 @@ class TestHeatmapMethods:
 class TestCustomBackendCompatibility:
     """Tests for custom backend forward compatibility."""
 
-    def test_backend_missing_secondary_methods_lacks_capability(self):
-        """A backend without the secondary-axis methods fails the capability gate.
-
-        The recombination overlay is gated on isinstance(backend,
-        SupportsSecondaryAxis), so a backend lacking those methods skips the
-        overlay instead of erroring.
-        """
-        from pylocuszoom.backends import SupportsSecondaryAxis
+    def test_backend_missing_snp_labels_lacks_the_one_optional_capability(self):
+        """SNP labels are the only capability a backend can decline."""
+        from pylocuszoom.backends import SupportsSNPLabels
 
         class MinimalBackend:
             pass
 
-        assert not isinstance(MinimalBackend(), SupportsSecondaryAxis)
+        class LabellingBackend:
+            def add_snp_labels(self, *args, **kwargs): ...
 
-    def test_backend_missing_heatmap_methods_lacks_capability(self):
-        """Heatmaps are optional: a backend can decline by omitting the methods."""
-        from pylocuszoom.backends import SupportsHeatmap
-
-        class MinimalBackend:
-            pass
-
-        class HeatmapBackend:
-            def add_heatmap(self, *args, **kwargs): ...
-
-            def add_colorbar(self, *args, **kwargs): ...
-
-        assert not isinstance(MinimalBackend(), SupportsHeatmap)
-        assert isinstance(HeatmapBackend(), SupportsHeatmap)
-
-    def test_backend_missing_error_bar_method_lacks_capability(self):
-        """Error-bar drawing is optional in the same way."""
-        from pylocuszoom.backends import SupportsErrorBars
-
-        class MinimalBackend:
-            pass
-
-        class ErrorBarBackend:
-            def errorbar_h(self, *args, **kwargs): ...
-
-        assert not isinstance(MinimalBackend(), SupportsErrorBars)
-        assert isinstance(ErrorBarBackend(), SupportsErrorBars)
-
-    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
-    def test_bundled_backends_declare_every_optional_capability(self, backend_name):
-        """The three shipped backends opt into heatmaps and error bars."""
-        from pylocuszoom.backends import (
-            SupportsErrorBars,
-            SupportsHeatmap,
-            get_backend,
-        )
-
-        backend = get_backend(backend_name)
-
-        assert isinstance(backend, SupportsHeatmap)
-        assert isinstance(backend, SupportsErrorBars)
+        assert not isinstance(MinimalBackend(), SupportsSNPLabels)
+        assert isinstance(LabellingBackend(), SupportsSNPLabels)
 
 
 class TestLegendPlacement:

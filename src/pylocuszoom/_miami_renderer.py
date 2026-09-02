@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Tuple
 import pandas as pd
 
 from ._manhattan_panel import manhattan_spec, render_manhattan_panel
-from .backends.base import PlotBackend, SupportsRegionHighlight
+from .backends.base import PlotBackend
 from .backends.hover import HoverConfig
 
 
@@ -126,8 +126,6 @@ def _add_region_highlight(
     alpha: float,
 ) -> None:
     if chrom not in offsets:
-        return
-    if not isinstance(backend, SupportsRegionHighlight):
         return
     backend.add_region_highlight(
         axes,

@@ -228,13 +228,13 @@ protocol handles drawing primitives.
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#custom-backends-in-20) for the
 > three changes required.
 
-Optional capabilities are negotiated with `@runtime_checkable` protocols, so a
-custom backend opts in by implementing the methods and opts out by omitting
-them: `SupportsRegionHighlight` (Miami region spans), `SupportsSNPLabels`
-(matplotlib-style repositioned labels), `SupportsSecondaryAxis` (recombination
-overlay), `SupportsHeatmap` (LD heatmaps), and `SupportsErrorBars` (forest
-plots). A backend implementing none of them still renders every regional,
-Manhattan, Miami, colocalisation, and PheWAS plot.
+`SupportsSNPLabels` (matplotlib-style repositioned labels) is the one optional
+capability, negotiated with a `@runtime_checkable` protocol: a custom backend
+opts in by implementing `add_snp_labels` and out by omitting it. A backend
+without it still renders every regional, Manhattan, Miami, colocalisation, and
+PheWAS plot. Heatmaps, error bars, the secondary axis and the region highlight
+were optional protocols too until every shipped backend implemented all four;
+they are required `PlotBackend` methods now.
 
 ## Stacked Plots
 

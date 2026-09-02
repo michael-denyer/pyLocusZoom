@@ -15,8 +15,6 @@ import pandas as pd
 from ._plotter_utils import add_significance_line
 from .backends.base import (
     PlotBackend,
-    SupportsHeatmap,
-    SupportsSecondaryAxis,
     SupportsSNPLabels,
 )
 from .backends.composition import (
@@ -341,8 +339,7 @@ def draw_association(
         )
 
     recomb_df = panel.recomb_df
-    has_recomb = recomb_df is not None and not recomb_df.empty
-    if has_recomb and isinstance(backend, SupportsSecondaryAxis):
+    if recomb_df is not None and not recomb_df.empty:
         render_recombination_overlay(backend, ax, recomb_df, plan.start, plan.end)
 
     if panel.panel_label:
@@ -541,12 +538,6 @@ def draw_heatmap(
     backend: PlotBackend, ax: Any, panel: HeatmapPanel, plan: RegionalFigurePlan
 ) -> None:
     """Draw the lower-triangle LD heatmap and its lead-SNP crosshair."""
-    if not isinstance(backend, SupportsHeatmap):
-        logger.debug(
-            "Skipping heatmap: {} does not support heatmaps",
-            type(backend).__name__,
-        )
-        return
     n_snps = len(panel.snp_ids)
     if n_snps < 2:
         logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")

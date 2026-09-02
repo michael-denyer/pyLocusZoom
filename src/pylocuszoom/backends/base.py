@@ -28,22 +28,6 @@ returns ``None``: a caller draws, it does not collect handles.
 
 
 @runtime_checkable
-class SupportsRegionHighlight(Protocol):
-    """Optional backend capability for highlighting an x-range."""
-
-    def add_region_highlight(
-        self,
-        axes: List[Any],
-        x_start: float,
-        x_end: float,
-        color: str = "yellow",
-        alpha: float = 0.3,
-    ) -> None:
-        """Highlight one x-range across a set of panels."""
-        ...
-
-
-@runtime_checkable
 class SupportsSNPLabels(Protocol):
     """Optional capability: text SNP labels (matplotlib via adjustText)."""
 
@@ -60,119 +44,6 @@ class SupportsSNPLabels(Protocol):
         region_span: Optional[int] = None,
     ) -> List[Any]:
         """Add SNP labels to a panel and return the text objects."""
-        ...
-
-
-@runtime_checkable
-class SupportsSecondaryAxis(Protocol):
-    """Optional capability: a twin/secondary y-axis (recombination overlay)."""
-
-    def create_twin_axis(self, ax: Any) -> Any:
-        """Create a secondary y-axis and return a handle.
-
-        The handle is a drawing target: pass it to ``line`` or
-        ``fill_between`` in place of a panel to draw against the secondary
-        scale.
-        """
-        ...
-
-    def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
-        """Set the secondary y-axis limits."""
-        ...
-
-    def set_secondary_ylabel(
-        self,
-        secondary: Any,
-        label: str,
-        color: str = "black",
-        fontsize: int = 10,
-    ) -> None:
-        """Set the secondary y-axis label."""
-        ...
-
-
-@runtime_checkable
-class SupportsHeatmap(Protocol):
-    """Optional capability: matrix heatmaps with a colour scale (LD heatmaps)."""
-
-    def add_heatmap(
-        self,
-        ax: Any,
-        data: Any,
-        x_coords: List[float],
-        y_coords: List[float],
-        cmap_colors: List[str],
-        vmin: float = 0.0,
-        vmax: float = 1.0,
-    ) -> Mappable:
-        """Render a heatmap of an already-shaped matrix.
-
-        Used for LD heatmap visualization. Masking the upper triangle is the
-        caller's job via ``composition.lower_triangle``, so a backend draws
-        whatever it is handed. The colour scale is left off; ``add_colorbar``
-        turns it on.
-
-        Args:
-            ax: Axes or panel to plot on.
-            data: 2D array of values, masked or NaN where missing.
-            x_coords: X coordinates for cell positions.
-            y_coords: Y coordinates for cell positions.
-            cmap_colors: Color gradient endpoints [start_color, end_color].
-            vmin: Minimum value for color scale.
-            vmax: Maximum value for color scale.
-
-        Returns:
-            Heatmap object (mappable for colorbar attachment).
-        """
-        ...
-
-    def add_colorbar(
-        self,
-        ax: Any,
-        mappable: Mappable,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> None:
-        """Show the colour scale for a heatmap.
-
-        Args:
-            ax: Axes or panel (or figure for some backends).
-            mappable: Heatmap object returned by add_heatmap.
-            label: Colorbar label (e.g., "R²" or "D'").
-            orientation: "vertical" or "horizontal".
-        """
-        ...
-
-
-@runtime_checkable
-class SupportsErrorBars(Protocol):
-    """Optional capability: horizontal error bars (forest plots)."""
-
-    def errorbar_h(
-        self,
-        ax: Any,
-        x: pd.Series,
-        y: pd.Series,
-        xerr_lower: pd.Series,
-        xerr_upper: pd.Series,
-        color: str = "black",
-        linewidth: float = 1.5,
-        capsize: float = 3,
-        zorder: int = 3,
-    ) -> None:
-        """Add horizontal error bars (for forest plots).
-
-        Args:
-            ax: Axes or panel.
-            x: X positions (effect sizes).
-            y: Y positions.
-            xerr_lower: Lower error (distance from x).
-            xerr_upper: Upper error (distance from x).
-            color: Line color.
-            linewidth: Line width.
-            capsize: Cap size in points.
-            zorder: Drawing order.
-        """
         ...
 
 
@@ -195,11 +66,13 @@ class PlotBackend(Protocol):
     ``add_heatmap`` is the one exception, returning a ``Mappable`` that only
     ``add_colorbar`` consumes.
 
-    Optional method capabilities (SupportsSNPLabels, SupportsSecondaryAxis,
-    SupportsRegionHighlight, SupportsHeatmap, SupportsErrorBars) are separate
-    runtime_checkable protocols, checked with isinstance rather than a boolean
-    flag. A backend that implements none of them still renders every regional,
-    Manhattan, Miami, colocalisation, and PheWAS plot.
+    ``SupportsSNPLabels`` is the one optional capability, a separate
+    runtime_checkable protocol checked with isinstance rather than a boolean
+    flag. It stays optional because it needs adjustText, which has no plotly or
+    bokeh equivalent, so a backend really can decline it. Everything else is
+    required: the secondary axis, heatmaps, error bars and the region highlight
+    were optional protocols that all three shipped backends implemented, so
+    every gate on them guarded a branch no backend could reach.
     """
 
     # =========================================================================
@@ -407,6 +280,33 @@ class PlotBackend(Protocol):
             linestyle: Line style.
             linewidth: Line width.
             alpha: Line transparency (0-1).
+            zorder: Drawing order.
+        """
+        ...
+
+    def errorbar_h(
+        self,
+        ax: Any,
+        x: pd.Series,
+        y: pd.Series,
+        xerr_lower: pd.Series,
+        xerr_upper: pd.Series,
+        color: str = "black",
+        linewidth: float = 1.5,
+        capsize: float = 3,
+        zorder: int = 3,
+    ) -> None:
+        """Add horizontal error bars (for forest plots).
+
+        Args:
+            ax: Axes or panel.
+            x: X positions (effect sizes).
+            y: Y positions.
+            xerr_lower: Lower error (distance from x).
+            xerr_upper: Upper error (distance from x).
+            color: Line color.
+            linewidth: Line width.
+            capsize: Cap size in points.
             zorder: Drawing order.
         """
         ...
@@ -653,4 +553,98 @@ class PlotBackend(Protocol):
             loc: Legend location.
             title: Legend title.
         """
+        ...
+
+    # =========================================================================
+    # Secondary Axis
+    # =========================================================================
+
+    def create_twin_axis(self, ax: Any) -> Any:
+        """Create a secondary y-axis and return a handle.
+
+        The handle is a drawing target: pass it to ``line`` or
+        ``fill_between`` in place of a panel to draw against the secondary
+        scale.
+        """
+        ...
+
+    def set_secondary_ylim(self, secondary: Any, bottom: float, top: float) -> None:
+        """Set the secondary y-axis limits."""
+        ...
+
+    def set_secondary_ylabel(
+        self,
+        secondary: Any,
+        label: str,
+        color: str = "black",
+        fontsize: int = 10,
+    ) -> None:
+        """Set the secondary y-axis label."""
+        ...
+
+    # =========================================================================
+    # Heatmaps
+    # =========================================================================
+
+    def add_heatmap(
+        self,
+        ax: Any,
+        data: Any,
+        x_coords: List[float],
+        y_coords: List[float],
+        cmap_colors: List[str],
+        vmin: float = 0.0,
+        vmax: float = 1.0,
+    ) -> Mappable:
+        """Render a heatmap of an already-shaped matrix.
+
+        Used for LD heatmap visualization. Masking the upper triangle is the
+        caller's job via ``composition.lower_triangle``, so a backend draws
+        whatever it is handed. The colour scale is left off; ``add_colorbar``
+        turns it on.
+
+        Args:
+            ax: Axes or panel to plot on.
+            data: 2D array of values, masked or NaN where missing.
+            x_coords: X coordinates for cell positions.
+            y_coords: Y coordinates for cell positions.
+            cmap_colors: Color gradient endpoints [start_color, end_color].
+            vmin: Minimum value for color scale.
+            vmax: Maximum value for color scale.
+
+        Returns:
+            Heatmap object (mappable for colorbar attachment).
+        """
+        ...
+
+    def add_colorbar(
+        self,
+        ax: Any,
+        mappable: Mappable,
+        label: str = "R²",
+        orientation: str = "vertical",
+    ) -> None:
+        """Show the colour scale for a heatmap.
+
+        Args:
+            ax: Axes or panel (or figure for some backends).
+            mappable: Heatmap object returned by add_heatmap.
+            label: Colorbar label (e.g., "R²" or "D'").
+            orientation: "vertical" or "horizontal".
+        """
+        ...
+
+    # =========================================================================
+    # Region Highlight
+    # =========================================================================
+
+    def add_region_highlight(
+        self,
+        axes: List[Any],
+        x_start: float,
+        x_end: float,
+        color: str = "yellow",
+        alpha: float = 0.3,
+    ) -> None:
+        """Highlight one x-range across a set of panels."""
         ...
