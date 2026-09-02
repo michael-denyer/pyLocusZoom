@@ -15,6 +15,7 @@ from ._coerce import (
     marker_colors,
     marker_diameter,
     normalize_ratios,
+    per_point,
     pixels,
 )
 from .composition import LegendEntry, mb_tick_positions
@@ -41,6 +42,14 @@ _DASH_MAP = {
     ":": "dot",
     "-.": "dashdot",
 }
+# Every panel of every figure gets the clean LocusZoom axis look.
+_AXIS_STYLE = dict(
+    showgrid=False,
+    showline=True,
+    linecolor="black",
+    ticks="outside",
+    zeroline=False,
+)
 
 
 @register_backend("plotly")
@@ -85,19 +94,10 @@ class PlotlyBackend:
             template="plotly_white",
         )
 
-        # Style all panels for clean LocusZoom appearance
-        axis_style = dict(
-            showgrid=False,
-            showline=True,
-            linecolor="black",
-            ticks="outside",
-            minor_ticks="",
-            zeroline=False,
-        )
         for row in range(1, n_panels + 1):
             panel = _Panel(fig, row)
             fig.update_layout(
-                **{panel.axis("xaxis"): axis_style, panel.axis("yaxis"): axis_style}
+                **{panel.axis("xaxis"): _AXIS_STYLE, panel.axis("yaxis"): _AXIS_STYLE}
             )
 
         return fig, [_Panel(fig, row) for row in range(1, n_panels + 1)]
@@ -131,19 +131,14 @@ class PlotlyBackend:
             template="plotly_white",
         )
 
-        # Style all panels
-        axis_style = dict(
-            showgrid=False,
-            showline=True,
-            linecolor="black",
-            ticks="outside",
-            zeroline=False,
-        )
         for row in range(1, n_rows + 1):
             for col in range(1, n_cols + 1):
                 panel = _Panel(fig, row, col, n_cols)
                 fig.update_layout(
-                    **{panel.axis("xaxis"): axis_style, panel.axis("yaxis"): axis_style}
+                    **{
+                        panel.axis("xaxis"): _AXIS_STYLE,
+                        panel.axis("yaxis"): _AXIS_STYLE,
+                    }
                 )
 
         return fig, [
@@ -682,17 +677,11 @@ class PlotlyBackend:
         """Create horizontal bar chart."""
         fig, row, col = ax.fig, ax.row, ax.col
 
-        # Convert left to array if scalar
-        if isinstance(left, (int, float)):
-            left_arr = [left] * len(y)
-        else:
-            left_arr = list(left) if hasattr(left, "tolist") else left
-
         trace = go.Bar(
             y=y,
             x=width,
             orientation="h",
-            base=left_arr,
+            base=per_point(left, len(y)),
             marker=dict(
                 color=color,
                 line=dict(color=edgecolor, width=linewidth),
@@ -785,7 +774,7 @@ class PlotlyBackend:
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
@@ -793,9 +782,6 @@ class PlotlyBackend:
         import numpy as np
 
         fig, row, col = ax.fig, ax.row, ax.col
-
-        if cmap_colors is None:
-            cmap_colors = ["#FFFFFF", "#FF0000"]
 
         # Plotly leaves a cell empty for None, not NaN.
         filled = np.ma.filled(np.ma.asarray(data).astype(float), np.nan)

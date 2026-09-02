@@ -95,7 +95,7 @@ class SupportsHeatmap(Protocol):
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
@@ -112,7 +112,6 @@ class SupportsHeatmap(Protocol):
             x_coords: X coordinates for cell positions.
             y_coords: Y coordinates for cell positions.
             cmap_colors: Color gradient endpoints [start_color, end_color].
-                Defaults to white-to-red ["#FFFFFF", "#FF0000"].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
 

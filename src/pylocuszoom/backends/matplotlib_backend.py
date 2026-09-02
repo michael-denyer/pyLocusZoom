@@ -526,16 +526,12 @@ class MatplotlibBackend:
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
         """Render a heatmap of an already-shaped matrix."""
         from matplotlib.colors import LinearSegmentedColormap
-
-        # Default white-to-red gradient
-        if cmap_colors is None:
-            cmap_colors = ["#FFFFFF", "#FF0000"]
 
         cmap = LinearSegmentedColormap.from_list("ld_heatmap", cmap_colors, N=256)
 

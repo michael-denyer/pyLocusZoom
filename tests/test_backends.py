@@ -3,6 +3,7 @@
 import pytest
 
 from pylocuszoom.backends import BUILTIN_BACKENDS
+from pylocuszoom.colors import LD_HEATMAP_COLORS
 
 
 class TestRegisterBackend:
@@ -421,6 +422,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         assert mappable is not None
         # Should have a colormap
@@ -438,6 +440,7 @@ class TestHeatmapMethods:
             lower_triangle(ld_matrix_array),
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         assert mappable is not None
 
@@ -452,6 +455,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         cbar = backend.add_colorbar(axes[0], mappable, label="R²")
         assert cbar is not None
@@ -469,6 +473,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         assert trace is not None
         assert isinstance(trace, go.Heatmap)
@@ -484,6 +489,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         assert trace.showscale is False
 
@@ -504,6 +510,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         backend.add_colorbar(axes[0], trace, label="R²", orientation="horizontal")
 
@@ -522,6 +529,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         assert mapper is not None
         assert isinstance(mapper, LinearColorMapper)
@@ -539,6 +547,7 @@ class TestHeatmapMethods:
             ld_matrix_array,
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
         cbar = backend.add_colorbar(axes[0], mapper, label="R²")
         assert cbar is not None
@@ -590,6 +599,7 @@ class TestHeatmapMethods:
             lower_triangle(ld_matrix_array),
             x_coords=list(range(5)),
             y_coords=list(range(5)),
+            cmap_colors=LD_HEATMAP_COLORS,
         )
 
         # Get the array data - should be masked

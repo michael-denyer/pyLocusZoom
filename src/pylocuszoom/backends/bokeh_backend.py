@@ -94,6 +94,16 @@ class _SecondaryAxis(NamedTuple):
     name: str = _SECONDARY_RANGE
 
 
+def _style_panel(p: figure) -> None:
+    """Give a panel the clean LocusZoom look: no grid, black axes, no minor ticks."""
+    p.grid.visible = False
+    p.outline_line_color = None
+    p.xaxis.axis_line_color = "black"
+    p.yaxis.axis_line_color = "black"
+    p.xaxis.minor_tick_line_color = None
+    p.yaxis.minor_tick_line_color = None
+
+
 def _draw_target(ax: Union[figure, _SecondaryAxis]) -> Tuple[figure, str]:
     """The figure to draw on and the y-range to draw against."""
     if isinstance(ax, _SecondaryAxis):
@@ -136,14 +146,7 @@ class BokehBackend:
                 tools="pan,wheel_zoom,box_zoom,reset,save",
                 toolbar_location="above" if i == 0 else None,
             )
-
-            # Style - no grid lines, black axes for clean LocusZoom appearance
-            p.grid.visible = False
-            p.outline_line_color = None
-            p.xaxis.axis_line_color = "black"
-            p.yaxis.axis_line_color = "black"
-            p.xaxis.minor_tick_line_color = None
-            p.yaxis.minor_tick_line_color = None
+            _style_panel(p)
 
             figures.append(p)
 
@@ -177,14 +180,7 @@ class BokehBackend:
                     tools="pan,wheel_zoom,box_zoom,reset,save",
                     toolbar_location="above" if i == 0 and j == 0 else None,
                 )
-
-                # Style
-                p.grid.visible = False
-                p.outline_line_color = None
-                p.xaxis.axis_line_color = "black"
-                p.yaxis.axis_line_color = "black"
-                p.xaxis.minor_tick_line_color = None
-                p.yaxis.minor_tick_line_color = None
+                _style_panel(p)
 
                 row_figures.append(p)
                 figures.append(p)
@@ -657,13 +653,7 @@ class BokehBackend:
         zorder: int = 2,
     ) -> Any:
         """Create horizontal bar chart."""
-        # Convert left to array if scalar
-        if isinstance(left, (int, float)):
-            left_arr = [left] * len(y)
-        else:
-            left_arr = list(left) if hasattr(left, "tolist") else left
-
-        # Calculate right edge
+        left_arr = per_point(left, len(y))
         right_arr = [left_val + w for left_val, w in zip(left_arr, width)]
 
         return ax.hbar(
@@ -756,14 +746,11 @@ class BokehBackend:
         data: Any,
         x_coords: List[float],
         y_coords: List[float],
-        cmap_colors: Optional[List[str]] = None,
+        cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
     ) -> Any:
         """Render a heatmap of an already-shaped matrix."""
-        if cmap_colors is None:
-            cmap_colors = ["#FFFFFF", "#FF0000"]
-
         # Create custom palette from start to end color
         # For a simple 2-color gradient, create a palette of intermediate colors
         palette = _create_color_palette(cmap_colors[0], cmap_colors[1], 256)
