@@ -13,7 +13,6 @@ import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
-import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
@@ -41,9 +40,6 @@ from .recombination import (
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import validate_genes_df, validate_gwas_df
 from .utils import filter_by_region
-
-# Precomputed significance line value (used for plotting)
-DEFAULT_GENOMEWIDE_LINE = -np.log10(DEFAULT_GENOMEWIDE_THRESHOLD)
 
 
 class LocusZoomPlotter:
@@ -117,10 +113,9 @@ class LocusZoomPlotter:
         self.plink_path = plink_path or find_plink()
         self.recomb_data_dir = recomb_data_dir
         self.genomewide_threshold = genomewide_threshold
-        self._genomewide_line = -np.log10(genomewide_threshold)
         self._regional_composer = RegionalPlotComposer(
             self._backend,
-            self._genomewide_line,
+            genomewide_threshold,
         )
         self._auto_genes = auto_genes
         self._recomb_cache = {}

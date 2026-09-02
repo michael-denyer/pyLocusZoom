@@ -61,6 +61,8 @@ def add_significance_line(
     backend: Any,
     ax: Any,
     threshold: Optional[float],
+    *,
+    alpha: float = 1.0,
 ) -> None:
     """Add genome-wide significance threshold line.
 
@@ -68,15 +70,17 @@ def add_significance_line(
         backend: Plot backend instance.
         ax: Axes object from backend.
         threshold: P-value threshold (e.g., 5e-8). None to skip.
+        alpha: Opacity of the line. Regional panels draw it faintly so it
+            does not compete with the points.
     """
     if threshold is None:
         return
-    threshold_line = -np.log10(threshold)
     backend.axhline(
         ax,
-        y=threshold_line,
+        y=-np.log10(threshold),
         color=SIGNIFICANCE_LINE_COLOR,
         linestyle="--",
         linewidth=1,
+        alpha=alpha,
         zorder=1,
     )

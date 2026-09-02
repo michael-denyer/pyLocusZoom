@@ -13,6 +13,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from ._plotter_utils import add_significance_line
 from .backends.base import (
     PlotBackend,
     SupportsHeatmap,
@@ -47,6 +48,8 @@ from .gene_track import (
     plot_gene_track_generic,
 )
 from .logging import logger
+
+REGIONAL_LINE_ALPHA = 0.65
 
 
 @dataclass(frozen=True)
@@ -239,10 +242,10 @@ class RegionalPlotComposer:
     def __init__(
         self,
         backend: PlotBackend,
-        genomewide_line: float,
+        genomewide_threshold: float,
     ):
         self._backend = backend
-        self._genomewide_line = genomewide_line
+        self._genomewide_threshold = genomewide_threshold
 
     def render(self, plan: RegionalFigurePlan) -> Any:
         """Render every panel in one figure plan and finalize its layout."""
@@ -286,14 +289,8 @@ class RegionalPlotComposer:
             columns.rs_col,
             columns.p_col,
         )
-        self._backend.axhline(
-            ax,
-            y=self._genomewide_line,
-            color="red",
-            linestyle="--",
-            linewidth=1,
-            alpha=0.65,
-            zorder=1,
+        add_significance_line(
+            self._backend, ax, self._genomewide_threshold, alpha=REGIONAL_LINE_ALPHA
         )
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P")
         y_max = df["neglog10p"].max()
@@ -563,5 +560,5 @@ class RegionalPlotComposer:
             color="red",
             linestyle="--",
             linewidth=1,
-            alpha=0.65,
+            alpha=REGIONAL_LINE_ALPHA,
         )

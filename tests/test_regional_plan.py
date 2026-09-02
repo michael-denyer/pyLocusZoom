@@ -56,7 +56,7 @@ def _render(panel, backend=None):
         panels=[panel],
         figsize=(8.0, panel.height),
     )
-    RegionalPlotComposer(backend, genomewide_line=7.3).render(plan)
+    RegionalPlotComposer(backend, genomewide_threshold=5e-8).render(plan)
     return backend
 
 
@@ -221,7 +221,7 @@ def test_heatmap_panel_renders_on_a_capable_backend():
 
 
 def test_render_panel_rejects_unknown_panel_types():
-    composer = RegionalPlotComposer(RecordingBackend(), genomewide_line=7.3)
+    composer = RegionalPlotComposer(RecordingBackend(), genomewide_threshold=5e-8)
     plan = RegionalFigurePlan(chrom=1, start=1, end=2, panels=[], figsize=(1.0, 1.0))
 
     with pytest.raises(TypeError, match="No renderer for str"):

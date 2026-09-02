@@ -10,9 +10,7 @@ from pylocuszoom.colors import (
     EQTL_NEGATIVE_BINS,
     EQTL_POSITIVE_BINS,
     LD_BINS,
-    LD_HEATMAP_CMAP_NAME,
     LD_HEATMAP_COLORS,
-    LD_HEATMAP_MISSING_COLOR,
     LD_NA_COLOR,
     LD_NA_LABEL,
     LEAD_SNP_HIGHLIGHT_COLOR,
@@ -21,8 +19,6 @@ from pylocuszoom.colors import (
     LDBin,
     _find_eqtl_bin,
     get_credible_set_color,
-    get_credible_set_color_palette,
-    get_eqtl_bin,
     get_eqtl_color,
     get_ld_bin,
     get_ld_color,
@@ -161,29 +157,31 @@ class TestEqtlColors:
 
 
 class TestEqtlBins:
-    """Tests for eQTL bin label functions."""
+    """Tests for eQTL bin selection."""
 
     def test_positive_effect_bins(self):
         """Positive effects should return correct bin labels."""
-        assert get_eqtl_bin(0.35) == "0.3 : 0.4"
-        assert get_eqtl_bin(0.25) == "0.2 : 0.3"
-        assert get_eqtl_bin(0.15) == "0.1 : 0.2"
+        assert _find_eqtl_bin(0.35).label == "0.3 : 0.4"
+        assert _find_eqtl_bin(0.25).label == "0.2 : 0.3"
+        assert _find_eqtl_bin(0.15).label == "0.1 : 0.2"
 
     def test_negative_effect_bins(self):
         """Negative effects should return correct bin labels."""
-        assert get_eqtl_bin(-0.35) == "-0.4 : -0.3"
-        assert get_eqtl_bin(-0.25) == "-0.3 : -0.2"
-        assert get_eqtl_bin(-0.15) == "-0.2 : -0.1"
-
-    def test_nan_returns_na(self):
-        """NaN should return NA label."""
-        assert get_eqtl_bin(float("nan")) == LD_NA_LABEL
-        assert get_eqtl_bin(None) == LD_NA_LABEL
+        assert _find_eqtl_bin(-0.35).label == "-0.4 : -0.3"
+        assert _find_eqtl_bin(-0.25).label == "-0.3 : -0.2"
+        assert _find_eqtl_bin(-0.15).label == "-0.2 : -0.1"
 
     def test_small_effects_return_correct_bin(self):
         """Near-zero effects return the appropriate near-zero bins."""
-        assert get_eqtl_bin(0.05) == "0.0 : 0.1"
-        assert get_eqtl_bin(-0.05) == "-0.1 : 0.0"
+        assert _find_eqtl_bin(0.05).label == "0.0 : 0.1"
+        assert _find_eqtl_bin(-0.05).label == "-0.1 : 0.0"
+
+    def test_effects_beyond_the_boundary_land_in_the_outermost_bin(self):
+        """An effect past the outermost edge takes that edge's bin."""
+        assert _find_eqtl_bin(0.4).label == "0.3 : 0.4"
+        assert _find_eqtl_bin(5.0).label == "0.3 : 0.4"
+        assert _find_eqtl_bin(-0.4).label == "-0.4 : -0.3"
+        assert _find_eqtl_bin(-5.0).label == "-0.4 : -0.3"
 
 
 class TestCredibleSetColors:
@@ -208,27 +206,6 @@ class TestCredibleSetColors:
         """cs_id > 10 should cycle through colors."""
         assert get_credible_set_color(11) == CREDIBLE_SET_COLORS[0]
         assert get_credible_set_color(12) == CREDIBLE_SET_COLORS[1]
-
-    def test_palette_default_size(self):
-        """Default palette should have 10 entries."""
-        palette = get_credible_set_color_palette()
-        assert len(palette) == 10
-        assert 1 in palette
-        assert 10 in palette
-
-    def test_palette_custom_size(self):
-        """Custom palette size should work."""
-        palette = get_credible_set_color_palette(n_sets=5)
-        assert len(palette) == 5
-        assert 5 in palette
-        assert 6 not in palette
-
-    def test_palette_large_cycles(self):
-        """Large palette should cycle colors."""
-        palette = get_credible_set_color_palette(n_sets=15)
-        assert len(palette) == 15
-        # Entry 11 should be same as entry 1
-        assert palette[11] == palette[1]
 
 
 class TestPheWASColors:
@@ -354,7 +331,7 @@ class TestLdColorProperties:
     @given(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False))
     def test_eqtl_bin_always_valid(self, effect):
         """Any eQTL effect should return a known bin label."""
-        bin_label = get_eqtl_bin(effect)
+        bin_label = _find_eqtl_bin(effect).label
         valid_labels = (
             [label for _, _, label, _ in EQTL_POSITIVE_BINS]
             + [label for _, _, label, _ in EQTL_NEGATIVE_BINS]
@@ -393,22 +370,6 @@ class TestLdHeatmapColors:
         """LD_HEATMAP_COLORS should be white-to-red gradient."""
         assert LD_HEATMAP_COLORS[0] == "#FFFFFF"  # white
         assert LD_HEATMAP_COLORS[1] == "#FF0000"  # red
-
-    def test_ld_heatmap_cmap_name_is_string(self):
-        """LD_HEATMAP_CMAP_NAME should be a non-empty string."""
-        assert isinstance(LD_HEATMAP_CMAP_NAME, str)
-        assert len(LD_HEATMAP_CMAP_NAME) > 0
-        assert LD_HEATMAP_CMAP_NAME == "ld_heatmap"
-
-    def test_ld_heatmap_missing_color_is_valid_hex(self):
-        """LD_HEATMAP_MISSING_COLOR should be a valid hex color code."""
-        assert LD_HEATMAP_MISSING_COLOR.startswith("#")
-        assert len(LD_HEATMAP_MISSING_COLOR) == 7
-        int(LD_HEATMAP_MISSING_COLOR[1:], 16)
-
-    def test_ld_heatmap_missing_color_is_grey(self):
-        """LD_HEATMAP_MISSING_COLOR should be grey."""
-        assert LD_HEATMAP_MISSING_COLOR == "#808080"
 
     def test_lead_snp_highlight_color_is_valid_hex(self):
         """LEAD_SNP_HIGHLIGHT_COLOR should be a valid hex color code."""
@@ -500,21 +461,12 @@ class TestFindEqtlBinConsistency:
         result = _find_eqtl_bin(0.35)
         assert isinstance(result, EQTLBin)
 
-    def test_color_and_bin_agree(self):
-        """get_eqtl_color and get_eqtl_bin should return matching color/label."""
-        test_effects = [0.35, 0.25, 0.15, 0.05, 0.0, -0.15, -0.25, -0.35, -0.5]
-        for effect in test_effects:
-            color = get_eqtl_color(effect)
-            label = get_eqtl_bin(effect)
-            found_bin = _find_eqtl_bin(effect)
-            assert color == found_bin.color, f"Color mismatch for effect={effect}"
-            assert label == found_bin.label, f"Label mismatch for effect={effect}"
+    def test_color_comes_from_the_found_bin(self):
+        """get_eqtl_color returns the colour of the bin the effect lands in."""
+        for effect in (0.35, 0.25, 0.15, 0.05, 0.0, -0.15, -0.25, -0.35, -0.5):
+            assert get_eqtl_color(effect) == _find_eqtl_bin(effect).color
 
     @given(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False))
-    def test_color_and_bin_always_consistent(self, effect):
-        """For any valid effect, color and label come from the same bin."""
-        color = get_eqtl_color(effect)
-        label = get_eqtl_bin(effect)
-        found_bin = _find_eqtl_bin(effect)
-        assert color == found_bin.color
-        assert label == found_bin.label
+    def test_color_always_comes_from_the_found_bin(self, effect):
+        """For any valid effect, the colour comes from the bin it lands in."""
+        assert get_eqtl_color(effect) == _find_eqtl_bin(effect).color

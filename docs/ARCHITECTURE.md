@@ -171,7 +171,9 @@ stages:
    `RegionalFigurePlan` to `RegionalPlotComposer`. The composer creates the
    figure and dispatches each panel by type through
    `render_panel`, a `singledispatchmethod`, owning shared axes, labels,
-   significance line, LD legend, SNP-label, and recombination policy
+   LD legend, SNP-label, and recombination policy, and drawing the
+   significance line through the same `add_significance_line` the Manhattan
+   family uses
    ([ADR-0006](adr/0006-one-regional-pipeline.md)). Manhattan and QQ
    plotters hand prepared data and
    figure intent to semantic renderers: `ManhattanQQRenderer`,

@@ -259,7 +259,7 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
         chrom=1, start=1, end=10, panels=[panel], figsize=(8.0, 1.0)
     )
 
-    composer = RegionalPlotComposer(backend, genomewide_line=5e-8)
+    composer = RegionalPlotComposer(backend, genomewide_threshold=5e-8)
     composer.render_panel(panel, SimpleNamespace(), SimpleNamespace(), plan)
 
     assert backend.calls == []
