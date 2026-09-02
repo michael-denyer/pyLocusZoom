@@ -312,17 +312,14 @@ class TestPlotEdgeCases:
         """Create plotter instance."""
         return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
 
-    def test_plot_raises_keyerror_when_rs_col_missing_with_ld_reference(
-        self, mock_plink_plotter
+    def test_plot_skips_ld_when_rs_col_missing(
+        self, mock_plink_plotter, warning_records
     ):
-        """Bug: plot() should handle missing rs_col when ld_reference_file provided.
+        """LD needs SNP IDs, so a frame without rs_col plots uncoloured.
 
-        Currently raises KeyError at line 264 when rs_col column doesn't exist
-        but ld_reference_file is provided. Should either:
-        1. Validate rs_col exists upfront and raise clear error, or
-        2. Skip LD calculation gracefully with a warning
+        The alternative, a KeyError from deep inside the LD merge, tells the
+        caller nothing about which column is missing.
         """
-        # GWAS data WITHOUT rs column
         df = pd.DataFrame(
             {
                 "ps": [1100000, 1500000, 1900000],
@@ -330,20 +327,18 @@ class TestPlotEdgeCases:
             }
         )
 
-        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
-            mock_ld.return_value = pd.DataFrame({"SNP": [], "R2": []})
+        fig = mock_plink_plotter.plot(
+            df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            lead_pos=1500000,
+            ld_reference_file="/path/to/genotypes",
+        )
 
-            # This should NOT raise KeyError - should handle gracefully
-            # Currently fails with: KeyError: 'rs'
-            fig = mock_plink_plotter.plot(
-                df,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                lead_pos=1500000,
-                ld_reference_file="/path/to/genotypes",
-            )
-            plt.close(fig)
+        assert fig.get_axes()[0].get_legend() is None
+        assert any("rs" in message for message in warning_records)
+        plt.close(fig)
 
 
 class TestPlotStackedEdgeCases:
@@ -431,35 +426,21 @@ class TestPlotStackedEdgeCases:
 class TestPlotterDelegation:
     """Tests for plotter delegation to specialized classes."""
 
-    def test_composer_delegates_to_plot_finemapping(self):
-        """The composer forwards prepared fine-mapping data to its renderer.
+    def test_finemapping_panel_renders_the_supplied_pips(self):
+        """plot_stacked() draws the fine-mapping frame onto its own PIP panel.
 
-        Pins the dispatch contract at the layer that now owns panel rendering.
-        Asserts on the DataFrame handed to plot_finemapping, not just that it
-        was called.
+        Asserts on the plotted points rather than on a call to the renderer, so
+        a change to the internal dispatch path cannot break this test without
+        changing what the reader sees.
         """
         plotter = LocusZoomPlotter(
             species="canine", backend="matplotlib", log_level=None
         )
 
-        gwas_df = pd.DataFrame(
-            {
-                "ps": [1000, 2000],
-                "p_wald": [0.01, 0.001],
-            }
-        )
-        fm_df = pd.DataFrame(
-            {
-                "pos": [1000, 2000],
-                "pip": [0.5, 0.3],
-                "cs": [1, 1],
-            }
-        )
+        gwas_df = pd.DataFrame({"ps": [1000, 2000], "p_wald": [0.01, 0.001]})
+        fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
 
-        with (
-            patch.object(plotter, "_get_recomb_for_region", return_value=None),
-            patch("pylocuszoom._regional.plot_finemapping") as mock_plot_fm,
-        ):
+        with patch.object(plotter, "_get_recomb_for_region", return_value=None):
             fig = plotter.plot_stacked(
                 [gwas_df],
                 chrom=1,
@@ -467,21 +448,14 @@ class TestPlotterDelegation:
                 end=3000,
                 finemapping_df=fm_df,
             )
-            try:
-                mock_plot_fm.assert_called_once()
-                # Signature: plot_finemapping(backend, ax, df, ...). The
-                # DataFrame is positional index 2 (or kwarg 'df').
-                args, kwargs = mock_plot_fm.call_args
-                forwarded = kwargs.get("df")
-                if forwarded is None and len(args) >= 3:
-                    forwarded = args[2]
-                assert forwarded is not None, (
-                    "plot_finemapping was called without the finemapping DataFrame"
-                )
-                assert list(forwarded["pos"]) == [1000, 2000]
-                assert list(forwarded["pip"]) == [0.5, 0.3]
-            finally:
-                plt.close(fig)
+
+        try:
+            pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
+            assert len(pip_axes) == 1, "fine-mapping data should add one PIP panel"
+            plotted = pip_axes[0].collections[0].get_offsets().tolist()
+            assert plotted == [[1000.0, 0.5], [2000.0, 0.3]]
+        finally:
+            plt.close(fig)
 
 
 def test_plotter_uses_ensure_recomb_maps():

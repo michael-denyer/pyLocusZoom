@@ -1,149 +1,120 @@
 """Tests for LD calculation and the LD heatmap panel in regional plots."""
 
-from unittest.mock import patch
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
+from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.plotter import LocusZoomPlotter
 
 
 class TestLocusZoomPlotterLdCalculation:
     """Tests for LD calculation integration."""
 
-    @pytest.fixture
-    def mock_plink_plotter(self):
-        """Create plotter with mocked PLINK."""
-        return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
+    LD_OUTPUT = (
+        "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
+        "1 1100000 rs1 1 1500000 rs2 0.80\n"
+        "1 1100000 rs1 1 1900000 rs3 0.50\n"
+    )
 
-    def test_calculates_ld_when_reference_provided(self, mock_plink_plotter):
-        """Should attempt LD calculation when ld_reference_file provided."""
-        df = pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
+    def test_ld_reference_colours_the_plot(self, fake_plink, tiny_regional_gwas_df):
+        """A PLINK run that returns LD pairs colours the points by R2."""
+        bfile, plink_writes = fake_plink
 
-        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
-            mock_ld.return_value = pd.DataFrame(
-                {
-                    "SNP": ["rs1", "rs2", "rs3"],
-                    "R2": [1.0, 0.8, 0.5],
-                }
-            )
-
-            fig = mock_plink_plotter.plot(
-                df,
+        with plink_writes(self.LD_OUTPUT):
+            fig = LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
+                tiny_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
                 lead_pos=1100000,
-                ld_reference_file="/path/to/genotypes",
+                ld_reference_file=bfile,
                 show_recombination=False,
             )
 
-            mock_ld.assert_called_once()
-            plt.close(fig)
+        legend = fig.get_axes()[0].get_legend()
+        assert legend is not None, "LD data should add an r² legend"
+        assert legend.get_title().get_text() == LD_LEGEND_TITLE
+        assert "Lead SNP" in [text.get_text() for text in legend.get_texts()]
+        plt.close(fig)
 
     def test_empty_ld_output_is_downgraded_to_warning(
-        self, mock_plink_plotter, warning_records
+        self, fake_plink, tiny_regional_gwas_df, warning_records
     ):
-        """An empty-output PlinkError (singleton lead SNP) should not abort.
+        """An empty PLINK output (singleton lead SNP) should not abort the plot.
 
         Singleton lead SNPs with no LD neighbours in the window are a real
-        scenario; mock_plink_plotter.plot() catches only this specific PlinkError and
-        continues without LD colouring, leaving a warning in the log.
+        scenario; plot() catches only this specific PlinkError and continues
+        without LD colouring, leaving a warning in the log.
         """
-        from pylocuszoom.exceptions import EmptyLDOutputError
+        bfile, plink_writes = fake_plink
+        header_only = "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
 
-        df = pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
-        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
-            mock_ld.side_effect = EmptyLDOutputError(
-                "PLINK produced an empty LD output for lead SNP 'rs1'."
-            )
-            fig = mock_plink_plotter.plot(
-                df,
+        with plink_writes(header_only):
+            fig = LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
+                tiny_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
                 lead_pos=1100000,
-                ld_reference_file="/path/to/genotypes",
+                ld_reference_file=bfile,
                 show_recombination=False,
             )
+
         assert fig is not None
         assert any("LD calculation skipped" in message for message in warning_records)
         plt.close(fig)
 
-    def test_stacked_plot_downgrades_empty_ld_output(self, mock_plink_plotter):
+    def test_stacked_plot_downgrades_empty_ld_output(
+        self, fake_plink, tiny_regional_gwas_df
+    ):
         """Single and stacked plots share the recoverable LD policy."""
-        from pylocuszoom.exceptions import EmptyLDOutputError
+        bfile, plink_writes = fake_plink
+        header_only = "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
 
-        df = pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
-        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
-            mock_ld.side_effect = EmptyLDOutputError("no LD neighbours")
-            fig = mock_plink_plotter.plot_stacked(
-                [df],
+        with plink_writes(header_only):
+            fig = LocusZoomPlotter(
+                species="canine", plink_path="/mock/plink"
+            ).plot_stacked(
+                [tiny_regional_gwas_df],
                 chrom=1,
                 start=1000000,
                 end=2000000,
                 lead_positions=[1100000],
-                ld_reference_files=["/path/to/genotypes"],
+                ld_reference_files=[bfile],
                 show_recombination=False,
             )
 
         assert fig is not None
         plt.close(fig)
 
-    def test_plink_misconfiguration_propagates_through_plot(self, mock_plink_plotter):
-        """A non-empty-output PlinkError must surface — it means PLINK is broken.
+    def test_plink_misconfiguration_propagates_through_plot(
+        self, fake_plink, tiny_regional_gwas_df
+    ):
+        """A non-zero PLINK exit must surface; it means PLINK is misconfigured.
 
-        Regression boundary: the catch in mock_plink_plotter.plot() is narrow on purpose.
-        Timeout, non-zero exit, and "output file missing after success" all
-        indicate real misconfiguration and should reach the caller.
+        The catch in plot() is narrow on purpose. Timeout, non-zero exit, and
+        "output file missing after success" all indicate real misconfiguration
+        and should reach the caller.
         """
-        from pylocuszoom.exceptions import PlinkError
+        bfile, plink_writes = fake_plink
 
-        df = pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
-        with patch("pylocuszoom._ld_plotting.calculate_ld") as mock_ld:
-            mock_ld.side_effect = PlinkError(
-                "PLINK LD calculation failed (exit code 2): bad bfile"
+        with (
+            plink_writes(None, returncode=2, stderr="bad bfile"),
+            pytest.raises(PlinkError, match="exit code"),
+        ):
+            LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
+                tiny_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                lead_pos=1100000,
+                ld_reference_file=bfile,
             )
-            with pytest.raises(PlinkError, match="exit code"):
-                mock_plink_plotter.plot(
-                    df,
-                    chrom=1,
-                    start=1000000,
-                    end=2000000,
-                    lead_pos=1100000,
-                    ld_reference_file="/path/to/genotypes",
-                )
 
 
 class TestLDHeatmapIntegration:

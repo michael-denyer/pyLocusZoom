@@ -264,6 +264,35 @@ def stats_plotter():
 
 
 @pytest.fixture
+def fake_plink(tmp_path):
+    """Drive LD tests through the real PLINK boundary: subprocess plus its files.
+
+    Returns the bfile prefix and a context-manager factory. Patching
+    ``subprocess.run`` rather than ``calculate_ld`` keeps command construction,
+    output parsing and the R2 merge inside the test, so a change to any of them
+    fails here instead of passing against a mock.
+    """
+    import pathlib
+    import subprocess
+    from unittest.mock import patch
+
+    bfile = tmp_path / "genotypes"
+    for suffix in (".bed", ".bim", ".fam"):
+        bfile.with_suffix(suffix).write_bytes(b"")
+
+    def plink_writes(ld_body, returncode=0, stderr=""):
+        def fake_run(cmd, **kwargs):
+            out_prefix = cmd[cmd.index("--out") + 1]
+            if ld_body is not None:
+                pathlib.Path(f"{out_prefix}.ld").write_text(ld_body)
+            return subprocess.CompletedProcess(cmd, returncode, "", stderr)
+
+        return patch("subprocess.run", side_effect=fake_run)
+
+    return str(bfile), plink_writes
+
+
+@pytest.fixture
 def warning_records():
     """Collect pylocuszoom WARNING messages; loguru does not feed caplog.
 
