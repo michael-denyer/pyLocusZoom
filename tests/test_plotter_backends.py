@@ -11,6 +11,15 @@ from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
 from tests.strategies import gwas_dataframes
 
+PANEL_COUNTS = {
+    "matplotlib": lambda fig: len(fig.get_axes()),
+    "plotly": lambda fig: sum(
+        key.startswith("yaxis") for key in fig.layout.to_plotly_json()
+    ),
+    "bokeh": lambda fig: len(fig.children),
+}
+"""How many stacked panels a figure carries, in each backend's own terms."""
+
 
 class TestBackendIntegration:
     """Tests for backend protocol integration."""
@@ -123,12 +132,12 @@ class TestBackendEQTLFinemapping:
 
     @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
     @pytest.mark.parametrize(
-        "eqtl_fixture,with_finemapping",
+        "eqtl_fixture,with_finemapping,expected_panels",
         [
-            pytest.param("sample_eqtl_df", False, id="eqtl-with-effects"),
-            pytest.param("sample_eqtl_df_no_effect", False, id="eqtl-no-effects"),
-            pytest.param(None, True, id="finemapping"),
-            pytest.param("sample_eqtl_df", True, id="eqtl-and-finemapping"),
+            pytest.param("sample_eqtl_df", False, 2, id="eqtl-with-effects"),
+            pytest.param("sample_eqtl_df_no_effect", False, 2, id="eqtl-no-effects"),
+            pytest.param(None, True, 2, id="finemapping"),
+            pytest.param("sample_eqtl_df", True, 3, id="eqtl-and-finemapping"),
         ],
     )
     def test_optional_panels_render_on_every_backend(
@@ -137,10 +146,11 @@ class TestBackendEQTLFinemapping:
         backend,
         eqtl_fixture,
         with_finemapping,
+        expected_panels,
         small_regional_gwas_df,
         sample_finemapping_df,
     ):
-        """Every backend renders the eQTL and fine-mapping panels."""
+        """Every backend draws the association panel plus each optional panel asked for."""
         plotter = LocusZoomPlotter(species=None, backend=backend, log_level=None)
 
         panels = {}
@@ -159,7 +169,8 @@ class TestBackendEQTLFinemapping:
             display=DisplayConfig(show_recombination=False),
         )
 
-        assert fig is not None
+        assert isinstance(fig, FIGURE_TYPES[backend])
+        assert PANEL_COUNTS[backend](fig) == expected_panels
 
     def test_plot_accepts_eqtl_and_finemapping_panels(
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
@@ -186,10 +197,9 @@ class TestBackendEQTLFinemapping:
         assert "eQTL" in axes[2].get_ylabel()
 
     def test_eqtl_chr_filtering(self, small_regional_gwas_df):
-        """Test that eQTL panel filters by chromosome, not just position."""
+        """Drop eQTLs on another chromosome even when their position is in range."""
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
-        # Create eQTL data with chr column, some on wrong chromosome
         eqtl_df = pd.DataFrame(
             {
                 "pos": [1200000, 1400000, 1600000],  # All in region 1e6-2e6
@@ -200,7 +210,6 @@ class TestBackendEQTLFinemapping:
             }
         )
 
-        # Plot for chr 1 - should only include 2 eQTLs (not the chr2 one)
         fig = plotter.plot_stacked(
             [small_regional_gwas_df],
             chrom=1,
@@ -210,7 +219,14 @@ class TestBackendEQTLFinemapping:
             panels=PanelInputs(eqtl_df=eqtl_df, eqtl_gene="GENE1"),
         )
 
-        assert fig is not None
+        eqtl_ax = fig.get_axes()[1]
+        assert "eQTL" in eqtl_ax.get_ylabel()
+        drawn = {
+            float(x)
+            for collection in eqtl_ax.collections
+            for x, _ in collection.get_offsets()
+        }
+        assert drawn == {1200000.0, 1600000.0}
 
     def test_eqtl_gene_without_gene_column_raises(self, small_regional_gwas_df):
         """eqtl_gene on a frame with no gene column is an error, not a warning.

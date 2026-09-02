@@ -5,8 +5,10 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import GenomeWideConfig
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
+from tests.conftest import FIGURE_TYPES
 
 
 class TestManhattanPlotter:
@@ -28,33 +30,47 @@ class TestManhattanPlotter:
             }
         )
 
-    def test_plot_manhattan_returns_figure(
+    def test_plot_manhattan_draws_one_panel_ticked_by_chromosome(
         self, canine_manhattan_plotter, manhattan_chrom_df
     ):
-        """Test that plot_manhattan returns a figure object."""
+        """Draw a single genome-wide panel whose x ticks name the chromosomes."""
         fig = canine_manhattan_plotter.plot_manhattan(manhattan_chrom_df)
-        assert fig is not None
 
-    def test_plot_qq_returns_figure(self, canine_manhattan_plotter, manhattan_chrom_df):
-        """Test that plot_qq returns a figure object."""
+        (ax,) = fig.get_axes()
+        assert [tick.get_text() for tick in ax.get_xticklabels()] == ["1", "2", "3"]
+        assert ax.get_xlabel() == "Chromosome"
+
+    def test_plot_qq_draws_one_panel_of_expected_against_observed(
+        self, canine_manhattan_plotter, manhattan_chrom_df
+    ):
+        """Draw a single QQ panel plotting observed against expected quantiles."""
         fig = canine_manhattan_plotter.plot_qq(manhattan_chrom_df)
-        assert fig is not None
 
-    def test_plot_manhattan_qq_returns_figure(
+        (ax,) = fig.get_axes()
+        assert ax.get_xlabel() == "Expected $-\\log_{10}(p)$"
+        assert ax.get_ylabel() == "Observed $-\\log_{10}(p)$"
+
+    def test_plot_manhattan_qq_draws_both_panels(
         self, canine_manhattan_plotter, manhattan_chrom_df
     ):
-        """Test that plot_manhattan_qq returns a figure object."""
+        """Draw the Manhattan panel and the QQ panel side by side."""
         fig = canine_manhattan_plotter.plot_manhattan_qq(manhattan_chrom_df)
-        assert fig is not None
 
-    def test_plot_manhattan_stacked_returns_figure(
+        manhattan_ax, qq_ax = fig.get_axes()
+        assert manhattan_ax.get_title() == "Manhattan Plot"
+        assert qq_ax.get_title().startswith("QQ Plot")
+
+    def test_plot_manhattan_stacked_draws_one_panel_per_frame(
         self, canine_manhattan_plotter, manhattan_chrom_df
     ):
-        """Test that plot_manhattan_stacked returns a figure object."""
+        """Draw one panel per frame, with the chromosome axis on the bottom one."""
         fig = canine_manhattan_plotter.plot_manhattan_stacked(
             [manhattan_chrom_df, manhattan_chrom_df]
         )
-        assert fig is not None
+
+        top, bottom = fig.get_axes()
+        assert top.get_xticklabels() == []
+        assert [tick.get_text() for tick in bottom.get_xticklabels()] == ["1", "2", "3"]
 
 
 class TestManhattanPlotterBackends:
@@ -71,17 +87,14 @@ class TestManhattanPlotterBackends:
             }
         )
 
-    def test_matplotlib_backend(self, manhattan_chrom_df):
-        """Test ManhattanPlotter with matplotlib backend."""
-        plotter = ManhattanPlotter(species="canine", backend="matplotlib")
-        fig = plotter.plot_manhattan(manhattan_chrom_df)
-        assert fig is not None
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_returns_the_backends_figure_type(self, backend, manhattan_chrom_df):
+        """Each backend returns its own figure type."""
+        plotter = ManhattanPlotter(species="canine", backend=backend)
 
-    def test_plotly_backend(self, manhattan_chrom_df):
-        """Test ManhattanPlotter with plotly backend."""
-        plotter = ManhattanPlotter(species="canine", backend="plotly")
         fig = plotter.plot_manhattan(manhattan_chrom_df)
-        assert fig is not None
+
+        assert isinstance(fig, FIGURE_TYPES[backend])
 
 
 class TestCategoricalManhattanRendersIntegerCategories:

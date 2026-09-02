@@ -11,6 +11,19 @@ from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.plotter import LocusZoomPlotter
 
 
+def _drawn_positions(ax):
+    """Return the distinct x coordinates of every point scattered on ``ax``."""
+    return {
+        float(x) for collection in ax.collections for x, _ in collection.get_offsets()
+    }
+
+
+def _heatmap_height_ratio(fig):
+    """Return the heatmap panel's drawn height as a fraction of the association panel's."""
+    association, heatmap = fig.get_axes()[:2]
+    return heatmap.get_position().height / association.get_position().height
+
+
 class TestLocusZoomPlotterLdCalculation:
     """Tests for LD calculation integration."""
 
@@ -67,7 +80,7 @@ class TestLocusZoomPlotterLdCalculation:
     def test_stacked_plot_downgrades_empty_ld_output(
         self, fake_plink, tiny_regional_gwas_df
     ):
-        """Single and stacked plots share the recoverable LD policy."""
+        """Draw the stacked panel with no r² legend when PLINK returns no pairs."""
         bfile, plink_writes = fake_plink
         header_only = "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
 
@@ -84,7 +97,9 @@ class TestLocusZoomPlotterLdCalculation:
                 display=DisplayConfig(show_recombination=False),
             )
 
-        assert fig is not None
+        (ax,) = fig.get_axes()
+        assert ax.get_legend() is None, "no LD pairs means no r² legend"
+        assert _drawn_positions(ax) == {1100000.0, 1500000.0, 1900000.0}
 
     def test_plink_misconfiguration_propagates_through_plot(
         self, fake_plink, tiny_regional_gwas_df
@@ -234,13 +249,10 @@ class TestLDHeatmapIntegration:
     def test_ld_heatmap_filters_to_region(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """SNPs outside [start, end] are filtered from heatmap."""
+        """Keep only the heatmap SNPs inside [start, end], shrinking the matrix."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
-        # Narrow region that only includes some SNPs
-        # rs1 at 1000000, rs2 at 1000500 - both in [1000000, 1001000)
-        # rs3 at 1001000 - at boundary
         fig = plotter.plot(
             ld_heatmap_gwas_df,
             chrom=1,
@@ -250,8 +262,9 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        # Should complete without error even with partial overlap
-        assert fig is not None
+        (image,) = fig.get_axes()[1].images
+        assert image.get_array().shape == (3, 3), "rs1, rs2 and rs3 are in the region"
+        assert list(image.get_extent())[:2] == [1000000, 1001000]
 
     def test_ld_heatmap_empty_overlap_raises(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -273,11 +286,10 @@ class TestLDHeatmapIntegration:
     def test_ld_heatmap_height_parameter(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """ld_heatmap_height parameter controls panel height ratio."""
+        """Size the heatmap panel as ld_heatmap_height of the association panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
-        # Test with different height values
         fig1 = plotter.plot(
             ld_heatmap_gwas_df,
             chrom=1,
@@ -304,18 +316,16 @@ class TestLDHeatmapIntegration:
             ),
         )
 
-        # Both should render successfully
-        assert fig1 is not None
-        assert fig2 is not None
+        assert _heatmap_height_ratio(fig1) == pytest.approx(0.1, abs=1e-3)
+        assert _heatmap_height_ratio(fig2) == pytest.approx(0.5, abs=1e-3)
 
     def test_ld_heatmap_lead_snp_highlight(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """Lead SNP is highlighted in heatmap when lead_pos specified and SNP found."""
+        """Draw the highlight crosshair over the lead SNP's own heatmap column."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
-        # rs1 is at position 1000000
         fig = plotter.plot(
             ld_heatmap_gwas_df,
             chrom=1,
@@ -326,8 +336,11 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        # Should render with lead SNP highlight (visual check)
-        assert fig is not None
+        highlights = fig.get_axes()[1].patches
+        assert highlights, "rs1 is in the heatmap, so it gets a highlight"
+        assert {(rect.get_x(), rect.get_width()) for rect in highlights} == {
+            (999750.0, 500.0)
+        }
 
     # Backend-specific tests
 
@@ -398,8 +411,7 @@ class TestLDHeatmapIntegration:
     # Edge case tests
 
     def test_ld_heatmap_single_snp_in_region(self, ld_heatmap_gwas_df):
-        """Test with single SNP in filtered region (graceful handling)."""
-        # Create a matrix with 5 SNPs but only 1 will be in region
+        """Skip the heatmap, and its colorbar, when one SNP survives filtering."""
         ld_matrix = pd.DataFrame(
             np.array(
                 [
@@ -417,7 +429,6 @@ class TestLDHeatmapIntegration:
 
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
-        # Very narrow region that only includes rs1 (at position 1000000)
         fig = plotter.plot(
             ld_heatmap_gwas_df,
             chrom=1,
@@ -427,17 +438,17 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        # Should complete without error
-        assert fig is not None
+        association, heatmap = fig.get_axes()
+        assert association.collections, "the association panel still renders"
+        assert len(heatmap.images) == 0
 
     def test_ld_heatmap_lead_snp_not_in_heatmap(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """Test lead SNP not in heatmap SNPs (no highlighting, no error)."""
+        """Draw the heatmap unhighlighted when the lead SNP is not one of its SNPs."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
         plotter = LocusZoomPlotter(species=None, log_level=None)
 
-        # Create GWAS with a lead SNP not in the heatmap
         gwas_with_extra = ld_heatmap_gwas_df.copy()
         gwas_with_extra = pd.concat(
             [
@@ -464,8 +475,9 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        # Should complete without error
-        assert fig is not None
+        heatmap = fig.get_axes()[1]
+        assert heatmap.images, "the heatmap still renders"
+        assert len(heatmap.patches) == 0, "rs_extra has no column to highlight"
 
     def test_ld_heatmap_missing_snp_ids_raises_error(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data

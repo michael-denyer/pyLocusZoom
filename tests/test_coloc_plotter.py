@@ -3,8 +3,10 @@
 import numpy as np
 import pandas as pd
 import pytest
+from matplotlib.colors import to_hex
 
 from pylocuszoom import ValidationError
+from tests.conftest import FIGURE_TYPES
 
 
 @pytest.fixture
@@ -62,55 +64,89 @@ def _dashed_y(ax) -> list:
     ]
 
 
+def _face_hexes(collection) -> list:
+    """Return the face colour of every point in a matplotlib scatter, as hex."""
+    return [to_hex(rgba) for rgba in collection.get_facecolor()]
+
+
+def _texts(ax) -> list:
+    """Return the string of every text annotation on a matplotlib axis."""
+    return [text.get_text() for text in ax.texts]
+
+
 class TestPlotColoc:
     """Tests for plot_coloc method."""
 
     def test_returns_figure(self, coloc_gwas_df, eqtl_data):
-        """Test that basic plot returns non-None figure."""
+        """The matplotlib backend returns a matplotlib Figure."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
-        assert fig is not None
+
+        assert isinstance(fig, FIGURE_TYPES["matplotlib"])
 
     def test_ld_coloring(self, gwas_data_with_ld, eqtl_data):
-        """Test that LD coloring works when ld_col is provided."""
+        """Non-lead points take the LD bin colour of their R-squared."""
         from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.colors import get_ld_color
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(
             gwas_data_with_ld, eqtl_data, ld_col="ld", lead_snp="rs1"
         )
-        assert fig is not None
+
+        others = fig.get_axes()[0].collections[0]
+        assert _face_hexes(others) == [
+            to_hex(get_ld_color(r2)) for r2 in [0.85, 0.65, 0.35, 0.15]
+        ]
 
     def test_lead_snp_highlighting(self, gwas_data_with_ld, eqtl_data):
-        """Test that lead SNP is highlighted when specified."""
+        """The named lead SNP is drawn alone, larger, in the lead SNP colour."""
         from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.colors import LEAD_SNP_COLOR
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(
             gwas_data_with_ld, eqtl_data, ld_col="ld", lead_snp="rs1"
         )
-        assert fig is not None
+
+        lead = fig.get_axes()[0].collections[1]
+        assert lead.get_offsets().tolist() == [[8.0, 7.0]]
+        assert _face_hexes(lead) == [to_hex(LEAD_SNP_COLOR)]
+        assert lead.get_sizes().tolist() == [100]
 
     def test_auto_select_lead_snp(self, gwas_data_with_ld, eqtl_data):
-        """Test lead SNP auto-selection when ld_col provided but no lead_snp."""
+        """Without a named lead SNP, the strongest combined signal is highlighted."""
         from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.colors import LEAD_SNP_COLOR
 
         plotter = ColocPlotter()
-        # Should auto-select rs1 (highest combined -log10p)
+
         fig = plotter.plot_coloc(gwas_data_with_ld, eqtl_data, ld_col="ld")
-        assert fig is not None
+
+        ax = fig.get_axes()[0]
+        lead = ax.collections[1]
+        assert lead.get_offsets().tolist() == [[8.0, 7.0]]
+        assert _face_hexes(lead) == [to_hex(LEAD_SNP_COLOR)]
+        assert "rs1" in _texts(ax)
 
     def test_significance_lines(self, coloc_gwas_df, eqtl_data):
-        """Test custom significance thresholds."""
+        """Custom thresholds place the dashed lines at their -log10 values."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(
             coloc_gwas_df, eqtl_data, gwas_threshold=1e-5, eqtl_threshold=1e-3
         )
-        assert fig is not None
+
+        ax = fig.get_axes()[0]
+        assert _dashed_x(ax) == pytest.approx([5.0])
+        assert _dashed_y(ax) == pytest.approx([3.0])
 
     def test_thresholds_default_to_the_plotters_own(self, coloc_gwas_df, eqtl_data):
         """An unsupplied threshold inherits the plotter's, not a module default."""
@@ -139,15 +175,19 @@ class TestPlotColoc:
         assert _dashed_y(ax) == []
 
     def test_correlation_displayed(self, coloc_gwas_df, eqtl_data):
-        """Test correlation is displayed when show_correlation=True."""
+        """show_correlation=True annotates the axis with Pearson r and its p."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, show_correlation=True)
-        assert fig is not None
+
+        correlations = [t for t in _texts(fig.get_axes()[0]) if t.startswith("r = ")]
+        assert len(correlations) == 1
+        assert "p < 0.001" in correlations[0]
 
     def test_correlation_skipped_small_n(self):
-        """Test correlation is skipped when n < 3."""
+        """Fewer than three overlapping points draws no correlation annotation."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         gwas_small = pd.DataFrame(
@@ -165,19 +205,25 @@ class TestPlotColoc:
             }
         )
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(gwas_small, eqtl_small, show_correlation=True)
-        assert fig is not None
+
+        assert not [t for t in _texts(fig.get_axes()[0]) if t.startswith("r = ")]
 
     def test_no_ld_uses_na_color(self, coloc_gwas_df, eqtl_data):
-        """Test that all points are grey when no ld_col provided."""
+        """Without an LD column every point takes the NA grey."""
         from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.colors import LD_NA_COLOR
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, ld_col=None)
-        assert fig is not None
+
+        points = fig.get_axes()[0].collections[0]
+        assert _face_hexes(points) == [to_hex(LD_NA_COLOR)] * len(coloc_gwas_df)
 
     def test_custom_column_names(self):
-        """Test non-default column names work."""
+        """Renamed columns plot the same points as the canonical names."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         gwas_custom = pd.DataFrame(
@@ -194,6 +240,13 @@ class TestPlotColoc:
                 "snp_id": ["rs1", "rs2", "rs3"],
             }
         )
+        gwas_default = gwas_custom.rename(
+            columns={"position": "pos", "pval": "p_gwas", "snp_id": "rs"}
+        )
+        eqtl_default = eqtl_custom.rename(
+            columns={"position": "pos", "pval_eqtl": "p_eqtl", "snp_id": "rs"}
+        )
+
         plotter = ColocPlotter()
         fig = plotter.plot_coloc(
             gwas_custom,
@@ -203,7 +256,12 @@ class TestPlotColoc:
             eqtl_p_col="pval_eqtl",
             rs_col="snp_id",
         )
-        assert fig is not None
+        expected = plotter.plot_coloc(gwas_default, eqtl_default)
+
+        assert (
+            fig.get_axes()[0].collections[0].get_offsets().tolist()
+            == expected.get_axes()[0].collections[0].get_offsets().tolist()
+        )
 
     def test_custom_figsize(self, coloc_gwas_df, eqtl_data):
         """Test figsize parameter is respected."""
@@ -338,7 +396,7 @@ class TestColocPlotterEdgeCases:
     """Tests for edge cases in ColocPlotter."""
 
     def test_single_overlapping_point(self):
-        """Test works with single overlapping point (no correlation)."""
+        """A lone overlapping point is plotted, with no correlation annotation."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         gwas = pd.DataFrame(
@@ -356,8 +414,12 @@ class TestColocPlotterEdgeCases:
             }
         )
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(gwas, eqtl)
-        assert fig is not None
+
+        ax = fig.get_axes()[0]
+        assert ax.collections[0].get_offsets().tolist() == [[8.0, 7.0]]
+        assert _texts(ax) == []
 
     def test_nan_p_values_rejected(self):
         """NaN p-values must raise ValidationError rather than blanking axes.
@@ -443,10 +505,12 @@ class TestEffectDirectionColoring:
     def test_color_by_effect_basic(
         self, gwas_data_with_effects, eqtl_data_with_effects
     ):
-        """Test color_by_effect renders plot without error."""
+        """color_by_effect colours each point by whether the two betas agree."""
         from pylocuszoom.coloc_plotter import ColocPlotter
+        from pylocuszoom.colors import EFFECT_CONGRUENT_COLOR, EFFECT_INCONGRUENT_COLOR
 
         plotter = ColocPlotter()
+
         fig = plotter.plot_coloc(
             gwas_data_with_effects,
             eqtl_data_with_effects,
@@ -454,7 +518,18 @@ class TestEffectDirectionColoring:
             gwas_effect_col="beta_gwas",
             eqtl_effect_col="beta_eqtl",
         )
-        assert fig is not None
+
+        congruent, incongruent = (
+            to_hex(EFFECT_CONGRUENT_COLOR),
+            to_hex(EFFECT_INCONGRUENT_COLOR),
+        )
+        assert _face_hexes(fig.get_axes()[0].collections[0]) == [
+            congruent,
+            congruent,
+            incongruent,
+            congruent,
+            congruent,
+        ]
 
     def test_effect_congruent_color(self):
         """Test same direction effects get green color."""
@@ -557,14 +632,6 @@ class TestEffectDirectionColoring:
 class TestH4PosteriorDisplay:
     """Tests for H4 posterior probability display."""
 
-    def test_h4_displayed(self, coloc_gwas_df, eqtl_data):
-        """Test H4 posterior is displayed when provided."""
-        from pylocuszoom.coloc_plotter import ColocPlotter
-
-        plotter = ColocPlotter()
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0.95)
-        assert fig is not None
-
     def test_h4_range_validation(self, coloc_gwas_df, eqtl_data):
         """Test h4_posterior must be in [0, 1]."""
         from pylocuszoom.coloc_plotter import ColocPlotter
@@ -611,18 +678,16 @@ class TestH4PosteriorDisplay:
         assert len(corr_texts) >= 1
 
     def test_h4_boundary_values(self, coloc_gwas_df, eqtl_data):
-        """Test H4 boundary values are accepted."""
+        """H4 of 0 and of 1 are accepted and annotated to three decimals."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
 
-        # H4 = 0 (valid)
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0)
-        assert fig is not None
+        zero = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0)
+        one = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=1)
 
-        # H4 = 1 (valid)
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=1)
-        assert fig is not None
+        assert "H4 PP = 0.000" in _texts(zero.get_axes()[0])
+        assert "H4 PP = 1.000" in _texts(one.get_axes()[0])
 
 
 class TestColocConfigIntegration:

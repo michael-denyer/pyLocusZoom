@@ -6,6 +6,7 @@ import pytest
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.miami_plotter import MiamiPlotter
 from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 
 
 def _max_scatter_x(ax) -> float:
@@ -46,12 +47,6 @@ class TestMiamiPlotter:
             }
         )
         return top_df, bottom_df
-
-    def test_plot_miami_returns_figure(self, miami_plotter, miami_panel_dfs_with_rs):
-        """Test that plot_miami returns a figure object."""
-        top_df, bottom_df = miami_panel_dfs_with_rs
-        fig = miami_plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
 
     @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
     def test_returns_the_backends_figure_type(self, backend, miami_panel_dfs_with_rs):
@@ -215,17 +210,15 @@ class TestMiamiPlotterOptions:
         assert height == 10
 
     def test_custom_title(self, miami_panel_dfs):
-        """Test that custom title is set."""
+        """Set the caller's title as the figure's suptitle."""
         plotter = MiamiPlotter(species="canine")
         top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(top_df, bottom_df, title="Custom Miami Title")
 
-        # Check that title was set (matplotlib-specific)
-        title_text = fig._suptitle
-        assert title_text is not None
+        assert fig._suptitle.get_text() == "Custom Miami Title"
 
     def test_panel_labels(self, miami_panel_dfs):
-        """Test that panel labels are applied."""
+        """Write each panel's label onto that panel."""
         plotter = MiamiPlotter(species="canine")
         top_df, bottom_df = miami_panel_dfs
         fig = plotter.plot_miami(
@@ -234,14 +227,13 @@ class TestMiamiPlotterOptions:
             top_label="Discovery",
             bottom_label="Replication",
         )
-        assert fig is not None
+
+        top_ax, bottom_ax = fig.get_axes()
+        assert [text.get_text() for text in top_ax.texts] == ["Discovery"]
+        assert [text.get_text() for text in bottom_ax.texts] == ["Replication"]
 
     def test_different_chromosome_sets(self):
-        """Test Miami plot when top and bottom have different chromosome sets.
-
-        Miami plot should handle cases where GWAS datasets have different
-        chromosomes present (e.g., one has chr X, the other doesn't).
-        """
+        """Tick the shared axis with the union of both panels' chromosomes."""
         plotter = MiamiPlotter(species="canine")
 
         # Top has chr 1, 2, 3
@@ -262,9 +254,15 @@ class TestMiamiPlotterOptions:
             }
         )
 
-        # Should still create figure successfully
         fig = plotter.plot_miami(top_df, bottom_df)
-        assert fig is not None
+
+        bottom_ax = fig.get_axes()[1]
+        assert [tick.get_text() for tick in bottom_ax.get_xticklabels()] == [
+            "1",
+            "2",
+            "3",
+            "X",
+        ]
 
 
 class TestMiamiPlotterHoverData:
@@ -302,11 +300,12 @@ class TestMiamiPlotterHoverData:
         assert len(fig.data) > 0, "Plotly figure should have traces for hover data"
 
     def test_bokeh_hover_data(self, gwas_data_with_rs):
-        """Test that bokeh backend creates figure with hover tools."""
+        """Attach a hover tool to the bokeh figure."""
         plotter = MiamiPlotter(species="canine", backend="bokeh")
         top_df, bottom_df = gwas_data_with_rs
         fig = plotter.plot_miami(top_df, bottom_df, rs_col="rs")
-        assert fig is not None
+
+        assert PROBES["bokeh"].has_hover(fig)
 
 
 class TestMiamiSignificance:

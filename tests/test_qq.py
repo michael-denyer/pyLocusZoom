@@ -231,7 +231,7 @@ class TestQQWithVariousPvalueDistributions:
         assert "λ" in title
 
     def test_qq_extreme_pvalues(self, default_manhattan_plotter):
-        """QQ plot with very small p-values should not produce inf."""
+        """Plot p-values down to 1e-300 as finite coordinates, not inf."""
         df = pd.DataFrame(
             {
                 "p": [1e-300, 1e-200, 1e-100, 1e-50, 0.001, 0.01, 0.1, 0.5],
@@ -239,7 +239,17 @@ class TestQQWithVariousPvalueDistributions:
         )
 
         fig = default_manhattan_plotter.plot_qq(df, config=GenomeWideConfig(p_col="p"))
-        assert fig is not None
+
+        ax = fig.get_axes()[0]
+        drawn = np.array(
+            [
+                point
+                for collection in ax.collections
+                for point in collection.get_offsets()
+            ]
+        )
+        assert np.isfinite(drawn).all()
+        assert drawn[:, 1].max() == pytest.approx(300.0)
 
 
 class TestEmptyQQInput:

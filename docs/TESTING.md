@@ -87,6 +87,8 @@ must be able to find its tests from the module name alone.
 
 Test classes use `TestThing` and test functions use `test_behavior_when_condition`.
 
+A test's name is a claim about what it checks. `test_significance_lines` must assert a line was drawn; if the body only proves the call returned, the name lies and a reviewer reading the test list believes the behaviour is pinned when it is not. Where the behaviour really is "this input does not crash", say so in the name (`test_..._does_not_raise`) and drop the assertion rather than asserting the figure exists.
+
 ### Fixtures
 
 Prefer the shared fixtures in `tests/conftest.py` over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.

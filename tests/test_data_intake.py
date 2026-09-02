@@ -329,7 +329,7 @@ class TestPlotStackedProperties:
     @hyp_settings(max_examples=10, deadline=None)
     @given(gwas_dataframes(min_snps=5, max_snps=30))
     def test_plot_stacked_with_duplicated_data(self, df):
-        """plot_stacked() should handle multiple identical DataFrames."""
+        """Draw one panel per frame, each carrying the same points."""
         plotter = LocusZoomPlotter(species="canine")
         chrom = df["chr"].iloc[0]
         start = int(df["pos"].min())
@@ -343,4 +343,14 @@ class TestPlotStackedProperties:
             display=DisplayConfig(show_recombination=False),
         )
 
-        assert fig is not None
+        top, bottom = fig.get_axes()
+        drawn = [
+            sorted(
+                (float(x), float(y))
+                for collection in ax.collections
+                for x, y in collection.get_offsets()
+            )
+            for ax in (top, bottom)
+        ]
+        assert drawn[0] == drawn[1]
+        assert drawn[0]

@@ -76,10 +76,18 @@ class TestCanonicalVocabulary:
         assert GenomeWideConfig().p_col == Canonical.P
 
     def test_a_loaded_frame_plots_without_renaming(self, gemma_file):
-        """The fork this vocabulary closes: loader output feeds a plotter as-is."""
+        """Draw every loaded variant at the position and p-value the loader emitted."""
         df = load_gemma(gemma_file)
 
-        assert ManhattanPlotter(species="human").plot_manhattan(df) is not None
+        fig = ManhattanPlotter(species="human").plot_manhattan(df)
+
+        ax = fig.get_axes()[0]
+        drawn = {
+            (float(x), round(float(y), 6))
+            for collection in ax.collections
+            for x, y in collection.get_offsets()
+        }
+        assert drawn == {(1100000.0, 8.0), (1500000.0, 5.0), (1900000.0, 3.0)}
 
 
 class TestDeprecatedLoaderKnobs:

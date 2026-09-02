@@ -2,6 +2,7 @@
 
 import sys
 
+import numpy as np
 import pytest
 
 from pylocuszoom.backends import BUILTIN_BACKENDS
@@ -327,7 +328,7 @@ class TestHeatmapMethods:
         assert hasattr(mappable, "get_cmap")
 
     def test_matplotlib_add_heatmap_lower_triangle(self, ld_matrix_array):
-        """Matplotlib add_heatmap should accept a lower-triangle matrix."""
+        """Draw a lower-triangle matrix with its upper triangle masked out."""
         from pylocuszoom.backends.composition import lower_triangle
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
@@ -340,7 +341,9 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        assert mappable is not None
+
+        drawn = np.ma.getmaskarray(mappable.get_array())
+        assert drawn.tolist() == np.triu(np.ones((5, 5), dtype=bool), k=1).tolist()
 
     def test_matplotlib_add_colorbar(self, ld_matrix_array):
         """Matplotlib add_colorbar attaches a labelled scale to the figure."""
@@ -452,12 +455,11 @@ class TestHeatmapMethods:
         assert [type(m) for m in axes[0].right] == [ColorBar]
 
     def test_matplotlib_custom_colors(self, ld_matrix_array):
-        """Matplotlib add_heatmap should accept custom color gradient."""
+        """Build the heatmap colormap from the caller's own gradient stops."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
         fig, axes = backend.create_figure([1.0], (6, 6))
-        # Use blue-to-yellow gradient
         mappable = backend.add_heatmap(
             axes[0],
             ld_matrix_array,
@@ -465,7 +467,10 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=["#0000FF", "#FFFF00"],
         )
-        assert mappable is not None
+
+        cmap = mappable.get_cmap()
+        assert cmap(0.0) == (0.0, 0.0, 1.0, 1.0)
+        assert cmap(1.0) == (1.0, 1.0, 0.0, 1.0)
 
     def test_heatmap_lower_triangle_masks_upper(self, ld_matrix_array):
         """A lower_triangle matrix should reach matplotlib still masked."""
