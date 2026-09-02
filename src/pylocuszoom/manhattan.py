@@ -12,6 +12,12 @@ from ._data import prepare_pvalue_data
 # Blank x space between one chromosome's last base and the next one's first.
 CHROMOSOME_GAP = 1_000_000
 
+# What the p-value intake raises when a Manhattan-style frame has no plottable row.
+ALL_PVALUES_INVALID = (
+    "All rows have invalid p-values in column '{p_col}' "
+    "(NaN, negative, or > 1). Cannot create plot."
+)
+
 # Species aliases
 SPECIES_ALIASES: dict[str, str] = {
     "dog": "canine",
@@ -229,19 +235,6 @@ class CategoryLayout:
 PanelLayout = Union[GenomeLayout, CategoryLayout]
 
 
-def _prepare_pvalues(df: pd.DataFrame, p_col: str) -> pd.DataFrame:
-    """Apply the shared p-value intake, writing the Manhattan ``_neg_log_p``."""
-    return prepare_pvalue_data(
-        df,
-        p_col,
-        out_col="_neg_log_p",
-        on_empty=(
-            f"All rows have invalid p-values in column '{p_col}' "
-            f"(NaN, negative, or > 1). Cannot create plot."
-        ),
-    )
-
-
 def prepare_manhattan_frames(
     dfs: Sequence[pd.DataFrame],
     *,
@@ -277,7 +270,10 @@ def prepare_manhattan_frames(
                 raise ValueError(f"Column '{col}' not found in DataFrame (for {name})")
 
     order = get_chromosome_order(species, custom_order)
-    filtered = [_prepare_pvalues(df, p_col) for df in dfs]
+    filtered = [
+        prepare_pvalue_data(df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col))
+        for df in dfs
+    ]
     layout = GenomeLayout.from_frames(
         filtered, chrom_col=chrom_col, pos_col=pos_col, order=order
     )
@@ -332,7 +328,7 @@ def prepare_manhattan_data(
         - _chrom_str: String-normalized chromosome name
         - _chrom_idx: Integer index for chromosome
         - _cumulative_pos: X-axis position
-        - _neg_log_p: -log10(p-value)
+        - neglog10p: -log10(p-value)
         - _color: Hex color for chromosome
 
         The shared :class:`GenomeLayout` is in ``attrs["layout"]``.
@@ -370,7 +366,9 @@ def prepare_categorical_data(
     if p_col not in df.columns:
         raise ValueError(f"Column '{p_col}' not found in DataFrame")
 
-    result = _prepare_pvalues(df, p_col)
+    result = prepare_pvalue_data(
+        df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
+    )
 
     # Get category order
     if category_order is None:

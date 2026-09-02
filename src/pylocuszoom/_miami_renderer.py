@@ -104,7 +104,7 @@ class MiamiRenderer:
             self._backend.add_text(
                 ax,
                 x=row["_cumulative_pos"],
-                y=row["_neg_log_p"],
+                y=row["neglog10p"],
                 text=str(row[rs_col]),
                 fontsize=8,
                 ha="center",

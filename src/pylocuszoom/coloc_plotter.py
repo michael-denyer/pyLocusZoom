@@ -7,11 +7,10 @@ with points colored by LD to the lead SNP.
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 from ._coloc_renderer import ColocRenderer
-from ._data import P_VALUE_FLOOR
+from ._data import prepare_pvalue_data
 from .backends import BackendType, get_backend
 from .coloc import validate_coloc_eqtl_df, validate_coloc_gwas_df
 from .colors import (
@@ -91,7 +90,10 @@ def _merge_and_transform(
     eqtl_df: pd.DataFrame,
     config: ColocConfig,
 ) -> _MergedColoc:
-    """Merge the two frames on position and -log10 both p-value columns.
+    """Transform both p-value columns through the shared intake, then merge.
+
+    Each frame goes through ``prepare_pvalue_data`` before the merge, so both
+    sides get the filtering, clipping and warnings every other family gets.
 
     Args:
         gwas_df: Validated GWAS results.
@@ -102,31 +104,17 @@ def _merge_and_transform(
         The merged frame and its resolved column names.
 
     Raises:
-        ValueError: If the frames share no positions, or if every merged row
-            has a null p-value on either side.
+        ValueError: If the frames share no positions.
     """
     merged = pd.merge(
-        gwas_df,
-        eqtl_df,
+        prepare_pvalue_data(gwas_df, config.gwas_p_col, out_col="neglog10_gwas"),
+        prepare_pvalue_data(eqtl_df, config.eqtl_p_col, out_col="neglog10_eqtl"),
         on=config.pos_col,
         how="inner",
         suffixes=("_gwas", "_eqtl"),
     )
     if len(merged) == 0:
         raise ValueError("No overlapping positions between GWAS and eQTL DataFrames")
-
-    gwas_p = _resolve_merged_column(merged, config.gwas_p_col, "_gwas")
-    eqtl_p = _resolve_merged_column(merged, config.eqtl_p_col, "_eqtl")
-
-    # Coloc transforms two merged p-value columns at once, so it does its
-    # own -log10 here rather than the single-column prepare_pvalue_data
-    # intake; the p-value floor stays shared via P_VALUE_FLOOR.
-    merged["neglog10_gwas"] = -np.log10(merged[gwas_p].clip(lower=P_VALUE_FLOOR))
-    merged["neglog10_eqtl"] = -np.log10(merged[eqtl_p].clip(lower=P_VALUE_FLOOR))
-    merged = merged.dropna(subset=["neglog10_gwas", "neglog10_eqtl"])
-
-    if len(merged) == 0:
-        raise ValueError("No valid data points after removing NaN p-values")
 
     return _MergedColoc(
         data=merged,

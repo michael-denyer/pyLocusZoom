@@ -120,7 +120,7 @@ def render_manhattan_panel(
         backend.scatter(
             ax,
             group_data[spec.x_col],
-            group_data["_neg_log_p"],
+            group_data["neglog10p"],
             colors=group_data["_color"].iloc[0],
             sizes=spec.point_size,
             marker="o",
@@ -132,7 +132,7 @@ def render_manhattan_panel(
 
     add_significance_line(backend, ax, spec.significance_threshold)
     backend.set_xlim(ax, *spec.layout.x_limits)
-    y_max = padded_ymax(df["_neg_log_p"].max())
+    y_max = padded_ymax(df["neglog10p"].max())
     if spec.invert_y:
         backend.set_ylim(ax, y_max, 0)
     else:

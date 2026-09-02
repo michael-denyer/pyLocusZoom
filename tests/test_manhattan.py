@@ -137,15 +137,15 @@ class TestPrepareManhattanData:
             }
         )
 
-    def test_adds_neg_log_p_column(self, manhattan_snp_df):
+    def test_adds_neglog10p_column(self, manhattan_snp_df):
         """Should compute -log10(p) for plotting."""
         from pylocuszoom.manhattan import prepare_manhattan_data
 
         result = prepare_manhattan_data(manhattan_snp_df, species="human")
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
         # Check calculation for first row
         expected = -np.log10(0.05)
-        assert np.isclose(result["_neg_log_p"].iloc[0], expected, rtol=0.01)
+        assert np.isclose(result["neglog10p"].iloc[0], expected, rtol=0.01)
 
     def test_adds_cumulative_position(self, manhattan_snp_df):
         """Should compute cumulative x positions across chromosomes."""
@@ -301,14 +301,14 @@ class TestPrepareCategoricalData:
             }
         )
 
-    def test_adds_neg_log_p(self, sample_categorical_df):
+    def test_adds_neglog10p(self, sample_categorical_df):
         """Should compute -log10(p)."""
         from pylocuszoom.manhattan import prepare_categorical_data
 
         result = prepare_categorical_data(
             sample_categorical_df, category_col="phenotype"
         )
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
 
     def test_adds_x_position(self, sample_categorical_df):
         """Should compute x positions for categories."""
@@ -398,7 +398,7 @@ class TestInvalidPValueFiltering:
         result = prepare_manhattan_data(df, species="human")
         assert len(result) == 2
         assert set(result["pos"].tolist()) == {100, 300}
-        assert (result["_neg_log_p"] < 300).all()
+        assert (result["neglog10p"] < 300).all()
 
     def test_nan_p_values_dropped(self):
         """NaN p-values should be dropped from Manhattan data."""
@@ -458,7 +458,7 @@ class TestInvalidPValueFiltering:
         result = prepare_manhattan_data(df, species="human")
         # 0 passes the [0, 1] filter; -log10(clip(0, lower=1e-300)) = 300.0
         assert len(result) == 1
-        assert result["_neg_log_p"].iloc[0] == pytest.approx(300.0)
+        assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
 
     def test_all_invalid_p_values_raises(self):
         """All-invalid p-values should raise ValueError, not produce a blank plot."""
@@ -503,7 +503,7 @@ class TestCategoricalManhattanIntegerCategories:
         )
         result = prepare_categorical_data(df, category_col="cat")
         assert len(result) == 5
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
 
 
 class TestCategoricalManhattanNaNHandling:
@@ -534,7 +534,7 @@ class TestCategoricalManhattanNaNHandling:
 
         # Should have valid output
         assert "_cat_idx" in result.columns
-        assert "_neg_log_p" in result.columns
+        assert "neglog10p" in result.columns
 
     def test_categorical_manhattan_handles_mixed_types(self):
         """prepare_categorical_data should handle mixed types in category column."""
