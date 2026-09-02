@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-09-02
+
 ### Added
 
 - **Gene tracks for CanFam3.1, CanFam4 and FelCat9, sourced from UCSC.** Ensembl retired all three and its archive REST hosts redirect to a help page, so they have no Ensembl source at any URL. `LocusZoomPlotter` with `auto_genes=True` now fetches them from UCSC's `ncbiRefSeq` track, so the canine default build of CanFam3.1 and the feline default of FelCat9 both produce a gene track in the coordinates the rest of the plot is in. Any other build still comes from Ensembl. The whole policy is the `UCSC_BUILDS` table in `reference_genes.py`.
