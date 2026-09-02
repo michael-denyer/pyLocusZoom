@@ -7,7 +7,7 @@ single/stacked renderer (:mod:`._rendering`) and the Miami renderer
 (:mod:`._miami_renderer`) share one policy instead of three copies.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List, Optional, Sequence, Tuple
 
 import pandas as pd
@@ -71,7 +71,9 @@ class ManhattanPanelSpec:
         panel_label: Corner label, or None for none.
         panel_label_y_frac: Fractional height of the corner label.
         invert_y: Draw the y axis descending, as the lower Miami panel does.
-        hover: Hover column mapping for interactive backends, or None.
+        hover: Hover column mapping, or None for no tooltips. Built only
+            when the backend reports ``supports_hover``, since matplotlib
+            discards the frame the builder would allocate per group.
     """
 
     prepared_df: pd.DataFrame
@@ -93,7 +95,7 @@ class ManhattanPanelSpec:
     panel_label: Optional[str] = None
     panel_label_y_frac: float = 0.95
     invert_y: bool = False
-    hover: Optional[HoverConfig] = field(default=None)
+    hover: Optional[HoverConfig] = None
 
 
 def manhattan_spec(
