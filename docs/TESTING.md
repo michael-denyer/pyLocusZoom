@@ -88,6 +88,9 @@ Prefer the shared fixtures in `tests/conftest.py` over constructing DataFrames i
 
 One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`ps`/`p_wald` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chrom`/`pos`/`p` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow.
 
+An autouse fixture closes every pyplot figure after each test, so a test that
+builds a figure does not need to close it.
+
 `warning_records` collects `pylocuszoom` warnings. loguru does not feed pytest's `caplog`, so a test that takes `caplog` and asserts on it will pass no matter what the code logs.
 
 Hypothesis strategies shared across tests live in `tests/strategies.py`.

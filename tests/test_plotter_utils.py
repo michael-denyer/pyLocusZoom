@@ -56,30 +56,24 @@ class TestAddSignificanceLine:
         backend = MatplotlibBackend()
         fig, ax = plt.subplots()
 
-        try:
-            add_significance_line(backend, ax, 5e-8)
+        add_significance_line(backend, ax, 5e-8)
 
-            lines = ax.get_lines()
-            assert len(lines) == 1, "exactly one horizontal line should be drawn"
-            line = lines[0]
+        lines = ax.get_lines()
+        assert len(lines) == 1, "exactly one horizontal line should be drawn"
+        line = lines[0]
 
-            # Horizontal line: both y-data points equal -log10(5e-8) ≈ 7.301
-            y_data = line.get_ydata()
-            assert y_data[0] == pytest.approx(7.301, abs=0.01)
-            assert y_data[-1] == pytest.approx(7.301, abs=0.01)
+        # Horizontal line: both y-data points equal -log10(5e-8) ≈ 7.301
+        y_data = line.get_ydata()
+        assert y_data[0] == pytest.approx(7.301, abs=0.01)
+        assert y_data[-1] == pytest.approx(7.301, abs=0.01)
 
-            assert line.get_color() == "red"
-            assert line.get_linestyle() == "--"
-        finally:
-            plt.close(fig)
+        assert line.get_color() == "red"
+        assert line.get_linestyle() == "--"
 
     def test_skips_when_threshold_is_none(self):
         """No line is added when threshold is None."""
         backend = MatplotlibBackend()
         fig, ax = plt.subplots()
 
-        try:
-            add_significance_line(backend, ax, None)
-            assert ax.get_lines() == [], "no lines should be drawn"
-        finally:
-            plt.close(fig)
+        add_significance_line(backend, ax, None)
+        assert ax.get_lines() == [], "no lines should be drawn"

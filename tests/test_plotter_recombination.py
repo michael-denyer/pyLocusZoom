@@ -2,7 +2,6 @@
 
 from unittest.mock import patch
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
@@ -86,9 +85,6 @@ class TestLocusZoomPlotterRecombination:
             f"without={ylim_no_recomb}, with={ylim_with_recomb}"
         )
 
-        plt.close(fig_no_recomb)
-        plt.close(fig_with_recomb)
-
 
 class TestRecombinationDownloadErrors:
     """Tests for recombination map error handling.
@@ -129,4 +125,3 @@ class TestRecombinationDownloadErrors:
                 show_recombination=True,
             )
             assert fig is not None
-            plt.close(fig)

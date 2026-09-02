@@ -37,6 +37,21 @@ def _figure_types() -> dict[str, type]:
 FIGURE_TYPES = _figure_types()
 
 
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures():
+    """Close every pyplot figure a test leaves open.
+
+    Plotters build figures through ``plt.subplots``, which pyplot retains until
+    something closes them. Without this the suite warns past 20 open figures and
+    each xdist worker holds every figure it ever drew.
+    """
+    yield
+
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+
+
 @pytest.fixture
 def plink_assoc_file(tmp_path):
     """Three-SNP PLINK .assoc file on disk."""

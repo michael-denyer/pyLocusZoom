@@ -80,16 +80,13 @@ class TestLegendBuilders:
 class TestMatplotlibAddLegend:
     def test_renders_labels_title_and_mixed_markers(self):
         fig, ax = plt.subplots()
-        try:
-            entries = [
-                LegendEntry("Swatch", "#ff0000", marker="patch"),
-                LegendEntry("Point", "#00ff00", marker="^"),
-            ]
-            legend = MatplotlibBackend().add_legend(ax, entries, title="r²")
-            assert [t.get_text() for t in legend.get_texts()] == ["Swatch", "Point"]
-            assert legend.get_title().get_text() == "r²"
-        finally:
-            plt.close(fig)
+        entries = [
+            LegendEntry("Swatch", "#ff0000", marker="patch"),
+            LegendEntry("Point", "#00ff00", marker="^"),
+        ]
+        legend = MatplotlibBackend().add_legend(ax, entries, title="r²")
+        assert [t.get_text() for t in legend.get_texts()] == ["Swatch", "Point"]
+        assert legend.get_title().get_text() == "r²"
 
 
 class _RecordingSecondaryBackend:

@@ -52,7 +52,6 @@ class TestAddSnpLabels:
         texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=3)
 
         assert len(texts) == 3
-        plt.close(fig)
 
     def test_labels_top_n_snps(self, ranked_labelled_gwas_df):
         """Should label only the top N most significant SNPs."""
@@ -63,7 +62,6 @@ class TestAddSnpLabels:
 
         assert len(texts) == 5
         # Top 5 by neglog10p should be: rs9 (10), rs5 (9), rs1 (8), rs7 (7), rs4 (6)
-        plt.close(fig)
 
     def test_uses_snp_id_by_default(self, ranked_labelled_gwas_df):
         """Should use SNP ID (rs number) as default label."""
@@ -74,7 +72,6 @@ class TestAddSnpLabels:
 
         # Top SNP is rs9 with neglog10p=10
         assert "rs9" in texts[0].get_text()
-        plt.close(fig)
 
     def test_truncates_long_labels(self, ranked_labelled_gwas_df):
         """Should truncate labels longer than max_label_length."""
@@ -90,7 +87,6 @@ class TestAddSnpLabels:
         label_text = texts[0].get_text()
         assert len(label_text) <= 15
         assert label_text.endswith("...")
-        plt.close(fig)
 
     def test_raises_without_neglog10p_column(self, ranked_labelled_gwas_df):
         """Should raise error if neglog10p column is missing."""
@@ -100,8 +96,6 @@ class TestAddSnpLabels:
 
         with pytest.raises(ValueError, match="neglog10p"):
             add_snp_labels(ax, df, label_top_n=1)
-
-        plt.close(fig)
 
     def test_handles_custom_column_names(self):
         """Should work with custom column names."""
@@ -128,7 +122,6 @@ class TestAddSnpLabels:
         assert len(texts) == 2
         # Top should be var2 with log_pval=10
         assert "var2" in texts[0].get_text()
-        plt.close(fig)
 
     def test_returns_empty_list_for_zero_labels(self, ranked_labelled_gwas_df):
         """Should return empty list when label_top_n=0."""
@@ -137,7 +130,6 @@ class TestAddSnpLabels:
         texts = add_snp_labels(ax, ranked_labelled_gwas_df, label_top_n=0)
 
         assert len(texts) == 0
-        plt.close(fig)
 
     def test_filters_labels_near_lead_snp(self):
         """Non-lead SNPs within min_label_distance of lead are excluded."""
@@ -166,7 +158,6 @@ class TestAddSnpLabels:
         assert "lead" in labels
         assert "distant" in labels
         assert "nearby" not in labels
-        plt.close(fig)
 
     def test_no_filtering_without_lead_pos(self):
         """All top N labels shown when lead_pos is not provided."""
@@ -183,7 +174,6 @@ class TestAddSnpLabels:
         texts = add_snp_labels(ax, df, label_top_n=3)
 
         assert len(texts) == 3
-        plt.close(fig)
 
     def test_lead_snp_always_labeled(self):
         """Lead SNP within top-N is always labeled even when neighbors filtered."""
@@ -208,7 +198,6 @@ class TestAddSnpLabels:
         labels = [t.get_text() for t in texts]
         assert "lead" in labels
         assert len(labels) == 1  # Only lead survives
-        plt.close(fig)
 
     def test_snp_exactly_at_threshold_survives(self):
         """SNP exactly at min_label_distance threshold is kept (>= boundary)."""
@@ -229,7 +218,6 @@ class TestAddSnpLabels:
 
         labels = [t.get_text() for t in texts]
         assert "boundary" in labels
-        plt.close(fig)
 
     def test_no_filtering_when_region_span_zero(self):
         """region_span=0 disables filtering and logs a warning."""
@@ -246,7 +234,6 @@ class TestAddSnpLabels:
         texts = add_snp_labels(ax, df, label_top_n=3, lead_pos=1500000, region_span=0)
 
         assert len(texts) == 3
-        plt.close(fig)
 
     def test_no_proximity_filtering_without_region_span(self):
         """Without a region span there is no distance to filter against."""
@@ -265,7 +252,6 @@ class TestAddSnpLabels:
         )
 
         assert len(texts) == 2
-        plt.close(fig)
 
     def test_custom_min_label_distance(self):
         """Custom min_label_distance widens the exclusion zone."""
@@ -294,7 +280,6 @@ class TestAddSnpLabels:
         assert "lead" in labels
         assert "far" in labels
         assert "mid_range" not in labels
-        plt.close(fig)
 
     def test_invalid_min_label_distance_raises(self):
         """min_label_distance outside [0, 1] raises ValueError."""
@@ -317,7 +302,6 @@ class TestAddSnpLabels:
                 region_span=1000000,
                 min_label_distance=-0.5,
             )
-        plt.close(fig)
 
 
 class TestAdjustTextWarning:
@@ -365,7 +349,6 @@ class TestAdjustTextWarning:
                 )
         finally:
             loguru_logger.remove(handler_id)
-            plt.close(fig)
 
         # Should still return labels even without adjustText
         assert len(texts) == 3
@@ -388,7 +371,6 @@ class TestDeferredAdjustment:
         texts = add_snp_labels(ax, labelled_gwas_df, label_top_n=3, adjust=False)
 
         assert len(texts) == 3
-        plt.close(fig)
 
     def test_adjust_snp_labels_can_be_called_separately(self, labelled_gwas_df):
         """adjust_snp_labels can be called after setting axis limits."""
@@ -406,7 +388,6 @@ class TestDeferredAdjustment:
         adjust_snp_labels(ax, texts)
 
         assert len(texts) == 3
-        plt.close(fig)
 
     def test_adjust_snp_labels_handles_empty_list(self):
         """adjust_snp_labels handles empty text list gracefully."""
@@ -414,8 +395,6 @@ class TestDeferredAdjustment:
 
         # Should not raise
         adjust_snp_labels(ax, [])
-
-        plt.close(fig)
 
     def test_adjust_snp_labels_handles_single_label(self, labelled_gwas_df):
         """adjust_snp_labels handles single label (skips adjustText)."""
@@ -428,7 +407,6 @@ class TestDeferredAdjustment:
         adjust_snp_labels(ax, texts)
 
         assert len(texts) == 1
-        plt.close(fig)
 
 
 class TestNearLeadFilterBackfill:
@@ -475,23 +453,20 @@ class TestNearLeadFilterBackfill:
         )
 
         fig, ax = plt.subplots()
-        try:
-            texts = add_snp_labels(
-                ax,
-                df,
-                label_top_n=5,
-                lead_pos=1500000,
-                region_span=1_000_000,
-                min_label_distance=0.05,
-                adjust=False,
-            )
-            # Pre-fix: only the lead survives the post-filter mask -> 1 label.
-            # Post-fix: lead + 4 farthest backfill to 5.
-            assert len(texts) == 5
-            label_strs = [t.get_text() for t in texts]
-            assert "rs0" in label_strs  # lead always present
-        finally:
-            plt.close(fig)
+        texts = add_snp_labels(
+            ax,
+            df,
+            label_top_n=5,
+            lead_pos=1500000,
+            region_span=1_000_000,
+            min_label_distance=0.05,
+            adjust=False,
+        )
+        # Pre-fix: only the lead survives the post-filter mask -> 1 label.
+        # Post-fix: lead + 4 farthest backfill to 5.
+        assert len(texts) == 5
+        label_strs = [t.get_text() for t in texts]
+        assert "rs0" in label_strs  # lead always present
 
     def test_near_lead_filter_preserves_lead_when_only_neighbors_compete(self):
         """If only near-lead points exist, lead is still labeled."""
@@ -503,18 +478,15 @@ class TestNearLeadFilterBackfill:
             }
         )
         fig, ax = plt.subplots()
-        try:
-            texts = add_snp_labels(
-                ax,
-                df,
-                label_top_n=3,
-                lead_pos=1500000,
-                region_span=1_000_000,
-                adjust=False,
-            )
-            label_strs = [t.get_text() for t in texts]
-            assert "lead" in label_strs
-            # Near neighbors are excluded; only lead is eligible.
-            assert len(texts) == 1
-        finally:
-            plt.close(fig)
+        texts = add_snp_labels(
+            ax,
+            df,
+            label_top_n=3,
+            lead_pos=1500000,
+            region_span=1_000_000,
+            adjust=False,
+        )
+        label_strs = [t.get_text() for t in texts]
+        assert "lead" in label_strs
+        # Near neighbors are excluded; only lead is eligible.
+        assert len(texts) == 1

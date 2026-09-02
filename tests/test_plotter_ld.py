@@ -38,7 +38,6 @@ class TestLocusZoomPlotterLdCalculation:
         assert legend is not None, "LD data should add an r² legend"
         assert legend.get_title().get_text() == LD_LEGEND_TITLE
         assert "Lead SNP" in [text.get_text() for text in legend.get_texts()]
-        plt.close(fig)
 
     def test_empty_ld_output_is_downgraded_to_warning(
         self, fake_plink, tiny_regional_gwas_df, warning_records
@@ -65,7 +64,6 @@ class TestLocusZoomPlotterLdCalculation:
 
         assert fig is not None
         assert any("LD calculation skipped" in message for message in warning_records)
-        plt.close(fig)
 
     def test_stacked_plot_downgrades_empty_ld_output(
         self, fake_plink, tiny_regional_gwas_df
@@ -88,7 +86,6 @@ class TestLocusZoomPlotterLdCalculation:
             )
 
         assert fig is not None
-        plt.close(fig)
 
     def test_plink_misconfiguration_propagates_through_plot(
         self, fake_plink, tiny_regional_gwas_df
@@ -185,7 +182,6 @@ class TestLDHeatmapIntegration:
 
         # Should have at least 2 axes (association + heatmap)
         assert len(fig.axes) >= 2
-        plt.close(fig)
 
     def test_plot_with_ld_heatmap_aligns_x_coordinates(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -214,7 +210,6 @@ class TestLDHeatmapIntegration:
         # X-axis should be in genomic coordinate range
         assert xlim[0] < 1003000, f"Heatmap xlim[0]={xlim[0]} should be < 1003000"
         assert xlim[1] > 999000, f"Heatmap xlim[1]={xlim[1]} should be > 999000"
-        plt.close(fig)
 
     def test_plot_stacked_with_ld_heatmap_at_bottom(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data, heatmap_genes_df
@@ -237,7 +232,6 @@ class TestLDHeatmapIntegration:
         # Should have 3 panels: GWAS, gene track, heatmap
         axes = fig.axes
         assert len(axes) >= 3
-        plt.close(fig)
 
     def test_ld_heatmap_filters_to_region(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -261,7 +255,6 @@ class TestLDHeatmapIntegration:
 
         # Should complete without error even with partial overlap
         assert fig is not None
-        plt.close(fig)
 
     def test_ld_heatmap_empty_overlap_raises(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -314,8 +307,6 @@ class TestLDHeatmapIntegration:
         # Both should render successfully
         assert fig1 is not None
         assert fig2 is not None
-        plt.close(fig1)
-        plt.close(fig2)
 
     def test_ld_heatmap_lead_snp_highlight(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -338,7 +329,6 @@ class TestLDHeatmapIntegration:
 
         # Should render with lead SNP highlight (visual check)
         assert fig is not None
-        plt.close(fig)
 
     # Backend-specific tests
 
@@ -363,7 +353,6 @@ class TestLDHeatmapIntegration:
         # Plus possible colorbar axis
         assert len(fig.axes) >= 2
         assert isinstance(fig, plt.Figure)
-        plt.close(fig)
 
     def test_ld_heatmap_plotly_backend(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -445,7 +434,6 @@ class TestLDHeatmapIntegration:
 
         # Should complete without error
         assert fig is not None
-        plt.close(fig)
 
     def test_ld_heatmap_lead_snp_not_in_heatmap(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -484,7 +472,6 @@ class TestLDHeatmapIntegration:
 
         # Should complete without error
         assert fig is not None
-        plt.close(fig)
 
     def test_ld_heatmap_missing_snp_ids_raises_error(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -575,7 +562,6 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
         ]
 
         self._assert_inside_region(spans)
-        plt.close(fig)
 
     def test_plotly_outline_uses_genomic_coordinates_on_its_own_panel(
         self, heatmap_gwas_df, heatmap_ld_matrix
