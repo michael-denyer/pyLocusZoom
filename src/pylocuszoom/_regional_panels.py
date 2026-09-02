@@ -184,11 +184,16 @@ class EqtlPanel:
 
 @dataclass(frozen=True)
 class GenePanel:
-    """Prepared gene-track panel; ``data`` is filtered to the region."""
+    """Prepared gene-track panel and its layout.
 
-    data: pd.DataFrame
+    ``genes`` and ``exons`` are filtered to the region, ``genes`` is sorted by
+    start, and ``rows`` gives the stacking row of each gene in that order.
+    """
+
+    genes: pd.DataFrame
+    rows: List[int]
+    exons: Optional[pd.DataFrame]
     height: float
-    exons_df: Optional[pd.DataFrame]
 
     @classmethod
     def from_genes(
@@ -197,13 +202,21 @@ class GenePanel:
         region: RegionConfig,
         exons_df: Optional[pd.DataFrame],
     ) -> "GenePanel":
-        """Filter genes to the region and size the panel to its stacked rows."""
-        genes = filter_genes_by_region(genes_df, region.chrom, region.start, region.end)
-        rows = assign_gene_positions(
-            genes.sort_values("start"), region.start, region.end
+        """Filter genes to the region and lay them out in non-overlapping rows."""
+        genes = filter_genes_by_region(
+            genes_df, region.chrom, region.start, region.end
+        ).sort_values("start")
+        rows = assign_gene_positions(genes, region.start, region.end)
+        exons = (
+            filter_genes_by_region(exons_df, region.chrom, region.start, region.end)
+            if exons_df is not None and not exons_df.empty
+            else None
         )
         return cls(
-            data=genes, height=1.0 + max(rows, default=0) * 0.5, exons_df=exons_df
+            genes=genes,
+            rows=rows,
+            exons=exons,
+            height=1.0 + max(rows, default=0) * 0.5,
         )
 
 
@@ -574,13 +587,12 @@ def draw_genes(
 ) -> None:
     """Draw gene bodies, exons, strand arrows, and labels for the region."""
     start, end = plan.start, plan.end
-    region_genes = filter_genes_by_region(panel.data, plan.chrom, start, end)
 
     backend.set_xlim(ax, start, end)
     backend.set_ylabel(ax, "", fontsize=10)
     backend.hide_yaxis(ax)
 
-    if region_genes.empty:
+    if panel.genes.empty:
         backend.set_ylim(ax, 0, 1)
         backend.add_text(
             ax,
@@ -594,20 +606,14 @@ def draw_genes(
         )
         return
 
-    region_genes = region_genes.sort_values("start")
-    positions = assign_gene_positions(region_genes, start, end)
-
-    max_row = max(positions) if positions else 0
+    max_row = max(panel.rows, default=0)
     bottom_margin = EXON_HEIGHT / 2 + 0.02
     backend.set_ylim(ax, -bottom_margin, max_row * ROW_HEIGHT + GENE_AREA + 0.05)
 
-    region_exons = None
-    if panel.exons_df is not None and not panel.exons_df.empty:
-        region_exons = filter_genes_by_region(panel.exons_df, plan.chrom, start, end)
-
+    region_exons = panel.exons
     region_width = end - start
 
-    for idx, (_, gene) in enumerate(region_genes.iterrows()):
+    for idx, (_, gene) in enumerate(panel.genes.iterrows()):
         gene_start = max(int(gene["start"]), start)
         gene_end = min(int(gene["end"]), end)
         gene_name = gene.get("gene_name", "")
@@ -616,7 +622,7 @@ def draw_genes(
         strand = raw_strand if raw_strand in ("+", "-") else None
         gene_col = STRAND_COLORS.get(strand, STRAND_COLORS[None])
 
-        y_gene = positions[idx] * ROW_HEIGHT + 0.05
+        y_gene = panel.rows[idx] * ROW_HEIGHT + 0.05
 
         gene_exons = None
         if region_exons is not None and not region_exons.empty and gene_name:

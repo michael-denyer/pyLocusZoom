@@ -136,7 +136,8 @@ def test_gene_panel_height_grows_with_stacked_rows(starts, ends, expected_height
     panel = GenePanel.from_genes(genes, REGION, exons_df=None)
 
     assert panel.height == expected_height
-    assert len(panel.data) == len(starts)
+    assert len(panel.genes) == len(starts)
+    assert len(panel.rows) == len(starts)
 
 
 def test_gene_panel_from_genes_drops_other_chromosomes_and_renders():
@@ -151,7 +152,7 @@ def test_gene_panel_from_genes_drops_other_chromosomes_and_renders():
 
     panel = GenePanel.from_genes(genes, REGION, exons_df=None)
 
-    assert list(panel.data["gene_name"]) == ["G1"]
+    assert list(panel.genes["gene_name"]) == ["G1"]
     assert "set_xlim" in _names(_render(panel))
 
 

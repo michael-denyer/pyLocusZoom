@@ -7,6 +7,7 @@ from hypothesis import given
 from hypothesis import settings as hyp_settings
 
 from pylocuszoom._regional_panels import GenePanel, RegionalFigurePlan, draw_genes
+from pylocuszoom.config import RegionConfig
 from pylocuszoom.gene_track import (
     STRAND_COLORS,
     assign_gene_positions,
@@ -189,7 +190,8 @@ class TestGetNearestGene:
 
 def _draw(backend, ax, genes_df, chrom, start, end):
     """Draw a gene track for the region straight from a raw gene frame."""
-    panel = GenePanel(data=genes_df, height=1.0, exons_df=None)
+    region = RegionConfig(chrom=str(chrom), start=start, end=end)
+    panel = GenePanel.from_genes(genes_df, region, None)
     plan = RegionalFigurePlan(
         chrom=chrom, start=start, end=end, panels=[panel], figsize=(8.0, 1.0)
     )

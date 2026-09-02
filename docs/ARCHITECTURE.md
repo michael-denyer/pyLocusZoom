@@ -195,7 +195,7 @@ stages:
 |-------------|------|----------|---------|
 | `LocusZoomPlotter` | Class | `src/pylocuszoom/plotter.py` | Primary entry point for regional association plots; orchestrates validation, LD, gene track, recombination overlay, and backend rendering |
 | `RegionalPlotComposer` | Internal class | `src/pylocuszoom/_regional.py` | Renders an ordered `RegionalFigurePlan`, dispatching each panel by type through `render_panel` (`singledispatchmethod`) to the panel's `draw_*` function |
-| Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw_*` function that draws it |
+| Regional panels | Internal module | `src/pylocuszoom/_regional_panels.py` | The five panel value types, the constructor each builds itself through, and the `draw_*` function that draws it. A panel carries its resolved mode, hover contract and layout, so drawing inspects no columns |
 | Family renderers | Internal modules | `src/pylocuszoom/_*_renderer.py` | Focused semantic renderers for Miami, PheWAS/forest, colocalization, and LD heatmap families |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |

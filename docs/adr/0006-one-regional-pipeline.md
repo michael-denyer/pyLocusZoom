@@ -115,3 +115,8 @@ the composition layer rather than out into the domain modules, because
 `eqtl.py` and `finemapping.py` are the validation layer and the layering rule
 keeps backend primitives out of it; `gene_track.py` drops to the region
 filter, the row layout and the arrow geometry.
+
+`GenePanel` was the one panel that was not, in fact, prepared: it computed
+the gene layout to size itself and then discarded everything but the row
+count, so the drawing filtered and assigned again. It now carries `genes`,
+`rows` and `exons`, and the layout has one owner.
