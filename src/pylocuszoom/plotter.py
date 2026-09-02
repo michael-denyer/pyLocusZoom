@@ -221,12 +221,22 @@ class LocusZoomPlotter:
             end: Region end position (bp, inclusive).
             lead_pos: Genomic position of the lead SNP (``>= 1``). Required
                 when ``ld_reference_file`` is supplied and ``ld_col`` is not.
+            genes_df: Gene annotations; adds a gene track. ``exons_df`` draws
+                exon structure within it. Both are filtered to the region.
+            recomb_df: Recombination rates to overlay on the first
+                association panel, replacing the species map lookup.
             eqtl_df: eQTL results with ``pos`` and ``p_value`` columns; adds
                 an eQTL panel. ``eqtl_gene`` filters it to one gene and
                 requires a ``gene`` column; ``eqtl_threshold`` places its
                 significance line.
             finemapping_df: Fine-mapping results with ``pos`` and ``pip``
                 columns; adds a PIP panel coloured by ``finemapping_cs_col``.
+                Pass ``finemapping_cs_col=None`` for no credible-set colouring.
+            ld_heatmap_df: Square LD matrix; adds a heatmap panel.
+                ``ld_heatmap_snp_ids`` names its rows and columns and is
+                required with it. ``ld_heatmap_height`` scales the panel
+                against the association panel and ``ld_heatmap_metric``
+                (``"r2"`` or ``"dprime"``) labels the colour bar.
 
         Returns:
             Backend-specific figure object (``matplotlib.figure.Figure``,
@@ -256,16 +266,6 @@ class LocusZoomPlotter:
             lead_pos=lead_pos,
             ld_reference_file=ld_reference_file,
             ld_col=ld_col,
-        )
-        return self._render_regional(
-            config,
-            [gwas_df],
-            leads=[config.ld.lead_pos],
-            reference_files=[config.ld.ld_reference_file],
-            panel_labels=None,
-            association_height=config.display.figsize[1] * 0.6,
-            min_figure_height=0.0,
-            auto_genes=self._auto_genes,
             genes_df=genes_df,
             exons_df=exons_df,
             recomb_df=recomb_df,
@@ -278,6 +278,16 @@ class LocusZoomPlotter:
             ld_heatmap_snp_ids=ld_heatmap_snp_ids,
             ld_heatmap_height=ld_heatmap_height,
             ld_heatmap_metric=ld_heatmap_metric,
+        )
+        return self._render_regional(
+            config,
+            [gwas_df],
+            leads=[config.ld.lead_pos],
+            reference_files=[config.ld.ld_reference_file],
+            panel_labels=None,
+            association_height=config.display.figsize[1] * 0.6,
+            min_figure_height=0.0,
+            auto_genes=self._auto_genes,
         )
 
     def plot_stacked(
@@ -324,6 +334,8 @@ class LocusZoomPlotter:
             gwas_dfs: One GWAS summary-statistics frame per panel.
             auto_genes: Fetch the gene track when ``genes_df`` is not given.
                 ``None`` inherits the plotter's constructor setting.
+            genes_df: Gene annotations. This and every other optional-panel
+                argument behaves as documented on :meth:`plot`.
 
         Raises:
             ValueError: If ``gwas_dfs`` is empty or a per-panel list
@@ -346,6 +358,18 @@ class LocusZoomPlotter:
             lead_positions=lead_positions,
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
+            genes_df=genes_df,
+            exons_df=exons_df,
+            recomb_df=recomb_df,
+            eqtl_df=eqtl_df,
+            eqtl_gene=eqtl_gene,
+            eqtl_threshold=eqtl_threshold,
+            finemapping_df=finemapping_df,
+            finemapping_cs_col=finemapping_cs_col,
+            ld_heatmap_df=ld_heatmap_df,
+            ld_heatmap_snp_ids=ld_heatmap_snp_ids,
+            ld_heatmap_height=ld_heatmap_height,
+            ld_heatmap_metric=ld_heatmap_metric,
         )
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
@@ -386,18 +410,6 @@ class LocusZoomPlotter:
             association_height=2.5,
             min_figure_height=config.display.figsize[1],
             auto_genes=self._auto_genes if auto_genes is None else auto_genes,
-            genes_df=genes_df,
-            exons_df=exons_df,
-            recomb_df=recomb_df,
-            eqtl_df=eqtl_df,
-            eqtl_gene=eqtl_gene,
-            eqtl_threshold=eqtl_threshold,
-            finemapping_df=finemapping_df,
-            finemapping_cs_col=finemapping_cs_col,
-            ld_heatmap_df=ld_heatmap_df,
-            ld_heatmap_snp_ids=ld_heatmap_snp_ids,
-            ld_heatmap_height=ld_heatmap_height,
-            ld_heatmap_metric=ld_heatmap_metric,
         )
 
     def _render_regional(
@@ -411,18 +423,6 @@ class LocusZoomPlotter:
         association_height: float,
         min_figure_height: float,
         auto_genes: bool,
-        genes_df: Optional[pd.DataFrame],
-        exons_df: Optional[pd.DataFrame],
-        recomb_df: Optional[pd.DataFrame],
-        eqtl_df: Optional[pd.DataFrame],
-        eqtl_gene: Optional[str],
-        eqtl_threshold: float,
-        finemapping_df: Optional[pd.DataFrame],
-        finemapping_cs_col: Optional[str],
-        ld_heatmap_df: Optional[pd.DataFrame],
-        ld_heatmap_snp_ids: Optional[List[str]],
-        ld_heatmap_height: float,
-        ld_heatmap_metric: str,
     ) -> Any:
         """Build the panel plan for one regional figure and render it.
 
@@ -431,20 +431,20 @@ class LocusZoomPlotter:
         height and the floor on the figure height. Everything else is here.
 
         Args:
-            config: Validated region, column, display, and LD settings.
+            config: Validated region, column, display, LD, and panel settings.
             gwas_dfs: One frame per association panel.
             leads: Lead position per panel, parallel to ``gwas_dfs``.
             reference_files: PLINK fileset per panel, parallel to ``gwas_dfs``.
             panel_labels: Label per panel, or None for none.
             association_height: Height-ratio units for each association panel.
             min_figure_height: Floor on the figure height in inches.
-            auto_genes: Fetch the gene track when ``genes_df`` is None.
+            auto_genes: Fetch the gene track when ``config.panels.genes_df``
+                is None.
         """
         region, columns, display = config.region, config.columns, config.display
-        if ld_heatmap_df is not None and ld_heatmap_snp_ids is None:
-            raise ValueError(
-                "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
-            )
+        inputs = config.panels
+        genes_df, exons_df = inputs.genes_df, inputs.exons_df
+        recomb_df = inputs.recomb_df
         for gwas_df in gwas_dfs:
             validate_gwas_df(gwas_df, pos_col=columns.pos_col, p_col=columns.p_col)
 
@@ -479,13 +479,17 @@ class LocusZoomPlotter:
             validate_genes_df(genes_df)
 
         finemap = (
-            FinemappingPanel.from_frame(finemapping_df, region, finemapping_cs_col)
-            if finemapping_df is not None
+            FinemappingPanel.from_frame(
+                inputs.finemapping_df, region, inputs.finemapping_cs_col
+            )
+            if inputs.finemapping_df is not None
             else None
         )
         eqtl = (
-            EqtlPanel.from_frame(eqtl_df, region, eqtl_gene, eqtl_threshold)
-            if eqtl_df is not None
+            EqtlPanel.from_frame(
+                inputs.eqtl_df, region, inputs.eqtl_gene, inputs.eqtl_threshold
+            )
+            if inputs.eqtl_df is not None
             else None
         )
         genes = (
@@ -532,14 +536,14 @@ class LocusZoomPlotter:
 
         heatmap = (
             HeatmapPanel.from_matrix(
-                ld_heatmap_df,
-                ld_heatmap_snp_ids,
+                inputs.ld_heatmap_df,
+                inputs.ld_heatmap_snp_ids,
                 source=association[0],
                 region=region,
-                height=association_height * ld_heatmap_height,
-                metric=ld_heatmap_metric,
+                height=association_height * inputs.ld_heatmap_height,
+                metric=inputs.ld_heatmap_metric,
             )
-            if ld_heatmap_df is not None
+            if inputs.ld_heatmap_df is not None
             else None
         )
 

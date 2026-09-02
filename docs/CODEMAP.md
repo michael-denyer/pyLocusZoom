@@ -176,6 +176,7 @@ One validation engine, driven declaratively. Each family states its rules as a f
 | 2b | validate_finemapping_dataframe | Fine-mapping schema validation | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2c | PlotConfig | Pydantic model for `plot()` kwargs | [config.py](../src/pylocuszoom/config.py) |
 | 2c | StackedPlotConfig | Pydantic model for `plot_stacked()` | [config.py](../src/pylocuszoom/config.py) |
+| 2c | PanelInputs | Optional-panel data carried on `PlotConfig.panels` | [config.py](../src/pylocuszoom/config.py) |
 
 ---
 

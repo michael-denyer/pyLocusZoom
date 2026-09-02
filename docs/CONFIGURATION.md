@@ -95,11 +95,32 @@ Cross-field rules:
 - If `ld_reference_file` is set, `lead_pos` is required (enforced on
   `PlotConfig`).
 
+### `PanelInputs` — optional panels beneath the association track
+
+| Field                | Type                      | Default  | Description                                    |
+| -------------------- | ------------------------- | -------- | ---------------------------------------------- |
+| `genes_df`           | `DataFrame \| None`       | `None`   | Gene annotations for the gene track            |
+| `exons_df`           | `DataFrame \| None`       | `None`   | Exon structure drawn within the gene track     |
+| `recomb_df`          | `DataFrame \| None`       | `None`   | Recombination rates, replacing the map lookup  |
+| `eqtl_df`            | `DataFrame \| None`       | `None`   | eQTL results for the eQTL panel                |
+| `eqtl_gene`          | `str \| None`             | `None`   | Filter the eQTL frame to one gene              |
+| `eqtl_threshold`     | `float`                   | `1e-5`   | Significance line on the eQTL panel            |
+| `finemapping_df`     | `DataFrame \| None`       | `None`   | Fine-mapping results for the PIP panel         |
+| `finemapping_cs_col` | `str \| None`             | `"cs"`   | Credible-set column, `None` for no colouring   |
+| `ld_heatmap_df`      | `DataFrame \| None`       | `None`   | Square LD matrix for the heatmap panel         |
+| `ld_heatmap_snp_ids` | `list[str] \| None`       | `None`   | Row and column SNP ids of the LD matrix        |
+| `ld_heatmap_height`  | `float`                   | `0.25`   | Heatmap height against the association panel   |
+| `ld_heatmap_metric`  | `str`                     | `"r2"`   | Colour-bar label, `"r2"` or `"dprime"`         |
+
+Cross-field rules:
+
+- If `ld_heatmap_df` is set, `ld_heatmap_snp_ids` is required.
+
 ### Composite configs
 
-- `PlotConfig` composes `RegionConfig`, `ColumnConfig`, `DisplayConfig`, and
-  `LDConfig`. Use `PlotConfig.from_kwargs(...)` to construct one from the
-  same flat kwargs that `plot()` accepts.
+- `PlotConfig` composes `RegionConfig`, `ColumnConfig`, `DisplayConfig`,
+  `LDConfig`, and `PanelInputs`. Use `PlotConfig.from_kwargs(...)` to
+  construct one from the same flat kwargs that `plot()` accepts.
 - `StackedPlotConfig` extends the pattern with list-valued
   `lead_positions`, `panel_labels`, and `ld_reference_files` fields for
   multi-panel plots.

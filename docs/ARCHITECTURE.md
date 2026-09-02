@@ -160,7 +160,9 @@ stages:
    are loaded via `recombination.py`, which handles download of bundled canine
    maps and CanFam3.1 → CanFam4 liftover through pyliftover.
 6. **Regional composition and backend dispatch.** `plot()` and
-   `plot_stacked()` share one private pipeline, `_render_regional`, which
+   `plot_stacked()` validate every keyword through `PlotConfig`, whose
+   `panels` field (`PanelInputs`) carries the optional-panel data, then
+   share one private pipeline, `_render_regional`, which
    builds each optional panel through its own constructor
    (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
    `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and hands an ordered

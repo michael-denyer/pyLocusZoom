@@ -15,6 +15,7 @@ Example:
 
 from typing import Annotated, Any, List, Optional, Tuple, Union
 
+import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
@@ -133,6 +134,55 @@ class LDConfig(BaseModel):
         return self
 
 
+class PanelInputs(BaseModel):
+    """Caller-supplied data for the optional panels beneath the association track.
+
+    Every field is documented once, on :meth:`LocusZoomPlotter.plot`, which is
+    the public surface that accepts them as keyword arguments.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    genes_df: Optional[pd.DataFrame] = Field(
+        default=None, description="Gene annotations"
+    )
+    exons_df: Optional[pd.DataFrame] = Field(
+        default=None, description="Exon annotations"
+    )
+    recomb_df: Optional[pd.DataFrame] = Field(
+        default=None, description="Recombination rates"
+    )
+    eqtl_df: Optional[pd.DataFrame] = Field(default=None, description="eQTL results")
+    eqtl_gene: Optional[str] = Field(default=None, description="eQTL gene filter")
+    eqtl_threshold: float = Field(
+        default=DEFAULT_EQTL_THRESHOLD, description="eQTL significance"
+    )
+    finemapping_df: Optional[pd.DataFrame] = Field(
+        default=None, description="Fine-mapping results"
+    )
+    finemapping_cs_col: Optional[str] = Field(
+        default="cs", description="Credible-set column"
+    )
+    ld_heatmap_df: Optional[pd.DataFrame] = Field(default=None, description="LD matrix")
+    ld_heatmap_snp_ids: Optional[List[str]] = Field(
+        default=None, description="LD matrix row/column SNP ids"
+    )
+    ld_heatmap_height: float = Field(
+        default=0.25,
+        description="Heatmap height as a fraction of the association panel",
+    )
+    ld_heatmap_metric: str = Field(default="r2", description="LD metric label")
+
+    @model_validator(mode="after")
+    def validate_heatmap_requires_snp_ids(self) -> "PanelInputs":
+        """Validate that an LD heatmap matrix names its rows and columns."""
+        if self.ld_heatmap_df is not None and self.ld_heatmap_snp_ids is None:
+            raise ValueError(
+                "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
+            )
+        return self
+
+
 class PlotConfig(BaseModel):
     """Composite configuration for plot() method.
 
@@ -145,6 +195,7 @@ class PlotConfig(BaseModel):
         columns: DataFrame column name mappings.
         display: Display and visual options.
         ld: Linkage disequilibrium configuration.
+        panels: Data for the optional panels beneath the association track.
 
     Example:
         >>> # Direct construction
@@ -166,6 +217,7 @@ class PlotConfig(BaseModel):
     columns: ColumnConfig = Field(default_factory=ColumnConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     ld: LDConfig = Field(default_factory=LDConfig)
+    panels: PanelInputs = Field(default_factory=PanelInputs)
 
     @model_validator(mode="after")
     def validate_ld_requires_lead_pos(self) -> "PlotConfig":
@@ -189,6 +241,7 @@ class PlotConfig(BaseModel):
             ("columns", ColumnConfig),
             ("display", DisplayConfig),
             ("ld", LDConfig),
+            ("panels", PanelInputs),
         )
         parts = {
             name: model(
@@ -312,6 +365,7 @@ __all__ = [
     "ColumnConfig",
     "DisplayConfig",
     "LDConfig",
+    "PanelInputs",
     "PlotConfig",
     "StackedPlotConfig",
     "ColocConfig",
