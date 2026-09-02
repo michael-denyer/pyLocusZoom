@@ -1,20 +1,11 @@
-"""Tests for Bokeh backend bug fixes.
-
-Covers issues found in code review:
-- High #1: save() global state via output_file()
-- High #2: add_panel_label() broken with DataRange1d
-- Medium #3: scatter() hover column name collision
-- Medium #4: _create_color_palette() only handles 6-digit hex
-- Medium #5: highlight_heatmap_snp O(n) renderers
-- Low #6: identity orientation_map in add_colorbar (code cleanup)
-- Low #7: redundant local ColumnDataSource import (code cleanup)
-"""
+"""Unit tests for BokehBackend."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
+from pylocuszoom.stats_plotter import StatsPlotter
 
 
 class TestAddPanelLabelWithDataRange1d:
@@ -313,3 +304,143 @@ class TestAddTextAnchors:
         assert len(labels) == 1
         assert labels[0].text_align == text_align
         assert labels[0].text_baseline == text_baseline
+
+
+class TestBokehSetXticksCorruptsYAxis:
+    """High: Bokeh set_xticks writes x-axis labels into the y-axis.
+
+    Bug: set_xticks writes to ax.yaxis.major_label_overrides instead of only
+    ax.xaxis.major_label_overrides, corrupting y-axis labels.
+    """
+
+    def test_bokeh_set_xticks_does_not_modify_yaxis(self):
+        """set_xticks should not modify y-axis properties."""
+        backend = BokehBackend()
+        layout, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
+        )
+        ax = axes[0]
+
+        # Set custom y-axis labels first
+        backend.set_yticks(ax, positions=[0, 1, 2], labels=["A", "B", "C"])
+
+        # Now set x-axis ticks - this should NOT affect y-axis
+        backend.set_xticks(
+            ax,
+            positions=[100, 200, 300],
+            labels=["X1", "X2", "X3"],
+            fontsize=10,
+        )
+
+        # Bug: set_xticks has these lines that corrupt y-axis:
+        # ax.yaxis.major_label_overrides = dict(zip(positions, labels))
+        # ax.yaxis.major_label_text_font_size = f"{fontsize}pt"
+
+        # Check that y-axis was not modified by set_xticks
+        y_overrides = ax.yaxis.major_label_overrides
+
+        # y_overrides should NOT contain x-axis labels
+        assert "X1" not in y_overrides.values(), (
+            f"X-axis labels leaked into y-axis overrides: {y_overrides}"
+        )
+        assert "X2" not in y_overrides.values(), (
+            f"X-axis labels leaked into y-axis overrides: {y_overrides}"
+        )
+
+
+class TestBokehSetYticksIgnoresLabels:
+    """High: Bokeh set_yticks ignores the provided labels entirely.
+
+    Bug: set_yticks only sets ax.yaxis.ticker = positions but doesn't set
+    ax.yaxis.major_label_overrides, so custom labels are ignored.
+    """
+
+    def test_bokeh_set_yticks_applies_labels(self):
+        """set_yticks should apply the provided custom labels."""
+        backend = BokehBackend()
+        layout, axes = backend.create_figure(
+            n_panels=1, height_ratios=[1.0], figsize=(12, 6)
+        )
+        ax = axes[0]
+
+        # Set custom y-axis labels
+        positions = [0, 1, 2, 3]
+        labels = ["Type 2 Diabetes", "BMI", "Height", "Blood Pressure"]
+
+        backend.set_yticks(ax, positions=positions, labels=labels, fontsize=10)
+
+        # Bug: set_yticks only sets ticker, ignoring labels parameter
+        # Current implementation:
+        #   ax.yaxis.ticker = positions
+        # Missing:
+        #   ax.yaxis.major_label_overrides = dict(zip(positions, labels))
+
+        # Check that labels were applied
+        y_overrides = ax.yaxis.major_label_overrides
+
+        assert len(y_overrides) > 0, (
+            "set_yticks should set major_label_overrides but it's empty. "
+            "Bug: labels parameter is ignored."
+        )
+
+        # Verify the correct labels are present
+        for pos, expected_label in zip(positions, labels):
+            assert pos in y_overrides, f"Position {pos} not in y-axis overrides"
+            assert y_overrides[pos] == expected_label, (
+                f"Expected label '{expected_label}' at position {pos}, "
+                f"got '{y_overrides.get(pos)}'"
+            )
+
+    def test_bokeh_phewas_shows_phenotype_names(self, phewas_with_effects_df):
+        """PheWAS plot should show phenotype names, not numeric indices."""
+        plotter = StatsPlotter(backend="bokeh")
+        fig = plotter.plot_phewas(
+            phewas_with_effects_df,
+            variant_id="rs12345",
+            phenotype_col="phenotype",
+            p_col="p",
+        )
+
+        # Get the main figure from the layout
+        main_fig = fig.children[0] if hasattr(fig, "children") else fig
+
+        # Check y-axis has phenotype names, not just numeric indices
+        y_overrides = main_fig.yaxis.major_label_overrides
+
+        assert len(y_overrides) > 0, (
+            "PheWAS y-axis should have label overrides for phenotype names"
+        )
+
+        # Check that actual phenotype names are present
+        override_values = list(y_overrides.values())
+        assert "Type 2 Diabetes" in override_values or any(
+            "Diabetes" in str(v) for v in override_values
+        ), f"Expected phenotype names in y-axis, got: {override_values}"
+
+    def test_bokeh_forest_shows_study_names(self, sample_forest_df):
+        """Forest plot should show study names, not numeric indices."""
+        plotter = StatsPlotter(backend="bokeh")
+        fig = plotter.plot_forest(
+            sample_forest_df,
+            variant_id="rs12345",
+            study_col="study",
+            effect_col="effect",
+            ci_lower_col="ci_lower",
+            ci_upper_col="ci_upper",
+        )
+
+        # Get the main figure from the layout
+        main_fig = fig.children[0] if hasattr(fig, "children") else fig
+
+        # Check y-axis has study names
+        y_overrides = main_fig.yaxis.major_label_overrides
+
+        assert len(y_overrides) > 0, (
+            "Forest plot y-axis should have label overrides for study names"
+        )
+
+        # Check that actual study names are present
+        override_values = list(y_overrides.values())
+        assert "Study A" in override_values or any(
+            "Study" in str(v) for v in override_values
+        ), f"Expected study names in y-axis, got: {override_values}"

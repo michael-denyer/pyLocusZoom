@@ -7,6 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
+from pylocuszoom.manhattan import prepare_categorical_data
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from tests.strategies import gwas_dataframes_multichrom
 
@@ -476,3 +477,51 @@ class TestCategoricalManhattanIntegerCategories:
         result = prepare_categorical_data(df, category_col="cat")
         assert len(result) == 5
         assert "_neg_log_p" in result.columns
+
+
+class TestCategoricalManhattanNaNHandling:
+    """Medium: Categorical Manhattan prep raises TypeError on NaN categories.
+
+    Bug: prepare_categorical_data uses sorted() on category values directly.
+    If category column contains NaN or mixed types, sorted() raises TypeError.
+    """
+
+    def test_categorical_manhattan_handles_nan_categories(self):
+        """prepare_categorical_data should handle NaN values in category column."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["A", "B", None, "C", np.nan],
+                "p": [0.001, 0.01, 0.1, 0.05, 0.02],
+            }
+        )
+
+        # Bug: sorted(result[category_col].unique()) fails with:
+        # TypeError: '<' not supported between instances of 'str' and 'float'
+        # because np.nan is float and other values are str
+
+        # This should not raise
+        try:
+            result = prepare_categorical_data(df, category_col="phenotype", p_col="p")
+        except TypeError as e:
+            pytest.fail(f"prepare_categorical_data raised TypeError on NaN values: {e}")
+
+        # Should have valid output
+        assert "_cat_idx" in result.columns
+        assert "_neg_log_p" in result.columns
+
+    def test_categorical_manhattan_handles_mixed_types(self):
+        """prepare_categorical_data should handle mixed types in category column."""
+        df = pd.DataFrame(
+            {
+                "category": ["A", 1, "B", 2, "C"],  # Mixed str and int
+                "p": [0.001, 0.01, 0.1, 0.05, 0.02],
+            }
+        )
+
+        # Bug: sorted() fails on mixed types
+        try:
+            prepare_categorical_data(df, category_col="category", p_col="p")
+        except TypeError as e:
+            pytest.fail(
+                f"prepare_categorical_data raised TypeError on mixed types: {e}"
+            )

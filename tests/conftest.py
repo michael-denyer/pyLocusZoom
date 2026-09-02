@@ -214,6 +214,48 @@ def labelled_gwas_df():
 
 
 @pytest.fixture
+def manhattan_rs_gwas_df():
+    """Fifty single-chromosome variants in the rs/chrom/pos/p schema."""
+    rng = np.random.default_rng(42)
+    n_snps = 50
+    positions = np.sort(rng.integers(1_000_000, 2_000_000, n_snps))
+    return pd.DataFrame(
+        {
+            "rs": [f"rs{i}" for i in range(n_snps)],
+            "chrom": [1] * n_snps,
+            "pos": positions,
+            "p": rng.uniform(1e-10, 1, n_snps),
+        }
+    )
+
+
+@pytest.fixture
+def phewas_with_effects_df():
+    """PheWAS associations carrying signed effect sizes."""
+    return pd.DataFrame(
+        {
+            "phenotype": ["Type 2 Diabetes", "BMI", "Height", "Blood Pressure"],
+            "category": ["Metabolic", "Metabolic", "Anthropometric", "Cardiovascular"],
+            "p": [1e-8, 1e-4, 0.05, 1e-6],
+            "effect": [0.3, -0.2, 0.1, 0.25],
+        }
+    )
+
+
+@pytest.fixture
+def sample_forest_df():
+    """Per-study effects with confidence intervals, plus a meta-analysis row."""
+    return pd.DataFrame(
+        {
+            "study": ["Study A", "Study B", "Study C", "Meta-analysis"],
+            "effect": [0.25, 0.30, 0.20, 0.24],
+            "ci_lower": [0.10, 0.15, 0.05, 0.18],
+            "ci_upper": [0.40, 0.45, 0.35, 0.30],
+        }
+    )
+
+
+@pytest.fixture
 def stats_plotter():
     """StatsPlotter with default settings."""
     from pylocuszoom import StatsPlotter

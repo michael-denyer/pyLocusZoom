@@ -366,3 +366,42 @@ class TestConstructorThresholdIsTheDefault:
         )
 
         assert self._dashed_x(fig) == []
+
+
+class TestPheWASManyCategories:
+    """Test PheWAS plot with many categories cycles colors correctly."""
+
+    def test_phewas_15_categories_succeeds(self, stats_plotter):
+        """PheWAS with >12 categories should cycle colors without error.
+
+        The PHEWAS_CATEGORY_COLORS palette has 12 colors, so 15 categories
+        requires color cycling. This tests that modulo indexing works.
+        """
+        # Create 15 unique categories
+        categories = [f"Category_{i}" for i in range(15)]
+        phenotypes = [f"Phenotype_{i}" for i in range(15)]
+
+        phewas_df = pd.DataFrame(
+            {
+                "phenotype": phenotypes,
+                "p_value": [10 ** (-i - 1) for i in range(15)],  # varying p-values
+                "category": categories,
+            }
+        )
+
+        fig = stats_plotter.plot_phewas(
+            phewas_df,
+            variant_id="rs12345",
+            phenotype_col="phenotype",
+            p_col="p_value",
+            category_col="category",
+        )
+
+        assert fig is not None
+        # Verify all 15 points are plotted
+        ax = fig.axes[0]
+        total_points = sum(
+            len(collection.get_offsets()) for collection in ax.collections
+        )
+        assert total_points == 15
+        plt.close(fig)

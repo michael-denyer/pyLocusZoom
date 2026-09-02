@@ -1,5 +1,6 @@
 """Tests for ManhattanPlotter class."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -171,3 +172,94 @@ class TestConstructorThresholdIsTheDefault:
         fig = ManhattanPlotter().plot_manhattan(self._gwas())
 
         assert self._dashed_y(fig) == pytest.approx([-np.log10(5e-8)])
+
+
+class TestManhattanSingleChromosome:
+    """Test Manhattan plot with single chromosome data."""
+
+    def test_manhattan_single_chromosome_succeeds(self, manhattan_plotter):
+        """Manhattan plot with only one chromosome should work."""
+        df = pd.DataFrame(
+            {
+                "chrom": ["1"] * 10,
+                "pos": list(range(1000000, 11000000, 1000000)),
+                "p": [1e-8, 0.05, 0.01, 1e-6, 0.1, 0.001, 1e-10, 0.5, 0.005, 1e-3],
+            }
+        )
+
+        fig = manhattan_plotter.plot_manhattan(
+            df,
+            chrom_col="chrom",
+            pos_col="pos",
+            p_col="p",
+        )
+
+        assert fig is not None
+        # Verify x-axis has chromosome label
+        ax = fig.axes[0]
+        tick_labels = [t.get_text() for t in ax.get_xticklabels()]
+        assert "1" in tick_labels
+        plt.close(fig)
+
+
+class TestManhattanStackedValidation:
+    """Test validation in stacked Manhattan plots."""
+
+    @pytest.fixture
+    def sample_df(self):
+        """Sample GWAS DataFrame."""
+        return pd.DataFrame(
+            {
+                "chrom": ["1", "1", "2", "2"],
+                "pos": [1000000, 2000000, 1500000, 3000000],
+                "p": [1e-8, 0.05, 0.01, 1e-6],
+            }
+        )
+
+    def test_manhattan_stacked_empty_list_raises(self, manhattan_plotter):
+        """Empty list of GWAS DataFrames should raise ValueError."""
+        with pytest.raises(ValueError, match="At least one GWAS DataFrame"):
+            manhattan_plotter.plot_manhattan_stacked([])
+
+    def test_manhattan_stacked_mismatched_panel_labels_raises(
+        self, manhattan_plotter, sample_df
+    ):
+        """Mismatched panel_labels length should raise ValueError."""
+        gwas_dfs = [sample_df, sample_df.copy()]
+        panel_labels = ["Only One"]
+
+        with pytest.raises(ValueError, match="panel_labels"):
+            manhattan_plotter.plot_manhattan_stacked(
+                gwas_dfs,
+                panel_labels=panel_labels,
+            )
+
+
+class TestManhattanQQStackedValidation:
+    """Test validation in stacked Manhattan+QQ plots."""
+
+    def test_manhattan_qq_stacked_empty_list_raises(self, manhattan_plotter):
+        """Empty list of GWAS DataFrames should raise ValueError."""
+        with pytest.raises(ValueError, match="At least one GWAS DataFrame"):
+            manhattan_plotter.plot_manhattan_qq_stacked([])
+
+
+class TestEmptyManhattanInput:
+    """Empty input has no axis limits to compute."""
+
+    def test_manhattan_with_empty_df_raises(self):
+        """Manhattan plot with empty DataFrame raises ValueError.
+
+        Empty DataFrames have no data to compute axis limits,
+        resulting in NaN limits which matplotlib cannot handle.
+        """
+        plotter = ManhattanPlotter(species="human")
+        empty_df = pd.DataFrame(columns=["chrom", "pos", "p"])
+
+        with pytest.raises(ValueError, match="(NaN|Inf|cannot)"):
+            plotter.plot_manhattan(
+                empty_df,
+                chrom_col="chrom",
+                pos_col="pos",
+                p_col="p",
+            )

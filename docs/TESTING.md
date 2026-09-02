@@ -58,20 +58,34 @@ Currently a single custom marker is registered in `pyproject.toml`:
 
 Tests live under `tests/`. Files follow the `test_*.py` naming convention and map 1:1 onto source modules where possible. Examples:
 
-- `tests/test_plotter.py` — regional `LocusZoomPlotter` tests
+- `tests/test_plotter.py` — the regional `LocusZoomPlotter` API
+- `tests/test_plotter_ld.py` — LD calculation and the LD heatmap panel
+- `tests/test_plotter_recombination.py` — the recombination overlay and its download errors
+- `tests/test_plotter_backends.py` — regional plots rendered through each backend
+- `tests/test_data_intake.py` — the shared p-value intake policy
 - `tests/test_manhattan_plotter.py`, `tests/test_qq.py`, `tests/test_manhattan.py` — Manhattan/QQ coverage
 - `tests/test_stats_plotter.py`, `tests/test_phewas.py`, `tests/test_forest.py` — statistical plots
 - `tests/test_ld.py` — PLINK wrapper (PLINK calls are mocked; no real PLINK binary required)
-- `tests/test_notebook_backends.py` — Plotly/Bokeh backend parity checks
+- `tests/test_backends.py` — the shared `PlotBackend` surface and the matplotlib backend
+- `tests/test_plotly_backend.py`, `tests/test_bokeh_backend.py` — the interactive backends
+- `tests/test_notebook_backends.py` — Plotly/Bokeh notebook compatibility
 - `tests/test_recombination.py` — recombination map loading and CanFam4 liftover
 - `tests/test_ucsc.py` — the UCSC gene client and the build-to-source routing (HTTP mocked)
+- `tests/test_fixture_hygiene.py` — fails if one fixture name gains a second schema
 - `tests/test_gene_track.py`, `tests/test_labels.py`, `tests/test_colors.py`, etc.
+
+Do not name a file after a batch of bugs. A maintainer editing `bokeh_backend.py`
+must be able to find its tests from the module name alone.
 
 Test classes use `TestThing` and test functions use `test_behavior_when_condition`.
 
 ### Fixtures
 
-Prefer the shared fixtures in `tests/conftest.py` (`sample_gwas_df`, `sample_genes_df`, `sample_exons_df`, `sample_recomb_df`) over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.
+Prefer the shared fixtures in `tests/conftest.py` over constructing DataFrames inline. They use a seeded `numpy.random.default_rng(42)` so output is deterministic across randomized runs.
+
+One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_gwas_df` and `tiny_regional_gwas_df` are the `rs`/`ps`/`p_wald` region shapes; `manhattan_gwas_df` and `manhattan_rs_gwas_df` are the `chrom`/`pos`/`p` shapes; `labelled_gwas_df` carries a precomputed `neglog10p`. `test_fixture_hygiene.py` fails if any name gains a second schema, so a new shape needs a new name rather than a local shadow.
+
+`warning_records` collects `pylocuszoom` warnings. loguru does not feed pytest's `caplog`, so a test that takes `caplog` and asserts on it will pass no matter what the code logs.
 
 Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
