@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom.loaders import (
+    _detect_format,
     load_bed,
     load_bolt_lmm,
     load_caviar,
@@ -663,6 +664,20 @@ rs123\t1\t1000000\tA\tG\t0.3\t0.5\t0.2\t0.01
         filepath.write_text(content)
         df = load_gwas(filepath)
         assert "ps" in df.columns
+
+    def test_load_gwas_detects_gemma_from_assoc_txt(self, tmp_path):
+        """A GEMMA .assoc.txt file must not be claimed by the shorter .assoc hint."""
+        content = """chr\trs\tps\tn_miss\tallele1\tallele0\taf\tbeta\tse\tlogl_H1\tl_remle\tp_wald
+1\trs123\t1000000\t0\tA\tG\t0.3\t0.5\t0.2\t100\t0.5\t0.01
+"""
+        filepath = tmp_path / "output.assoc.txt"
+        filepath.write_text(content)
+
+        assert _detect_format(filepath) == "gemma"
+        assert _detect_format(tmp_path / "result.assoc") == "plink"
+        df = load_gwas(filepath, pos_col="pos")
+        assert "pos" in df.columns
+        assert len(df) == 1
 
 
 # =============================================================================
