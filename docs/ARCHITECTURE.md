@@ -196,7 +196,8 @@ stages:
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
 | `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as a value type plus pure functions: `_Panel` owns the linear subplot-index axis naming, alongside `configure_legend`, `panel_y`, and `x_range` |
 | `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`, `SupportsHeatmap`, `SupportsBarCharts` | Optional protocols | `src/pylocuszoom/backends/base.py` | `@runtime_checkable` capabilities a backend opts into by implementing the methods; detected with `isinstance` |
-| `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns panel policy while retaining the primitive backend seam for compatibility |
+| `ManhattanQQRenderer` | Internal module | `src/pylocuszoom/_rendering.py` | Semantic rendering module for Manhattan and QQ figures; owns figure layout and QQ panel policy, and builds `ManhattanPanelSpec` values for the Manhattan panels |
+| `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/_manhattan_panel.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis |
 | `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
 | `get_backend(name)` | Function | `src/pylocuszoom/backends/__init__.py` | Lazy-imports and returns a backend instance by name, raising `ImportError` with install instructions when an optional backend is missing |
@@ -234,7 +235,7 @@ pyLocusZoom/
 │   ├── _coloc_renderer.py      # Colocalization figure composition
 │   ├── _ld_heatmap_renderer.py # Standalone LD heatmap composition
 │   ├── _rendering.py          # Semantic Manhattan/QQ rendering module
-│   ├── _manhattan_panel.py    # Manhattan primitives shared with the Miami renderer
+│   ├── _manhattan_panel.py    # ManhattanPanelSpec and the one function that draws it
 │   ├── backends/              # Pluggable rendering backends
 │   │   ├── __init__.py        # Backend registry (@register_backend, get_backend)
 │   │   ├── base.py            # PlotBackend protocol + optional capability protocols
