@@ -24,7 +24,7 @@ class TestMiamiPlotter:
         return MiamiPlotter(species="canine")
 
     @pytest.fixture
-    def miami_panel_dfs(self):
+    def miami_panel_dfs_with_rs(self):
         """Create sample GWAS data for top and bottom panels.
 
         Returns tuple of (top_df, bottom_df) for Miami plot comparison.
@@ -47,29 +47,29 @@ class TestMiamiPlotter:
         )
         return top_df, bottom_df
 
-    def test_plot_miami_returns_figure(self, miami_plotter, miami_panel_dfs):
+    def test_plot_miami_returns_figure(self, miami_plotter, miami_panel_dfs_with_rs):
         """Test that plot_miami returns a figure object."""
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
         fig = miami_plotter.plot_miami(top_df, bottom_df)
         assert fig is not None
 
     @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
-    def test_returns_the_backends_figure_type(self, backend, miami_panel_dfs):
+    def test_returns_the_backends_figure_type(self, backend, miami_panel_dfs_with_rs):
         """Each backend returns its own figure type."""
         plotter = MiamiPlotter(species="canine", backend=backend)
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
 
         fig = plotter.plot_miami(top_df, bottom_df)
 
         assert isinstance(fig, FIGURE_TYPES[backend])
 
-    def test_chromosome_colors_match(self, miami_plotter, miami_panel_dfs):
+    def test_chromosome_colors_match(self, miami_plotter, miami_panel_dfs_with_rs):
         """Test that same chromosome has same color in both panels.
 
         Verifies that chromosome colors are consistent between top and bottom
         panels - critical for visual comparison in Miami plots.
         """
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
         fig = miami_plotter.plot_miami(top_df, bottom_df)
 
         # Get the figure axes (matplotlib-specific verification)
@@ -105,9 +105,9 @@ class TestMiamiPlotter:
         top_ax, bottom_ax = fig.get_axes()
         assert _max_scatter_x(top_ax) == _max_scatter_x(bottom_ax)
 
-    def test_unknown_species_raises(self, miami_panel_dfs):
+    def test_unknown_species_raises(self, miami_panel_dfs_with_rs):
         """An unrecognised species is rejected, as it is for Manhattan plots."""
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
         plotter = MiamiPlotter(species="nonsense")
 
         with pytest.raises(ValueError, match="Unknown species"):
@@ -157,13 +157,13 @@ class TestMiamiPlotter:
         with pytest.raises((ValueError, KeyError)):
             miami_plotter.plot_miami(valid_df, missing_chrom_df)
 
-    def test_inverted_bottom_panel(self, miami_plotter, miami_panel_dfs):
+    def test_inverted_bottom_panel(self, miami_plotter, miami_panel_dfs_with_rs):
         """Test that bottom panel y-axis is inverted.
 
         The bottom panel should display with y-axis inverted (max at top/0 at bottom)
         to create the characteristic Miami plot mirror effect.
         """
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
         fig = miami_plotter.plot_miami(top_df, bottom_df)
 
         # Get the figure axes
@@ -422,7 +422,7 @@ class TestMiamiLabels:
     """Tests for Miami plot panel labels and SNP annotations."""
 
     @pytest.fixture
-    def miami_panel_dfs(self):
+    def miami_panel_dfs_with_rs(self):
         """Create GWAS data with RS IDs for annotation testing."""
         top_df = pd.DataFrame(
             {
@@ -442,10 +442,10 @@ class TestMiamiLabels:
         )
         return top_df, bottom_df
 
-    def test_panel_labels(self, miami_panel_dfs):
+    def test_panel_labels(self, miami_panel_dfs_with_rs):
         """Test that panel labels are correctly displayed."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
         fig = plotter.plot_miami(
             top_df,
             bottom_df,
@@ -473,10 +473,10 @@ class TestMiamiLabels:
             "Bottom panel should have 'Replication' label"
         )
 
-    def test_snp_annotations_top_panel(self, miami_panel_dfs):
+    def test_snp_annotations_top_panel(self, miami_panel_dfs_with_rs):
         """Test SNP annotations on top panel only."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
 
         # Annotate rs3 (most significant on top panel - 1e-9) on top only
         fig = plotter.plot_miami(
@@ -500,10 +500,10 @@ class TestMiamiLabels:
         # rs3 should NOT be annotated on bottom panel (only panel labels if any)
         assert "rs3" not in bottom_texts, "Bottom panel should not have rs3 annotation"
 
-    def test_snp_annotations_both_panels(self, miami_panel_dfs):
+    def test_snp_annotations_both_panels(self, miami_panel_dfs_with_rs):
         """Test independent SNP annotations on each panel."""
         plotter = MiamiPlotter(species="canine")
-        top_df, bottom_df = miami_panel_dfs
+        top_df, bottom_df = miami_panel_dfs_with_rs
 
         # Different SNPs annotated on each panel
         fig = plotter.plot_miami(

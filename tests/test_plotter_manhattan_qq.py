@@ -251,8 +251,8 @@ class TestPlotManhattanStacked:
     """Tests for stacked Manhattan plots."""
 
     @pytest.fixture
-    def sample_gwas_dfs(self):
-        """Multiple sample GWAS DataFrames for stacked testing."""
+    def manhattan_gwas_dfs(self):
+        """Three multi-chromosome GWAS frames in the chrom/pos/p schema."""
         rng = np.random.default_rng(42)
         dfs = []
         for i in range(3):
@@ -274,52 +274,54 @@ class TestPlotManhattanStacked:
         return dfs
 
     def test_plot_manhattan_stacked_returns_figure(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_gwas_dfs
     ):
         """plot_manhattan_stacked should return a matplotlib figure."""
-        fig = manhattan_plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        fig = manhattan_plotter.plot_manhattan_stacked(manhattan_gwas_dfs)
         assert isinstance(fig, plt.Figure)
 
     def test_plot_manhattan_stacked_creates_multiple_panels(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_gwas_dfs
     ):
         """plot_manhattan_stacked should create one panel per DataFrame."""
-        fig = manhattan_plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        fig = manhattan_plotter.plot_manhattan_stacked(manhattan_gwas_dfs)
         axes = fig.get_axes()
         # Should have 3 panels
         assert len(axes) == 3
 
     def test_plot_manhattan_stacked_with_panel_labels(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_gwas_dfs
     ):
         """plot_manhattan_stacked should show panel labels when provided."""
         labels = ["Study A", "Study B", "Study C"]
         fig = manhattan_plotter.plot_manhattan_stacked(
-            sample_gwas_dfs, panel_labels=labels
+            manhattan_gwas_dfs, panel_labels=labels
         )
         assert isinstance(fig, plt.Figure)
 
     def test_plot_manhattan_stacked_validates_label_count(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_gwas_dfs
     ):
         """plot_manhattan_stacked should raise if panel_labels length mismatch."""
         with pytest.raises(ValueError, match="length"):
             manhattan_plotter.plot_manhattan_stacked(
-                sample_gwas_dfs, panel_labels=["A", "B"]
+                manhattan_gwas_dfs, panel_labels=["A", "B"]
             )
 
     def test_plot_manhattan_stacked_with_figsize(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_gwas_dfs
     ):
         """plot_manhattan_stacked should accept figsize parameter."""
         fig = manhattan_plotter.plot_manhattan_stacked(
-            sample_gwas_dfs, figsize=(14, 10)
+            manhattan_gwas_dfs, figsize=(14, 10)
         )
         assert fig.get_size_inches()[0] == pytest.approx(14, rel=0.1)
 
-    def test_plot_manhattan_stacked_single_df(self, manhattan_plotter, sample_gwas_dfs):
+    def test_plot_manhattan_stacked_single_df(
+        self, manhattan_plotter, manhattan_gwas_dfs
+    ):
         """plot_manhattan_stacked should work with single DataFrame."""
-        fig = manhattan_plotter.plot_manhattan_stacked([sample_gwas_dfs[0]])
+        fig = manhattan_plotter.plot_manhattan_stacked([manhattan_gwas_dfs[0]])
         assert isinstance(fig, plt.Figure)
 
     def test_plot_manhattan_stacked_empty_list_raises(self, manhattan_plotter):
@@ -328,11 +330,11 @@ class TestPlotManhattanStacked:
             manhattan_plotter.plot_manhattan_stacked([])
 
     @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
-    def test_plot_manhattan_stacked_on_every_backend(self, backend, sample_gwas_dfs):
+    def test_plot_manhattan_stacked_on_every_backend(self, backend, manhattan_gwas_dfs):
         """plot_manhattan_stacked() returns each backend's figure type."""
         plotter = ManhattanPlotter(species="human", backend=backend)
 
-        fig = plotter.plot_manhattan_stacked(sample_gwas_dfs)
+        fig = plotter.plot_manhattan_stacked(manhattan_gwas_dfs)
 
         assert isinstance(fig, FIGURE_TYPES[backend])
 
@@ -396,8 +398,8 @@ class TestPlotManhattanQQStacked:
     """Tests for plot_manhattan_qq_stacked method."""
 
     @pytest.fixture
-    def sample_gwas_dfs(self):
-        """Create sample GWAS DataFrames for testing."""
+    def manhattan_str_chrom_gwas_dfs(self):
+        """Two GWAS frames in the chrom/pos/p schema with string chromosomes."""
         rng = np.random.default_rng(42)
         dfs = []
         for _ in range(2):
@@ -416,45 +418,45 @@ class TestPlotManhattanQQStacked:
         return dfs
 
     def test_plot_manhattan_qq_stacked_returns_figure(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_str_chrom_gwas_dfs
     ):
         """plot_manhattan_qq_stacked should return a matplotlib figure."""
-        fig = manhattan_plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)
+        fig = manhattan_plotter.plot_manhattan_qq_stacked(manhattan_str_chrom_gwas_dfs)
         assert isinstance(fig, plt.Figure)
 
     def test_plot_manhattan_qq_stacked_creates_correct_panels(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_str_chrom_gwas_dfs
     ):
         """plot_manhattan_qq_stacked should create n_gwas * 2 panels (Manhattan + QQ each)."""
-        fig = manhattan_plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)
+        fig = manhattan_plotter.plot_manhattan_qq_stacked(manhattan_str_chrom_gwas_dfs)
         axes = fig.get_axes()
         # Should have 4 panels (2 GWAS * 2 plots each)
         assert len(axes) == 4
 
     def test_plot_manhattan_qq_stacked_with_panel_labels(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_str_chrom_gwas_dfs
     ):
         """plot_manhattan_qq_stacked should accept panel labels."""
         fig = manhattan_plotter.plot_manhattan_qq_stacked(
-            sample_gwas_dfs, panel_labels=["Study A", "Study B"]
+            manhattan_str_chrom_gwas_dfs, panel_labels=["Study A", "Study B"]
         )
         assert isinstance(fig, plt.Figure)
 
     def test_plot_manhattan_qq_stacked_with_title(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_str_chrom_gwas_dfs
     ):
         """plot_manhattan_qq_stacked should accept title parameter."""
         fig = manhattan_plotter.plot_manhattan_qq_stacked(
-            sample_gwas_dfs, title="Multi-study GWAS"
+            manhattan_str_chrom_gwas_dfs, title="Multi-study GWAS"
         )
         assert isinstance(fig, plt.Figure)
 
     def test_plot_manhattan_qq_stacked_with_figsize(
-        self, manhattan_plotter, sample_gwas_dfs
+        self, manhattan_plotter, manhattan_str_chrom_gwas_dfs
     ):
         """plot_manhattan_qq_stacked should accept figsize parameter."""
         fig = manhattan_plotter.plot_manhattan_qq_stacked(
-            sample_gwas_dfs, figsize=(16, 10)
+            manhattan_str_chrom_gwas_dfs, figsize=(16, 10)
         )
         assert fig.get_size_inches()[0] == pytest.approx(16, rel=0.1)
 
@@ -473,11 +475,13 @@ class TestPlotManhattanQQStacked:
         assert len(axes) == 6  # 3 GWAS * 2 plots each
 
     @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
-    def test_plot_manhattan_qq_stacked_on_every_backend(self, backend, sample_gwas_dfs):
+    def test_plot_manhattan_qq_stacked_on_every_backend(
+        self, backend, manhattan_str_chrom_gwas_dfs
+    ):
         """plot_manhattan_qq_stacked() returns each backend's figure type."""
         plotter = ManhattanPlotter(species="human", backend=backend)
 
-        fig = plotter.plot_manhattan_qq_stacked(sample_gwas_dfs)
+        fig = plotter.plot_manhattan_qq_stacked(manhattan_str_chrom_gwas_dfs)
 
         assert isinstance(fig, FIGURE_TYPES[backend])
 

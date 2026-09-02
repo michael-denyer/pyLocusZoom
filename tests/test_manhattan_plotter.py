@@ -82,7 +82,7 @@ class TestManhattanPlotterBackends:
         assert fig is not None
 
 
-class TestCategoricalManhattanIntegerCategories:
+class TestCategoricalManhattanRendersIntegerCategories:
     """Test categorical Manhattan with integer category columns."""
 
     def test_integer_categories_render_all_points(self):

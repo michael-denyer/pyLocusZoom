@@ -481,7 +481,7 @@ class TestInvalidPValueFiltering:
             prepare_categorical_data(df, category_col="category")
 
 
-class TestCategoricalManhattanIntegerCategories:
+class TestPrepareCategoricalDataIntegerCategories:
     """Tests that categorical Manhattan works with non-string categories."""
 
     def test_integer_categories_produce_points(self):
