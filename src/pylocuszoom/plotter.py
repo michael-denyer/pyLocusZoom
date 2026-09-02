@@ -31,7 +31,7 @@ from ._regional_panels import (
 )
 from .backends import BackendType, get_backend
 from .config import ColumnConfig, PlotConfig, RegionConfig, StackedPlotConfig
-from .exceptions import ReferenceAPIError
+from .exceptions import OptionalDependencyMissing, ReferenceAPIError
 from .ld import find_plink
 from .logging import enable_logging, logger
 from .recombination import (
@@ -136,9 +136,8 @@ class LocusZoomPlotter:
     ) -> Optional[pd.DataFrame]:
         """Get recombination rate data for a region, with caching.
 
-        The pyliftover check reads the message because
-        ``get_recombination_rate_for_region`` raises a bare ``ImportError``
-        for it; any other one is a broken environment, not a missing overlay.
+        A missing optional dependency skips the overlay with a warning; any
+        other ``ImportError`` is a broken environment and propagates.
         """
         cache_key = (chrom, start, end, self.genome_build)
         if cache_key in self._recomb_cache:
@@ -159,9 +158,7 @@ class LocusZoomPlotter:
             )
             self._recomb_cache[cache_key] = recomb_df
             return recomb_df
-        except (FileNotFoundError, ImportError) as e:
-            if isinstance(e, ImportError) and "pyliftover" not in str(e):
-                raise
+        except (FileNotFoundError, OptionalDependencyMissing) as e:
             warnings.warn(f"Recombination overlay skipped; {e}", stacklevel=2)
             return None
 

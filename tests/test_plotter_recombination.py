@@ -125,3 +125,32 @@ class TestRecombinationDownloadErrors:
                 show_recombination=True,
             )
             assert fig is not None
+
+
+class TestRecombinationOptionalDependency:
+    """The overlay is skipped when pyliftover is missing and propagates any
+    other ImportError, decided by exception type rather than message text."""
+
+    @pytest.fixture
+    def plotter(self, tmp_path):
+        p = LocusZoomPlotter(species="canine", log_level=None)
+        p._ensure_recomb_maps = lambda: tmp_path
+        return p
+
+    def test_missing_optional_dependency_skips_overlay_with_warning(self, plotter):
+        from pylocuszoom.exceptions import OptionalDependencyMissing
+
+        with patch(
+            "pylocuszoom.plotter.get_recombination_rate_for_region",
+            side_effect=OptionalDependencyMissing("no liftover here"),
+        ):
+            with pytest.warns(UserWarning, match="no liftover here"):
+                assert plotter._get_recomb_for_region(1, 1_000_000, 2_000_000) is None
+
+    def test_other_import_error_propagates(self, plotter):
+        with patch(
+            "pylocuszoom.plotter.get_recombination_rate_for_region",
+            side_effect=ImportError("pyliftover mentioned but unrelated"),
+        ):
+            with pytest.raises(ImportError):
+                plotter._get_recomb_for_region(1, 1_000_000, 2_000_000)

@@ -21,7 +21,7 @@ import pandas as pd
 
 from ._http import download_file
 from ._liftover import PyLiftOverLifter, liftover_positions
-from .exceptions import DataDownloadError
+from .exceptions import DataDownloadError, OptionalDependencyMissing
 from .logging import logger
 from .utils import _platform_cache_base, assembly_token, filter_by_region
 
@@ -170,11 +170,11 @@ def liftover_recombination_map(
     """
     try:
         import pyliftover  # noqa: F401
-    except ImportError:
-        raise ImportError(
+    except ImportError as e:
+        raise OptionalDependencyMissing(
             "pyliftover is required for CanFam4 liftover. "
             "Install it with: pip install pyliftover"
-        )
+        ) from e
 
     chain_path = download_liftover_chain()
     logger.debug(f"Lifting over coordinates from {from_build} to {to_build}")

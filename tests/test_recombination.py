@@ -286,9 +286,11 @@ class TestLiftoverPositions:
 class TestLiftoverRecombinationMap:
     """Tests for liftover_recombination_map function."""
 
-    def test_raises_import_error_when_pyliftover_missing(self):
-        """Should raise ImportError with install instructions when pyliftover unavailable."""
+    def test_raises_typed_error_when_pyliftover_missing(self):
+        """A missing extra is OptionalDependencyMissing, not a bare ImportError."""
         import sys
+
+        from pylocuszoom.exceptions import OptionalDependencyMissing
 
         # Temporarily hide pyliftover from imports
         original = sys.modules.get("pyliftover")
@@ -298,7 +300,9 @@ class TestLiftoverRecombinationMap:
             # The import happens inside liftover_recombination_map, so we need
             # to call it. Create minimal valid input.
             df = pd.DataFrame({"pos": [1000000], "rate": [0.5]})
-            with pytest.raises(ImportError, match="pip install pyliftover"):
+            with pytest.raises(
+                OptionalDependencyMissing, match="pip install pyliftover"
+            ):
                 liftover_recombination_map(df, chrom=1)
         finally:
             if original is not None:
