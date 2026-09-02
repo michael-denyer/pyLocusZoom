@@ -348,20 +348,6 @@ class TestLazyAttributeAccess:
             assert name in __all__
 
 
-class TestBackendTypeLiteral:
-    """Tests for BackendType type literal."""
-
-    def test_backend_type_values(self):
-        """BackendType should be a valid Literal type."""
-        from pylocuszoom.backends import get_backend
-
-        # These should all work without type errors at runtime
-        for backend_name in BUILTIN_BACKENDS:
-            # Type checkers would verify BackendType compatibility
-            backend = get_backend(backend_name)
-            assert backend is not None
-
-
 class TestHeatmapMethods:
     """Tests for heatmap rendering methods across backends."""
 
@@ -523,18 +509,12 @@ class TestHeatmapMethods:
         # Should be added to right layout
         assert cbar in axes[0].right
 
-    def test_all_backends_have_heatmap_methods(self):
-        """All backends should have add_heatmap and add_colorbar methods."""
-        from pylocuszoom.backends import get_backend
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_every_backend_supports_heatmaps(self, backend_name):
+        """Every backend satisfies the SupportsHeatmap protocol."""
+        from pylocuszoom.backends import SupportsHeatmap, get_backend
 
-        for backend_name in BUILTIN_BACKENDS:
-            backend = get_backend(backend_name)
-            assert hasattr(backend, "add_heatmap"), (
-                f"{backend_name} missing add_heatmap"
-            )
-            assert hasattr(backend, "add_colorbar"), (
-                f"{backend_name} missing add_colorbar"
-            )
+        assert isinstance(get_backend(backend_name), SupportsHeatmap)
 
     def test_matplotlib_custom_colors(self, ld_matrix_array):
         """Matplotlib add_heatmap should accept custom color gradient."""

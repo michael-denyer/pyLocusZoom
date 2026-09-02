@@ -115,24 +115,18 @@ class TestRecombinationDownloadErrors:
             assert result is None
             mock_ensure.assert_called_once_with(species="canine", data_dir=None)
 
-    def test_plotting_continues_without_recomb_maps(self, debug_canine_plotter):
+    def test_plotting_continues_without_recomb_maps(
+        self, debug_canine_plotter, tiny_regional_gwas_df
+    ):
         """Plotting should succeed even when recombination maps are unavailable."""
-        gwas_df = pd.DataFrame(
-            {
-                "rs": ["rs1", "rs2", "rs3"],
-                "ps": [1100000, 1500000, 1900000],
-                "p_wald": [1e-8, 1e-5, 1e-3],
-            }
-        )
-
         with patch("pylocuszoom.plotter.ensure_recomb_maps", return_value=None):
             # Should not raise, just skip recombination overlay
             fig = debug_canine_plotter.plot(
-                gwas_df,
+                tiny_regional_gwas_df,
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                show_recombination=True,  # Requested but unavailable
+                show_recombination=True,
             )
             assert fig is not None
             plt.close(fig)

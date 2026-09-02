@@ -314,20 +314,16 @@ class TestLocusZoomPlotterPlot:
         )
         plt.close(fig)
 
-    def test_with_recombination_data(self, canine_plotter, regional_gwas_df):
+    def test_with_recombination_data(
+        self, canine_plotter, regional_gwas_df, sample_recomb_df
+    ):
         """Should plot with recombination overlay when provided."""
-        recomb_df = pd.DataFrame(
-            {
-                "pos": [1000000, 1200000, 1400000, 1600000, 1800000, 2000000],
-                "rate": [0.5, 1.2, 2.5, 1.8, 0.8, 0.3],
-            }
-        )
         fig = canine_plotter.plot(
             regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
-            recomb_df=recomb_df,
+            recomb_df=sample_recomb_df,
         )
         plt.close(fig)
 

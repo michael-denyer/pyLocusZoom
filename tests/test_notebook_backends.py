@@ -18,6 +18,7 @@ from pylocuszoom.backends.composition import lower_triangle
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.colors import LD_HEATMAP_COLORS
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.conftest import FIGURE_TYPES
 
 
 class TestBackendForestPlotMethods:
@@ -320,76 +321,75 @@ class TestBokehNotebookCompatibility:
 
 
 class TestBackendConsistency:
-    """Tests ensuring consistent output across backends."""
+    """Every built-in backend renders the same regional plot request."""
 
-    def test_all_backends_return_figure(self, regional_gwas_df):
-        """All backends should return a figure object."""
-        for backend_name in BUILTIN_BACKENDS:
-            plotter = LocusZoomPlotter(
-                species="canine", backend=backend_name, log_level=None
-            )
-            fig = plotter.plot(
-                regional_gwas_df,
-                chrom=1,
-                start=1_000_000,
-                end=2_000_000,
-                show_recombination=False,
-            )
-            assert fig is not None, f"{backend_name} returned None"
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_backend_returns_its_own_figure_type(self, backend_name, regional_gwas_df):
+        """Each backend returns the figure type its library defines."""
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        fig = plotter.plot(
+            regional_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            show_recombination=False,
+        )
+        assert isinstance(fig, FIGURE_TYPES[backend_name])
 
-    def test_all_backends_reject_empty_dataframe(self):
-        """All backends should raise ValidationError for empty DataFrames."""
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_backend_rejects_empty_dataframe(self, backend_name):
+        """Each backend raises ValidationError for an empty frame."""
         from pylocuszoom.exceptions import ValidationError
 
         empty_df = pd.DataFrame(columns=["rs", "chr", "ps", "p_wald"])
-
-        for backend_name in BUILTIN_BACKENDS:
-            plotter = LocusZoomPlotter(
-                species="canine", backend=backend_name, log_level=None
-            )
-            with pytest.raises(ValidationError, match="empty"):
-                plotter.plot(
-                    empty_df,
-                    chrom=1,
-                    start=1_000_000,
-                    end=2_000_000,
-                    show_recombination=False,
-                )
-
-    def test_all_backends_handle_lead_position(self, regional_gwas_df):
-        """All backends should handle lead_pos parameter."""
-        for backend_name in BUILTIN_BACKENDS:
-            plotter = LocusZoomPlotter(
-                species="canine", backend=backend_name, log_level=None
-            )
-            fig = plotter.plot(
-                regional_gwas_df,
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        with pytest.raises(ValidationError, match="empty"):
+            plotter.plot(
+                empty_df,
                 chrom=1,
                 start=1_000_000,
                 end=2_000_000,
-                lead_pos=1_500_000,
                 show_recombination=False,
             )
-            assert fig is not None, f"{backend_name} failed with lead_pos"
 
-    def test_all_backends_handle_precomputed_ld(self, regional_gwas_df):
-        """All backends should handle pre-computed LD column."""
-        df = regional_gwas_df.copy()
-        df["R2"] = np.random.default_rng(0).uniform(0, 1, len(df))
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_backend_handles_lead_position(self, backend_name, regional_gwas_df):
+        """Each backend renders a figure when lead_pos is given."""
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        fig = plotter.plot(
+            regional_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            lead_pos=1_500_000,
+            show_recombination=False,
+        )
+        assert isinstance(fig, FIGURE_TYPES[backend_name])
 
-        for backend_name in BUILTIN_BACKENDS:
-            plotter = LocusZoomPlotter(
-                species="canine", backend=backend_name, log_level=None
-            )
-            fig = plotter.plot(
-                df,
-                chrom=1,
-                start=1_000_000,
-                end=2_000_000,
-                ld_col="R2",
-                show_recombination=False,
-            )
-            assert fig is not None, f"{backend_name} failed with ld_col"
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_backend_handles_precomputed_ld(self, backend_name, regional_gwas_df):
+        """Each backend renders a figure from a precomputed LD column."""
+        df = regional_gwas_df.assign(
+            R2=np.random.default_rng(0).uniform(0, 1, len(regional_gwas_df))
+        )
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        fig = plotter.plot(
+            df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            ld_col="R2",
+            show_recombination=False,
+        )
+        assert isinstance(fig, FIGURE_TYPES[backend_name])
 
 
 class TestDatabricksSpecific:
