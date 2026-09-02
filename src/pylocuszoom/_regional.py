@@ -1,12 +1,13 @@
 """Shared regional association composition.
 
-This module owns the policy shared by single and stacked regional plots.  The
-plotter prepares data and delegates panel composition to this composer, which
-owns the association panel's axes, labels, optional recombination, and LD
-legend rules.
+This module owns the policy shared by single and stacked regional plots.  Each
+panel type knows how to build itself from raw caller input, and the composer
+dispatches on the panel type to draw it, owning the association panel's axes,
+labels, optional recombination, and LD legend rules.
 """
 
 from dataclasses import dataclass
+from functools import singledispatchmethod
 from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -35,24 +36,29 @@ from .colors import (
     get_ld_bin,
     get_ld_color_palette,
 )
-from .finemapping import plot_finemapping
-from .gene_track import plot_gene_track_generic
+from .config import ColumnConfig, DisplayConfig, RegionConfig
+from .finemapping import plot_finemapping, prepare_finemapping_for_plotting
+from .gene_track import (
+    assign_gene_positions,
+    filter_genes_by_region,
+    plot_gene_track_generic,
+)
 from .logging import logger
 
 
 @dataclass(frozen=True)
 class AssociationPanel:
-    """Prepared association panel and its presentation policy."""
+    """Prepared association panel and its presentation policy.
+
+    ``data`` already carries ``neglog10p`` and any merged LD column.
+    """
 
     data: pd.DataFrame
     height: float
-    pos_col: str
+    columns: ColumnConfig
+    display: DisplayConfig
     ld_col: Optional[str]
     lead_pos: Optional[int]
-    rs_col: Optional[str]
-    p_col: Optional[str]
-    snp_labels: bool
-    label_top_n: int
     recomb_df: Optional[pd.DataFrame]
     panel_label: Optional[str] = None
     add_ld_legend: bool = False
@@ -65,6 +71,21 @@ class FinemappingPanel:
     data: pd.DataFrame
     height: float
     cs_col: Optional[str]
+
+    @classmethod
+    def from_frame(
+        cls, df: pd.DataFrame, region: RegionConfig, cs_col: Optional[str]
+    ) -> "FinemappingPanel":
+        """Validate, region-filter, and sort raw fine-mapping results."""
+        data = prepare_finemapping_for_plotting(
+            df,
+            pos_col="pos",
+            pip_col="pip",
+            chrom=region.chrom,
+            start=region.start,
+            end=region.end,
+        )
+        return cls(data=data, height=1.5, cs_col=cs_col)
 
 
 @dataclass(frozen=True)
@@ -80,11 +101,27 @@ class EqtlPanel:
 
 @dataclass(frozen=True)
 class GenePanel:
-    """Prepared gene-track panel."""
+    """Prepared gene-track panel; ``data`` is filtered to the region."""
 
     data: pd.DataFrame
     height: float
     exons_df: Optional[pd.DataFrame]
+
+    @classmethod
+    def from_genes(
+        cls,
+        genes_df: pd.DataFrame,
+        region: RegionConfig,
+        exons_df: Optional[pd.DataFrame],
+    ) -> "GenePanel":
+        """Filter genes to the region and size the panel to its stacked rows."""
+        genes = filter_genes_by_region(genes_df, region.chrom, region.start, region.end)
+        rows = assign_gene_positions(
+            genes.sort_values("start"), region.start, region.end
+        )
+        return cls(
+            data=genes, height=1.0 + max(rows, default=0) * 0.5, exons_df=exons_df
+        )
 
 
 @dataclass(frozen=True)
@@ -97,6 +134,58 @@ class HeatmapPanel:
     snp_ids: List[str]
     metric: str
     lead_snp_id: Optional[str]
+
+    @classmethod
+    def from_matrix(
+        cls,
+        ld_matrix: pd.DataFrame,
+        snp_ids: List[str],
+        *,
+        source: AssociationPanel,
+        region: RegionConfig,
+        height: float,
+        metric: str,
+    ) -> Optional["HeatmapPanel"]:
+        """Map heatmap SNP ids to positions through the source panel's frame.
+
+        Returns None, after a warning, when the source has no SNP id column or
+        no heatmap SNP falls inside the region. The lead SNP id is resolved
+        from ``source.lead_pos`` and stays None when that position is absent.
+        """
+        df = source.data
+        rs_col, pos_col = source.columns.rs_col, source.columns.pos_col
+        if rs_col not in df.columns:
+            logger.warning(
+                f"Cannot map heatmap to genomic coords: column '{rs_col}' not in GWAS data"
+            )
+            return None
+
+        snp_to_pos = dict(zip(df[rs_col], df[pos_col]))
+        kept = [
+            (i, snp_id, int(snp_to_pos[snp_id]))
+            for i, snp_id in enumerate(snp_ids)
+            if snp_id in snp_to_pos and region.start <= snp_to_pos[snp_id] <= region.end
+        ]
+        if not kept:
+            logger.warning(
+                "No SNPs from LD heatmap overlap with region - heatmap not rendered"
+            )
+            return None
+        indices, kept_ids, x_positions = (list(column) for column in zip(*kept))
+
+        lead_snp_id = None
+        if source.lead_pos is not None:
+            lead_row = df[df[pos_col] == source.lead_pos]
+            if not lead_row.empty:
+                lead_snp_id = lead_row[rs_col].iloc[0]
+        return cls(
+            matrix=ld_matrix.iloc[indices, indices].copy(),
+            height=height,
+            x_positions=x_positions,
+            snp_ids=kept_ids,
+            metric=metric,
+            lead_snp_id=lead_snp_id,
+        )
 
 
 RegionalPanel = Union[
@@ -143,58 +232,7 @@ class RegionalPlotComposer:
             sharex=True,
         )
         for ax, panel in zip(axes, plan.panels):
-            if isinstance(panel, AssociationPanel):
-                self.render_association_panel(
-                    ax,
-                    panel.data,
-                    pos_col=panel.pos_col,
-                    ld_col=panel.ld_col,
-                    lead_pos=panel.lead_pos,
-                    rs_col=panel.rs_col,
-                    p_col=panel.p_col,
-                    start=plan.start,
-                    end=plan.end,
-                    snp_labels=panel.snp_labels,
-                    label_top_n=panel.label_top_n,
-                    recomb_df=panel.recomb_df,
-                    panel_label=panel.panel_label,
-                    add_ld_legend=panel.add_ld_legend,
-                )
-            elif isinstance(panel, FinemappingPanel):
-                self.render_finemapping_panel(
-                    ax,
-                    panel.data,
-                    cs_col=panel.cs_col,
-                )
-            elif isinstance(panel, EqtlPanel):
-                self.render_eqtl_panel(
-                    ax,
-                    panel.data,
-                    eqtl_gene_filtered=panel.gene_filtered,
-                    eqtl_gene=panel.gene,
-                    eqtl_threshold=panel.threshold,
-                )
-            elif isinstance(panel, GenePanel):
-                self.render_gene_panel(
-                    ax,
-                    panel.data,
-                    chrom=plan.chrom,
-                    start=plan.start,
-                    end=plan.end,
-                    exons_df=panel.exons_df,
-                )
-            elif isinstance(panel, HeatmapPanel):
-                self.render_heatmap_panel(
-                    ax=ax,
-                    fig=fig,
-                    ld_matrix=panel.matrix,
-                    x_positions=panel.x_positions,
-                    snp_ids=panel.snp_ids,
-                    metric=panel.metric,
-                    lead_snp_id=panel.lead_snp_id,
-                    start=plan.start,
-                    end=plan.end,
-                )
+            self.render_panel(panel, ax, fig, plan)
 
         self._backend.set_xlabel(axes[-1], f"Chromosome {plan.chrom} (Mb)")
         for ax in axes:
@@ -202,27 +240,27 @@ class RegionalPlotComposer:
         self._backend.finalize_layout(fig, hspace=plan.hspace)
         return fig
 
-    def render_association_panel(
-        self,
-        ax: Any,
-        df: pd.DataFrame,
-        *,
-        pos_col: str,
-        ld_col: Optional[str],
-        lead_pos: Optional[int],
-        rs_col: Optional[str],
-        p_col: Optional[str],
-        start: int,
-        end: int,
-        snp_labels: bool,
-        label_top_n: int,
-        recomb_df: Optional[pd.DataFrame],
-        panel_label: Optional[str] = None,
-        add_ld_legend: bool = False,
+    @singledispatchmethod
+    def render_panel(
+        self, panel: RegionalPanel, ax: Any, fig: Any, plan: RegionalFigurePlan
     ) -> None:
-        """Render one association panel with shared regional policy."""
+        """Render one panel onto its axes, dispatching on the panel type."""
+        raise TypeError(f"No renderer for {type(panel).__name__}")
+
+    @render_panel.register
+    def _render_association(
+        self, panel: AssociationPanel, ax: Any, fig: Any, plan: RegionalFigurePlan
+    ) -> None:
+        df = panel.data
+        columns = panel.columns
         self.render_association_scatter(
-            ax, df, pos_col, ld_col, lead_pos, rs_col, p_col
+            ax,
+            df,
+            columns.pos_col,
+            panel.ld_col,
+            panel.lead_pos,
+            columns.rs_col,
+            columns.p_col,
         )
         self._backend.axhline(
             ax,
@@ -237,35 +275,41 @@ class RegionalPlotComposer:
         y_max = df["neglog10p"].max()
         if pd.notna(y_max) and y_max > 0:
             self._backend.set_ylim(ax, 0, y_max * 1.15)
-        self._backend.set_xlim(ax, start, end)
+        self._backend.set_xlim(ax, plan.start, plan.end)
 
         if (
-            snp_labels
-            and rs_col is not None
-            and rs_col in df.columns
-            and label_top_n > 0
+            panel.display.snp_labels
+            and columns.rs_col in df.columns
+            and panel.display.label_top_n > 0
             and not df.empty
             and isinstance(self._backend, SupportsSNPLabels)
         ):
             self._backend.add_snp_labels(
                 ax,
                 df,
-                pos_col=pos_col,
+                pos_col=columns.pos_col,
                 neglog10p_col="neglog10p",
-                rs_col=rs_col,
-                label_top_n=label_top_n,
+                rs_col=columns.rs_col,
+                label_top_n=panel.display.label_top_n,
                 adjust=True,
-                lead_pos=lead_pos,
-                region_span=end - start,
+                lead_pos=panel.lead_pos,
+                region_span=plan.end - plan.start,
             )
 
+        recomb_df = panel.recomb_df
         has_recomb = recomb_df is not None and not recomb_df.empty
         if has_recomb and isinstance(self._backend, SupportsSecondaryAxis):
-            render_recombination_overlay(self._backend, ax, recomb_df, start, end)
+            render_recombination_overlay(
+                self._backend, ax, recomb_df, plan.start, plan.end
+            )
 
-        if panel_label:
-            self._backend.add_panel_label(ax, panel_label)
-        if add_ld_legend and ld_col is not None and ld_col in df.columns:
+        if panel.panel_label:
+            self._backend.add_panel_label(ax, panel.panel_label)
+        if (
+            panel.add_ld_legend
+            and panel.ld_col is not None
+            and panel.ld_col in df.columns
+        ):
             self._backend.add_legend(
                 ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
             )
@@ -336,76 +380,65 @@ class RegionalPlotComposer:
                     hover_data=hover_builder.build_dataframe(lead_snp),
                 )
 
-    def render_heatmap_panel(
-        self,
-        *,
-        ax: Any,
-        fig: Any,
-        ld_matrix: pd.DataFrame,
-        x_positions: List[int],
-        snp_ids: List[str],
-        metric: str,
-        lead_snp_id: Optional[str],
-        start: int,
-        end: int,
+    @render_panel.register
+    def _render_heatmap(
+        self, panel: HeatmapPanel, ax: Any, fig: Any, plan: RegionalFigurePlan
     ) -> None:
-        """Render an LD heatmap panel in genomic coordinates."""
         if not isinstance(self._backend, SupportsHeatmap):
             logger.debug(
                 "Skipping heatmap: {} does not support heatmaps",
                 type(self._backend).__name__,
             )
             return
-        n_snps = len(snp_ids)
+        n_snps = len(panel.snp_ids)
         if n_snps < 2:
             logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")
             return
         mappable = self._backend.add_heatmap(
             ax,
-            data=ld_matrix.values,
-            x_coords=x_positions,
+            data=panel.matrix.values,
+            x_coords=panel.x_positions,
             y_coords=list(range(n_snps)),
             cmap_colors=LD_HEATMAP_COLORS,
             vmin=0.0,
             vmax=1.0,
             mask_upper=True,
         )
-        self._backend.add_colorbar(ax, mappable, label="R²" if metric == "r2" else "D'")
-        if lead_snp_id is not None and lead_snp_id in snp_ids:
+        self._backend.add_colorbar(
+            ax, mappable, label="R²" if panel.metric == "r2" else "D'"
+        )
+        if panel.lead_snp_id is not None and panel.lead_snp_id in panel.snp_ids:
             self._backend.highlight_heatmap_snp(
                 ax,
                 fig,
-                snp_ids.index(lead_snp_id),
+                panel.snp_ids.index(panel.lead_snp_id),
                 n_snps,
                 color=LEAD_SNP_HIGHLIGHT_COLOR,
                 linewidth=2,
             )
-        self._backend.set_xlim(ax, start, end)
+        self._backend.set_xlim(ax, plan.start, plan.end)
         self._backend.hide_yaxis(ax)
 
-    def render_gene_panel(
-        self,
-        ax: Any,
-        genes_df: pd.DataFrame,
-        *,
-        chrom: int | str,
-        start: int,
-        end: int,
-        exons_df: Optional[pd.DataFrame],
+    @render_panel.register
+    def _render_genes(
+        self, panel: GenePanel, ax: Any, fig: Any, plan: RegionalFigurePlan
     ) -> None:
-        """Render a gene panel and apply its shared axis policy."""
         plot_gene_track_generic(
-            ax, self._backend, genes_df, chrom, start, end, exons_df
+            ax,
+            self._backend,
+            panel.data,
+            plan.chrom,
+            plan.start,
+            plan.end,
+            panel.exons_df,
         )
 
-    def render_finemapping_panel(
-        self,
-        ax: Any,
-        fm_data: pd.DataFrame,
-        *,
-        cs_col: Optional[str],
+    @render_panel.register
+    def _render_finemapping(
+        self, panel: FinemappingPanel, ax: Any, fig: Any, plan: RegionalFigurePlan
     ) -> None:
-        """Render a fine-mapping panel and shared panel policy."""
+        fm_data = panel.data
+        cs_col = panel.cs_col
         if not fm_data.empty:
             plot_finemapping(
                 self._backend,
@@ -432,16 +465,11 @@ class RegionalPlotComposer:
         self._backend.set_ylabel(ax, "PIP")
         self._backend.set_ylim(ax, -0.05, 1.05)
 
-    def render_eqtl_panel(
-        self,
-        ax: Any,
-        eqtl_data: pd.DataFrame,
-        *,
-        eqtl_gene_filtered: bool,
-        eqtl_gene: Optional[str],
-        eqtl_threshold: float,
+    @render_panel.register
+    def _render_eqtl(
+        self, panel: EqtlPanel, ax: Any, fig: Any, plan: RegionalFigurePlan
     ) -> None:
-        """Render prepared eQTL points and their semantic legend policy."""
+        eqtl_data = panel.data
         if not eqtl_data.empty:
             extra_cols = {}
             if "effect_size" in eqtl_data.columns:
@@ -479,7 +507,7 @@ class RegionalPlotComposer:
                     title="eQTL effect",
                 )
             else:
-                label = f"eQTL ({eqtl_gene})" if eqtl_gene_filtered else "eQTL"
+                label = f"eQTL ({panel.gene})" if panel.gene_filtered else "eQTL"
                 self._backend.scatter(
                     ax,
                     eqtl_data["pos"],
@@ -500,7 +528,7 @@ class RegionalPlotComposer:
         self._backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
         self._backend.axhline(
             ax,
-            y=-np.log10(eqtl_threshold),
+            y=-np.log10(panel.threshold),
             color="red",
             linestyle="--",
             linewidth=1,

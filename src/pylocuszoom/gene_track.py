@@ -114,7 +114,7 @@ def get_nearest_gene(
     return nearby.loc[nearby["dist"].idxmin(), "gene_name"]
 
 
-def _filter_genes_by_region(
+def filter_genes_by_region(
     df: pd.DataFrame, chrom: Union[int, str], start: int, end: int
 ) -> pd.DataFrame:
     """Filter a DataFrame to genes/exons within a genomic region."""
@@ -220,7 +220,7 @@ def plot_gene_track_generic(
         exons_df: Exon annotations with chr, start, end, gene_name
             columns for drawing exon structure. Optional.
     """
-    region_genes = _filter_genes_by_region(genes_df, chrom, start, end)
+    region_genes = filter_genes_by_region(genes_df, chrom, start, end)
 
     backend.set_xlim(ax, start, end)
     backend.set_ylabel(ax, "", fontsize=10)
@@ -257,7 +257,7 @@ def plot_gene_track_generic(
     # Filter exons for this region if available
     region_exons = None
     if exons_df is not None and not exons_df.empty:
-        region_exons = _filter_genes_by_region(exons_df, chrom, start, end)
+        region_exons = filter_genes_by_region(exons_df, chrom, start, end)
 
     region_width = end - start
 

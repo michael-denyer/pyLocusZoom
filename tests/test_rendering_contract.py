@@ -84,6 +84,18 @@ class RecordingBackend:
     def add_legend(self, *args, **kwargs):
         return self._record("add_legend", *args, **kwargs)
 
+    def format_xaxis_mb(self, *args, **kwargs):
+        self._record("format_xaxis_mb", *args, **kwargs)
+
+    def hide_yaxis(self, *args, **kwargs):
+        self._record("hide_yaxis", *args, **kwargs)
+
+    def add_rectangle(self, *args, **kwargs):
+        return self._record("add_rectangle", *args, **kwargs)
+
+    def add_polygon(self, *args, **kwargs):
+        return self._record("add_polygon", *args, **kwargs)
+
 
 class FullCapabilityBackend(RecordingBackend):
     """RecordingBackend that also opts into every optional capability.
@@ -226,24 +238,28 @@ def test_regional_renderer_skips_heatmap_panel_without_the_capability():
     """
     import numpy as np
 
-    from pylocuszoom._regional import RegionalPlotComposer
+    from pylocuszoom._regional import (
+        HeatmapPanel,
+        RegionalFigurePlan,
+        RegionalPlotComposer,
+    )
 
     backend = RecordingBackend()
     ld_matrix = pd.DataFrame(np.eye(3), index=list("abc"), columns=list("abc"))
-
-    composer = RegionalPlotComposer(backend, genomewide_line=5e-8)
-
-    composer.render_heatmap_panel(
-        ax=SimpleNamespace(),
-        fig=SimpleNamespace(),
-        ld_matrix=ld_matrix,
+    panel = HeatmapPanel(
+        matrix=ld_matrix,
+        height=1.0,
         x_positions=[1, 2, 3],
         snp_ids=["a", "b", "c"],
         metric="r2",
         lead_snp_id="a",
-        start=0,
-        end=10,
     )
+    plan = RegionalFigurePlan(
+        chrom=1, start=1, end=10, panels=[panel], figsize=(8.0, 1.0)
+    )
+
+    composer = RegionalPlotComposer(backend, genomewide_line=5e-8)
+    composer.render_panel(panel, SimpleNamespace(), SimpleNamespace(), plan)
 
     assert backend.calls == []
 
