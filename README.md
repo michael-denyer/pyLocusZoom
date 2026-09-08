@@ -1,5 +1,6 @@
 [![CI](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-denyer/pyLocusZoom/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/pylocuszoom)](https://pypi.org/project/pylocuszoom/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22665975.svg)](https://doi.org/10.5281/zenodo.22665975)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-red.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-3.5+-11557c.svg)](https://matplotlib.org/)
@@ -827,13 +828,14 @@ Optional:
 
 ## Citation
 
-If you use pyLocusZoom in your research, please cite it. GitHub's "Cite this repository" button reads [CITATION.cff](CITATION.cff), and each GitHub release is archived on Zenodo with its own DOI.
+If you use pyLocusZoom in your research, please cite it. GitHub's "Cite this repository" button reads [CITATION.cff](CITATION.cff), and each GitHub release is archived on Zenodo with its own DOI. The concept DOI [10.5281/zenodo.22665975](https://doi.org/10.5281/zenodo.22665975) always resolves to the latest version.
 
 ```bibtex
 @software{denyer_pylocuszoom,
   author  = {Denyer, Michael},
   title   = {pyLocusZoom: Python library for multi-species GWAS visualization},
   url     = {https://github.com/michael-denyer/pyLocusZoom},
+  doi     = {10.5281/zenodo.22665975},
   license = {GPL-3.0-or-later}
 }
 ```
