@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use pyLocusZoom in your research, please cite it using the metadata in this file."
+type: software
+title: "pyLocusZoom: Python library for multi-species GWAS visualization"
+abstract: "Publication-ready GWAS visualization in Python: regional association plots with LD coloring, gene tracks and recombination overlays, plus Manhattan, QQ, Miami, eQTL, fine-mapping, PheWAS, forest, LD heatmap and colocalization plots. Built-in canine and feline reference data, Ensembl gene annotation for any species, and matplotlib, plotly and bokeh backends."
+authors:
+  - family-names: Denyer
+    given-names: Michael
+    email: code.denyer@gmail.com
+version: 3.1.0
+date-released: 2026-09-08
+license: GPL-3.0-or-later
+repository-code: https://github.com/michael-denyer/pyLocusZoom
+url: https://github.com/michael-denyer/pyLocusZoom
+keywords:
+  - gwas
+  - genetics
+  - visualization
+  - locuszoom
+  - regional-plot
+  - linkage-disequilibrium
+  - canine
+  - feline

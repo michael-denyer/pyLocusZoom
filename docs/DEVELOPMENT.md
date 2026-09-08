@@ -165,11 +165,13 @@ For a concrete example, see `prepare_manhattan_frames` in
    description covering *what* changed and *why*, and reference any related GitHub
    issues. Do not include AI-assistant attribution in commit messages or PR bodies.
 9. Releases are cut from `main` by bumping `version` in `pyproject.toml`, running `uv lock`,
-   changing the `## [Unreleased]` CHANGELOG heading to `## [X.Y.Z] - YYYY-MM-DD`, committing
-   `pyproject.toml`, `uv.lock`, and `CHANGELOG.md` together, and creating a GitHub release
+   changing the `## [Unreleased]` CHANGELOG heading to `## [X.Y.Z] - YYYY-MM-DD`, setting
+   `version` and `date-released` in `CITATION.cff` to match, committing
+   `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, and `CITATION.cff` together, and creating a GitHub release
    with tag `vX.Y.Z`. `.github/workflows/publish.yml` then publishes to PyPI via Trusted
    Publishing. BiocondaBot opens a follow-up PR against bioconda-recipes automatically once
-   the PyPI release is detected.
+   the PyPI release is detected. Zenodo archives the release and mints a version DOI from
+   `.zenodo.json`; the concept DOI in the README badge covers every version.
 
    Two things that catch people out:
    - `uv.lock` does not regenerate itself on a version bump. Skipping `uv lock` leaves a
