@@ -1,0 +1,30 @@
+{
+  "title": "pyLocusZoom: Python library for multi-species GWAS visualization",
+  "description": "Publication-ready GWAS visualization in Python: regional association plots with LD coloring, gene tracks and recombination overlays, plus Manhattan, QQ, Miami, eQTL, fine-mapping, PheWAS, forest, LD heatmap and colocalization plots. Built-in canine and feline reference data, Ensembl gene annotation for any species, and matplotlib, plotly and bokeh backends.",
+  "upload_type": "software",
+  "license": "GPL-3.0-or-later",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Denyer, Michael"
+    }
+  ],
+  "keywords": [
+    "gwas",
+    "genetics",
+    "visualization",
+    "locuszoom",
+    "regional-plot",
+    "linkage-disequilibrium",
+    "canine",
+    "feline"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://pypi.org/project/pylocuszoom/",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ]
+}

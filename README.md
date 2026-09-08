@@ -825,6 +825,19 @@ Optional:
 - [Example Notebook](examples/getting_started.ipynb) - Interactive tutorial
 - [CHANGELOG](CHANGELOG.md) - Version history
 
+## Citation
+
+If you use pyLocusZoom in your research, please cite it. GitHub's "Cite this repository" button reads [CITATION.cff](CITATION.cff), and each GitHub release is archived on Zenodo with its own DOI.
+
+```bibtex
+@software{denyer_pylocuszoom,
+  author  = {Denyer, Michael},
+  title   = {pyLocusZoom: Python library for multi-species GWAS visualization},
+  url     = {https://github.com/michael-denyer/pyLocusZoom},
+  license = {GPL-3.0-or-later}
+}
+```
+
 ## License
 
 GPL-3.0-or-later
