@@ -11,6 +11,10 @@ exclude = [
   # gnu.org aggressively rate-limits CI runner IPs. LICENSE.md is already
   # excluded via exclude_path; this catches inline GPL links in other docs.
   '^https?://www\.gnu\.org/licenses/',
+  # DOIs are persistent identifiers; the doi.org hop always resolves, and
+  # the Zenodo record page behind it has returned 504 during outages, which
+  # lychee reports as a redirect loop. Don't let a Zenodo outage block a commit.
+  '^https?://doi\.org/10\.5281/zenodo\.',
 ]
 
 exclude_path = [
