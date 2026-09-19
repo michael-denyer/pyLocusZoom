@@ -82,15 +82,11 @@ class TestFINEMAPLoader:
         assert "pip" in df.columns
         assert len(df) == 4
 
-    def test_load_finemap_assigns_credible_set(self, finemap_file):
-        """Test that FINEMAP loader assigns credible sets based on cumsum."""
+    def test_load_finemap_keeps_pips_without_inferred_sets(self, finemap_file):
+        """A loader preserves the reported PIPs rather than inferring membership."""
         df = load_finemap(finemap_file)
-
-        # Sorted by PIP: 0.85 + 0.12 = 0.97 > 0.95, so first 2 in CS
-        assert "cs" in df.columns
-        # The first variant in sorted order (0.85) should be in credible set
-        cs_variants = df[df["cs"] == 1]
-        assert len(cs_variants) >= 1
+        assert "cs" not in df.columns
+        assert df["pip"].tolist() == [0.85, 0.12, 0.02, 0.01]
 
     def test_load_finemap_values(self, finemap_file):
         """Test that values are loaded correctly."""
@@ -125,13 +121,11 @@ rs101 0.01
         assert "pip" in df.columns
         assert len(df) == 4
 
-    def test_load_caviar_assigns_credible_set(self, caviar_file):
-        """Test that CAVIAR loader assigns credible sets."""
+    def test_load_caviar_keeps_pips_without_inferred_sets(self, caviar_file):
+        """No statistical membership is implied by loading posterior values."""
         df = load_caviar(caviar_file)
-
-        assert "cs" in df.columns
-        # Top variants should be in credible set (cumsum <= 0.95)
-        assert df[df["rs"] == "rs123"]["cs"].iloc[0] == 1
+        assert "cs" not in df.columns
+        assert df["pip"].tolist() == [0.85, 0.12, 0.02, 0.01]
 
     def test_load_caviar_no_position_column(self, caviar_file):
         """Test that CAVIAR output doesn't include position column."""
@@ -193,3 +187,33 @@ class TestPolyFunLoader:
             load_polyfun(polyfun_file_no_pip)
 
         assert "pip" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("pips", [[0.99, 0.01], [0.85, 0.12, 0.02, 0.01], [0.95, 0.05]])
+def test_finemap_preserves_pips_without_inventing_membership(tmp_path, pips):
+    import pandas as pd
+
+    path = tmp_path / "posterior.snp"
+    pd.DataFrame({"position": range(1, len(pips) + 1), "prob": pips}).to_csv(
+        path, sep=" ", index=False
+    )
+    result = load_finemap(path)
+    assert "cs" not in result
+    assert result["pip"].tolist() == pips
+    assert result["pos"].tolist() == list(range(1, len(pips) + 1))
+
+
+def test_finemap_preserves_source_membership_with_custom_name(tmp_path):
+    path = tmp_path / "reported.snp"
+    path.write_text("position prob cs\n1 0.1 2\n2 0.9 3\n")
+    result = load_finemap(path, cs_col="reported_set")
+    assert result["reported_set"].tolist() == [2, 3]
+    assert result["pip"].tolist() == [0.1, 0.9]
+
+
+def test_caviar_does_not_invent_credible_sets(tmp_path):
+    path = tmp_path / "posterior.set"
+    path.write_text("rs1 0.99\nrs2 0.01\n")
+    result = load_caviar(path)
+    assert "cs" not in result
+    assert result["pip"].tolist() == [0.99, 0.01]

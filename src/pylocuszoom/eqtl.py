@@ -6,13 +6,14 @@ quantitative trait loci (eQTL) data for overlay on regional plots.
 
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
 from .schemas import Canonical, Family, Tier, spec
-from .utils import filter_by_region
+from .utils import filter_by_region, normalize_chrom, normalize_chrom_series
 from .validation import check
 
 
@@ -151,6 +152,47 @@ def get_eqtl_genes(df: pd.DataFrame, gene_col: str = "gene") -> List[str]:
     return sorted(df[gene_col].dropna().unique().tolist())
 
 
+def _overlap_coordinates(
+    df: pd.DataFrame,
+    pos_col: str,
+    p_col: str,
+    chrom_col: str,
+    common_chrom: int | str | None,
+) -> pd.DataFrame:
+    """Resolve each input to coordinate and p-value roles before joining."""
+    validate_eqtl_df(df, pos_col=pos_col, p_col=p_col)
+    positions = pd.to_numeric(df[pos_col], errors="coerce")
+    if (
+        df[pos_col].map(lambda value: isinstance(value, (bool, np.bool_))).any()
+        or pd.api.types.is_complex_dtype(positions)
+        or positions.isna().any()
+        or not np.isfinite(positions).all()
+        or not positions.between(1, 2**63, inclusive="left").all()
+        or positions.mod(1).ne(0).any()
+    ):
+        raise EQTLValidationError(
+            f"Absolute positions in {pos_col!r} must be finite positive integers "
+            "below 2**63"
+        )
+    positions = positions.astype("int64")
+    if chrom_col in df.columns:
+        if df[chrom_col].isna().any():
+            raise EQTLValidationError("Chromosome coordinates must not be null")
+        chromosomes = normalize_chrom_series(df[chrom_col])
+        if common_chrom is not None and not chromosomes.eq(common_chrom).all():
+            raise EQTLValidationError(
+                "Input chromosome coordinates disagree with common_chrom"
+            )
+    elif common_chrom is not None:
+        chromosomes = common_chrom
+    else:
+        raise EQTLValidationError(
+            f"Missing chromosome column {chrom_col!r}. For inputs already scoped "
+            "to the same chromosome, supply common_chrom explicitly."
+        )
+    return pd.DataFrame({"chr": chromosomes, "pos": positions, "p_value": df[p_col]})
+
+
 def calculate_colocalization_overlap(
     gwas_df: pd.DataFrame,
     eqtl_df: pd.DataFrame,
@@ -159,40 +201,53 @@ def calculate_colocalization_overlap(
     gwas_p_col: str = Canonical.P,
     eqtl_p_col: str = Canonical.P,
     p_threshold: float = 1e-5,
+    *,
+    gwas_chrom_col: str = Canonical.CHROM,
+    eqtl_chrom_col: str = Canonical.CHROM,
+    common_chrom: int | str | None = None,
 ) -> pd.DataFrame:
-    """Find SNPs significant in both GWAS and eQTL.
+    """Find significant GWAS/eQTL overlaps by chromosome and absolute position.
 
-    Simple overlap analysis - for formal colocalization,
-    use dedicated tools like coloc or eCAVIAR.
+    This is coordinate overlap, without allele matching or harmonization.
+    For formal colocalization use dedicated tools such as coloc or eCAVIAR.
 
     Args:
         gwas_df: GWAS results DataFrame.
         eqtl_df: eQTL results DataFrame.
-        gwas_pos_col: Position column in GWAS data.
-        eqtl_pos_col: Position column in eQTL data.
+        gwas_pos_col: Absolute position column in GWAS data.
+        eqtl_pos_col: Absolute position column in eQTL data.
         gwas_p_col: P-value column in GWAS data.
         eqtl_p_col: P-value column in eQTL data.
         p_threshold: P-value threshold for significance.
+        gwas_chrom_col: Chromosome column in GWAS data.
+        eqtl_chrom_col: Chromosome column in eQTL data.
+        common_chrom: Explicit shared chromosome for position-only inputs.
+            Any chromosome columns present must agree with this value.
 
     Returns:
-        DataFrame with overlapping significant SNPs from both datasets.
-    """
-    # Filter to significant SNPs
-    sig_gwas = gwas_df[gwas_df[gwas_p_col] < p_threshold][[gwas_pos_col, gwas_p_col]]
-    sig_eqtl = eqtl_df[eqtl_df[eqtl_p_col] < p_threshold][[eqtl_pos_col, eqtl_p_col]]
+        DataFrame with chr, pos, p_value_gwas and p_value_eqtl columns.
+        Multiple variants at one coordinate are retained as multiple matches;
+        this does not establish allele-level identity.
 
-    # Merge on position
-    overlap = sig_gwas.merge(
-        sig_eqtl,
-        left_on=gwas_pos_col,
-        right_on=eqtl_pos_col,
+    Raises:
+        EQTLValidationError: If positions are not finite positive integers,
+            or chromosomes are missing or contradict the declared common chromosome.
+    """
+    chromosome = normalize_chrom(common_chrom) if common_chrom is not None else None
+    gwas = _overlap_coordinates(
+        gwas_df, gwas_pos_col, gwas_p_col, gwas_chrom_col, chromosome
+    )
+    eqtl = _overlap_coordinates(
+        eqtl_df, eqtl_pos_col, eqtl_p_col, eqtl_chrom_col, chromosome
+    )
+    overlap = gwas[gwas["p_value"] < p_threshold].merge(
+        eqtl[eqtl["p_value"] < p_threshold],
+        on=["chr", "pos"],
         how="inner",
         suffixes=("_gwas", "_eqtl"),
     )
-
     logger.info(
-        f"Found {len(overlap)} SNPs significant in both GWAS and eQTL "
+        f"Found {len(overlap)} coordinate matches significant in both GWAS and eQTL "
         f"(p < {p_threshold})"
     )
-
     return overlap

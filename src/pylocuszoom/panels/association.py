@@ -53,11 +53,18 @@ class AssociationPanel:
     display: DisplayConfig
     genomewide_threshold: Optional[float]
     ld_col: Optional[str]
-    lead_pos: Optional[int]
+    lead_index: Optional[int]
     recomb_df: Optional[pd.DataFrame]
     hover: HoverConfig
     panel_label: Optional[str] = None
     add_ld_legend: bool = False
+
+    @property
+    def lead_pos(self) -> Optional[int]:
+        """Position of the selected lead row, for distance-based label placement."""
+        if self.lead_index is None:
+            return None
+        return int(self.data.at[self.lead_index, self.columns.pos_col])
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw the association scatter with its axes, overlay, and legends."""
@@ -81,9 +88,15 @@ class AssociationPanel:
             and not df.empty
             and isinstance(backend, SupportsSNPLabels)
         ):
+            label_data = df
+            if self.lead_index is not None:
+                label_data = df[
+                    (df.index == self.lead_index)
+                    | (df[columns.pos_col] != self.lead_pos)
+                ]
             backend.add_snp_labels(
                 ax,
-                df,
+                label_data,
                 pos_col=columns.pos_col,
                 neglog10p_col="neglog10p",
                 rs_col=columns.rs_col,
@@ -145,18 +158,17 @@ def _draw_association_points(
             hover_data=hover_builder.build_dataframe(df),
         )
 
-    if panel.lead_pos is not None:
-        lead_snp = df[df[pos_col] == panel.lead_pos]
-        if not lead_snp.empty:
-            backend.scatter(
-                ax,
-                lead_snp[pos_col],
-                lead_snp["neglog10p"],
-                colors=LEAD_SNP_COLOR,
-                sizes=120,
-                marker="D",
-                edgecolor="black",
-                linewidth=1.5,
-                zorder=10,
-                hover_data=hover_builder.build_dataframe(lead_snp),
-            )
+    if panel.lead_index is not None:
+        lead_snp = df.loc[[panel.lead_index]]
+        backend.scatter(
+            ax,
+            lead_snp[pos_col],
+            lead_snp["neglog10p"],
+            colors=LEAD_SNP_COLOR,
+            sizes=120,
+            marker="D",
+            edgecolor="black",
+            linewidth=1.5,
+            zorder=10,
+            hover_data=hover_builder.build_dataframe(lead_snp),
+        )

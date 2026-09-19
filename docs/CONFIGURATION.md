@@ -43,18 +43,20 @@ Implementation:
   `liftover` leaf holding downloaded chain files
 - [`_gene_cache.cache_root()`](../src/pylocuszoom/_gene_cache.py)
 
-You can also override the cache location explicitly by passing `output_dir`
-to `download_canine_recombination_maps()` / `ensure_recomb_maps()` — this
-bypasses the environment variables entirely.
+To pre-download maps into a chosen directory, call
+`download_canine_recombination_maps(output_dir="/path/to/maps")`.
+Passing `recomb_data_dir` to the plotter, or `data_dir` to the map helpers,
+selects a read-only caller directory. It never downloads or replaces files there,
+and its coordinates must already use the requested build. With no directory,
+`ensure_recomb_maps()` manages the platform cache and may download built-in maps.
 
 ## Programmatic Configuration (Pydantic Models)
 
-The user-facing API uses plain keyword arguments (`plot()`,
-`plot_stacked()`). Internally these kwargs are validated by frozen
-Pydantic models defined in
-[`src/pylocuszoom/config.py`](../src/pylocuszoom/config.py). You normally
-do not construct these directly, but they define the canonical set of
-options and their defaults.
+The plotting methods take frozen Pydantic values such as `ColumnConfig`,
+`DisplayConfig`, `LDConfig` and `PanelInputs`, defined in
+[`src/pylocuszoom/config.py`](../src/pylocuszoom/config.py). Region coordinates
+and per-panel overrides remain keyword arguments. The public values can be
+reused across calls; each call resolves its effective options before rendering.
 
 ### `RegionConfig` — genomic region (required)
 
@@ -176,8 +178,9 @@ If you need per-environment behaviour, do it at the caller level, e.g.:
 
 - Set `XDG_CACHE_HOME` / `LOCALAPPDATA` per machine to control where
   reference data is cached.
-- Pre-download reference data in CI with `ensure_recomb_maps()` pointing at
-  a shared directory, then set `output_dir=` accordingly at runtime.
+- Pre-download canine maps with `download_canine_recombination_maps(output_dir=...)`,
+  then pass that directory as `recomb_data_dir` to the plotter. Caller maps must
+  already use the requested genome build.
 - On Databricks, the `/dbfs/FileStore/reference_data/recombination_maps`
   path is selected automatically.
 

@@ -11,6 +11,7 @@ recombination tarball gets the attempts the 5 KB JSON payload always had.
 """
 
 import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -111,7 +112,7 @@ def download_file(
 ) -> None:
     """Stream a file to disk with a progress bar, retrying like request_json.
 
-    Streams into a ``.part`` sibling and renames it onto ``dest_path`` only once
+    Streams into a private ``.part`` sibling and replaces ``dest_path`` only once
     the stream completes, so an interrupted download never leaves a truncated
     file where a later ``exists()`` check would trust it. A retry restarts the
     stream from the beginning; the partial file is removed either way.
@@ -131,30 +132,34 @@ def download_file(
     Raises:
         DataDownloadError: If the download ultimately fails.
     """
-    partial_path = dest_path.with_name(dest_path.name + ".part")
+    with tempfile.NamedTemporaryFile(
+        dir=dest_path.parent, prefix=f".{dest_path.name}.", suffix=".part", delete=False
+    ) as partial:
+        partial_path = Path(partial.name)
     delay = retry_delay
 
-    for attempt in range(max_retries):
-        try:
-            _stream_to(url, partial_path, desc, timeout)
-        except requests.RequestException as e:
-            partial_path.unlink(missing_ok=True)
-            retryable = (
-                not isinstance(e, requests.HTTPError)
-                or _status_of(e) in RETRYABLE_STATUS
-            )
-            if retryable and attempt < max_retries - 1:
-                logger.warning(f"Download of {url} failed (attempt {attempt + 1}): {e}")
-                time.sleep(delay)
-                delay *= 2
-                continue
-            raise DataDownloadError(f"Failed to download {url}: {e}") from e
-        except BaseException:
-            partial_path.unlink(missing_ok=True)
-            raise
+    try:
+        for attempt in range(max_retries):
+            try:
+                _stream_to(url, partial_path, desc, timeout)
+            except requests.RequestException as e:
+                retryable = (
+                    not isinstance(e, requests.HTTPError)
+                    or _status_of(e) in RETRYABLE_STATUS
+                )
+                if retryable and attempt < max_retries - 1:
+                    logger.warning(
+                        f"Download of {url} failed (attempt {attempt + 1}): {e}"
+                    )
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                raise DataDownloadError(f"Failed to download {url}: {e}") from e
 
-        os.replace(partial_path, dest_path)
-        return
+            os.replace(partial_path, dest_path)
+            return
+    finally:
+        partial_path.unlink(missing_ok=True)
 
 
 def _status_of(error: requests.HTTPError) -> int | None:

@@ -10,6 +10,7 @@ Supports multiple backends:
 """
 
 import warnings
+from dataclasses import dataclass
 from typing import Any, List, Optional, Union
 
 import pandas as pd
@@ -51,6 +52,47 @@ from .reference_genes import get_genes_for_build, source_for
 from .schemas import validate_genes_df, validate_gwas_df
 from .species import Species, resolve_species
 from .utils import DataFrameLike, filter_by_region, to_pandas
+
+
+@dataclass(frozen=True)
+class _AssociationInput:
+    """One region-selected frame with its effective per-panel options."""
+
+    data: pd.DataFrame
+    columns: ColumnConfig
+    ld: LDConfig
+    lead_index: Optional[int]
+    label: Optional[str] = None
+
+    @classmethod
+    def prepare(
+        cls,
+        frame: pd.DataFrame,
+        region: RegionConfig,
+        columns: ColumnConfig,
+        ld: LDConfig,
+        label: Optional[str] = None,
+    ) -> "_AssociationInput":
+        columns = resolve_deprecated_columns(frame, columns)
+        validate_gwas_df(frame, pos_col=columns.pos_col, p_col=columns.p_col)
+        selected = filter_by_region(
+            frame,
+            region=(region.chrom, region.start, region.end),
+            pos_col=columns.pos_col,
+        )
+        data = prepare_pvalue_data(selected, columns.p_col).reset_index(drop=True)
+        candidates = (
+            data if ld.lead_pos is None else data[data[columns.pos_col] == ld.lead_pos]
+        )
+        lead_index = (
+            int(candidates["neglog10p"].idxmax()) if not candidates.empty else None
+        )
+        if ld.lead_pos is not None and lead_index is None:
+            logger.warning(
+                "Lead SNP at position {} not found in region; LD coloring will be skipped",
+                ld.lead_pos,
+            )
+        return cls(data, columns, ld, lead_index, label)
 
 
 class LocusZoomPlotter:
@@ -226,10 +268,7 @@ class LocusZoomPlotter:
         )
         return self._render_regional(
             config,
-            [gwas_df],
-            leads=None if ld.lead_pos is None else [ld.lead_pos],
-            reference_files=[ld.ld_reference_file],
-            panel_labels=None,
+            [_AssociationInput.prepare(gwas_df, config.region, columns, ld)],
             threshold=resolve_threshold(
                 significance_threshold, self.genomewide_threshold
             ),
@@ -302,13 +341,27 @@ class LocusZoomPlotter:
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
         )
-        files = ld_reference_files or [ld.ld_reference_file] * len(gwas_dfs)
+        association = [
+            _AssociationInput.prepare(
+                frame,
+                config.region,
+                columns,
+                LDConfig(
+                    lead_pos=lead_positions[index]
+                    if lead_positions is not None
+                    else ld.lead_pos,
+                    ld_reference_file=ld_reference_files[index]
+                    if ld_reference_files is not None
+                    else ld.ld_reference_file,
+                    ld_col=ld.ld_col,
+                ),
+                panel_labels[index] if panel_labels is not None else None,
+            )
+            for index, frame in enumerate(gwas_dfs)
+        ]
         return self._render_regional(
             config,
-            gwas_dfs,
-            leads=lead_positions,
-            reference_files=files,
-            panel_labels=panel_labels,
+            association,
             threshold=resolve_threshold(
                 significance_threshold, self.genomewide_threshold
             ),
@@ -320,11 +373,8 @@ class LocusZoomPlotter:
     def _render_regional(
         self,
         config: PlotConfig,
-        gwas_dfs: List[pd.DataFrame],
+        association_inputs: List[_AssociationInput],
         *,
-        leads: Optional[List[int]],
-        reference_files: List[Optional[str]],
-        panel_labels: Optional[List[str]],
         threshold: Optional[float],
         label_top_n: int,
         association_height: float,
@@ -339,11 +389,7 @@ class LocusZoomPlotter:
 
         Args:
             config: Validated region, column, display, LD, and panel settings.
-            gwas_dfs: One frame per association panel.
-            leads: Lead position per panel, parallel to ``gwas_dfs``, or
-                None to take each panel's strongest in-region signal.
-            reference_files: PLINK fileset per panel, parallel to ``gwas_dfs``.
-            panel_labels: Label per panel, or None for none.
+            association_inputs: Selected frames and resolved options, one per panel.
             threshold: Resolved p-value for the significance line, or None.
             label_top_n: SNPs to label per panel when the display config
                 leaves it unset.
@@ -351,15 +397,12 @@ class LocusZoomPlotter:
             min_figure_height: Floor on the figure height in inches.
         """
         region = config.region
-        columns = resolve_deprecated_columns(gwas_dfs[0], config.columns)
         display = config.display.with_defaults(
             label_top_n=label_top_n, auto_genes=self._auto_genes
         )
         inputs = config.panels
         genes_df, exons_df = inputs.genes_df, inputs.exons_df
         recomb_df = inputs.recomb_df
-        for gwas_df in gwas_dfs:
-            validate_gwas_df(gwas_df, pos_col=columns.pos_col, p_col=columns.p_col)
 
         if genes_df is None and display.auto_genes:
             logger.debug(
@@ -422,21 +465,13 @@ class LocusZoomPlotter:
                 )
 
         association: List[AssociationPanel] = []
-        for index, (gwas_df, reference_file) in enumerate(
-            zip(gwas_dfs, reference_files)
-        ):
-            prepared = prepare_pvalue_data(gwas_df, columns.p_col)
-            lead_pos = (
-                leads[index]
-                if leads is not None
-                else _strongest_position(prepared, region, columns)
-            )
+        for index, request in enumerate(association_inputs):
+            columns, ld = request.columns, request.ld
             df, ld_col = enrich_with_ld(
-                prepared,
-                reference_file=reference_file,
-                lead_pos=lead_pos,
-                ld_col=config.ld.ld_col,
-                pos_col=columns.pos_col,
+                request.data,
+                reference_file=ld.ld_reference_file,
+                lead_index=request.lead_index,
+                ld_col=ld.ld_col,
                 rs_col=columns.rs_col,
                 start=region.start,
                 end=region.end,
@@ -456,9 +491,9 @@ class LocusZoomPlotter:
                     genomewide_threshold=threshold,
                     ld_col=ld_col,
                     hover=hover_for_association(df, columns, ld_col),
-                    lead_pos=lead_pos,
+                    lead_index=request.lead_index,
                     recomb_df=recomb_df if index == 0 else None,
-                    panel_label=panel_labels[index] if panel_labels else None,
+                    panel_label=request.label,
                     add_ld_legend=(index == 0),
                 )
             )
@@ -499,24 +534,3 @@ class LocusZoomPlotter:
                 hspace=0.1,
             ),
         )
-
-
-def _strongest_position(
-    df: pd.DataFrame, region: RegionConfig, columns: ColumnConfig
-) -> Optional[int]:
-    """Return the position of the strongest in-region signal in a prepared frame.
-
-    ``df`` has been through ``prepare_pvalue_data``, so the p-value domain rule
-    has already been applied and ``neglog10p`` is finite. Filters on the
-    canonical chromosome column when the frame carries one, so a whole-genome
-    frame cannot anchor the lead to another chromosome.
-    """
-    region_df = filter_by_region(
-        df,
-        region=(region.chrom, region.start, region.end),
-        pos_col=columns.pos_col,
-    )
-    if region_df.empty:
-        logger.warning("No valid p-values in region, cannot determine lead SNP")
-        return None
-    return int(region_df.loc[region_df["neglog10p"].idxmax(), columns.pos_col])

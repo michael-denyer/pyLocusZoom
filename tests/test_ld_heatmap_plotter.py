@@ -16,7 +16,7 @@ SECONDARY_OUTLINE = SECONDARY_HIGHLIGHT_COLOR.lower()
 
 def drawn_cells(fig):
     """Return the heatmap values drawn on the main axis, NaN where masked."""
-    (image,) = fig.get_axes()[0].images
+    (image,) = fig.get_axes()[0].collections
     return np.ma.filled(image.get_array().astype(float), np.nan)
 
 

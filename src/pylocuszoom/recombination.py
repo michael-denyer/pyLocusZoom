@@ -6,6 +6,7 @@ Provides:
 - Liftover support for CanFam3.1 to CanFam4 coordinate conversion
 """
 
+import io
 import os
 import re
 import shutil
@@ -14,14 +15,14 @@ import tempfile
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 import pandas as pd
 
 from ._http import download_file
 from ._liftover import PyLiftOverLifter, liftover_positions
-from .exceptions import DataDownloadError, OptionalDependencyMissing
+from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
 from .logging import logger
 from .species import Species, resolve_species
 from .utils import _platform_cache_base, assembly_token, filter_by_region
@@ -48,7 +49,7 @@ class RecombSource:
     Attributes:
         species: Canonical Species.key this source serves.
         url: Archive holding the published map set.
-        archive_glob: Glob selecting the map files inside the extracted
+        archive_glob: Glob selecting regular map members inside the
             archive. Deliberately loose; chrom_pattern is what decides
             whether a matched file really is a map.
         chrom_pattern: Regex anchored at the start of a matched file's stem
@@ -60,8 +61,7 @@ class RecombSource:
             a cache hit; anything else is downloaded again.
         native_build: Build the published maps are in.
         liftover_chains: Target build token -> chain URL, for the builds the
-            maps can be lifted to. A build absent from here is served in
-            ``native_build`` coordinates.
+            maps can be lifted to. Other non-native builds are unavailable.
     """
 
     species: str
@@ -234,12 +234,9 @@ def _has_complete_maps(path: Path, source: RecombSource) -> bool:
 
 
 def _discard_map_dir(path: Path) -> None:
-    """Delete a replaced map directory, following the link older releases left."""
+    """Delete a replaced directory without acquiring ownership of symlink targets."""
     if path.is_symlink():
-        target = path.resolve()
         path.unlink()
-        if target.is_dir():
-            shutil.rmtree(target, ignore_errors=True)
     else:
         shutil.rmtree(path, ignore_errors=True)
 
@@ -273,61 +270,55 @@ def _publish_map_generation(
     return output_path
 
 
-def _extract_archive(tar_path: Path, into: Path, url: str) -> Path:
-    """Extract a downloaded tar.gz, refusing members that escape ``into``.
-
-    Args:
-        tar_path: The downloaded archive.
-        into: Directory to extract beneath.
-        url: Source URL, named in the error if the archive is not a tar.gz.
-
-    Returns:
-        The directory the archive was extracted into.
-
-    Raises:
-        DataDownloadError: If the file is not a readable tar.gz.
-    """
-    root = into.resolve()
-    try:
-        with tarfile.open(tar_path, "r:gz") as tar:
-            safe_members = []
-            for member in tar.getmembers():
-                try:
-                    (into / member.name).resolve().relative_to(root)
-                    safe_members.append(member)
-                except (ValueError, OSError):
-                    logger.warning(f"Skipping unsafe path in archive: {member.name}")
-            tar.extractall(into, members=safe_members)
-    except tarfile.TarError as e:
-        raise DataDownloadError(
-            f"Downloaded recombination archive from {url} is not a valid tar.gz: {e}"
-        ) from e
-    return into
-
-
-def _stage_maps(map_files: list[Path], source: RecombSource, staging: Path) -> None:
-    """Write each extracted map into ``staging`` under its canonical name.
-
-    Args:
-        map_files: Files the source's ``archive_glob`` matched.
-        source: Source whose ``chrom_pattern`` names the chromosome.
-        staging: Directory to write into.
-
-    Raises:
-        DataDownloadError: If a matched file's name does not carry a
-            chromosome, or its content is not a recombination map.
-    """
+def _stage_archive(tar_path: Path, source: RecombSource, staging: Path) -> None:
+    """Read regular map members into canonical files without extracting paths."""
     pattern = re.compile(source.chrom_pattern, re.IGNORECASE)
-    for map_file in map_files:
-        match = pattern.match(map_file.stem)
-        if match is None:
-            raise DataDownloadError(
-                f"Recombination map {map_file.name!r} does not name a "
-                f"chromosome; expected a stem matching "
-                f"{source.chrom_pattern!r}. The archive may have changed layout."
-            )
-        content = ensure_recomb_header(map_file.read_text(), map_file.name)
-        (staging / f"chr{match.group(1)}_recomb.tsv").write_text(content)
+    seen = set()
+    try:
+        with tarfile.open(tar_path, "r:gz") as archive:
+            for member in archive:
+                name = PurePosixPath(member.name)
+                if name.is_absolute() or ".." in name.parts:
+                    raise DataDownloadError(
+                        f"Archive contains unsafe member {member.name!r}"
+                    )
+                if member.isdir():
+                    continue
+                if not member.isfile():
+                    raise DataDownloadError(
+                        f"Archive member {member.name!r} is not a regular file"
+                    )
+                if not name.match(source.archive_glob):
+                    continue
+                match = pattern.match(name.stem)
+                if match is None:
+                    raise DataDownloadError(
+                        f"Recombination map {name.name!r} does not name a chromosome; "
+                        f"expected a stem matching {source.chrom_pattern!r}"
+                    )
+                filename = f"chr{match.group(1)}_recomb.tsv"
+                if filename not in source.filenames:
+                    raise DataDownloadError(f"Unexpected chromosome map {name.name!r}")
+                if filename in seen:
+                    raise DataDownloadError(f"Duplicate chromosome map {filename!r}")
+                seen.add(filename)
+                with (
+                    io.TextIOWrapper(
+                        archive.extractfile(member), encoding="utf-8"
+                    ) as body,
+                    (staging / filename).open("w", encoding="utf-8") as output,
+                ):
+                    output.write(ensure_recomb_header(body.readline(), member.name))
+                    shutil.copyfileobj(body, output)
+    except (tarfile.TarError, UnicodeDecodeError) as e:
+        raise DataDownloadError(
+            f"Downloaded recombination archive from {source.url} is not a valid tar.gz map set: {e}"
+        ) from e
+    if not seen:
+        raise DataDownloadError(
+            f"Could not find chromosome map files matching "
+            f"{source.archive_glob!r} in archive from {source.url}"
+        )
 
 
 def download_recombination_maps(source: RecombSource, output_path: Path) -> Path:
@@ -359,21 +350,9 @@ def download_recombination_maps(source: RecombSource, output_path: Path) -> Path
         download_file(source.url, archive, desc="Recombination maps")
         logger.debug(f"Downloaded {archive.stat().st_size / 1024:.1f} KB")
 
-        extracted = _extract_archive(archive, tmp, source.url)
-        map_files = sorted(extracted.rglob(source.archive_glob))
-        if not map_files:
-            logger.error(
-                f"Extracted files: {[f.name for f in list(extracted.rglob('*'))[:20]]}"
-            )
-            raise DataDownloadError(
-                f"Could not find chromosome map files matching "
-                f"{source.archive_glob!r} in archive from {source.url}"
-            )
-        logger.debug(f"Found {len(map_files)} chromosome files")
-
         staging = tmp / "_staging"
         staging.mkdir()
-        _stage_maps(map_files, source, staging)
+        _stage_archive(archive, source, staging)
         _publish_map_generation(staging, output_path, source)
 
     logger.info(f"Recombination maps saved to: {output_path}")
@@ -480,23 +459,34 @@ def get_recombination_rate_for_region(
         end: End position (bp).
         species: Species name, alias or record, or None for a caller
             supplying its own maps.
-        data_dir: Directory containing recombination maps.
-        genome_build: Target genome build (e.g., "canfam4"). If specified and
-            different from source data (CanFam3.1), coordinates are lifted over.
+        data_dir: Caller maps, already in the target build. None uses managed maps.
+        genome_build: Target genome build (e.g., "canfam4"). Managed maps
+            use a registered liftover chain when conversion is needed.
+            Caller maps are already in this build.
 
     Returns:
         DataFrame with pos and rate columns for the region.
 
     Note:
         Built-in canine recombination maps are in CanFam3.1 coordinates.
-        If genome_build="canfam4", positions are automatically lifted over.
+        With no data_dir and genome_build="canfam4", positions are lifted over.
         This requires pyliftover: pip install pyliftover
     """
     record = resolve_species(species)
-    df = load_recombination_map(chrom, species=record, data_dir=data_dir)
-
-    source = RECOMB_SOURCES.get(record.key) if record else None
+    source = RECOMB_SOURCES.get(record.key) if record and data_dir is None else None
     target_build = assembly_token(genome_build) if genome_build else ""
+    if (
+        source is not None
+        and target_build
+        and target_build != source.native_build
+        and target_build not in source.liftover_chains
+    ):
+        raise ValidationError(
+            f"Built-in {source.species} maps use {source.native_build}; "
+            f"no liftover chain is available for {genome_build!r}. "
+            "Supply data_dir with maps in the requested build."
+        )
+    df = load_recombination_map(chrom, species=record, data_dir=data_dir)
     if source is not None and target_build in source.liftover_chains:
         logger.debug(f"Lifting over recombination map for chr{chrom} to {target_build}")
         df = liftover_recombination_map(
@@ -526,11 +516,12 @@ def ensure_recomb_maps(
     Args:
         species: Species name, alias or record, or None for a caller
             supplying its own maps.
-        data_dir: Directory for recombination maps. Uses default if None.
+        data_dir: Read-only caller directory. Only None selects the managed cache
+            and permits downloads.
 
     Returns:
         Path to the recombination maps directory, or None if the species has
-        no built-in map set.
+        no built-in map set and no caller directory was supplied.
 
     Raises:
         ValidationError: If the species is not one this package knows.
@@ -540,12 +531,14 @@ def ensure_recomb_maps(
         OSError: If the maps could not be written.
     """
     record = resolve_species(species)
+    if data_dir is not None:
+        return Path(data_dir)
     source = RECOMB_SOURCES.get(record.key) if record else None
     if source is None:
         logger.debug(f"No built-in recombination maps for species: {species}")
         return None
 
-    output_path = _resolve_map_dir(data_dir)
+    output_path = get_default_data_dir()
 
     if _has_complete_maps(output_path, source):
         logger.debug(f"Recombination maps already exist at {output_path}")
@@ -562,6 +555,7 @@ class RecombStatus(Enum):
     NO_MAP_FOR_CHROMOSOME = "no_map_for_chromosome"
     DOWNLOAD_FAILED = "download_failed"
     LIFTOVER_UNAVAILABLE = "liftover_unavailable"
+    BUILD_UNAVAILABLE = "build_unavailable"
 
 
 @dataclass(frozen=True)
@@ -603,9 +597,10 @@ def recomb_for_region(
         start: Start position (bp).
         end: End position (bp).
         species: Species name, alias or record.
-        data_dir: Directory holding the maps. Uses the platform cache if None.
-        genome_build: Target build. Coordinates are lifted over if the source
-            offers a chain to it.
+        data_dir: Read-only caller maps in the requested build. None uses the
+            managed built-in cache and permits downloads.
+        genome_build: Target build. Managed maps use their registered chain,
+            or report BUILD_UNAVAILABLE when no conversion is available.
 
     Returns:
         A RecombResult carrying the frame, or the status and the reason.
@@ -635,12 +630,14 @@ def recomb_for_region(
             start=start,
             end=end,
             species=record,
-            data_dir=str(map_dir),
+            data_dir=data_dir,
             genome_build=genome_build,
         )
     except FileNotFoundError as e:
         return RecombResult(RecombStatus.NO_MAP_FOR_CHROMOSOME, detail=str(e))
     except OptionalDependencyMissing as e:
         return RecombResult(RecombStatus.LIFTOVER_UNAVAILABLE, detail=str(e))
+    except ValidationError as e:
+        return RecombResult(RecombStatus.BUILD_UNAVAILABLE, detail=str(e))
 
     return RecombResult(RecombStatus.OK, frame=frame)

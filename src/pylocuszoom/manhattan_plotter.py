@@ -323,7 +323,7 @@ class ManhattanPlotter:
         )
 
         manhattan = prepare_genomewide_frames([df], config, species=self.species)[0]
-        qq = prepare_qq_data(df, p_col=config.p_col)
+        qq = prepare_qq_data(manhattan.frame)
         return render_figure(
             self._backend,
             FigurePlan(
@@ -405,8 +405,8 @@ class ManhattanPlotter:
             panel_labels=panel_labels,
         )
         panels = []
-        for index, (spec, df) in enumerate(zip(specs, gwas_dfs)):
-            qq = prepare_qq_data(df, p_col=config.p_col)
+        for index, (spec, prepared) in enumerate(zip(specs, manhattans)):
+            qq = prepare_qq_data(prepared.frame)
             panels.append(spec)
             panels.append(
                 QQPanelSpec(

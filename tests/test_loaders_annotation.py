@@ -198,3 +198,33 @@ class TestEnsemblGenesLoader:
 
         assert df["strand"].iloc[0] == "+"  # Not the raw 1
         assert df["strand"].iloc[1] == "-"  # Not the raw -1
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [
+        'gene_id "ENSG00001"; gene_name "BRCA1";',
+        'gene_name "BRCA1"; gene_id "ENSG00001";',
+        "ID=gene1;Name=BRCA1",
+    ],
+)
+def test_gtf_and_gff3_prefer_gene_names_over_identifiers(tmp_path, attributes):
+    path = tmp_path / "genes.gtf"
+    path.write_text(f"chr1\tTEST\tgene\t100\t200\t.\t+\t.\t{attributes}\n")
+    assert load_gtf(path)["gene_name"].tolist() == ["BRCA1"]
+
+
+def test_gff3_decodes_names_and_falls_back_to_id(tmp_path):
+    path = tmp_path / "genes.gff3"
+    path.write_text(
+        "chr1\tTEST\tgene\t100\t200\t.\t+\t.\tID=gene1;Name=A%3BB\nchr1\tTEST\tgene\t300\t400\t.\t-\t.\tID=gene2\n"
+    )
+    assert load_gtf(path)["gene_name"].tolist() == ["A;B", "gene2"]
+
+
+def test_gtf_quoted_names_can_contain_equals(tmp_path):
+    path = tmp_path / "genes.gtf"
+    path.write_text(
+        'chr1\tTEST\tgene\t100\t200\t.\t+\t.\tgene_id "id1"; gene_name "A=B";\n'
+    )
+    assert load_gtf(path)["gene_name"].tolist() == ["A=B"]

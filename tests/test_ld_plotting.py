@@ -10,7 +10,6 @@ import pandas as pd
 from pylocuszoom._ld_plotting import enrich_with_ld
 
 ARGS = {
-    "pos_col": "pos",
     "rs_col": "rs",
     "start": 1_000_000,
     "end": 2_000_000,
@@ -27,7 +26,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file=None,
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )
@@ -40,7 +39,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/nonexistent/panel",
-            lead_pos=None,
+            lead_index=None,
             ld_col=None,
             **ARGS,
         )
@@ -55,7 +54,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/nonexistent/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col="R2",
             **ARGS,
         )
@@ -72,7 +71,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             without_ids,
             reference_file="/nonexistent/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )
@@ -80,22 +79,6 @@ class TestEnrichWithLDDeclines:
         assert result is without_ids
         assert ld_col is None
         assert any("'rs' not found" in record for record in warning_records)
-
-    def test_lead_position_absent_from_the_frame_warns(
-        self, tiny_regional_gwas_df, warning_records
-    ):
-        """A lead position with no matching row cannot name a lead SNP."""
-        result, ld_col = enrich_with_ld(
-            tiny_regional_gwas_df,
-            reference_file="/nonexistent/panel",
-            lead_pos=1_234_567,
-            ld_col=None,
-            **ARGS,
-        )
-
-        assert result is tiny_regional_gwas_df
-        assert ld_col is None
-        assert any("1234567 not found" in record for record in warning_records)
 
 
 class TestEnrichWithLDMerges:
@@ -118,7 +101,7 @@ class TestEnrichWithLDMerges:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )
@@ -141,7 +124,7 @@ class TestEnrichWithLDMerges:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )

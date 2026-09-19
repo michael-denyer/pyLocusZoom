@@ -311,7 +311,7 @@ class TestHeatmapMethods:
         return data
 
     def test_matplotlib_add_heatmap_returns_mappable(self, ld_matrix_array):
-        """Matplotlib add_heatmap should return AxesImage object."""
+        """Matplotlib add_heatmap returns a mesh usable by a colorbar."""
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         backend = MatplotlibBackend()
@@ -342,7 +342,7 @@ class TestHeatmapMethods:
             cmap_colors=LD_HEATMAP_COLORS,
         )
 
-        drawn = np.ma.getmaskarray(mappable.get_array())
+        drawn = np.ma.getmaskarray(mappable.get_array()).reshape(5, 5)
         assert drawn.tolist() == np.triu(np.ones((5, 5), dtype=bool), k=1).tolist()
 
     def test_matplotlib_add_colorbar(self, ld_matrix_array):
@@ -654,3 +654,25 @@ class TestLegendTitleMathtext:
             bokeh_axes[0], ld_legend_entries(), title=LD_LEGEND_TITLE
         )
         assert list(bokeh_axes[0].select(Legend))[0].title == "r²"
+
+
+@pytest.mark.parametrize("orientation", ["vertical", "horizontal"])
+def test_matplotlib_standalone_colorbar_survives_final_layout(orientation):
+    from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+    backend = MatplotlibBackend()
+    fig, axes = backend.create_figure([1.0], (6, 6))
+    mappable = backend.add_heatmap(axes[0], np.eye(2), [0, 1], [0, 1], ["white", "red"])
+    backend.add_colorbar(axes[0], mappable, label="Scale", orientation=orientation)
+    backend.finalize_layout(fig)
+    fig.canvas.draw()
+    colorbar = fig.axes[1]
+    bounds = colorbar.get_position()
+    if orientation == "vertical":
+        assert colorbar.get_ylabel() == "Scale"
+        assert bounds.height > bounds.width
+        assert bounds.x0 > axes[0].get_position().x1
+    else:
+        assert colorbar.get_xlabel() == "Scale"
+        assert bounds.width > bounds.height
+        assert bounds.y1 < axes[0].get_position().y0

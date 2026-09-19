@@ -237,20 +237,28 @@ def prepare_genomewide_frames(
     Raises:
         ValidationError: If a frame is empty or lacks a named column.
     """
-    config = resolve_deprecated_columns(dfs[0], config) if dfs else config
+    normalized = []
     for df in dfs:
+        resolved = resolve_deprecated_columns(df, config)
         validate_gwas_df(
             df,
-            pos_col=config.pos_col,
-            p_col=config.p_col,
+            pos_col=resolved.pos_col,
+            p_col=resolved.p_col,
             rs_col=rs_col,
-            chrom_col=config.chrom_col,
+            chrom_col=resolved.chrom_col,
+        )
+        roles = {
+            Canonical.CHROM: resolved.chrom_col,
+            Canonical.POS: resolved.pos_col,
+            Canonical.P: resolved.p_col,
+        }
+        if rs_col is not None:
+            roles[Canonical.RS] = rs_col
+        normalized.append(
+            pd.DataFrame({role: df[source] for role, source in roles.items()})
         )
     return prepare_manhattan_frames(
-        dfs,
-        chrom_col=config.chrom_col,
-        pos_col=config.pos_col,
-        p_col=config.p_col,
+        normalized,
         species=species,
         custom_order=config.custom_chrom_order,
     )
@@ -345,7 +353,8 @@ def prepare_categorical_data(
         df: Results DataFrame with categories and p-values.
         category_col: Column name for category.
         p_col: Column name for p-value.
-        category_order: Custom category order.
+        category_order: Custom category order. Observed groups omitted from it
+            are appended, sorted by label. Missing values form "Uncategorised".
 
     Returns:
         The frame with ``_cat_str``, ``_cat_idx``, ``_x_pos``, ``neglog10p``
@@ -361,21 +370,15 @@ def prepare_categorical_data(
         df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
     )
 
-    # Get category order
-    if category_order is None:
-        # Get unique values, drop NaN, convert to strings for consistent sorting
-        unique_vals = result[category_col].dropna().unique()
-        # Convert all to strings and sort to handle mixed types safely
-        category_order = sorted([str(v) for v in unique_vals])
-
-    # Convert category column to string for consistent handling
-    result["_cat_str"] = result[category_col].astype(str)
-
-    # Map categories to index (use string values for lookup)
-    cat_to_idx = {cat: i for i, cat in enumerate(category_order)}
-    result["_cat_idx"] = result["_cat_str"].map(
-        lambda x: cat_to_idx.get(x, len(category_order))
+    result["_cat_str"] = result[category_col].map(
+        lambda value: "Uncategorised" if pd.isna(value) else str(value)
     )
+    observed = set(result["_cat_str"])
+    # An explicit order sets priority, but never hides observed groups.
+    ordered = list(dict.fromkeys(str(value) for value in category_order or ()))
+    category_order = ordered + sorted(observed - set(ordered))
+    cat_to_idx = {cat: i for i, cat in enumerate(category_order)}
+    result["_cat_idx"] = result["_cat_str"].map(cat_to_idx)
 
     # Use category index as x position (with jitter for multiple points per category)
     rng = np.random.default_rng(42)  # Local RNG for reproducible jitter

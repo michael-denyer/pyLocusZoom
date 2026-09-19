@@ -16,7 +16,7 @@ a record without knowing which it got.
 
 A species the library reaches only through Ensembl (Ensembl serves far more
 than this table names) still works: ``resolve_species`` builds an Ensembl-only
-record for a name the table does not carry, with no PLINK flags, no default
+record for a name the table does not carry, with unknown PLINK support, no default
 build and no chromosome order. The entry points that need one of those say so
 when they find it empty, and the recombination path reports the missing maps
 as a warning, so an unknown name is audible without being fatal.
@@ -60,7 +60,8 @@ class Species:
         ensembl_name: Ensembl's own species name, for gene annotation.
         aliases: Other names callers may pass for this species.
         plink_flags: Flags PLINK needs to read this species' chromosome set.
-            Empty means PLINK's default (human) set is correct.
+            Empty means PLINK's default (human) set is correct; None means
+            PLINK support is unknown and LD calculation must be rejected.
         default_build: Genome build assumed when the caller names none, or
             None when the species has no one obvious reference.
         chromosomes: Display order for whole-genome plots. Empty means the
@@ -70,7 +71,7 @@ class Species:
     key: str
     ensembl_name: str
     aliases: tuple[str, ...] = ()
-    plink_flags: tuple[str, ...] = ()
+    plink_flags: tuple[str, ...] | None = None
     default_build: str | None = None
     chromosomes: tuple[str, ...] = ()
 
@@ -97,6 +98,7 @@ SPECIES: dict[str, Species] = {
         Species(
             key="human",
             ensembl_name="homo_sapiens",
+            plink_flags=(),
             chromosomes=HUMAN_CHROMOSOMES,
         ),
         Species(key="mouse", ensembl_name="mus_musculus"),
@@ -107,7 +109,7 @@ SPECIES: dict[str, Species] = {
 _BY_NAME: dict[str, Species] = {
     name: record
     for record in SPECIES.values()
-    for name in (record.key, *record.aliases)
+    for name in (record.key, record.ensembl_name, *record.aliases)
 }
 
 

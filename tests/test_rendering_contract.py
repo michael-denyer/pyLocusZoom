@@ -421,8 +421,6 @@ def test_coloc_panel_owns_its_policy():
             h4_posterior=0.92,
             figsize=(8.0, 8.0),
         ),
-        rs_col="rs",
-        ld_col=None,
         lead_idx=0,
         title="Contract Coloc",
     )

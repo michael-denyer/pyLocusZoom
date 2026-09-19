@@ -1,7 +1,9 @@
 """Fine-mapping result loaders: SuSiE, FINEMAP, CAVIAR, and PolyFun.
 
 Every fine-mapping loader takes ``filepath`` plus ``cs_col`` (output column
-name for the credible set, default "cs") and returns columns pos, pip, cs.
+name for a source-supplied credible set, default "cs"). Loaders preserve PIPs
+and any reported set membership; they do not infer credible sets. Position
+and membership columns are included only when supplied by the source.
 
 Raises:
     LoaderValidationError: If the format's columns cannot be mapped or the
@@ -57,22 +59,16 @@ def load_susie(
     return _load_tabular(filepath, _SUSIE_SPEC, cs_col=cs_col)
 
 
-def _finemap_cs(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
-    """Assign a 95% credible set from cumulative PIP (FINEMAP has none)."""
-    cs_col = out_cols["cs_col"]
-    if cs_col not in df.columns and "pip" in df.columns:
-        df = df.sort_values("pip", ascending=False)
-        df["cumsum_pip"] = df["pip"].cumsum()
-        df[cs_col] = (df["cumsum_pip"] <= 0.95).astype(int)
-        df = df.drop(columns=["cumsum_pip"])
-    return df
-
-
 _FINEMAP_SPEC = LoaderSpec(
     log_fmt="Loaded FINEMAP file with {n} variants",
     read={"sep": r"\s+"},
-    col_map={"position": "pos", "prob": "pip", "rsid": "rs", "chromosome": "chr"},
-    transform=_finemap_cs,
+    col_map={
+        "position": "pos",
+        "prob": "pip",
+        "rsid": "rs",
+        "chromosome": "chr",
+        "cs": "cs_col",
+    },
     schema=lambda out_cols: spec(Family.FINEMAPPING, Tier.LOAD),
 )
 
@@ -83,9 +79,9 @@ def load_finemap(
 ) -> pd.DataFrame:
     """Load FINEMAP results (.snp output file).
 
-    FINEMAP reports no credible set, so a 95% set is assigned from the
-    cumulative PIP. See the module docstring for the shared fine-mapping
-    arguments and return value.
+    PIPs retain their input order. Credible-set membership is preserved if
+    supplied, and otherwise omitted. See the module docstring for the shared
+    fine-mapping arguments and return value.
 
     Example:
         >>> fm_df = load_finemap("results.snp")
@@ -97,7 +93,6 @@ _CAVIAR_SPEC = LoaderSpec(
     log_fmt="Loaded CAVIAR file with {n} variants",
     # CAVIAR .set files are headerless: SNP_ID Causal_Post_Prob.
     read={"sep": r"\s+", "header": None, "names": ["rs", "pip"]},
-    transform=_finemap_cs,
     schema=lambda out_cols: spec(Family.FINEMAPPING, Tier.LOAD),
     # CAVIAR carries no position; callers merge a SNP annotation to add it.
     schema_requires=("pos",),
@@ -110,8 +105,8 @@ def load_caviar(
 ) -> pd.DataFrame:
     """Load CAVIAR results (.set output file).
 
-    A 95% credible set is assigned from the cumulative PIP. CAVIAR carries no
-    position, so merge a SNP annotation file to add ``pos`` before plotting.
+    No credible set is inferred from the PIPs. CAVIAR carries no position, so
+    merge a SNP annotation file to add ``pos`` before plotting.
     See the module docstring for the shared fine-mapping arguments and return
     value.
     """

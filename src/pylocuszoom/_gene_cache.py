@@ -2,16 +2,20 @@
 """Disk cache for fetched gene annotations, shared by the reference sources.
 
 Both ``ensembl.py`` and ``ucsc.py`` cache the same shape of result under the
-same rules, so the key derivation and the CSV round-trip live here rather than
-once per client. Each source owns its own cache root, so a region fetched from
+same rules, so key derivation and the CSV archive round-trip live here
+rather than once per client. Each source owns its own cache root, so a region fetched from
 Ensembl and the same region fetched from UCSC never collide.
 
-Half an entry is a miss, which is what retires the gene-only entries written
-by earlier releases.
+One archive contains both frames and is published with one replacement. Legacy
+CSV pairs are misses because they cannot prove both frames belong together.
 """
 
 import hashlib
+import os
+import tempfile
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
+from zlib import error as ZlibError
 
 import pandas as pd
 
@@ -81,18 +85,18 @@ def cache_key(
     return hashlib.md5(key_str.encode()).hexdigest()[:16]
 
 
-def _entry_files(
+def _entry_file(
     cache_dir: Path,
     species: str,
     chrom: str | int,
     start: int,
     end: int,
     build_token: str,
-) -> tuple[Path, Path]:
-    """Resolve the gene and exon file of one cache entry."""
+) -> Path:
+    """Resolve the single archive holding a complete cache entry."""
     key = cache_key(species, normalize_chrom(chrom), start, end, build_token)
     species_dir = safe_species_dir(cache_dir, species)
-    return species_dir / f"genes_{key}.csv", species_dir / f"exons_{key}.csv"
+    return species_dir / f"annotations_{key}.zip"
 
 
 def load_annotations(
@@ -103,21 +107,28 @@ def load_annotations(
     end: int,
     build_token: str = "",
 ) -> GeneAnnotations | None:
-    """Load a cached entry, or None on a miss, half an entry or a bad file."""
-    genes_file, exons_file = _entry_files(
-        cache_dir, species, chrom, start, end, build_token
-    )
-
-    if not (genes_file.exists() and exons_file.exists()):
-        return None
-
+    """Load both frames from one published archive, or return None on a miss."""
+    entry = _entry_file(cache_dir, species, chrom, start, end, build_token)
     try:
-        logger.debug(f"Cache hit: {genes_file}")
-        return GeneAnnotations(pd.read_csv(genes_file), pd.read_csv(exons_file))
-    except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
-        # EmptyDataError subclasses ValueError, not ParserError, so it needs
-        # naming explicitly. Releases before 2.1.1 wrote column-less CSVs.
-        logger.warning(f"Corrupt cache file for {genes_file}, ignoring: {e}")
+        with ZipFile(entry) as archive:
+            with archive.open("genes.csv") as genes, archive.open("exons.csv") as exons:
+                result = GeneAnnotations(pd.read_csv(genes), pd.read_csv(exons))
+        logger.debug(f"Cache hit: {entry}")
+        return result
+    except FileNotFoundError:
+        return None
+    except (
+        OSError,
+        BadZipFile,
+        EOFError,
+        RuntimeError,  # Encrypted entries and unsupported ZIP compression.
+        ZlibError,
+        KeyError,
+        UnicodeDecodeError,
+        pd.errors.ParserError,
+        pd.errors.EmptyDataError,
+    ) as e:
+        logger.warning(f"Corrupt cache file for {entry}, ignoring: {e}")
         return None
 
 
@@ -130,18 +141,32 @@ def save_annotations(
     end: int,
     build_token: str = "",
 ) -> None:
-    """Write an entry to the cache, logging rather than raising on failure."""
-    genes_file, exons_file = _entry_files(
-        cache_dir, species, chrom, start, end, build_token
-    )
-    genes_file.parent.mkdir(parents=True, exist_ok=True)
-
+    """Publish a complete entry, leaving the old entry intact on failure."""
+    entry = _entry_file(cache_dir, species, chrom, start, end, build_token)
+    partial_path = None
     try:
-        annotations.genes.to_csv(genes_file, index=False)
-        annotations.exons.to_csv(exons_file, index=False)
-        logger.debug(f"Cached annotations to: {genes_file}")
+        entry.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=entry.parent, prefix=f".{entry.stem}.", suffix=".part", delete=False
+        ) as partial:
+            partial_path = Path(partial.name)
+        with ZipFile(partial_path, "w") as archive:
+            with archive.open("genes.csv", "w") as genes:
+                annotations.genes.to_csv(genes, index=False)
+            with archive.open("exons.csv", "w") as exons:
+                annotations.exons.to_csv(exons, index=False)
+        os.replace(partial_path, entry)
+        logger.debug(f"Cached annotations to: {entry}")
     except OSError as e:
-        logger.warning(f"Failed to write gene cache {genes_file}: {e}")
+        logger.warning(f"Failed to write gene cache {entry}: {e}")
+    finally:
+        if partial_path is not None:
+            try:
+                partial_path.unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning(
+                    f"Failed to clean up gene cache staging {partial_path}: {e}"
+                )
 
 
 def clear_cache(cache_dir: Path, species: str | None = None) -> int:
@@ -166,7 +191,10 @@ def clear_cache(cache_dir: Path, species: str | None = None) -> int:
     for directory in search_dirs:
         if not directory.exists():
             continue
-        for cache_file in directory.glob("*.csv"):
+        for cache_file in (
+            *directory.glob("*.csv"),
+            *directory.glob("annotations_*.zip"),
+        ):
             try:
                 cache_file.unlink()
                 deleted += 1

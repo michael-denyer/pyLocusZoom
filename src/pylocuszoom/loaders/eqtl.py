@@ -1,7 +1,8 @@
 """eQTL result loaders: GTEx, the eQTL Catalogue, and MatrixEQTL.
 
 Every eQTL loader takes ``filepath`` plus an optional ``gene`` to filter to,
-and returns a DataFrame with columns pos, p_value, gene, effect_size.
+and returns a DataFrame with columns pos, p_value, gene, effect_size,
+and chr where the input supplies chromosome coordinates.
 
 Raises:
     LoaderValidationError: If the format's columns cannot be mapped or the
@@ -13,19 +14,27 @@ from typing import Optional, Union
 
 import pandas as pd
 
+from ..exceptions import LoaderValidationError
 from ..schemas import Family, Tier, spec
 from ._engine import LoaderSpec, _load_tabular
 
 
-def _gtex_pos(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
-    """Derive GTEx position from the variant_id, else fall back to tss/POS."""
+def _gtex_coordinates(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
+    """Retain chromosome and absolute position encoded in GTEx variant IDs."""
     if "variant_id" in df.columns:
-        df["pos"] = df["variant_id"].str.split("_").str[1].astype(int)
-    elif "pos" not in df.columns:
-        for col in ("tss_distance", "POS"):
-            if col in df.columns:
-                df = df.rename(columns={col: "pos"})
-                break
+        coordinates = (
+            df["variant_id"]
+            .astype("string")
+            .str.extract(r"^(?:chr)?([^_]+)_(\d+)_[^_]+_[^_]+_[^_]+$")
+        )
+        if coordinates.isna().any(axis=None):
+            raise LoaderValidationError(
+                "GTEx variant_id must encode chromosome_position_ref_alt_build"
+            )
+        df["chr"] = coordinates[0]
+        df["pos"] = coordinates[1].astype(int)
+    elif "pos" not in df.columns and "POS" in df.columns:
+        df = df.rename(columns={"POS": "pos"})
     return df
 
 
@@ -37,7 +46,8 @@ _GTEX_SPEC = LoaderSpec(
         "gene": ("gene_id", "gene_name", "phenotype_id"),
         "effect_size": ("slope", "beta", "effect_size"),
     },
-    transform=_gtex_pos,
+    transform=_gtex_coordinates,
+    clean_chrom=True,
     gene_filter="contains",
     schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
 )
@@ -49,8 +59,9 @@ def load_gtex_eqtl(
 ) -> pd.DataFrame:
     """Load GTEx eQTL significant pairs format.
 
-    Derives position from the variant_id. ``gene`` matches as a substring, so
-    either an ENSG ID or a gene symbol works. See the module docstring for the
+    Derives chromosome and absolute position from the variant_id. Relative
+    ``tss_distance`` alone is not an absolute coordinate and is rejected.
+    ``gene`` matches as a substring, so either an ENSG ID or a gene symbol works. See the module docstring for the
     shared eQTL loader arguments and return value.
 
     Example:

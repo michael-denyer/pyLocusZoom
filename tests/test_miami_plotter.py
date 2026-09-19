@@ -1,8 +1,10 @@
 """Tests for MiamiPlotter class."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom import GenomeWideConfig
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.miami_plotter import MiamiPlotter
 from tests.conftest import FIGURE_TYPES
@@ -697,3 +699,63 @@ class TestConstructorThresholdIsTheDefault:
         )
 
         assert self._dashed_y(fig) == pytest.approx([6.0])
+
+
+def test_legacy_and_canonical_miami_inputs_preserve_hover_roles():
+    canonical = pd.DataFrame(
+        {
+            "chr": [1, 1, 2],
+            "pos": [10, 20, 30],
+            "p_value": [0.1, 0.01, 0.001],
+            "rs": ["a", "b", "c"],
+        }
+    )
+    legacy = canonical.rename(columns={"pos": "ps", "p_value": "p_wald"})
+    with pytest.warns(DeprecationWarning):
+        fig = MiamiPlotter(species="human", backend="plotly").plot_miami(
+            canonical, legacy, rs_col="rs"
+        )
+    traces = [
+        trace
+        for trace in fig.data
+        if trace.type == "scatter" and trace.mode == "markers"
+    ]
+    assert traces
+    for trace in traces:
+        assert "Position" in trace.hovertemplate
+        assert "P-value" in trace.hovertemplate
+
+
+def test_custom_miami_roles_override_unselected_canonical_columns():
+    canonical = pd.DataFrame(
+        {"chr": [1, 1], "pos": [10, 20], "p_value": [0.1, 0.01], "rs": ["a", "b"]}
+    )
+    custom = canonical.rename(
+        columns={
+            "chr": "chromosome",
+            "pos": "position",
+            "p_value": "p",
+            "rs": "variant",
+        }
+    )
+    custom = custom.assign(chr=9, pos=999, p_value=0.9, rs="unused")
+    original = custom.copy(deep=True)
+    plotter = MiamiPlotter(species="human", backend="plotly")
+    before = plotter.plot_miami(
+        canonical, canonical, rs_col="rs", top_snp_annotations=["a"]
+    )
+    after = plotter.plot_miami(
+        custom,
+        custom,
+        config=GenomeWideConfig(chrom_col="chromosome", pos_col="position", p_col="p"),
+        rs_col="variant",
+        top_snp_annotations=["a"],
+    )
+    assert len(after.data) == len(before.data)
+    for actual, expected in zip(after.data, before.data):
+        np.testing.assert_array_equal(actual.x, expected.x)
+        np.testing.assert_array_equal(actual.y, expected.y)
+        np.testing.assert_array_equal(actual.customdata, expected.customdata)
+        assert actual.hovertemplate == expected.hovertemplate
+    assert after.layout.annotations == before.layout.annotations
+    pd.testing.assert_frame_equal(custom, original)

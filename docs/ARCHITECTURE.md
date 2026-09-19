@@ -14,6 +14,19 @@ of three interchangeable backends: matplotlib (static PNG/PDF), plotly
 backend-pluggable pipeline: validation → data preparation → backend-agnostic
 plot assembly → backend-specific rendering.
 
+Regional preparation resolves each panel's columns and LD options, selects its
+rows once and carries the selected lead onward. Genome-wide preparation projects
+configured roles to canonical columns before sharing layout with QQ and Miami.
+Colocalization projects each source before merging, so caller metadata cannot
+rename internal fields. The backends use the shared `cell_edges` geometry for
+heatmap cells and highlights.
+
+Reference-data ownership is explicit. Caller map directories are read-only;
+managed caches alone may download and replace generations. Download writers have
+private staging files, map archives stream regular members into canonical names,
+and gene/exon pairs publish as one atomically replaced ZIP. See
+[ADR 0009](adr/0009-resolved-inputs-and-owned-publication.md).
+
 ## Component Diagram
 
 ```mermaid
@@ -32,6 +45,8 @@ graph TD
 
     subgraph Prepare["Data Preparation"]
         DATA[_data.py: shared p-value intake]
+        REGIONAL["plotter.py: selected regional inputs and resolved leads"]
+        CACHE["_gene_cache.py: atomic gene and exon archive"]
         LD[ld.py: PLINK wrapper]
         RECOMB[recombination.py: maps + CanFam4 liftover]
         ENSEMBL["reference_genes.py:<br/>gene fetch by build<br/>(ensembl.py, ucsc.py)"]
@@ -72,15 +87,18 @@ graph TD
     SCHEMA --> EQTLV
     EQTLV --> COLORS
     LD --> COLORS
-    COLORS --> LZ
-    DATA --> LZ
+    COLORS --> PANELS
+    DATA --> REGIONAL
+    LZ --> REGIONAL
+    REGIONAL --> LD
+    REGIONAL --> PANELS
+    ENSEMBL --> CACHE
     COLORS --> MP
     COLORS --> SP
     COLORS --> MIAMI
     COLORS --> LDH
     COLORS --> CP
     RECOMB --> LZ
-    LZ --> PROTO
     LZ --> PANELS
     MP --> PANELS
     SP --> PANELS
@@ -229,7 +247,7 @@ stages:
 | Regional panels | Internal modules | `src/pylocuszoom/panels/{association,finemapping,eqtl,genes,heatmap}.py` | One module per panel type, each holding its value type, the constructor it builds itself through, and the `draw` method that draws it. A panel carries its resolved mode, region, hover contract and layout, so drawing inspects no columns |
 | `MiamiRequest`, `MiamiPanel`, `miami_plan` | Internal module | `src/pylocuszoom/panels/miami.py` | The Miami figure: a request the plotter resolves, a panel that draws one mirrored Manhattan half with its SNP annotations, and the builder that lays two of them on a `FigurePlan` with the cross-panel highlights |
 | `PhewasPanel`, `ForestPanel` | Internal module | `src/pylocuszoom/panels/stats.py` | The PheWAS and forest panels, each built through `from_frame` and drawing itself. Every family is a panel value with `draw` on a `FigurePlan`; no family holds a renderer class |
-| `ColocPanel` | Internal module | `src/pylocuszoom/panels/coloc.py` | The colocalization scatter: the merged frame, its resolved column names and lead index, drawing itself with both threshold lines through `add_significance_line` |
+| `ColocPanel` | Internal module | `src/pylocuszoom/panels/coloc.py` | The colocalization scatter: the projected frame with fixed source-owned column roles and lead index, drawing itself with both threshold lines through `add_significance_line` |
 | `LDHeatmapPanel` | Internal module | `src/pylocuszoom/panels/ld_heatmap.py` | The standalone heatmap: the matrix, its ids, and the lead and highlight indices, drawing itself |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |

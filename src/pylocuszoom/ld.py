@@ -57,6 +57,11 @@ def _add_species_flags(cmd: list[str], species: str | Species | None) -> None:
     """
     record = resolve_species(species)
     if record is not None:
+        if record.plink_flags is None:
+            raise ValidationError(
+                f"PLINK chromosome-set support is unknown for species {record.key!r}. "
+                "Supply a Species record with explicit plink_flags."
+            )
         cmd.extend(record.plink_flags)
 
 
@@ -142,12 +147,12 @@ def validate_plink_files(bfile_path: Union[str, Path]) -> Path:
         bfile_path: Path prefix for PLINK files (without extension).
 
     Returns:
-        Path object if files exist.
+        Absolute path prefix if files exist.
 
     Raises:
         ValidationError: If any PLINK files are missing.
     """
-    path = Path(bfile_path)
+    path = Path(bfile_path).expanduser().resolve()
     missing = []
     # Use string concatenation rather than with_suffix() — PLINK prefixes
     # frequently contain dots (e.g. "ukbb.v3"), which with_suffix would
@@ -176,11 +181,17 @@ def _resolve_plink(plink_path: Optional[str]) -> str:
     Raises:
         FileNotFoundError: If PLINK is neither supplied nor on PATH.
     """
-    resolved = plink_path or find_plink()
+    if plink_path is None:
+        resolved = find_plink()
+    elif os.path.dirname(plink_path):
+        resolved = plink_path
+    else:
+        resolved = shutil.which(plink_path)
     if resolved is None:
         raise FileNotFoundError(
             "PLINK not found. Install PLINK 1.9 or specify plink_path."
         )
+    resolved = str(Path(resolved).expanduser().resolve())
     logger.debug(f"Using PLINK at {resolved}")
     return resolved
 
@@ -199,6 +210,7 @@ def _plink_workdir(working_dir: Optional[str], prefix: str) -> Iterator[str]:
     created = working_dir is None
     if working_dir is None:
         working_dir = tempfile.mkdtemp(prefix=prefix)
+    working_dir = str(Path(working_dir).expanduser().resolve())
     try:
         os.makedirs(working_dir, exist_ok=True)
         yield working_dir
@@ -408,7 +420,8 @@ def calculate_ld(
         bfile_path: Path to PLINK binary fileset (.bed/.bim/.fam prefix).
         lead_snp: SNP ID of the lead variant to calculate LD against.
         window_kb: Window size in kilobases around lead SNP.
-        plink_path: Path to PLINK executable. Auto-detects if None.
+        plink_path: Path to PLINK executable, relative to the caller or found on PATH
+            for a bare name. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
         species: Species name or record, or None for PLINK's default
             (human) chromosome set. An unknown name raises ValidationError.
@@ -432,7 +445,7 @@ def calculate_ld(
         >>> gwas_with_ld = gwas_df.merge(ld_df, left_on="rs", right_on="SNP")
     """
     plink_path = _resolve_plink(plink_path)
-    validate_plink_files(bfile_path)
+    bfile_path = str(validate_plink_files(bfile_path))
 
     with _plink_workdir(working_dir, "pylocuszoom_ld_") as workdir:
         # Sanitize SNP ID for safe use in file paths (e.g., chr1:12345 contains ':')
@@ -484,7 +497,8 @@ def calculate_pairwise_ld(
         chrom: Chromosome number for region-based extraction.
         start: Start position (bp) for region-based extraction.
         end: End position (bp) for region-based extraction.
-        plink_path: Path to PLINK executable. Auto-detects if None.
+        plink_path: Path to PLINK executable, relative to the caller or found on PATH
+            for a bare name. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
         species: Species name or record, or None for PLINK's default
             (human) chromosome set. An unknown name raises ValidationError.
@@ -510,7 +524,7 @@ def calculate_pairwise_ld(
     """
     _metric_flags(metric)
     plink_path = _resolve_plink(plink_path)
-    validate_plink_files(bfile_path)
+    bfile_path = str(validate_plink_files(bfile_path))
 
     with _plink_workdir(working_dir, "pylocuszoom_pairwise_ld_") as workdir:
         output_prefix = os.path.join(workdir, "pairwise_ld")

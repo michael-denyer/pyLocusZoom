@@ -262,9 +262,14 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        (image,) = fig.get_axes()[1].images
+        (image,) = fig.get_axes()[1].collections
         assert image.get_array().shape == (3, 3), "rs1, rs2 and rs3 are in the region"
-        assert list(image.get_extent())[:2] == [1000000, 1001000]
+        assert image.get_coordinates()[0, :, 0].tolist() == [
+            999750,
+            1000250,
+            1000750,
+            1001250,
+        ]
 
     def test_ld_heatmap_empty_overlap_raises(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -440,7 +445,7 @@ class TestLDHeatmapIntegration:
 
         association, heatmap = fig.get_axes()
         assert association.collections, "the association panel still renders"
-        assert len(heatmap.images) == 0
+        assert len(heatmap.collections) == 0
 
     def test_ld_heatmap_lead_snp_not_in_heatmap(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
@@ -476,7 +481,7 @@ class TestLDHeatmapIntegration:
         )
 
         heatmap = fig.get_axes()[1]
-        assert heatmap.images, "the heatmap still renders"
+        assert heatmap.collections, "the heatmap still renders"
         assert len(heatmap.patches) == 0, "rs_extra has no column to highlight"
 
     def test_ld_heatmap_missing_snp_ids_raises_error(
