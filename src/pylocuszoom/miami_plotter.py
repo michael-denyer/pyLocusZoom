@@ -20,6 +20,7 @@ from .backends.hover import HoverConfig
 from .config import GenomeWideConfig
 from .manhattan import prepare_genomewide_frames
 from .panels.miami import MiamiRequest, miami_plan
+from .schemas import Canonical
 from .species import Species, resolve_species
 from .utils import DataFrameLike, to_pandas
 
@@ -139,11 +140,13 @@ class MiamiPlotter:
             top=top_prepared,
             bottom=bottom_prepared,
             hover=(
-                HoverConfig(snp_col=rs_col, pos_col=config.pos_col, p_col=config.p_col)
+                HoverConfig(
+                    snp_col=Canonical.RS, pos_col=Canonical.POS, p_col=Canonical.P
+                )
                 if rs_col is not None
                 else None
             ),
-            rs_col=rs_col,
+            rs_col=Canonical.RS if rs_col is not None else None,
             top_threshold=top_threshold,
             bottom_threshold=bottom_threshold,
             top_label=top_label,

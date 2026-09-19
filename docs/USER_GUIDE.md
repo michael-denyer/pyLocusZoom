@@ -1022,7 +1022,17 @@ eqtl_df = load_gtex_eqtl(
 eqtl_df = load_eqtl_catalogue("eqtl_results.tsv", gene="TP53")
 ```
 
-**Output columns:** `pos`, `p_value`, `gene`, `effect`
+**Output columns:** `pos`, `p_value`, `gene`, `effect_size`, and `chr` when supplied.
+GTEx variant IDs provide both chromosome and absolute position. A file carrying
+only relative `tss_distance` is rejected because it does not locate a variant.
+
+`calculate_colocalization_overlap(gwas_df, eqtl_df)` matches canonical chromosome
+and absolute position, without allele harmonization. Custom names use
+`gwas_chrom_col`, `eqtl_chrom_col` and the existing position/p-value arguments.
+If both inputs are already scoped to one chromosome and omit `chr`, pass
+`common_chrom=1` explicitly. Any supplied chromosome values must agree with it.
+The result has `chr`, `pos`, `p_value_gwas` and `p_value_eqtl` columns. This helper
+finds significant coordinate matches; it does not perform statistical colocalization.
 
 ### Fine-mapping Loaders
 
@@ -1040,7 +1050,7 @@ from pylocuszoom import load_susie, load_finemap
 fm_df = load_susie("susie_results.tsv")
 # Output: pos, pip, cs (credible set, 0 = not in CS)
 
-# FINEMAP results (assigns CS based on 95% PIP threshold)
+# FINEMAP results (preserves PIPs and any supplied credible-set membership)
 fm_df = load_finemap("finemap_output.snp")
 
 # Use in plot
@@ -1051,7 +1061,12 @@ fig = plotter.plot_stacked(
 )
 ```
 
-**Output columns:** `pos`, `pip`, `cs` (credible set assignment)
+**Output columns:** `pip`, plus `pos` and `cs` where the source supplies them.
+FINEMAP and CAVIAR loaders no longer infer credible sets from cumulative PIPs.
+Supply membership from the inference method that produced your results, or plot
+PIPs without set assignments. CAVIAR requires a SNP annotation merge to add
+absolute positions before plotting. `cs_col` chooses the output name for supplied
+membership; it does not request inference.
 
 ### Gene Annotation Loaders
 
@@ -1098,6 +1113,23 @@ every plotter defaults to them, so a loaded frame plots without renaming. A
 frame still carrying the pre-4.0 `ps` and `p_wald` names is accepted with a
 `DeprecationWarning` until 5.0.0. Other names are supported through
 `ColumnConfig` and `GenomeWideConfig`.
+
+Regional plots select chromosome and inclusive position bounds before choosing a
+lead, scaling axes, labeling points or calculating LD. A frame without `chr` is
+assumed to contain only the requested chromosome. In stacks, shared `LDConfig`
+values apply to every panel unless a per-panel list overrides them. A lead
+position shared by multiple variants selects the strongest p-value at that
+position, with input order breaking ties. Regional heatmaps sort SNPs and both
+matrix axes together, and require distinct retained genomic positions.
+
+Genome-wide stacks resolve supported legacy names independently for each frame.
+QQ compositions and Miami hover read those same resolved columns. Unselected
+metadata never replaces a configured role. Colocalization effect and LD columns
+must exist in their declared source frame.
+
+Categorical Manhattan plots render missing categories as `Uncategorised`.
+An explicit category order sets priority; other observed categories append in
+alphabetical order so retained observations remain visible.
 
 ```python
 gwas_df = pd.DataFrame({
@@ -1213,7 +1245,13 @@ plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 Recombination maps are automatically downloaded on first use (~50MB), into
 `recombination_maps` under the platform cache. The CanFam3.1 to CanFam4
 liftover chain downloads into a `liftover` directory beside it, so replacing a
-map set never touches the chain.
+map set never touches the chain. Managed maps requested in another assembly
+without a registered conversion are skipped with a build-unavailable warning.
+
+An explicit `recomb_data_dir` is caller-owned, read-only and already in the
+requested build. This works for every species, including `species=None`, and
+requires only the chromosomes used by the plot. No automatic liftover runs on
+caller maps.
 
 ### Feline
 
@@ -1266,7 +1304,16 @@ overrides the fetched one.
 | canine, dog | canis_lupus_familiaris |
 | feline, cat | felis_catus |
 
-Any valid Ensembl species name also works (e.g., `sus_scrofa` for pig).
+Any valid Ensembl species name also works for annotation (e.g., `sus_scrofa`
+for pig). Registered Ensembl names are aliases of their species records, so
+`canis_lupus_familiaris` receives the same PLINK flags as `canine`.
+
+LD calculation requires known chromosome-set flags. Unknown PLINK support raises
+an error; supply a `Species` record with explicit `plink_flags` when adding a
+species. An empty tuple explicitly selects PLINK's human defaults, while `None`
+means support is unknown. Relative reference, working-directory and executable
+paths resolve against the caller's directory before PLINK starts. Bare executable
+names search PATH.
 
 **Region Limit:** Maximum 5Mb per request (Ensembl API limitation). For larger regions, provide `genes_df` directly.
 
@@ -1295,6 +1342,9 @@ UCSC's `ncbiRefSeq` is a transcript-level track, so transcripts sharing a symbol
 - Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{ensembl_species}/` and `%LOCALAPPDATA%/pylocuszoom/ucsc/{ucsc_genome}/`
 
 A CanFam3.1 or FelCat9 plot caches under `ucsc/canFam3/` or `ucsc/felCat9/`, not under `ensembl/`.
+Each entry atomically publishes one ZIP containing both gene and exon CSVs.
+Older separate CSV pairs become cache misses and are fetched again; clearing the
+cache removes both formats. The returned count is files removed, one per new entry.
 
 ```python
 # Clear cache when needed

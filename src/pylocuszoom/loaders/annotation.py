@@ -11,6 +11,7 @@ Raises:
 from dataclasses import replace
 from pathlib import Path
 from typing import Union
+from urllib.parse import unquote
 
 import pandas as pd
 
@@ -61,17 +62,31 @@ def load_gtf(
     # Filter to requested feature type
     df = df[df["feature"] == feature_type].copy()
 
-    # Parse gene_name from attributes
+    # Attribute order is irrelevant. GTF uses quoted values; GFF3 uses
+    # percent-encoded key=value pairs, with Name/ID instead of gene_name/gene_id.
     def extract_gene_name(attrs: str) -> str:
-        """Extract gene_name or gene_id from GTF attributes."""
+        """Prefer a display name, then fall back to a stable identifier."""
+        values = {}
+        if not isinstance(attrs, str):
+            return ""
         for attr in attrs.split(";"):
             attr = attr.strip()
-            if attr.startswith("gene_name"):
-                # gene_name "BRCA1" or gene_name=BRCA1
-                return attr.split('"')[1] if '"' in attr else attr.split("=")[1]
-            if attr.startswith("gene_id"):
-                return attr.split('"')[1] if '"' in attr else attr.split("=")[1]
-        return ""
+            key, separator, value = attr.partition("=")
+            if separator and not any(char.isspace() for char in key):
+                values[key] = unquote(value)
+            else:
+                parts = attr.split(None, 1)
+                if len(parts) == 2:
+                    key, value = parts
+                    values[key] = value.strip('"')
+        return next(
+            (
+                values[key]
+                for key in ("gene_name", "Name", "gene_id", "ID")
+                if values.get(key)
+            ),
+            "",
+        )
 
     df["gene_name"] = df["attributes"].apply(extract_gene_name)
 

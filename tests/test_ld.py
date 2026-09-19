@@ -878,10 +878,11 @@ class TestAddSpeciesFlags:
         _add_species_flags(cmd, None)
         assert cmd == ["plink"]
 
-    def test_species_without_plink_flags_adds_none(self):
-        """A species the table does not know needs no chromosome-set flags."""
+    def test_species_without_plink_support_raises(self):
+        """Unknown support must not silently use the human chromosome set."""
         cmd = ["plink"]
-        _add_species_flags(cmd, "bovine")
+        with pytest.raises(ValidationError, match="PLINK"):
+            _add_species_flags(cmd, "bovine")
         assert cmd == ["plink"]
 
 
@@ -927,3 +928,74 @@ def _species_flags(cmd):
 def test_both_builders_carry_the_same_species_flags(builder, species, flags):
     """Neither builder may drift from the shared species table."""
     assert _species_flags(builder(species)) == flags
+
+
+@pytest.mark.parametrize("pairwise", [False, True])
+@pytest.mark.parametrize("relative_input", [False, True])
+@pytest.mark.parametrize("relative_output", [False, True])
+def test_plink_paths_resolve_from_caller_before_changing_directory(
+    tmp_path, monkeypatch, pairwise, relative_input, relative_output
+):
+    import subprocess
+    from pathlib import Path
+
+    from pylocuszoom.ld import calculate_pairwise_ld
+
+    monkeypatch.chdir(tmp_path)
+    for suffix in (".bed", ".bim", ".fam"):
+        (tmp_path / f"reference{suffix}").write_bytes(b"")
+    executable = tmp_path / "tools" / "plink"
+    executable.parent.mkdir()
+    executable.write_text("fake executable")
+
+    def child_run(cmd, *, cwd, **kwargs):
+        def child_path(arg):
+            return Path(cwd) / cmd[cmd.index(arg) + 1]
+
+        assert Path(cwd).is_absolute()
+        assert Path(cmd[0]) == executable
+        assert child_path("--bfile").with_suffix(".bed").exists()
+        out = child_path("--out")
+        if pairwise:
+            assert child_path("--extract").read_text() == "rs1\nrs2\n"
+            Path(f"{out}.ld").write_text("1 0.4\n0.4 1\n")
+            Path(f"{out}.snplist").write_text("rs1\nrs2\n")
+        else:
+            Path(f"{out}.ld").write_text(
+                "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n1 100 rs1 1 200 rs2 0.4\n"
+            )
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr("subprocess.run", child_run)
+    args = dict(
+        bfile_path="reference" if relative_input else str(tmp_path / "reference"),
+        working_dir="output" if relative_output else str(tmp_path / "output"),
+        plink_path="tools/plink" if relative_input else str(executable),
+    )
+    if pairwise:
+        matrix, ids = calculate_pairwise_ld(**args, snp_list=["rs1", "rs2"])
+        assert ids == ["rs1", "rs2"]
+        assert matrix.loc["rs1", "rs2"] == 0.4
+    else:
+        result = calculate_ld(**args, lead_snp="rs1")
+        assert result.set_index("SNP")["R2"].to_dict() == {"rs1": 1.0, "rs2": 0.4}
+
+
+def test_bare_executable_name_resolves_relative_path_entry(tmp_path, monkeypatch):
+    from pylocuszoom.ld import _resolve_plink
+
+    monkeypatch.chdir(tmp_path)
+    executable = tmp_path / "bin" / "plink-custom"
+    executable.parent.mkdir()
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o700)
+    monkeypatch.setenv("PATH", "bin")
+    assert _resolve_plink("plink-custom") == str(executable)
+
+
+def test_missing_bare_executable_name_raises(tmp_path, monkeypatch):
+    from pylocuszoom.ld import _resolve_plink
+
+    monkeypatch.setenv("PATH", str(tmp_path))
+    with pytest.raises(FileNotFoundError, match="PLINK not found"):
+        _resolve_plink("missing-plink")

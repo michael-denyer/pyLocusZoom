@@ -13,9 +13,8 @@ def enrich_with_ld(
     df: pd.DataFrame,
     *,
     reference_file: Optional[str],
-    lead_pos: Optional[int],
+    lead_index: Optional[int],
     ld_col: Optional[str],
-    pos_col: str,
     rs_col: str,
     start: int,
     end: int,
@@ -23,8 +22,12 @@ def enrich_with_ld(
     species: str,
     context: str = "plot",
 ) -> tuple[pd.DataFrame, Optional[str]]:
-    """Calculate and merge LD data using one recovery policy."""
-    if not reference_file or lead_pos is None or ld_col is not None:
+    """Enrich the selected frame, preserving its lead row's index through the merge.
+
+    ``lead_index`` identifies a row already selected at the regional boundary.
+    The helper never infers a variant ID from a potentially ambiguous position.
+    """
+    if not reference_file or lead_index is None or ld_col is not None:
         return df, ld_col
 
     if rs_col not in df.columns:
@@ -34,15 +37,7 @@ def enrich_with_ld(
         )
         return df, ld_col
 
-    lead_snp_row = df[df[pos_col] == lead_pos]
-    if lead_snp_row.empty:
-        logger.warning(
-            f"Lead SNP at position {lead_pos} not found for {context}. "
-            "LD coloring will be skipped."
-        )
-        return df, ld_col
-
-    lead_snp_id = lead_snp_row[rs_col].iloc[0]
+    lead_snp_id = df.at[lead_index, rs_col]
     logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
     try:
         ld_df = calculate_ld(
@@ -66,4 +61,6 @@ def enrich_with_ld(
         how="left",
         validate="many_to_one",
     )
+    # A left merge preserves row order; retain the selected row identity too.
+    enriched.index = df.index
     return enriched, "R2"

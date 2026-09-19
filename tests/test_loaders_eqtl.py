@@ -146,3 +146,52 @@ rs789\tBRCA1\t0.2\t2.0\t0.04\t0.12
 
         assert len(df) == 1  # Not 2; "exact" excludes TP53
         assert set(df["gene"]) == {"TP5"}
+
+
+class TestGTExCoordinates:
+    def test_loaded_chromosomes_keep_equal_positions_distinct(self, tmp_path):
+        import pandas as pd
+
+        from pylocuszoom.eqtl import (
+            calculate_colocalization_overlap,
+            filter_eqtl_by_region,
+        )
+
+        path = tmp_path / "gtex.tsv"
+        variants = ["chr1_1000_A_G_b38", "chr2_1000_A_G_b38"]
+        pd.DataFrame(
+            {
+                "variant_id": variants,
+                "gene_id": ["GENE1", "GENE1"],
+                "pval_nominal": [1e-8, 1e-9],
+            }
+        ).to_csv(path, sep="\t", index=False)
+        loaded = load_gtex_eqtl(path)
+        assert loaded["chr"].tolist() == ["1", "2"]
+        assert loaded["variant_id"].tolist() == variants
+        region = filter_eqtl_by_region(loaded, 1, 900, 1100)
+        assert region["variant_id"].tolist() == [variants[0]]
+        gwas = pd.DataFrame({"chr": [2], "pos": [1000], "p_value": [1e-8]})
+        overlap = calculate_colocalization_overlap(gwas, region)
+        assert overlap.empty
+
+    def test_relative_tss_distance_is_not_an_absolute_position(self, tmp_path):
+        from pylocuszoom.exceptions import LoaderValidationError
+
+        path = tmp_path / "relative.tsv"
+        path.write_text("tss_distance\tpval_nominal\tgene_id\n500\t1e-8\tGENE1\n")
+        with pytest.raises(LoaderValidationError, match="pos"):
+            load_gtex_eqtl(path)
+
+    @pytest.mark.parametrize("variant", ["bad", "chr1_bad_A_G_b38", None])
+    def test_invalid_variant_id_raises_loader_error(self, tmp_path, variant):
+        import pandas as pd
+
+        from pylocuszoom.exceptions import LoaderValidationError
+
+        path = tmp_path / "invalid.tsv"
+        pd.DataFrame({"variant_id": [variant], "pval_nominal": [1e-8]}).to_csv(
+            path, sep="\t", index=False
+        )
+        with pytest.raises(LoaderValidationError, match="variant_id"):
+            load_gtex_eqtl(path)

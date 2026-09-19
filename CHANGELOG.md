@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Regional plots select rows before axis scaling, labels and LD lookup, preserve
+  lead identity and honor shared/per-panel LD settings. Invalid stacked lead
+  positions are rejected; canonical and legacy frames can share a stack.
+- Colocalization projects fields from their declared source before merging, so
+  unrelated metadata cannot change effect colors or satisfy a missing column.
+- GTEx preserves chromosome and absolute position; relative TSS distance is no
+  longer accepted as an absolute coordinate. GTF/GFF3 display names are preserved
+  independently of attribute order.
+- Genome-wide column resolution reaches QQ compositions and Miami hover. Missing
+  categorical groups remain visible, including groups omitted from a custom order.
+- PLINK resolves paths before changing directory and recognizes registered Ensembl
+  species aliases. Unknown chromosome-set support is rejected explicitly.
+- Recombination plotting reads caller directories without replacing files or
+  applying an implicit liftover. Managed maps reject unavailable target assemblies.
+- Archive ingestion rejects links and unsafe or duplicate members, streaming map
+  text into generated canonical paths. Concurrent downloads use private staging.
+- Gene and exon caches publish together and retain the previous entry after an
+  interrupted write. Legacy separate CSV pairs are treated as cache misses.
+- Matplotlib and Bokeh heatmap cells share their boundaries with SNP highlights.
+- Example comparison generates outside the checkout, preserves manual edits and
+  returns a failing status for unexpected differences.
+
+### Changed
+
+- FINEMAP/CAVIAR loaders preserve PIPs and supplied membership without inventing
+  credible sets. Figures with no membership use the existing PIP-only display.
+- `calculate_colocalization_overlap` matches chromosome plus absolute position.
+  Position-only inputs require `common_chrom`; output columns are canonical.
+- `Species.plink_flags=None` means unknown support. An explicit empty tuple keeps
+  PLINK's human chromosome defaults.
+
 ## [3.1.1] - 2026-09-08
 
 ### Added

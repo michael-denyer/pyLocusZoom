@@ -41,7 +41,7 @@ def _association(**overrides):
         display=DisplayConfig(snp_labels=False),
         genomewide_threshold=5e-8,
         ld_col=None,
-        lead_pos=1_500_000,
+        lead_index=1,
         recomb_df=None,
     )
     fields.update(overrides)

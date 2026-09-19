@@ -102,3 +102,38 @@ class TestDownloadFile:
 
         assert exc_info.value.__cause__ is original
         assert list(tmp_path.iterdir()) == []
+
+
+def test_concurrent_downloads_publish_only_their_own_complete_response(
+    tmp_path, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    first_written, second_written, first_published = Event(), Event(), Event()
+    dest = tmp_path / "shared.gz"
+
+    def stream(url, partial, desc, timeout):
+        if url == "first":
+            partial.write_bytes(b"first")
+            first_written.set()
+            assert second_written.wait(5)
+        else:
+            assert first_written.wait(5)
+            partial.write_bytes(b"second")
+            second_written.set()
+            assert first_published.wait(5)
+
+    monkeypatch.setattr("pylocuszoom._http._stream_to", stream)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(download_file, "first", dest)
+        second = executor.submit(download_file, "second", dest)
+        try:
+            first.result(timeout=10)
+            first_result = dest.read_bytes()
+        finally:
+            first_published.set()
+        second.result(timeout=10)
+    assert first_result == b"first"
+    assert dest.read_bytes() == b"second"
+    assert list(tmp_path.iterdir()) == [dest]
