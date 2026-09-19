@@ -370,8 +370,10 @@ def prepare_categorical_data(
         df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
     )
 
-    result["_cat_str"] = result[category_col].map(
-        lambda value: "Uncategorised" if pd.isna(value) else str(value)
+    result["_cat_str"] = (
+        result[category_col]
+        .astype(object)
+        .map(lambda value: "Uncategorised" if pd.isna(value) else str(value))
     )
     observed = set(result["_cat_str"])
     # An explicit order sets priority, but never hides observed groups.

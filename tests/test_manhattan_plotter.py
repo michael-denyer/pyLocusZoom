@@ -373,10 +373,12 @@ class TestGenomewideResolvedColumns:
         )
 
     @pytest.mark.parametrize("order", [None, ["B"]])
-    def test_categorical_plot_renders_every_retained_row(self, order):
+    @pytest.mark.parametrize("dtype", ["object", "category"])
+    def test_categorical_plot_renders_every_retained_row(self, order, dtype):
         df = pd.DataFrame(
             {"category": ["A", "B", None, np.nan], "p_value": [0.1, 0.01, 1e-20, 1e-30]}
         )
+        df["category"] = df["category"].astype(dtype)
         fig = ManhattanPlotter().plot_manhattan(
             df, category_col="category", category_order=order
         )
@@ -390,3 +392,29 @@ class TestGenomewideResolvedColumns:
         assert set(labels) == {"A", "B", "Uncategorised"}
         if order is not None:
             assert labels[0] == "B"
+
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_pandas_categorical_groups_render_at_their_labelled_positions(
+        self, ordered
+    ):
+        df = pd.DataFrame(
+            {
+                "category": pd.Categorical(
+                    ["A", "B", "A"], categories=["B", "A"], ordered=ordered
+                ),
+                "p_value": [0.1, 0.01, 0.001],
+            }
+        )
+        fig = ManhattanPlotter().plot_manhattan(
+            df, category_col="category", category_order=["B"]
+        )
+        axis = fig.axes[0]
+        points = np.concatenate(
+            [collection.get_offsets() for collection in axis.collections]
+        )
+        assert [label.get_text() for label in axis.get_xticklabels()] == ["B", "A"]
+        assert sorted(zip(np.rint(points[:, 0]), points[:, 1])) == [
+            (0, 2),
+            (1, 1),
+            (1, 3),
+        ]

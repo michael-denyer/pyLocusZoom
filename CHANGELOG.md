@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   independently of attribute order.
 - Genome-wide column resolution reaches QQ compositions and Miami hover. Missing
   categorical groups remain visible, including groups omitted from a custom order.
+  Pandas categorical columns render correctly in categorical Manhattan plots.
 - PLINK resolves paths before changing directory and recognizes registered Ensembl
   species aliases. Unknown chromosome-set support is rejected explicitly.
 - Recombination plotting reads caller directories without replacing files or
