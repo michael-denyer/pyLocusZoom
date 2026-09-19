@@ -40,7 +40,7 @@ from ._coerce import (
     split_pixels,
 )
 from .base import Mappable
-from .composition import LegendEntry
+from .composition import LegendEntry, cell_edges
 from .hover import bokeh_tooltips
 
 # Style mappings (matplotlib -> Bokeh)
@@ -718,35 +718,12 @@ class BokehBackend:
         masked = np.ma.getmaskarray(np.ma.asarray(data))
         n = data.shape[0]
         cells = [(i, j) for i in range(n) for j in range(n) if not masked[i, j]]
-        xs = [x_coords[j] for _, j in cells]
-        ys = [y_coords[i] for i, _ in cells]
+        x_edges, y_edges = cell_edges(x_coords), cell_edges(y_coords)
+        xs = [sum(x_edges[j]) / 2 for _, j in cells]
+        ys = [sum(y_edges[i]) / 2 for i, _ in cells]
         values = [float(data[i, j]) for i, j in cells]
-
-        # Compute per-cell widths and heights based on actual coordinate spacing.
-        # Uses midpoints between adjacent coordinates for cell boundaries.
-        def _cell_sizes(coords: List[float]) -> List[float]:
-            if len(coords) <= 1:
-                return [1.0] * len(coords)
-            sizes = []
-            for i in range(len(coords)):
-                left = (
-                    (coords[i - 1] + coords[i]) / 2
-                    if i > 0
-                    else coords[i] - (coords[1] - coords[0]) / 2
-                )
-                right = (
-                    (coords[i] + coords[i + 1]) / 2
-                    if i < len(coords) - 1
-                    else coords[i] + (coords[-1] - coords[-2]) / 2
-                )
-                sizes.append(abs(right - left))
-            return sizes
-
-        x_sizes = _cell_sizes(x_coords)
-        y_sizes = _cell_sizes(y_coords)
-
-        widths = [x_sizes[j] for _, j in cells]
-        heights = [y_sizes[i] for i, _ in cells]
+        widths = [x_edges[j][1] - x_edges[j][0] for _, j in cells]
+        heights = [y_edges[i][1] - y_edges[i][0] for i, _ in cells]
 
         source = ColumnDataSource(
             {"x": xs, "y": ys, "value": values, "w": widths, "h": heights}

@@ -221,7 +221,10 @@ class TestCalculateColocalizationOverlap:
     ):
         """Finds SNPs significant in both datasets."""
         result = calculate_colocalization_overlap(
-            coloc_overlap_gwas_df, positions_only_eqtl_df, p_threshold=1e-5
+            coloc_overlap_gwas_df,
+            positions_only_eqtl_df,
+            p_threshold=1e-5,
+            common_chrom=1,
         )
         # Only 1000000 and 1002000 are significant in both
         assert len(result) == 2
@@ -237,7 +240,7 @@ class TestCalculateColocalizationOverlap:
             }
         )
         result = calculate_colocalization_overlap(
-            coloc_overlap_gwas_df, eqtl_no_overlap, p_threshold=1e-5
+            coloc_overlap_gwas_df, eqtl_no_overlap, p_threshold=1e-5, common_chrom=1
         )
         assert len(result) == 0
 
@@ -262,6 +265,7 @@ class TestCalculateColocalizationOverlap:
             eqtl_pos_col="bp",
             gwas_p_col="pvalue",
             eqtl_p_col="p",
+            common_chrom=1,
         )
         assert len(result) == 1
 
@@ -366,3 +370,67 @@ class TestEqtlPValueValidation:
         # All finite, all non-negative
         assert result["neglog10p"].notna().all()
         assert (result["neglog10p"] >= 0).all()
+
+
+class TestOverlapCoordinateContract:
+    def test_chromosome_spellings_match_on_coordinate(self):
+        gwas = pd.DataFrame(
+            {"chr": [1, 2], "pos": [1000, 1000], "p_value": [1e-8, 1e-9]}
+        )
+        eqtl = pd.DataFrame({"chr": ["chr2"], "pos": [1000], "p_value": [1e-8]})
+        result = calculate_colocalization_overlap(gwas, eqtl)
+        assert len(result) == 1
+        assert result["chr"].tolist() == ["2"]
+        assert result["p_value_gwas"].tolist() == [1e-9]
+
+    def test_position_only_requires_common_chromosome(self):
+        frame = pd.DataFrame({"pos": [1000], "p_value": [1e-8]})
+        with pytest.raises(EQTLValidationError, match="common_chrom"):
+            calculate_colocalization_overlap(frame, frame)
+        result = calculate_colocalization_overlap(frame, frame, common_chrom=1)
+        assert result["chr"].tolist() == ["1"]
+
+    def test_common_chromosome_must_agree_with_provided_coordinates(self):
+        frame = pd.DataFrame({"chr": [2], "pos": [1000], "p_value": [1e-8]})
+        with pytest.raises(EQTLValidationError, match="common_chrom"):
+            calculate_colocalization_overlap(frame, frame, common_chrom=1)
+
+    def test_custom_chromosome_columns(self):
+        gwas = pd.DataFrame({"chromosome": [1], "pos": [1000], "p_value": [1e-8]})
+        eqtl = pd.DataFrame({"CHROM": [2], "pos": [1000], "p_value": [1e-8]})
+        assert calculate_colocalization_overlap(
+            gwas, eqtl, gwas_chrom_col="chromosome", eqtl_chrom_col="CHROM"
+        ).empty
+
+
+@pytest.mark.parametrize(
+    "position",
+    [
+        None,
+        float("nan"),
+        "unknown",
+        0,
+        -1,
+        1000.5,
+        float("inf"),
+        -float("inf"),
+        True,
+        2**63,
+    ],
+)
+def test_overlap_rejects_invalid_absolute_positions(position):
+    frame = pd.DataFrame({"chr": [1], "pos": [position], "p_value": [1e-8]})
+    with pytest.raises(EQTLValidationError, match="positive integers"):
+        calculate_colocalization_overlap(frame, frame)
+
+
+@pytest.mark.parametrize("position", [1000, 1000.0, "1000"])
+def test_overlap_normalizes_absolute_position_once(position):
+    gwas = pd.DataFrame({"chr": [1], "pos": [position], "p_value": [1e-8]})
+    eqtl = pd.DataFrame({"chr": ["chr1"], "pos": [1000], "p_value": [1e-9]})
+    result = calculate_colocalization_overlap(gwas, eqtl)
+    assert result["pos"].tolist() == [1000]
+    assert pd.api.types.is_integer_dtype(result["pos"])
+    assert result["p_value_gwas"].tolist() == [1e-8]
+    assert result["p_value_eqtl"].tolist() == [1e-9]
+    assert gwas["pos"].iloc[0] == position

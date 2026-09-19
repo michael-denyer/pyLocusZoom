@@ -272,7 +272,7 @@ class StackedPlotConfig(PlotConfig):
     """
 
     n_panels: int = Field(..., ge=1, description="Number of association panels")
-    lead_positions: Optional[List[int]] = Field(
+    lead_positions: Optional[List[Annotated[int, Field(ge=1)]]] = Field(
         default=None, description="Lead SNP positions (one per panel)"
     )
     panel_labels: Optional[List[str]] = Field(
@@ -394,7 +394,12 @@ class ColocConfig(BaseModel):
 Columns = TypeVar("Columns", ColumnConfig, GenomeWideConfig)
 
 
-def resolve_deprecated_columns(df: pd.DataFrame, columns: Columns) -> Columns:
+def resolve_deprecated_columns(
+    df: pd.DataFrame,
+    columns: Columns,
+    *,
+    fields: tuple[str, ...] = ("pos_col", "p_col"),
+) -> Columns:
     """Fall back to a frame's pre-4.0 column names, with a deprecation warning.
 
     A GWAS frame written by a 3.x loader carries ``ps`` and ``p_wald`` where a
@@ -407,12 +412,13 @@ def resolve_deprecated_columns(df: pd.DataFrame, columns: Columns) -> Columns:
     Args:
         df: The frame about to be plotted.
         columns: The column model the plot method was given.
+        fields: Column roles consumed by this input boundary.
 
     Returns:
         ``columns`` unchanged, or a copy naming the frame's old columns.
     """
     updates = {}
-    for field in ("pos_col", "p_col"):
+    for field in fields:
         name = getattr(columns, field)
         alias = DEPRECATED_COLUMN_ALIASES.get(name)
         if alias is None or name in df.columns or alias not in df.columns:

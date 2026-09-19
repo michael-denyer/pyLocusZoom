@@ -14,9 +14,8 @@ from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
     RecombStatus,
-    _extract_archive,
     _publish_map_generation,
-    _stage_maps,
+    _stage_archive,
     download_canine_recombination_maps,
     download_liftover_chain,
     ensure_recomb_header,
@@ -449,8 +448,8 @@ class TestDownloadCanineRecombinationMaps:
             download_canine_recombination_maps(output_dir=str(tmp_path), force=False)
 
 
-class TestExtractArchive:
-    """_extract_archive: tar handling and the path-traversal guard, no network."""
+class TestStageArchive:
+    """Archive members become canonical map files, never extracted paths."""
 
     @staticmethod
     def _tar(path: Path, members: dict[str, str]) -> None:
@@ -461,86 +460,53 @@ class TestExtractArchive:
                 info.size = len(data)
                 tar.addfile(info, io.BytesIO(data))
 
-    def test_extracts_every_safe_member(self, tmp_path):
+    def test_stages_only_maps_with_canonical_names_and_headers(self, tmp_path):
         archive = tmp_path / "maps.tar.gz"
-        self._tar(archive, {"chr1.txt": "a", "nested/chr2.txt": "b"})
-        into = tmp_path / "out"
-        into.mkdir()
+        self._tar(
+            archive,
+            {
+                "nested/chr1.txt": "1\t1000\t0.5\t0.1\n",
+                "chr7_average_canFam3.1.txt": "chr\tpos\trate\tcM\n7\t1000\t0.5\t0.1\n",
+                "README.txt": "ignored",
+            },
+        )
+        staging = tmp_path / "out"
+        staging.mkdir()
+        _stage_archive(archive, CANINE_SOURCE, staging)
+        assert {p.name for p in staging.iterdir()} == {
+            "chr1_recomb.tsv",
+            "chr7_recomb.tsv",
+        }
+        assert (
+            staging / "chr1_recomb.tsv"
+        ).read_text() == "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        assert (
+            staging / "chr7_recomb.tsv"
+        ).read_text() == "chr\tpos\trate\tcM\n7\t1000\t0.5\t0.1\n"
 
-        result = _extract_archive(archive, into, "http://example/maps.tar.gz")
-
-        assert result == into
-        assert (into / "chr1.txt").read_text() == "a"
-        assert (into / "nested" / "chr2.txt").read_text() == "b"
-
-    def test_a_member_escaping_the_target_is_skipped(self, tmp_path):
+    def test_rejects_traversal_without_writing_outside_staging(self, tmp_path):
         archive = tmp_path / "maps.tar.gz"
-        self._tar(archive, {"../escaped.txt": "no", "chr1.txt": "yes"})
-        into = tmp_path / "out"
-        into.mkdir()
-
-        _extract_archive(archive, into, "http://example/maps.tar.gz")
-
-        assert not (tmp_path / "escaped.txt").exists()
-        assert (into / "chr1.txt").read_text() == "yes"
+        self._tar(archive, {"../chr1.txt": "1\t1\t1\t1\n"})
+        staging = tmp_path / "out"
+        staging.mkdir()
+        with pytest.raises(DataDownloadError, match="unsafe member"):
+            _stage_archive(archive, CANINE_SOURCE, staging)
+        assert not (tmp_path / "chr1.txt").exists()
+        assert list(staging.iterdir()) == []
 
     def test_a_file_that_is_not_a_tarball_names_its_source(self, tmp_path):
         archive = tmp_path / "maps.tar.gz"
         archive.write_bytes(b"not a gzip archive")
-        into = tmp_path / "out"
-        into.mkdir()
-
-        with pytest.raises(DataDownloadError, match="http://example/maps.tar.gz"):
-            _extract_archive(archive, into, "http://example/maps.tar.gz")
-
-
-class TestStageMaps:
-    """_stage_maps: canonical naming and header repair, no network."""
-
-    def test_names_each_map_after_the_chromosome_in_its_filename(self, tmp_path):
-        source_dir = tmp_path / "src"
-        source_dir.mkdir()
-        staging = tmp_path / "staging"
-        staging.mkdir()
-        body = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
-        files = []
-        for name in ("chr7_average_canFam3.1.txt", "chrX.txt"):
-            path = source_dir / name
-            path.write_text(body)
-            files.append(path)
-
-        _stage_maps(files, CANINE_SOURCE, staging)
-
-        assert {p.name for p in staging.iterdir()} == {
-            "chr7_recomb.tsv",
-            "chrX_recomb.tsv",
-        }
-
-    def test_a_headerless_map_gains_the_canonical_header(self, tmp_path):
-        source_dir = tmp_path / "src"
-        source_dir.mkdir()
-        staging = tmp_path / "staging"
-        staging.mkdir()
-        map_file = source_dir / "chr1_average_canFam3.1.txt"
-        map_file.write_text("1\t1000\t0.5\t0.1\n")
-
-        _stage_maps([map_file], CANINE_SOURCE, staging)
-
-        staged = (staging / "chr1_recomb.tsv").read_text()
-        assert staged.startswith("chr\tpos\trate\tcM\n")
+        with pytest.raises(DataDownloadError, match="dog_genetic_maps"):
+            _stage_archive(archive, CANINE_SOURCE, tmp_path)
 
     def test_a_filename_without_a_chromosome_is_an_error(self, tmp_path):
-        """The old four-stage peel wrote this out silently as chr_recomb.tsv."""
-        source_dir = tmp_path / "src"
-        source_dir.mkdir()
-        staging = tmp_path / "staging"
+        archive = tmp_path / "maps.tar.gz"
+        self._tar(archive, {"chr_notes.txt": "chr\tpos\trate\tcM\n1\t1\t1\t1\n"})
+        staging = tmp_path / "out"
         staging.mkdir()
-        notes = source_dir / "chr_notes.txt"
-        notes.write_text("chr\tpos\trate\tcM\n1\t1\t1\t1\n")
-
         with pytest.raises(DataDownloadError, match="does not name a chromosome"):
-            _stage_maps([notes], CANINE_SOURCE, staging)
-
+            _stage_archive(archive, CANINE_SOURCE, staging)
         assert list(staging.iterdir()) == []
 
 
@@ -587,7 +553,9 @@ class TestPublishMapGeneration:
 
         assert not output.is_symlink()
         assert (output / "chr1_recomb.tsv").read_text() == "new"
-        assert not generation.exists(), "the linked-to generation must be removed too"
+        assert (generation / "chr1_recomb.tsv").read_text() == "old", (
+            "a replaced symlink does not confer ownership of its target"
+        )
 
     def test_incomplete_generation_leaves_active_maps_unchanged(self, tmp_path):
         output = tmp_path / "maps"
@@ -711,9 +679,11 @@ class TestRecombForRegion:
 
     def test_a_chromosome_the_map_set_does_not_cover_is_its_own_status(self, tmp_path):
         with patch(
-            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+            "pylocuszoom.recombination.get_default_data_dir", return_value=tmp_path
         ):
-            result = recomb_for_region(41, 1_000_000, 2_000_000, species="canine")
+            result = recomb_for_region(
+                41, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path)
+            )
 
         assert result.status is RecombStatus.NO_MAP_FOR_CHROMOSOME
 
@@ -723,9 +693,11 @@ class TestRecombForRegion:
         )
 
         with patch(
-            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
+            "pylocuszoom.recombination.get_default_data_dir", return_value=tmp_path
         ):
-            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+            result = recomb_for_region(
+                1, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path)
+            )
 
         assert result.status is RecombStatus.OK
         assert result.detail == ""
@@ -746,15 +718,19 @@ class TestEnsureRecombMapsCorruptArchive:
     """A corrupt archive surfaces as a status, not a crash, through the plotter."""
 
     @patch("pylocuszoom.recombination.download_file")
-    def test_a_corrupt_archive_is_a_download_failure(self, mock_download, tmp_path):
+    def test_a_corrupt_archive_is_a_download_failure(
+        self, mock_download, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path / "x"
+        )
+
         def write_garbage(url, dest_path, desc=None):
             dest_path.write_bytes(b"not a gzip archive")
 
         mock_download.side_effect = write_garbage
 
-        result = recomb_for_region(
-            1, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path / "x")
-        )
+        result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
 
         assert result.status is RecombStatus.DOWNLOAD_FAILED
 
@@ -773,51 +749,15 @@ class TestDownloadLiftoverChainDownloadError:
             download_liftover_chain(force=True)
 
 
-class TestTarTraversalOSError:
-    """Tests for OSError handling in tar path traversal check."""
+class TestArchiveWithoutMaps:
+    def test_non_map_members_are_ignored(self, tmp_path, monkeypatch):
+        def download(url, dest, desc):
+            TestStageArchive._tar(dest, {"README.txt": "notes"})
 
-    @patch("pylocuszoom.recombination.download_file")
-    def test_oserror_in_tar_member_path_is_caught(self, mock_download, tmp_path):
-        """OSError during Path.resolve() in tar extraction is caught and skipped."""
-        # Create a real tar.gz in memory with a normal file
-        tar_buffer = io.BytesIO()
-        with tarfile.open(fileobj=tar_buffer, mode="w:gz") as tar:
-            # Add a dummy file
-            info = tarfile.TarInfo(name="test_file.txt")
-            info.size = 4
-            tar.addfile(info, io.BytesIO(b"test"))
-        tar_buffer.seek(0)
-
-        # Mock download to write the tar to disk
-        def write_tar(url, dest, desc):
-            dest.write_bytes(tar_buffer.getvalue())
-
-        mock_download.side_effect = write_tar
-
-        # Patch Path.resolve to raise OSError for the member path
-        original_resolve = Path.resolve
-
-        def patched_resolve(self_path, *args, **kwargs):
-            if "test_file.txt" in str(self_path):
-                raise OSError("Invalid path")
-            return original_resolve(self_path, *args, **kwargs)
-
-        log_capture = io.StringIO()
-        from pylocuszoom.logging import logger as plz_logger
-
-        plz_logger.enable("WARNING", sink=log_capture)
-        try:
-            with patch.object(Path, "resolve", patched_resolve):
-                with pytest.raises(
-                    DataDownloadError, match="Could not find chromosome"
-                ):
-                    download_canine_recombination_maps(
-                        output_dir=str(tmp_path / "output"), force=True
-                    )
-        finally:
-            plz_logger.enable("INFO")
-
-        assert "Skipping unsafe path in archive" in log_capture.getvalue()
+        monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+        with pytest.raises(DataDownloadError, match="Could not find chromosome"):
+            download_canine_recombination_maps(tmp_path / "output")
+        assert not (tmp_path / "output").exists()
 
 
 class TestDownloadCanineRecombHeaderDetection:
@@ -865,16 +805,17 @@ class TestDownloadCanineRecombHeaderDetection:
 
     @patch("pylocuszoom.recombination.download_file")
     def test_plot_warns_and_renders_without_overlay_on_corrupt_archive(
-        self, mock_download, tmp_path
+        self, mock_download, tmp_path, monkeypatch
     ):
         """A corrupted mirror must be loud, but must not stop the plot."""
         from pylocuszoom import LocusZoomPlotter
 
         html_content = "<html><body>502 Bad Gateway</body></html>\n"
         mock_download.side_effect = self._fake_download("chr1.txt", html_content)
-        plotter = LocusZoomPlotter(
-            species="canine", recomb_data_dir=str(tmp_path / "out"), log_level=None
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path / "out"
         )
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
         gwas = pd.DataFrame(
             {"pos": [1_000_000, 1_050_000], "p_value": [0.5, 1e-6], "rs": ["a", "b"]}
         )
@@ -922,3 +863,117 @@ class TestDownloadCanineRecombHeaderDetection:
         out_file = result / "chr1_recomb.tsv"
         assert out_file.exists()
         assert out_file.read_text().startswith("chr\tpos\trate\tcM\n")
+
+
+@pytest.mark.parametrize("species", [None, "canine", "human"])
+def test_custom_maps_are_read_only_and_need_no_complete_bundle(
+    tmp_path, monkeypatch, species
+):
+    (tmp_path / "chr1_recomb.tsv").write_text("chr\tpos\trate\tcM\n1\t150\t42\t0.1\n")
+    (tmp_path / "notes.txt").write_text("caller data")
+
+    def unexpected_download(*args, **kwargs):
+        raise AssertionError("custom maps must not download")
+
+    monkeypatch.setattr("pylocuszoom.recombination.download_file", unexpected_download)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    result = recomb_for_region(1, 100, 200, species=species, data_dir=str(tmp_path))
+    assert result.status is RecombStatus.OK
+    assert result.frame["rate"].tolist() == [42]
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
+
+
+def test_custom_maps_are_already_in_the_requested_build(tmp_path, monkeypatch):
+    (tmp_path / "chr1_recomb.tsv").write_text("chr\tpos\trate\tcM\n1\t150\t42\t0.1\n")
+
+    def unexpected_liftover(*args, **kwargs):
+        raise AssertionError("custom map coordinates must not be reinterpreted")
+
+    monkeypatch.setattr(
+        "pylocuszoom.recombination.ensure_recomb_maps", lambda **kwargs: tmp_path
+    )
+    monkeypatch.setattr(
+        "pylocuszoom.recombination.liftover_recombination_map", unexpected_liftover
+    )
+    result = recomb_for_region(
+        1, 100, 200, data_dir=str(tmp_path), genome_build="canfam4"
+    )
+    assert result.frame["pos"].tolist() == [150]
+
+
+@pytest.mark.parametrize(
+    "member_type", [tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.FIFOTYPE]
+)
+def test_archive_rejects_links_and_special_files_before_publication(
+    tmp_path, monkeypatch, member_type
+):
+    output = tmp_path / "maps"
+    escaped = tmp_path / "escaped"
+    escaped.mkdir()
+
+    def download(url, dest, desc):
+        with tarfile.open(dest, "w:gz") as archive:
+            link = tarfile.TarInfo("bridge")
+            link.type = member_type
+            link.linkname = str(escaped)
+            archive.addfile(link)
+            for name, body in [("bridge/witness.txt", b"escaped")] + [
+                (f"chr{chrom}.txt", f"{chrom}\t150\t1\t0.1\n".encode())
+                for chrom in range(1, 39)
+            ]:
+                member = tarfile.TarInfo(name)
+                member.size = len(body)
+                archive.addfile(member, io.BytesIO(body))
+
+    monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+    with pytest.raises(DataDownloadError, match="regular file|unsafe member"):
+        download_canine_recombination_maps(output)
+    assert list(escaped.iterdir()) == []
+    assert not output.exists()
+
+
+def test_archive_rejects_duplicate_chromosome_maps(tmp_path, monkeypatch):
+    def download(url, dest, desc):
+        with tarfile.open(dest, "w:gz") as archive:
+            for chrom in list(range(1, 39)) + [1]:
+                member = tarfile.TarInfo(f"chr{chrom}.txt")
+                data = f"{chrom}\t150\t1\t0.1\n".encode()
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+
+    monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+    with pytest.raises(DataDownloadError, match="Duplicate"):
+        download_canine_recombination_maps(tmp_path / "maps")
+    assert not (tmp_path / "maps").exists()
+
+
+def test_managed_maps_do_not_silently_use_an_unsupported_build(tmp_path, monkeypatch):
+    TestPublishMapGeneration._write_maps(
+        tmp_path, "chr\tpos\trate\tcM\n1\t150\t1\t0.1\n"
+    )
+    monkeypatch.setattr(
+        "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+    )
+    result = recomb_for_region(1, 100, 200, genome_build="unknown-build")
+    assert result.status.value == "build_unavailable"
+    assert result.frame is None
+    assert "unknown-build" in result.detail
+
+
+def test_managed_maps_use_their_known_liftover_chain(tmp_path, monkeypatch):
+    TestPublishMapGeneration._write_maps(
+        tmp_path, "chr\tpos\trate\tcM\n1\t150\t1\t0.1\n"
+    )
+    monkeypatch.setattr(
+        "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+    )
+
+    def lift(frame, from_build, to_build, chrom):
+        assert from_build == "canfam3"
+        assert to_build == "canfam4"
+        return frame.assign(pos=frame["pos"] + 100)
+
+    monkeypatch.setattr("pylocuszoom.recombination.liftover_recombination_map", lift)
+    result = recomb_for_region(1, 200, 300, genome_build="canfam4")
+    assert result.status is RecombStatus.OK
+    assert result.frame["pos"].tolist() == [250]

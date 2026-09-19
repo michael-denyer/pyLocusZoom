@@ -199,7 +199,8 @@ Data transformation between validated input and backend-ready primitives.
 | 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | recomb_for_region, RecombResult | The one place the skip-the-overlay decision is made, reported as a value | [recombination.py](../src/pylocuszoom/recombination.py) |
-| 3d | download_recombination_maps, RecombSource | Species-generic download, extract and publish; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | download_recombination_maps, RecombSource | Species-generic download, canonical member streaming and publication; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3e | prepare_genomewide_frames | Per-input column projection before genome-wide layout and composition | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | GenomeLayout | Chromosome order, offsets, colours, ticks, and x limits for every panel of a figure | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
@@ -208,12 +209,14 @@ Data transformation between validated input and backend-ready primitives.
 | 3h | source_for, get_genes_for_build | The build-to-source routing and the one fetch-and-cache orchestration | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
 | 3h | ensembl_source, fetch_overlap_frames | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 | 3h | ucsc_source, fetch_track_frames | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
-| 3h | gene cache | On-disk cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
-| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and merges it into the GWAS frame under one recovery policy | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
+| 3h | gene cache | Atomic gene/exon archive cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
+| 3j | _AssociationInput | Region-selected data and resolved per-panel options | [plotter.py](../src/pylocuszoom/plotter.py) |
+| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
 | 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
 | 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
-| 3j | calculate_colocalization_overlap | Colocalisation overlap between two association frames | [eqtl.py](../src/pylocuszoom/eqtl.py) |
-| 3j | add_snp_labels | SNP label placement and lead-proximity filtering | [labels.py](../src/pylocuszoom/labels.py) |
+| 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
+| 3j | select_label_candidates | Shared lead-proximity eligibility for regional and standalone SNP labels | [_label_data.py](../src/pylocuszoom/_label_data.py) |
+| 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |

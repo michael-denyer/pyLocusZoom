@@ -7,6 +7,43 @@ import pytest
 from pylocuszoom.labels import add_snp_labels, adjust_snp_labels
 
 
+def test_regional_labels_select_one_lead_and_distant_rows_before_ranking():
+    from pylocuszoom import ColumnConfig, DisplayConfig, LocusZoomPlotter
+
+    frame = pd.DataFrame(
+        {
+            "position": [1500000, 1500000, 1500100, 1550000, 1800000],
+            "p": [1e-10, 1e-20, 1e-19, 1e-18, 1e-17],
+            "variant": ["same_position", "lead", "nearby", "boundary", "distant"],
+        },
+        index=[4, 4, 5, 6, 7],
+    )
+    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        frame,
+        chrom=1,
+        start=1000000,
+        end=2000000,
+        columns=ColumnConfig(pos_col="position", p_col="p", rs_col="variant"),
+        display=DisplayConfig(show_recombination=False, label_top_n=3),
+    )
+    assert [text.get_text() for text in fig.axes[0].texts if text.get_text()] == [
+        "lead",
+        "boundary",
+        "distant",
+    ]
+
+
+def test_standalone_position_contract_keeps_all_variants_at_the_lead_position():
+    frame = pd.DataFrame(
+        {"pos": [150, 150, 151], "neglog10p": [10, 20, 19], "rs": ["a", "b", "near"]}
+    )
+    _, ax = plt.subplots()
+    texts = add_snp_labels(
+        ax, frame, lead_pos=150, region_span=100, label_top_n=3, adjust=False
+    )
+    assert [text.get_text() for text in texts] == ["b", "a"]
+
+
 class TestAddSnpLabels:
     """Tests for add_snp_labels function."""
 

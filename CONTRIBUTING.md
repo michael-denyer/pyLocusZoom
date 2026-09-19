@@ -65,7 +65,7 @@ markdown, mermaid, link-check, or test failures will not merge.
 - **Base branch:** open PRs against `main`.
 - **Tests first:** follow test-driven development — add or update tests in
   `tests/` before (or alongside) the implementation. Mock PLINK calls rather
-  than requiring a local install; see `tests/test_ld.py` for the pattern.
+  than requiring a local install; see `tests/test_ld_process.py` for the pattern.
 - **Changelog:** add an entry to `CHANGELOG.md` under the `## [Unreleased]`
   section, using the `Added` / `Changed` / `Fixed` / `Removed` categories.
 - **Docs:** update `README.md`, `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`,
@@ -73,8 +73,11 @@ markdown, mermaid, link-check, or test failures will not merge.
   features, or changes behavior that users rely on.
 - **Example plots:** if your change touches a backend or a panel, run
   `scripts/example_diff.sh`. It regenerates the examples and lists the exports
-  whose content changed after normalising generated ids; the suite does not
-  see serialised output. Commit only the files it reports, using `--keep`.
+  whose content changed after normalising generated ids. Generation runs in a
+  temporary directory and leaves the checkout untouched. Exit 1 reports differences;
+  exit 2 reports a failure. Review the changes, then use `--keep` to accept only
+  changed exports. Acceptance refuses to overwrite manually modified exports.
+  Commit the accepted outputs with the source change.
 - **Commits:** keep messages focused on *what* changed and *why*. Do not
   include AI or tool attribution.
 - **Scope:** one logical change per PR. Refactors and feature work belong in

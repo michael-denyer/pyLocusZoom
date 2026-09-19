@@ -6,11 +6,11 @@ PLINK binary or a subprocess.
 """
 
 import pandas as pd
+import pytest
 
 from pylocuszoom._ld_plotting import enrich_with_ld
 
 ARGS = {
-    "pos_col": "pos",
     "rs_col": "rs",
     "start": 1_000_000,
     "end": 2_000_000,
@@ -27,7 +27,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file=None,
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )
@@ -40,7 +40,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/nonexistent/panel",
-            lead_pos=None,
+            lead_index=None,
             ld_col=None,
             **ARGS,
         )
@@ -55,7 +55,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/nonexistent/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col="R2",
             **ARGS,
         )
@@ -72,7 +72,7 @@ class TestEnrichWithLDDeclines:
         result, ld_col = enrich_with_ld(
             without_ids,
             reference_file="/nonexistent/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )
@@ -81,27 +81,11 @@ class TestEnrichWithLDDeclines:
         assert ld_col is None
         assert any("'rs' not found" in record for record in warning_records)
 
-    def test_lead_position_absent_from_the_frame_warns(
-        self, tiny_regional_gwas_df, warning_records
-    ):
-        """A lead position with no matching row cannot name a lead SNP."""
-        result, ld_col = enrich_with_ld(
-            tiny_regional_gwas_df,
-            reference_file="/nonexistent/panel",
-            lead_pos=1_234_567,
-            ld_col=None,
-            **ARGS,
-        )
 
-        assert result is tiny_regional_gwas_df
-        assert ld_col is None
-        assert any("1234567 not found" in record for record in warning_records)
+class TestEnrichWithLDLookup:
+    """The success path assigns PLINK's R2 values to the selected rows."""
 
-
-class TestEnrichWithLDMerges:
-    """The success path merges PLINK's R2 column onto the caller's frame."""
-
-    def test_r2_is_merged_onto_matching_variant_ids(
+    def test_r2_is_assigned_to_matching_variant_ids(
         self, monkeypatch, tiny_regional_gwas_df
     ):
         """Each variant gains the R2 that PLINK reported for its ID."""
@@ -118,13 +102,47 @@ class TestEnrichWithLDMerges:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )
 
         assert ld_col == "R2"
         assert list(result["R2"]) == [0.9, 1.0, 0.2]
+
+    def test_lookup_preserves_rows_and_replaces_old_r2(self, monkeypatch):
+        frame = pd.DataFrame(
+            {"rs": ["b", "a", "missing", "a"], "R2": [-1.0] * 4},
+            index=[8, 3, 9, 5],
+        )
+        original = frame.copy(deep=True)
+        monkeypatch.setattr(
+            "pylocuszoom._ld_plotting.calculate_ld",
+            lambda **kwargs: pd.DataFrame({"SNP": ["a", "b"], "R2": [0.5, 1.0]}),
+        )
+        result, ld_col = enrich_with_ld(
+            frame, reference_file="/panel", lead_index=8, ld_col=None, **ARGS
+        )
+        expected = original.assign(R2=[1.0, 0.5, float("nan"), 0.5])
+        assert ld_col == "R2"
+        pd.testing.assert_frame_equal(result, expected)
+        pd.testing.assert_frame_equal(frame, original)
+
+    def test_duplicate_reference_ids_are_rejected(
+        self, monkeypatch, tiny_regional_gwas_df
+    ):
+        monkeypatch.setattr(
+            "pylocuszoom._ld_plotting.calculate_ld",
+            lambda **kwargs: pd.DataFrame({"SNP": ["rs1", "rs1"], "R2": [0.5, 1.0]}),
+        )
+        with pytest.raises(ValueError):
+            enrich_with_ld(
+                tiny_regional_gwas_df,
+                reference_file="/panel",
+                lead_index=0,
+                ld_col=None,
+                **ARGS,
+            )
 
     def test_empty_ld_output_warns_and_keeps_the_frame(
         self, monkeypatch, tiny_regional_gwas_df, warning_records
@@ -141,7 +159,7 @@ class TestEnrichWithLDMerges:
         result, ld_col = enrich_with_ld(
             tiny_regional_gwas_df,
             reference_file="/panel",
-            lead_pos=1_500_000,
+            lead_index=1,
             ld_col=None,
             **ARGS,
         )

@@ -271,9 +271,9 @@ def test_save_and_load_cached_annotations():
             33000000,
         )
 
-        # Verify CSV files created (not parquet), one per frame
-        csv_files = list(cache_dir.glob("**/*.csv"))
-        assert len(csv_files) == 2
+        # Both CSV frames are published in one archive
+        cache_files = list(cache_dir.glob("**/annotations_*.zip"))
+        assert len(cache_files) == 1
 
         loaded = load_annotations(
             cache_dir,
@@ -375,9 +375,9 @@ def test_get_genes_for_build_fetches_and_caches():
         assert len(result.genes) == 1
         assert result.genes["gene_name"].iloc[0] == "BRCA2"
 
-        # Verify cache files were created (CSV, not parquet)
-        csv_files = list(cache_dir.glob("**/*.csv"))
-        assert len(csv_files) == 2
+        # Verify a complete annotation archive was published
+        cache_files = list(cache_dir.glob("**/annotations_*.zip"))
+        assert len(cache_files) == 1
 
 
 def test_get_genes_for_build_returns_exons():
@@ -442,15 +442,15 @@ def test_clear_gene_cache():
         save_annotations(entry, cache_dir, "homo_sapiens", "1", 100, 200)
         save_annotations(entry, cache_dir, "mus_musculus", "1", 100, 200)
 
-        # Two entries of two frames each
-        csv_files = list(cache_dir.glob("**/*.csv"))
-        assert len(csv_files) == 4
+        # Two complete annotation entries
+        cache_files = list(cache_dir.glob("**/annotations_*.zip"))
+        assert len(cache_files) == 2
 
         # Clear cache
         deleted = clear_gene_cache("ensembl", cache_dir)
 
-        assert deleted == 4
-        assert len(list(cache_dir.glob("**/*.csv"))) == 0
+        assert deleted == 2
+        assert len(list(cache_dir.glob("**/annotations_*.zip"))) == 0
 
 
 def test_clear_gene_cache_species_specific():
@@ -478,9 +478,9 @@ def test_clear_gene_cache_species_specific():
         # Clear only human cache
         deleted = clear_gene_cache("ensembl", cache_dir, "homo_sapiens")
 
-        assert deleted == 2
+        assert deleted == 1
         # Mouse cache should still exist
-        assert len(list(cache_dir.glob("**/*.csv"))) == 2
+        assert len(list(cache_dir.glob("**/annotations_*.zip"))) == 1
 
 
 class TestPathTraversalProtection:
@@ -607,7 +607,7 @@ class TestEmptyResultCaching:
                     cache_dir=tmp_path,
                 )
 
-        assert not list(tmp_path.rglob("genes_*.csv")), (
+        assert not list(tmp_path.rglob("annotations_*.zip")), (
             "a failed fetch must leave no cache file"
         )
 

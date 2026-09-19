@@ -321,3 +321,100 @@ class TestGenomeWideBoundary:
 
         assert "GenomeWideConfig" in pylocuszoom.__all__
         assert pylocuszoom.GenomeWideConfig is GenomeWideConfig
+
+
+class TestGenomewideResolvedColumns:
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "plot_manhattan",
+            "plot_qq",
+            "plot_manhattan_qq",
+            "plot_manhattan_stacked",
+            "plot_manhattan_qq_stacked",
+        ],
+    )
+    def test_legacy_and_canonical_columns_have_identical_scatter(self, method):
+        canonical = pd.DataFrame(
+            {"chr": [1, 1, 2], "pos": [10, 20, 30], "p_value": [0.1, 0.01, 0.001]}
+        )
+        legacy = canonical.rename(columns={"pos": "ps", "p_value": "p_wald"})
+        plot = getattr(ManhattanPlotter(species="human"), method)
+        stack = method.endswith("stacked")
+        before = plot([canonical] if stack else canonical)
+        with pytest.warns(DeprecationWarning):
+            after = plot([legacy] if stack else legacy)
+        assert len(after.axes) == len(before.axes)
+        for before_axis, after_axis in zip(before.axes, after.axes):
+            assert len(after_axis.collections) == len(before_axis.collections)
+            for before_points, after_points in zip(
+                before_axis.collections, after_axis.collections
+            ):
+                np.testing.assert_array_equal(
+                    after_points.get_offsets(), before_points.get_offsets()
+                )
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_stack_resolves_each_frame_independently(self, reverse):
+        canonical = pd.DataFrame(
+            {"chr": [1, 1, 2], "pos": [10, 20, 30], "p_value": [0.1, 0.01, 0.001]}
+        )
+        legacy = canonical.rename(columns={"pos": "ps", "p_value": "p_wald"})
+        frames = [canonical, legacy][:: -1 if reverse else 1]
+        with pytest.warns(DeprecationWarning):
+            fig = ManhattanPlotter(species="human").plot_manhattan_qq_stacked(frames)
+        np.testing.assert_array_equal(
+            fig.axes[0].collections[0].get_offsets(),
+            fig.axes[2].collections[0].get_offsets(),
+        )
+        np.testing.assert_array_equal(
+            fig.axes[1].collections[-1].get_offsets(),
+            fig.axes[3].collections[-1].get_offsets(),
+        )
+
+    @pytest.mark.parametrize("order", [None, ["B"]])
+    @pytest.mark.parametrize("dtype", ["object", "category"])
+    def test_categorical_plot_renders_every_retained_row(self, order, dtype):
+        df = pd.DataFrame(
+            {"category": ["A", "B", None, np.nan], "p_value": [0.1, 0.01, 1e-20, 1e-30]}
+        )
+        df["category"] = df["category"].astype(dtype)
+        fig = ManhattanPlotter().plot_manhattan(
+            df, category_col="category", category_order=order
+        )
+        axis = fig.axes[0]
+        points = np.concatenate(
+            [collection.get_offsets() for collection in axis.collections]
+        )
+        assert len(points) == 4
+        assert sorted(points[:, 1]) == [1, 2, 20, 30]
+        labels = [label.get_text() for label in axis.get_xticklabels()]
+        assert set(labels) == {"A", "B", "Uncategorised"}
+        if order is not None:
+            assert labels[0] == "B"
+
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_pandas_categorical_groups_render_at_their_labelled_positions(
+        self, ordered
+    ):
+        df = pd.DataFrame(
+            {
+                "category": pd.Categorical(
+                    ["A", "B", "A"], categories=["B", "A"], ordered=ordered
+                ),
+                "p_value": [0.1, 0.01, 0.001],
+            }
+        )
+        fig = ManhattanPlotter().plot_manhattan(
+            df, category_col="category", category_order=["B"]
+        )
+        axis = fig.axes[0]
+        points = np.concatenate(
+            [collection.get_offsets() for collection in axis.collections]
+        )
+        assert [label.get_text() for label in axis.get_xticklabels()] == ["B", "A"]
+        assert sorted(zip(np.rint(points[:, 0]), points[:, 1])) == [
+            (0, 2),
+            (1, 1),
+            (1, 3),
+        ]

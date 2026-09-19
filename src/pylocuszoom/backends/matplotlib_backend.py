@@ -14,7 +14,7 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from . import register_backend
 from .base import Mappable
-from .composition import LegendEntry
+from .composition import LegendEntry, cell_edges
 
 # Side and bottom margins, as fractions of the figure. No caller has ever
 # varied them, so they are this backend's own layout policy rather than part
@@ -22,6 +22,7 @@ from .composition import LegendEntry
 _LEFT_MARGIN = 0.08
 _RIGHT_MARGIN = 0.95
 _BOTTOM_MARGIN = 0.1
+_INSET_COLORBAR_LABEL = "_pylocuszoom_colorbar"
 
 
 @register_backend("matplotlib")
@@ -480,9 +481,14 @@ class MatplotlibBackend:
         hspace: float = 0.08,
     ) -> None:
         """Adjust subplot layout parameters."""
+        # A colorbar outside a shared-x panel needs figure-wide space so the
+        # gene, association and heatmap axes retain identical genomic scales.
+        has_inset_colorbar = any(
+            ax.get_label() == _INSET_COLORBAR_LABEL for ax in fig.axes
+        )
         fig.subplots_adjust(
             left=_LEFT_MARGIN,
-            right=_RIGHT_MARGIN,
+            right=0.88 if has_inset_colorbar else _RIGHT_MARGIN,
             top=top,
             bottom=_BOTTOM_MARGIN,
             hspace=hspace,
@@ -515,29 +521,18 @@ class MatplotlibBackend:
 
         cmap = LinearSegmentedColormap.from_list("ld_heatmap", cmap_colors, N=256)
 
-        # Compute extent from coordinates if non-trivial (genomic coordinates)
-        # This allows heatmap to align with regional plot x-axis
-        extent = None
-        if x_coords and len(x_coords) > 1:
-            x_min, x_max = min(x_coords), max(x_coords)
-            # Only use extent if coordinates are not simple indices
-            if x_max - x_min > len(x_coords):
-                # Genomic coordinates - use extent for alignment
-                # Add half-cell padding for proper cell centering
-                y_min, y_max = min(y_coords), max(y_coords)
-                extent = [x_min, x_max, y_min - 0.5, y_max + 0.5]
-
-        # Use imshow for heatmap rendering
-        im = ax.imshow(
+        x_edges = cell_edges(x_coords)
+        y_edges = cell_edges(y_coords)
+        return ax.pcolormesh(
+            [x_edges[0][0], *(right for _, right in x_edges)],
+            [y_edges[0][0], *(right for _, right in y_edges)],
             data,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
-            aspect="auto",
-            origin="lower",
-            extent=extent,
+            shading="flat",
+            rasterized=True,
         )
-        return im
 
     def add_colorbar(
         self,
@@ -547,5 +542,28 @@ class MatplotlibBackend:
         orientation: str = "vertical",
     ) -> None:
         """Add colorbar legend for heatmap."""
-        cbar = plt.colorbar(mappable, ax=ax, orientation=orientation)
+        if (
+            orientation == "vertical"
+            and len(ax.get_shared_x_axes().get_siblings(ax)) > 1
+        ):
+            from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+            # Native colorbar allocation shrinks only its parent subplot. An
+            # inset follows that subplot after finalize_layout, without changing
+            # its width relative to the other genomic panels.
+            colorbar_ax = inset_axes(
+                ax,
+                width="2%",
+                height="100%",
+                loc="lower left",
+                bbox_to_anchor=(1.02, 0, 1, 1),
+                bbox_transform=ax.transAxes,
+                borderpad=0,
+            )
+            cbar = ax.figure.colorbar(
+                mappable, cax=colorbar_ax, orientation=orientation
+            )
+            colorbar_ax.set_label(_INSET_COLORBAR_LABEL)
+        else:
+            cbar = ax.figure.colorbar(mappable, ax=ax, orientation=orientation)
         cbar.set_label(label)

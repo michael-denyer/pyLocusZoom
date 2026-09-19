@@ -59,13 +59,16 @@ class HeatmapPanel:
             raise ValueError(
                 "No SNPs from LD heatmap overlap with region - heatmap not rendered"
             )
+        kept.sort(key=lambda record: record[2])
         indices, kept_ids, x_positions = (list(column) for column in zip(*kept))
+        if len(set(x_positions)) != len(x_positions):
+            raise ValueError(
+                "Regional heatmap SNPs must have distinct genomic positions"
+            )
 
-        lead_snp_id = None
-        if source.lead_pos is not None:
-            lead_row = df[df[pos_col] == source.lead_pos]
-            if not lead_row.empty:
-                lead_snp_id = lead_row[rs_col].iloc[0]
+        lead_snp_id = (
+            df.at[source.lead_index, rs_col] if source.lead_index is not None else None
+        )
         return cls(
             matrix=ld_matrix.iloc[indices, indices].copy(),
             region=region,

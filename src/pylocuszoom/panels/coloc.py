@@ -19,16 +19,10 @@ from ..config import ColocConfig
 
 @dataclass(frozen=True)
 class ColocPanel:
-    """One colocalization scatter, resolved by the plotter.
-
-    ``rs_col`` and ``ld_col`` are the merged frame's names for the columns
-    ``config`` names in the input frames, or None when they are absent.
-    """
+    """One colocalization scatter with fixed, source-owned data columns."""
 
     merged: pd.DataFrame
     config: ColocConfig
-    rs_col: Optional[str]
-    ld_col: Optional[str]
     lead_idx: Optional[Any]
     title: Optional[str]
 
@@ -67,12 +61,12 @@ class ColocPanel:
                 linewidth=0.5,
                 zorder=5,
             )
-            if self.rs_col is not None:
+            if "rs" in merged:
                 backend.add_text(
                     ax,
                     lead_row["neglog10_gwas"].values[0],
                     lead_row["neglog10_eqtl"].values[0] + 0.5,
-                    str(lead_row[self.rs_col].values[0]),
+                    str(lead_row["rs"].values[0]),
                     fontsize=9,
                     ha="center",
                     va="bottom",
@@ -115,7 +109,7 @@ class ColocPanel:
             backend.add_legend(
                 ax, effect_legend_entries(), loc="upper right", title="Effect"
             )
-        elif self.ld_col is not None:
+        elif "ld" in merged:
             backend.add_legend(
                 ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
             )

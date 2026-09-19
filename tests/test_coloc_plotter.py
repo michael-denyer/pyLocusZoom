@@ -6,6 +6,7 @@ import pytest
 from matplotlib.colors import to_hex
 
 from pylocuszoom import ValidationError
+from pylocuszoom.coloc_plotter import ColocPlotter
 from tests.conftest import FIGURE_TYPES
 
 
@@ -776,7 +777,7 @@ class TestLeadSelectionRules:
 
         lead = _resolve_lead_idx(merged, config)
 
-        assert merged.data.loc[lead, merged.rs_col] == "rs1"
+        assert merged.loc[lead, "rs"] == "rs1"
 
     def test_no_lead_without_ld_and_without_a_named_snp(self):
         from pylocuszoom.coloc_plotter import (
@@ -804,7 +805,7 @@ class TestLeadSelectionRules:
 
         lead = _resolve_lead_idx(merged, config)
 
-        assert merged.data.loc[lead, merged.rs_col] == "rs3"
+        assert merged.loc[lead, "rs"] == "rs3"
 
     def test_named_lead_snp_without_an_rs_column_raises(self):
         from pylocuszoom.coloc_plotter import (
@@ -820,3 +821,69 @@ class TestLeadSelectionRules:
 
         with pytest.raises(ValueError, match="rs_col not found"):
             _resolve_lead_idx(merged, config)
+
+
+class TestColocColumnOwnership:
+    @pytest.mark.parametrize("with_ld", [False, True])
+    def test_disabled_effect_coloring_ignores_missing_effect_columns(self, with_ld):
+        gwas = pd.DataFrame(
+            {"pos": [10, 20, 30], "p_gwas": [0.1, 0.01, 0.001], "ld": [0.1, 0.5, 1.0]}
+        )
+        eqtl = pd.DataFrame({"pos": [10, 20, 30], "p_eqtl": [0.2, 0.02, 0.002]})
+        plotter = ColocPlotter()
+        options = dict(rs_col=None, ld_col="ld" if with_ld else None)
+        expected = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        actual = (
+            plotter.plot_coloc(
+                gwas,
+                eqtl,
+                **options,
+                color_by_effect=False,
+                gwas_effect_col="absent_beta",
+                eqtl_effect_col="absent_slope",
+            )
+            .axes[0]
+            .collections[0]
+        )
+        np.testing.assert_array_equal(actual.get_offsets(), expected.get_offsets())
+        np.testing.assert_array_equal(
+            actual.get_facecolors(), expected.get_facecolors()
+        )
+
+    @pytest.mark.parametrize("extra_column", ["beta_gwas", "neglog10_gwas"])
+    def test_unselected_columns_cannot_change_scatter(self, extra_column):
+        gwas = pd.DataFrame(
+            {"pos": [10, 20, 30], "p_gwas": [0.1, 0.01, 0.001], "beta": [1, 1, 1]}
+        )
+        eqtl = pd.DataFrame(
+            {"pos": [10, 20, 30], "p_eqtl": [0.2, 0.02, 0.002], "effect": [-1, -1, -1]}
+        )
+        options = dict(
+            rs_col=None,
+            color_by_effect=True,
+            gwas_effect_col="beta",
+            eqtl_effect_col="effect",
+        )
+        plotter = ColocPlotter()
+        before = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        if extra_column == "beta_gwas":
+            gwas = gwas.assign(beta_gwas=-1)
+        else:
+            eqtl = eqtl.assign(neglog10_gwas=-1)
+        after = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        np.testing.assert_array_equal(after.get_facecolors(), before.get_facecolors())
+        np.testing.assert_array_equal(after.get_offsets(), before.get_offsets())
+
+    @pytest.mark.parametrize("role", ["effect", "ld"])
+    def test_gwas_field_cannot_be_borrowed_from_eqtl(self, role):
+        gwas = pd.DataFrame({"pos": [10, 20], "p_gwas": [0.1, 0.01]})
+        eqtl = pd.DataFrame(
+            {"pos": [10, 20], "p_eqtl": [0.2, 0.02], "beta": [-1, -1], "ld": [0.5, 1]}
+        )
+        options = (
+            dict(color_by_effect=True, gwas_effect_col="beta", eqtl_effect_col="beta")
+            if role == "effect"
+            else dict(ld_col="ld")
+        )
+        with pytest.raises(ValueError, match="GWAS"):
+            ColocPlotter().plot_coloc(gwas, eqtl, rs_col=None, **options)

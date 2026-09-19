@@ -33,7 +33,11 @@ def _captured_association_leads(call):
     original = AssociationPanel.draw
 
     def spy(panel, backend, ax):
-        captured.append(panel.lead_pos)
+        captured.append(
+            None
+            if panel.lead_index is None
+            else int(panel.data.at[panel.lead_index, panel.columns.pos_col])
+        )
         return original(panel, backend, ax)
 
     with patch.object(AssociationPanel, "draw", spy):

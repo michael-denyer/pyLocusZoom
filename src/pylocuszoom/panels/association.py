@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from .._label_data import select_label_candidates
 from .._plotter_utils import add_significance_line
 from ..backends.base import (
     PlotBackend,
@@ -53,7 +54,7 @@ class AssociationPanel:
     display: DisplayConfig
     genomewide_threshold: Optional[float]
     ld_col: Optional[str]
-    lead_pos: Optional[int]
+    lead_index: Optional[int]
     recomb_df: Optional[pd.DataFrame]
     hover: HoverConfig
     panel_label: Optional[str] = None
@@ -83,14 +84,17 @@ class AssociationPanel:
         ):
             backend.add_snp_labels(
                 ax,
-                df,
+                select_label_candidates(
+                    df,
+                    pos_col=columns.pos_col,
+                    lead_index=self.lead_index,
+                    region_span=end - start,
+                ),
                 pos_col=columns.pos_col,
                 neglog10p_col="neglog10p",
                 rs_col=columns.rs_col,
                 label_top_n=self.display.label_top_n,
                 adjust=True,
-                lead_pos=self.lead_pos,
-                region_span=end - start,
             )
 
         recomb_df = self.recomb_df
@@ -145,18 +149,17 @@ def _draw_association_points(
             hover_data=hover_builder.build_dataframe(df),
         )
 
-    if panel.lead_pos is not None:
-        lead_snp = df[df[pos_col] == panel.lead_pos]
-        if not lead_snp.empty:
-            backend.scatter(
-                ax,
-                lead_snp[pos_col],
-                lead_snp["neglog10p"],
-                colors=LEAD_SNP_COLOR,
-                sizes=120,
-                marker="D",
-                edgecolor="black",
-                linewidth=1.5,
-                zorder=10,
-                hover_data=hover_builder.build_dataframe(lead_snp),
-            )
+    if panel.lead_index is not None:
+        lead_snp = df.loc[[panel.lead_index]]
+        backend.scatter(
+            ax,
+            lead_snp[pos_col],
+            lead_snp["neglog10p"],
+            colors=LEAD_SNP_COLOR,
+            sizes=120,
+            marker="D",
+            edgecolor="black",
+            linewidth=1.5,
+            zorder=10,
+            hover_data=hover_builder.build_dataframe(lead_snp),
+        )

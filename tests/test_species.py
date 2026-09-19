@@ -55,7 +55,8 @@ class TestDogAliasReachesEverySubsystem:
     def test_unknown_species_is_an_ensembl_only_record(self):
         plotter = LocusZoomPlotter(species="Sus_scrofa", log_level=None)
         assert plotter.species == Species(key="sus_scrofa", ensembl_name="sus_scrofa")
-        assert _plink_flags(plotter) == []
+        with pytest.raises(ValidationError, match="PLINK"):
+            _plink_flags(plotter)
         assert plotter.genome_build is None
 
     def test_empty_name_is_rejected(self):
@@ -94,3 +95,38 @@ class TestChromosomeOrderComesFromTheRecord:
         order = get_chromosome_order(species="canine")
         order.append("bogus")
         assert "bogus" not in get_chromosome_order(species="canine")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "canis_lupus_familiaris",
+        "felis_catus",
+        "homo_sapiens",
+        "mus_musculus",
+        "rattus_norvegicus",
+    ],
+)
+def test_ensembl_names_are_registered_aliases(name):
+    from pylocuszoom.species import SPECIES
+
+    expected = next(
+        record for record in SPECIES.values() if record.ensembl_name == name
+    )
+    assert resolve_species(name) is expected
+
+
+@pytest.mark.parametrize("species", ["bovine", "mouse", "rat"])
+def test_species_without_known_plink_support_rejects_ld(species):
+    record = resolve_species(species)
+    assert record.ensembl_name
+    with pytest.raises(ValidationError, match="PLINK"):
+        build_ld_command("plink", "data", "rs1", "out", species=record)
+
+
+def test_explicit_species_record_can_supply_plink_support():
+    species = Species(
+        key="custom", ensembl_name="custom", plink_flags=("--chr-set", "19")
+    )
+    cmd = build_ld_command("plink", "data", "rs1", "out", species=species)
+    assert cmd[1:4] == ["--chr-set", "19", "--bfile"]
