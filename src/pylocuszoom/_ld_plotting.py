@@ -22,7 +22,7 @@ def enrich_with_ld(
     species: str,
     context: str = "plot",
 ) -> tuple[pd.DataFrame, Optional[str]]:
-    """Enrich the selected frame, preserving its lead row's index through the merge.
+    """Assign LD values by SNP ID without changing the selected rows or their index.
 
     ``lead_index`` identifies a row already selected at the regional boundary.
     The helper never infers a variant ID from a potentially ambiguous position.
@@ -54,13 +54,5 @@ def enrich_with_ld(
         )
         return df, ld_col
 
-    enriched = df.merge(
-        ld_df,
-        left_on=rs_col,
-        right_on="SNP",
-        how="left",
-        validate="many_to_one",
-    )
-    # A left merge preserves row order; retain the selected row identity too.
-    enriched.index = df.index
-    return enriched, "R2"
+    lookup = ld_df.set_index("SNP", verify_integrity=True)["R2"]
+    return df.assign(R2=df[rs_col].map(lookup)), "R2"

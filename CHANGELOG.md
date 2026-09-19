@@ -12,8 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regional plots select rows before axis scaling, labels and LD lookup, preserve
   lead identity and honor shared/per-panel LD settings. Invalid stacked lead
   positions are rejected; canonical and legacy frames can share a stack.
+- Label eligibility is resolved once from the selected lead row. Fresh reference
+  LD replaces an existing `R2` column without losing coloring or changing row order.
 - Colocalization projects fields from their declared source before merging, so
   unrelated metadata cannot change effect colors or satisfy a missing column.
+  Disabling effect coloring also disables its effect-column requirements.
 - GTEx preserves chromosome and absolute position; relative TSS distance is no
   longer accepted as an absolute coordinate. GTF/GFF3 display names are preserved
   independently of attribute order.

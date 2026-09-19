@@ -6,6 +6,7 @@ PLINK binary or a subprocess.
 """
 
 import pandas as pd
+import pytest
 
 from pylocuszoom._ld_plotting import enrich_with_ld
 
@@ -81,10 +82,10 @@ class TestEnrichWithLDDeclines:
         assert any("'rs' not found" in record for record in warning_records)
 
 
-class TestEnrichWithLDMerges:
-    """The success path merges PLINK's R2 column onto the caller's frame."""
+class TestEnrichWithLDLookup:
+    """The success path assigns PLINK's R2 values to the selected rows."""
 
-    def test_r2_is_merged_onto_matching_variant_ids(
+    def test_r2_is_assigned_to_matching_variant_ids(
         self, monkeypatch, tiny_regional_gwas_df
     ):
         """Each variant gains the R2 that PLINK reported for its ID."""
@@ -108,6 +109,40 @@ class TestEnrichWithLDMerges:
 
         assert ld_col == "R2"
         assert list(result["R2"]) == [0.9, 1.0, 0.2]
+
+    def test_lookup_preserves_rows_and_replaces_old_r2(self, monkeypatch):
+        frame = pd.DataFrame(
+            {"rs": ["b", "a", "missing", "a"], "R2": [-1.0] * 4},
+            index=[8, 3, 9, 5],
+        )
+        original = frame.copy(deep=True)
+        monkeypatch.setattr(
+            "pylocuszoom._ld_plotting.calculate_ld",
+            lambda **kwargs: pd.DataFrame({"SNP": ["a", "b"], "R2": [0.5, 1.0]}),
+        )
+        result, ld_col = enrich_with_ld(
+            frame, reference_file="/panel", lead_index=8, ld_col=None, **ARGS
+        )
+        expected = original.assign(R2=[1.0, 0.5, float("nan"), 0.5])
+        assert ld_col == "R2"
+        pd.testing.assert_frame_equal(result, expected)
+        pd.testing.assert_frame_equal(frame, original)
+
+    def test_duplicate_reference_ids_are_rejected(
+        self, monkeypatch, tiny_regional_gwas_df
+    ):
+        monkeypatch.setattr(
+            "pylocuszoom._ld_plotting.calculate_ld",
+            lambda **kwargs: pd.DataFrame({"SNP": ["rs1", "rs1"], "R2": [0.5, 1.0]}),
+        )
+        with pytest.raises(ValueError):
+            enrich_with_ld(
+                tiny_regional_gwas_df,
+                reference_file="/panel",
+                lead_index=0,
+                ld_col=None,
+                **ARGS,
+            )
 
     def test_empty_ld_output_warns_and_keeps_the_frame(
         self, monkeypatch, tiny_regional_gwas_df, warning_records

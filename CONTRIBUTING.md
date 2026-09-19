@@ -65,7 +65,7 @@ markdown, mermaid, link-check, or test failures will not merge.
 - **Base branch:** open PRs against `main`.
 - **Tests first:** follow test-driven development — add or update tests in
   `tests/` before (or alongside) the implementation. Mock PLINK calls rather
-  than requiring a local install; see `tests/test_ld.py` for the pattern.
+  than requiring a local install; see `tests/test_ld_process.py` for the pattern.
 - **Changelog:** add an entry to `CHANGELOG.md` under the `## [Unreleased]`
   section, using the `Added` / `Changed` / `Fixed` / `Removed` categories.
 - **Docs:** update `README.md`, `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`,

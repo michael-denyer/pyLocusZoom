@@ -33,13 +33,22 @@ class TestLocusZoomPlotterLdCalculation:
         "1 1100000 rs1 1 1900000 rs3 0.50\n"
     )
 
-    def test_ld_reference_colours_the_plot(self, fake_plink, tiny_regional_gwas_df):
+    @pytest.mark.parametrize("existing_r2", [False, True])
+    def test_ld_reference_colours_the_plot(
+        self, fake_plink, tiny_regional_gwas_df, existing_r2
+    ):
         """A PLINK run that returns LD pairs colours the points by R2."""
         bfile, plink_writes = fake_plink
+        frame = (
+            tiny_regional_gwas_df.assign(R2=0.0)
+            if existing_r2
+            else tiny_regional_gwas_df
+        )
+        original = frame.copy(deep=True)
 
         with plink_writes(self.LD_OUTPUT):
             fig = LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
-                tiny_regional_gwas_df,
+                frame,
                 chrom=1,
                 start=1000000,
                 end=2000000,
@@ -51,6 +60,13 @@ class TestLocusZoomPlotterLdCalculation:
         assert legend is not None, "LD data should add an r² legend"
         assert legend.get_title().get_text() == LD_LEGEND_TITLE
         assert "Lead SNP" in [text.get_text() for text in legend.get_texts()]
+        from matplotlib.colors import to_hex
+
+        colors = {
+            to_hex(points.get_facecolors()[0]) for points in fig.axes[0].collections
+        }
+        assert {"#ff0000", "#00cd00"} <= colors
+        pd.testing.assert_frame_equal(frame, original)
 
     def test_empty_ld_output_is_downgraded_to_warning(
         self, fake_plink, tiny_regional_gwas_df, warning_records

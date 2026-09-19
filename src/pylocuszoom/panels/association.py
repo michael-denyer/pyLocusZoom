@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from .._label_data import select_label_candidates
 from .._plotter_utils import add_significance_line
 from ..backends.base import (
     PlotBackend,
@@ -59,13 +60,6 @@ class AssociationPanel:
     panel_label: Optional[str] = None
     add_ld_legend: bool = False
 
-    @property
-    def lead_pos(self) -> Optional[int]:
-        """Position of the selected lead row, for distance-based label placement."""
-        if self.lead_index is None:
-            return None
-        return int(self.data.at[self.lead_index, self.columns.pos_col])
-
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw the association scatter with its axes, overlay, and legends."""
         df = self.data
@@ -88,22 +82,19 @@ class AssociationPanel:
             and not df.empty
             and isinstance(backend, SupportsSNPLabels)
         ):
-            label_data = df
-            if self.lead_index is not None:
-                label_data = df[
-                    (df.index == self.lead_index)
-                    | (df[columns.pos_col] != self.lead_pos)
-                ]
             backend.add_snp_labels(
                 ax,
-                label_data,
+                select_label_candidates(
+                    df,
+                    pos_col=columns.pos_col,
+                    lead_index=self.lead_index,
+                    region_span=end - start,
+                ),
                 pos_col=columns.pos_col,
                 neglog10p_col="neglog10p",
                 rs_col=columns.rs_col,
                 label_top_n=self.display.label_top_n,
                 adjust=True,
-                lead_pos=self.lead_pos,
-                region_span=end - start,
             )
 
         recomb_df = self.recomb_df

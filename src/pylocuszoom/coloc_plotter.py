@@ -78,12 +78,17 @@ def _merge_and_transform(
     config: ColocConfig,
 ) -> pd.DataFrame:
     """Project source-owned roles, then merge and colour the accepted rows."""
+    gwas_effect, eqtl_effect = (
+        (config.gwas_effect_col, config.eqtl_effect_col)
+        if config.color_by_effect
+        else (None, None)
+    )
     gwas = _project_coloc_input(
         gwas_df,
         name="gwas",
         pos_col=config.pos_col,
         p_col=config.gwas_p_col,
-        effect_col=config.gwas_effect_col,
+        effect_col=gwas_effect,
         rs_col=config.rs_col,
         ld_col=config.ld_col,
     )
@@ -92,7 +97,7 @@ def _merge_and_transform(
         name="eqtl",
         pos_col=config.pos_col,
         p_col=config.eqtl_p_col,
-        effect_col=config.eqtl_effect_col,
+        effect_col=eqtl_effect,
     )
     merged = pd.merge(gwas, eqtl, on="pos", how="inner")
     if merged.empty:

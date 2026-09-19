@@ -824,6 +824,32 @@ class TestLeadSelectionRules:
 
 
 class TestColocColumnOwnership:
+    @pytest.mark.parametrize("with_ld", [False, True])
+    def test_disabled_effect_coloring_ignores_missing_effect_columns(self, with_ld):
+        gwas = pd.DataFrame(
+            {"pos": [10, 20, 30], "p_gwas": [0.1, 0.01, 0.001], "ld": [0.1, 0.5, 1.0]}
+        )
+        eqtl = pd.DataFrame({"pos": [10, 20, 30], "p_eqtl": [0.2, 0.02, 0.002]})
+        plotter = ColocPlotter()
+        options = dict(rs_col=None, ld_col="ld" if with_ld else None)
+        expected = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        actual = (
+            plotter.plot_coloc(
+                gwas,
+                eqtl,
+                **options,
+                color_by_effect=False,
+                gwas_effect_col="absent_beta",
+                eqtl_effect_col="absent_slope",
+            )
+            .axes[0]
+            .collections[0]
+        )
+        np.testing.assert_array_equal(actual.get_offsets(), expected.get_offsets())
+        np.testing.assert_array_equal(
+            actual.get_facecolors(), expected.get_facecolors()
+        )
+
     @pytest.mark.parametrize("extra_column", ["beta_gwas", "neglog10_gwas"])
     def test_unselected_columns_cannot_change_scatter(self, extra_column):
         gwas = pd.DataFrame(

@@ -1119,13 +1119,17 @@ lead, scaling axes, labeling points or calculating LD. A frame without `chr` is
 assumed to contain only the requested chromosome. In stacks, shared `LDConfig`
 values apply to every panel unless a per-panel list overrides them. A lead
 position shared by multiple variants selects the strongest p-value at that
-position, with input order breaking ties. Regional heatmaps sort SNPs and both
+position, with input order breaking ties. That selected row also defines label
+eligibility; nearby non-lead variants are excluded before ranking labels.
+Requesting reference LD replaces an existing `R2` column in the prepared plot
+data. The caller's frame is unchanged. Regional heatmaps sort SNPs and both
 matrix axes together, and require distinct retained genomic positions.
 
 Genome-wide stacks resolve supported legacy names independently for each frame.
 QQ compositions and Miami hover read those same resolved columns. Unselected
-metadata never replaces a configured role. Colocalization effect and LD columns
-must exist in their declared source frame.
+metadata never replaces a configured role. Requested colocalization LD columns
+must exist in their declared source frame. Effect columns are required in their
+declared sources only when `color_by_effect=True`.
 
 Categorical Manhattan plots render missing categories as `Uncategorised`.
 An explicit category order sets priority; other observed categories append in

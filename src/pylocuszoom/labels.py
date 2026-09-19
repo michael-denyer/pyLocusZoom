@@ -11,6 +11,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.text import Annotation
 
+from pylocuszoom._label_data import select_label_candidates
 from pylocuszoom.colors import SNP_LABEL_COLOR
 from pylocuszoom.logging import logger
 from pylocuszoom.schemas import Canonical
@@ -70,21 +71,13 @@ def add_snp_labels(
             "Ensure -log10(p) values are calculated before calling add_snp_labels."
         )
 
-    # Filter eligible SNPs FIRST (drop near-lead non-lead rows), then take top N.
-    # Otherwise nlargest can be saturated by the lead's neighbors and the mask
-    # leaves only the lead itself, producing far fewer labels than requested.
-    eligible = df
-    if lead_pos is not None and region_span is not None and region_span > 0:
-        if not 0 <= min_label_distance <= 1:
-            raise ValueError(
-                f"min_label_distance must be between 0 and 1, got {min_label_distance}"
-            )
-        min_dist_bp = min_label_distance * region_span
-        mask = (df[pos_col] == lead_pos) | (
-            (df[pos_col] - lead_pos).abs() >= min_dist_bp
-        )
-        eligible = df[mask]
-
+    eligible = select_label_candidates(
+        df,
+        pos_col=pos_col,
+        lead_pos=lead_pos,
+        region_span=region_span,
+        min_label_distance=min_label_distance,
+    )
     top_snps = eligible.nlargest(label_top_n, neglog10p_col)
 
     texts = []
