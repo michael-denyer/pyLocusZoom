@@ -7,17 +7,14 @@ authors:
   - family-names: Denyer
     given-names: Michael
     email: code.denyer@gmail.com
-version: 3.1.1
-date-released: 2026-09-08
+version: 4.0.0
+date-released: 2026-09-19
 license: GPL-3.0-or-later
 doi: 10.5281/zenodo.22665975
 identifiers:
   - type: doi
     value: 10.5281/zenodo.22665975
     description: Concept DOI, resolves to the latest version
-  - type: doi
-    value: 10.5281/zenodo.22665976
-    description: Version DOI for 3.1.1
 repository-code: https://github.com/michael-denyer/pyLocusZoom
 url: https://github.com/michael-denyer/pyLocusZoom
 keywords:
