@@ -528,6 +528,7 @@ def test_plotter_delegates_the_recombination_decision_to_one_function():
         species=plotter.species,
         data_dir=None,
         genome_build="canfam3.1",
+        lifter=None,
     )
     assert result.status is RecombStatus.OK
     assert result.frame is frame

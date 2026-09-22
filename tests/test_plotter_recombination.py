@@ -27,8 +27,8 @@ class TestLocusZoomPlotterRecombination:
         # First call - no cache
         assert plotter._recomb_cache == {}
 
-        # Manually add to cache (key includes genome_build)
-        plotter._recomb_cache[(1, 1000000, 2000000, plotter.genome_build)] = (
+        # Manually add to cache (key includes genome_build and lifter)
+        plotter._recomb_cache[(1, 1000000, 2000000, plotter.genome_build, None)] = (
             RecombResult(RecombStatus.OK, frame=recomb_df)
         )
 

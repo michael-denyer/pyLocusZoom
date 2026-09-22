@@ -18,12 +18,14 @@ Example:
     ... )
 """
 
+import os
 import warnings
 from typing import Annotated, ClassVar, List, Optional, Tuple, TypeVar, Union
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ._liftover import CoordinateLifter, load_chain
 from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
 from .schemas import (
     DEPRECATED_ALIAS_REMOVED_IN,
@@ -173,6 +175,54 @@ class LDConfig(BaseModel):
                 "ld_reference_file (compute LD). Choose one."
             )
         return self
+
+
+class LiftoverConfig(BaseModel):
+    """Plot summary statistics from one genome build on another build's annotations.
+
+    With a ``lifter`` or a ``chain_path``, ``plot()`` treats ``gwas_df``,
+    ``start``, ``end`` and ``ld.lead_pos`` as source-build coordinates and
+    lifts the region's SNPs to the plotter's ``genome_build`` before drawing.
+    Gene, exon, eQTL and fine-mapping frames are taken as already in the
+    target build. The default, neither set, plots without liftover.
+
+    Attributes:
+        lifter: Coordinate lifter exposing pyliftover's ``convert_coordinate``,
+            such as a ``pyliftover.LiftOver``.
+        chain_path: UCSC chain file from the source build to the plotter's
+            build, loaded with pyliftover. Loaded chains are cached per path.
+        lift_recombination: Lift the recombination maps the plotter loads,
+            managed or from ``recomb_data_dir``, through the same chain rather
+            than the registered one. The maps must be in the chain's source
+            build. A ``PanelInputs.recomb_df`` is never lifted.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    lifter: Optional[CoordinateLifter] = Field(
+        default=None, description="Coordinate lifter"
+    )
+    chain_path: Optional[Union[str, os.PathLike]] = Field(
+        default=None, description="UCSC chain file"
+    )
+    lift_recombination: bool = Field(
+        default=False, description="Lift the recombination maps too"
+    )
+
+    @model_validator(mode="after")
+    def validate_one_source(self) -> "LiftoverConfig":
+        """Validate that at most one lifter source is named, and one is if needed."""
+        if self.lifter is not None and self.chain_path is not None:
+            raise ValueError("Pass either lifter or chain_path, not both")
+        if self.lift_recombination and self.lifter is None and self.chain_path is None:
+            raise ValueError("lift_recombination requires a lifter or chain_path")
+        return self
+
+    def resolve(self) -> Optional[CoordinateLifter]:
+        """Return the lifter to use, loading ``chain_path`` if needed, or None."""
+        if self.chain_path is not None:
+            return load_chain(self.chain_path)
+        return self.lifter
 
 
 class PanelInputs(BaseModel):
@@ -440,6 +490,7 @@ __all__ = [
     "ColumnConfig",
     "DisplayConfig",
     "LDConfig",
+    "LiftoverConfig",
     "PanelInputs",
     "PlotConfig",
     "StackedPlotConfig",

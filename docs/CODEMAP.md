@@ -175,7 +175,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2b | spec | Returns the `ColumnSpec` for one family at one tier | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_gwas_df, validate_genes_df | Plot-time GWAS and gene-annotation checks | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | validate_phewas_df, validate_forest_df, validate_coloc_df | Plot-time checks for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2c | ColumnConfig, DisplayConfig, LDConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
+| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
 | 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 
@@ -217,7 +217,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | select_label_candidates | Shared lead-proximity eligibility for regional and standalone SNP labels | [_label_data.py](../src/pylocuszoom/_label_data.py) |
 | 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
-| 3j | liftover | CanFam3.1 to CanFam4 coordinate lift for recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
+| 3j | liftover | Coordinate lift between builds for GWAS regions and recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |
@@ -444,6 +444,7 @@ two tiers, core and toolbox, tabulated under
 | `ColumnConfig` | Position, p-value and SNP id column names of a GWAS frame. |
 | `DisplayConfig` | SNP labels, recombination overlay, automatic gene fetching and figure size. |
 | `LDConfig` | Lead SNP and LD source: a pre-computed column or a PLINK fileset. |
+| `LiftoverConfig` | Chain or lifter for plotting source-build sumstats on another build. |
 | `PanelInputs` | Frames for the optional gene, eQTL, fine-mapping and LD-heatmap panels. |
 
 ### Manhattan and QQ plots
@@ -562,6 +563,14 @@ two tiers, core and toolbox, tabulated under
 | `recomb_for_region` | Get a region's recombination rates, or a `RecombStatus` saying why there are none. |
 | `RecombResult` | The outcome of one region's recombination query: status, frame, detail. |
 | `RecombStatus` | Why a region does or does not have recombination rates to draw. |
+
+### Liftover
+
+| Name | Purpose |
+|------|---------|
+| `CoordinateLifter` | Protocol for pyliftover's `convert_coordinate`; `pyliftover.LiftOver` satisfies it. |
+| `liftover_region` | Lift one region's SNP positions to another build, dropping unclean hits. |
+| `RegionLiftResult` | Lifted rows plus counts of SNPs dropped by reason. |
 
 ### Gene reference routing
 
