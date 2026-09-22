@@ -142,9 +142,15 @@ class TestDefaultsAreUnchanged:
         ],
     )
     @pytest.mark.parametrize("backend", ["plotly", "bokeh"])
-    def test_explicit_default_style_matches_no_style(self, method, backend, four_chrom_df):
+    def test_explicit_default_style_matches_no_style(
+        self, method, backend, four_chrom_df
+    ):
         plotter = ManhattanPlotter(species="human", backend=backend)
-        frames = [four_chrom_df, four_chrom_df] if method.endswith("stacked") else four_chrom_df
+        frames = (
+            [four_chrom_df, four_chrom_df]
+            if method.endswith("stacked")
+            else four_chrom_df
+        )
 
         plain = getattr(plotter, method)(frames, title="T")
         styled = getattr(plotter, method)(frames, title="T", style=GenomeWideStyle())
@@ -231,7 +237,9 @@ class TestPalette:
 
 class TestPoints:
     def test_point_size_sets_manhattan_and_qq_markers(self, plotter, four_chrom_df):
-        fig = plotter.plot_manhattan_qq(four_chrom_df, style=GenomeWideStyle(point_size=75))
+        fig = plotter.plot_manhattan_qq(
+            four_chrom_df, style=GenomeWideStyle(point_size=75)
+        )
 
         sizes = {
             float(s)
@@ -242,7 +250,9 @@ class TestPoints:
         assert sizes == {75.0}
 
     def test_point_alpha_sets_matplotlib_alpha(self, plotter, four_chrom_df):
-        fig = plotter.plot_manhattan_qq(four_chrom_df, style=GenomeWideStyle(point_alpha=0.4))
+        fig = plotter.plot_manhattan_qq(
+            four_chrom_df, style=GenomeWideStyle(point_alpha=0.4)
+        )
 
         alphas = {
             c.get_alpha() for ax in fig.get_axes() for c in _manhattan_collections(ax)
@@ -252,14 +262,18 @@ class TestPoints:
     def test_point_alpha_sets_plotly_opacity(self, four_chrom_df):
         plotter = ManhattanPlotter(species="human", backend="plotly")
 
-        fig = plotter.plot_manhattan(four_chrom_df, style=GenomeWideStyle(point_alpha=0.4))
+        fig = plotter.plot_manhattan(
+            four_chrom_df, style=GenomeWideStyle(point_alpha=0.4)
+        )
 
         assert {trace.marker.opacity for trace in fig.data} == {0.4}
 
     def test_point_alpha_sets_bokeh_glyph_alpha(self, four_chrom_df):
         plotter = ManhattanPlotter(species="human", backend="bokeh")
 
-        fig = plotter.plot_manhattan(four_chrom_df, style=GenomeWideStyle(point_alpha=0.4))
+        fig = plotter.plot_manhattan(
+            four_chrom_df, style=GenomeWideStyle(point_alpha=0.4)
+        )
 
         glyphs = [g for p in _bokeh_plots(fig) for g in _bokeh_scatter_glyphs(p)]
         assert glyphs
@@ -286,13 +300,17 @@ class TestFonts:
             assert {t.get_fontsize() for t in ax.get_yticklabels()} == {18}
 
     def test_single_plot_title_is_a_panel_title(self, plotter, four_chrom_df):
-        fig = plotter.plot_qq(four_chrom_df, style=GenomeWideStyle(panel_title_fontsize=9))
+        fig = plotter.plot_qq(
+            four_chrom_df, style=GenomeWideStyle(panel_title_fontsize=9)
+        )
 
         assert fig.get_axes()[0].title.get_fontsize() == 9
 
     def test_stacked_title_takes_title_fontsize(self, plotter, four_chrom_df):
         fig = plotter.plot_manhattan_stacked(
-            [four_chrom_df, four_chrom_df], title="Stack", style=GenomeWideStyle(title_fontsize=22)
+            [four_chrom_df, four_chrom_df],
+            title="Stack",
+            style=GenomeWideStyle(title_fontsize=22),
         )
 
         assert fig.get_axes()[0].title.get_fontsize() == 22
@@ -338,14 +356,18 @@ class TestChromosomeAxis:
         assert list(fig.layout.xaxis.ticktext) == ["1", "4"]
 
     def test_tick_rotation(self, plotter, four_chrom_df):
-        fig = plotter.plot_manhattan(four_chrom_df, style=GenomeWideStyle(tick_rotation=90))
+        fig = plotter.plot_manhattan(
+            four_chrom_df, style=GenomeWideStyle(tick_rotation=90)
+        )
 
         assert {t.get_rotation() for t in fig.get_axes()[0].get_xticklabels()} == {90}
 
     def test_tick_rotation_on_plotly(self, four_chrom_df):
         plotter = ManhattanPlotter(species="human", backend="plotly")
 
-        fig = plotter.plot_manhattan(four_chrom_df, style=GenomeWideStyle(tick_rotation=90))
+        fig = plotter.plot_manhattan(
+            four_chrom_df, style=GenomeWideStyle(tick_rotation=90)
+        )
 
         assert fig.layout.xaxis.tickangle == -90
 
