@@ -41,6 +41,9 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
+# Coordinate liftover between genome builds
+from ._liftover import CoordinateLifter, RegionLiftResult, liftover_region
+
 # Backend types
 from .backends import BackendType, get_backend
 
@@ -64,6 +67,7 @@ from .config import (
     DisplayConfig,
     GenomeWideConfig,
     LDConfig,
+    LiftoverConfig,
     PanelInputs,
 )
 
@@ -205,6 +209,7 @@ __all__ = [
     "DisplayConfig",
     "GenomeWideConfig",
     "LDConfig",
+    "LiftoverConfig",
     "PanelInputs",
     # The column vocabulary every loader emits and every plotter defaults to
     "Canonical",
@@ -284,6 +289,10 @@ __all__ = [
     "recomb_for_region",
     "RecombResult",
     "RecombStatus",
+    # Liftover
+    "CoordinateLifter",
+    "RegionLiftResult",
+    "liftover_region",
     # eQTL
     "validate_eqtl_df",
     "filter_eqtl_by_gene",

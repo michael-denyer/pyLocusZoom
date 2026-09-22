@@ -83,8 +83,9 @@ engine/spec split have all shipped.
   - **Capability protocols** — `SupportsSNPLabels`, `SupportsSecondaryAxis`
     (joining `SupportsRegionHighlight`) as the single capability-negotiation
     mechanism; `supports_hover` stays a boolean (rendering-quality flag).
-- **`CoordinateLifter` port** (`_liftover.py`) — liftover seam with a production
-  `pyliftover` adapter and an in-memory test adapter; pure `liftover_positions`.
+- **`CoordinateLifter` port** (`_liftover.py`) — liftover seam matching
+  pyliftover's `convert_coordinate`, so `LiftOver` needs no adapter, plus an
+  in-memory test adapter; pure `liftover_positions` and `liftover_region`.
   Plus pure `ensure_recomb_header` for header detection.
 - **Validation engine/spec split** (done) — `validation.py` is the engine and
   knows no family; `schemas.py` is the one table of per-family specs at both

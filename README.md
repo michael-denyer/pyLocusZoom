@@ -136,6 +136,19 @@ plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 
 Recombination maps are automatically lifted over from CanFam3.1 to CanFam4 coordinates using the UCSC liftOver chain file.
 
+Summary statistics on CanFam3.1 can be drawn over CanFam4 genes by passing a chain to `plot()`:
+
+```python
+from pylocuszoom import LiftoverConfig
+
+fig = plotter.plot(
+    canfam3_gwas_df, chrom=12, start=33_000_000, end=34_000_000,
+    liftover=LiftoverConfig(chain_path="canFam3ToCanFam4.over.chain.gz"),
+)
+```
+
+See [Summary Statistics on Another Build](docs/USER_GUIDE.md#summary-statistics-on-another-build) for what is lifted and what is dropped.
+
 ## Using with Other Species
 
 ```python
