@@ -53,6 +53,7 @@ MANHATTAN_EDGE_WIDTH = 0.1
 QQ_EDGE_WIDTH = 0.02
 QQ_CI_ALPHA = 0.5
 SIGNIFICANCE_LINE_COLOR = "red"
+SUGGESTIVE_LINE_COLOR = "blue"
 
 
 def add_significance_line(

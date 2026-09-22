@@ -3,6 +3,7 @@
 Interactive backend with hover tooltips, well-suited for dashboards.
 """
 
+import html
 import math
 from typing import Any, List, NamedTuple, Optional, Tuple, Union
 
@@ -16,6 +17,7 @@ from bokeh.models import (
     ColumnDataSource,
     CustomJSTickFormatter,
     DataRange1d,
+    Div,
     HoverTool,
     Label,
     Legend,
@@ -30,6 +32,7 @@ from bokeh.models import (
 from bokeh.plotting import figure
 from matplotlib.colors import LinearSegmentedColormap, to_hex
 
+from ..colors import FOOTER_COLOR
 from . import convert_latex_to_unicode, register_backend
 from ._coerce import (
     broadcast,
@@ -450,6 +453,22 @@ class BokehBackend:
             first = first.children[0]
         first.title.text = title
         first.title.text_font_size = f"{fontsize}pt"
+
+    def set_footer(self, fig: Any, text: str, fontsize: int = 10) -> None:
+        """Append the footer to the layout column as a centred line of text."""
+        fig.children.append(
+            Div(
+                text=html.escape(text),
+                styles={
+                    "font-size": f"{fontsize}pt",
+                    "font-style": "italic",
+                    "color": FOOTER_COLOR,
+                    "text-align": "center",
+                    "width": "100%",
+                },
+                sizing_mode="stretch_width",
+            )
+        )
 
     def create_twin_axis(self, ax: figure) -> _SecondaryAxis:
         """Create a secondary y-axis and return its handle."""

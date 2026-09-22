@@ -45,6 +45,7 @@ class FigurePlan:
         mb_xaxis: Whether every x axis reads in megabases.
         highlights: Spans highlighted across every panel.
         suptitle: Figure-level title, or None for none.
+        footer: Small italic line under every panel, or None for none.
         first_panel_title: Title set on the first panel once every panel is
             drawn, for figures that title their top panel rather than the
             figure.
@@ -62,6 +63,7 @@ class FigurePlan:
     mb_xaxis: bool = False
     highlights: Sequence[RegionHighlight] = ()
     suptitle: Optional[str] = None
+    footer: Optional[str] = None
     first_panel_title: Optional[str] = None
     top: float = 0.95
     hspace: float = 0.08
@@ -111,4 +113,7 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
     if plan.suptitle:
         backend.set_suptitle(fig, plan.suptitle, fontsize=14)
     backend.finalize_layout(fig, top=plan.top, hspace=plan.hspace)
+    # After the layout, so the backend can grow the bottom margin it just set.
+    if plan.footer:
+        backend.set_footer(fig, plan.footer)
     return fig

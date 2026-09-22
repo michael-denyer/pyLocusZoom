@@ -515,6 +515,19 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def set_footer(self, fig: Any, text: str, fontsize: int = 10) -> None:
+        """Write one line of small italic text centred under every panel.
+
+        Called after ``finalize_layout``; the backend makes room for the line
+        below the axis labels rather than drawing over them.
+
+        Args:
+            fig: Figure object.
+            text: Footer text, drawn literally.
+            fontsize: Font size.
+        """
+        ...
+
     def hide_yaxis(self, ax: Any) -> None:
         """Hide y-axis for gene track panels.
 

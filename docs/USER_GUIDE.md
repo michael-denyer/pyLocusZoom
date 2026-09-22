@@ -699,6 +699,24 @@ fig.savefig("manhattan_qq.png", dpi=150)
 - Confidence band and λ on QQ plot
 - Optional overall figure title
 
+Three optional arguments, all off by default:
+
+| Argument | Default | Effect |
+|----------|---------|--------|
+| `suggestive_threshold` | None | P-value for a second, blue dashed line on the Manhattan panel, such as `1e-5`. |
+| `lambda_gc` | None | Inflation factor shown on the QQ panel instead of the one computed from the plotted p-values. |
+| `footer` | None | One small italic grey line under both panels, such as the sample size or model. |
+
+```python
+fig = plotter.plot_manhattan_qq(
+    gwas_df,
+    significance_threshold=0.05 / len(gwas_df),
+    suggestive_threshold=1e-5,
+    lambda_gc=lambda_from_pipeline,
+    footer="n = 2,345 dogs | GEMMA LMM",
+)
+```
+
 ---
 
 ## Backends
@@ -885,7 +903,7 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `chrom_col` | str | `"chr"` | Chromosome column name. |
 | `pos_col` | str | `"pos"` | Position column name. |
 | `p_col` | str | `"p_value"` | P-value column name. |
-| `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. |
+| `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
 
 #### DisplayConfig
 

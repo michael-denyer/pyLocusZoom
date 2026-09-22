@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `plot_manhattan_qq` takes `suggestive_threshold` for a second line on the
+  Manhattan panel, `lambda_gc` to show a caller-computed inflation factor instead
+  of the computed one, and `footer` for a small italic line under both panels.
+  All three default to off, so existing calls render as before.
+- `PlotBackend.set_footer` writes that line. Backends registered with
+  `@register_backend` need to implement it before they can draw a footer.
+
+### Fixed
+
+- The feline chromosome order omitted F1 and F2, so they plotted after X, Y
+  and MT. They now follow E3.
+- Canine frames using PLINK's numeric sex codes (39, 40, 41, 42) plotted them
+  after MT in string order. Each code now sits beside its letter: X, 39, XY, 41,
+  Y, 40, MT, 42.
+
 ## [4.0.0] - 2026-09-19
 
 ### Fixed

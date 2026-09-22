@@ -548,3 +548,69 @@ class TestYlimClamp:
             row = axes_by_y[panel * 2 : panel * 2 + 2]
             manhattan_ax = max(row, key=lambda a: a.get_position().width)
             assert manhattan_ax.get_ylim()[1] >= 1.0
+
+
+class TestPlotManhattanQQOptions:
+    """Suggestive line, caller-supplied lambda and footer on plot_manhattan_qq."""
+
+    @staticmethod
+    def _hline_levels(ax):
+        return sorted(round(line.get_ydata()[0], 6) for line in ax.get_lines())
+
+    def test_defaults_draw_one_line_and_computed_lambda(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        fig = manhattan_plotter.plot_manhattan_qq(manhattan_gwas_df)
+
+        manhattan_ax, qq_ax = fig.get_axes()
+        assert self._hline_levels(manhattan_ax) == [round(-np.log10(5e-8), 6)]
+        assert qq_ax.get_title().startswith("QQ Plot (λ = ")
+        assert fig.texts == []
+
+    def test_suggestive_line_is_drawn_below_the_genomewide_line(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        fig = manhattan_plotter.plot_manhattan_qq(
+            manhattan_gwas_df, suggestive_threshold=1e-5
+        )
+
+        assert self._hline_levels(fig.get_axes()[0]) == [5.0, round(-np.log10(5e-8), 6)]
+
+    def test_caller_lambda_replaces_the_computed_one(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        fig = manhattan_plotter.plot_manhattan_qq(manhattan_gwas_df, lambda_gc=1.2345)
+
+        assert fig.get_axes()[1].get_title() == "QQ Plot (λ = 1.234)"
+
+    def test_footer_is_written_under_the_panels(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        fig = manhattan_plotter.plot_manhattan_qq(
+            manhattan_gwas_df, footer="n = 1,234 dogs"
+        )
+
+        assert [text.get_text() for text in fig.texts] == ["n = 1,234 dogs"]
+
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_options_render_on_every_backend(self, backend, manhattan_gwas_df):
+        plotter = ManhattanPlotter(species="human", backend=backend)
+
+        fig = plotter.plot_manhattan_qq(
+            manhattan_gwas_df,
+            suggestive_threshold=1e-5,
+            lambda_gc=1.05,
+            footer="footer text",
+        )
+
+        assert isinstance(fig, FIGURE_TYPES[backend])
+        if backend == "plotly":
+            texts = [a.text for a in fig.layout.annotations]
+            assert "<i>footer text</i>" in texts
+        elif backend == "bokeh":
+            from bokeh.models import Div
+
+            assert any(
+                isinstance(model, Div) and model.text == "footer text"
+                for model in fig.select({"type": Div})
+            )

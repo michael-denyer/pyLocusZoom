@@ -293,6 +293,9 @@ class ManhattanPlotter:
         show_lambda: bool = True,
         figsize: Tuple[float, float] = (14, 5),
         title: Optional[str] = None,
+        suggestive_threshold: Optional[float] = None,
+        lambda_gc: Optional[float] = None,
+        footer: Optional[str] = None,
     ) -> Any:
         """Create side-by-side Manhattan and QQ plots.
 
@@ -309,6 +312,12 @@ class ManhattanPlotter:
             show_lambda: If True, show genomic inflation factor on QQ plot.
             figsize: Figure size as (width, height).
             title: Overall plot title.
+            suggestive_threshold: P-value for a second, suggestive line on the
+                Manhattan panel, such as 1e-5. None draws none.
+            lambda_gc: Genomic inflation factor to show on the QQ panel, for a
+                caller who computed it another way. None computes it from the
+                plotted p-values.
+            footer: One small italic line under both panels, or None for none.
 
         Returns:
             Figure object (type depends on backend).
@@ -331,6 +340,7 @@ class ManhattanPlotter:
                     manhattan_spec(
                         manhattan,
                         significance_threshold=significance_threshold,
+                        suggestive_threshold=suggestive_threshold,
                         x_label="Chromosome",
                         title="Manhattan Plot",
                         title_fontsize=12,
@@ -339,7 +349,9 @@ class ManhattanPlotter:
                         qq_df=qq.frame,
                         show_confidence_band=show_confidence_band,
                         title=qq_title(
-                            qq.lambda_gc, show_lambda=show_lambda, compact=False
+                            qq.lambda_gc if lambda_gc is None else lambda_gc,
+                            show_lambda=show_lambda,
+                            compact=False,
                         ),
                         title_fontsize=12,
                     ),
@@ -348,6 +360,7 @@ class ManhattanPlotter:
                 n_cols=2,
                 width_ratios=[2.5, 1],
                 suptitle=title,
+                footer=footer,
                 top=0.90 if title else 0.95,
             ),
         )

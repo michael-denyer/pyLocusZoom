@@ -17,6 +17,7 @@ from .._plotter_utils import (
     MANHATTAN_EDGE_WIDTH,
     MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
+    SUGGESTIVE_LINE_COLOR,
     add_significance_line,
 )
 from ..backends.base import PlotBackend
@@ -41,6 +42,8 @@ class ManhattanPanelSpec:
             the figure.
         significance_threshold: P-value to draw the significance line at, or
             None to draw no line.
+        suggestive_threshold: P-value to draw the suggestive line at, or
+            None to draw no line.
         point_size: Marker size.
         tick_fontsize: X tick label size.
         tick_rotation: X tick label rotation.
@@ -62,6 +65,7 @@ class ManhattanPanelSpec:
     group_col: str
     layout: PanelLayout
     significance_threshold: Optional[float] = None
+    suggestive_threshold: Optional[float] = None
     point_size: int = MANHATTAN_POINT_SIZE
     tick_fontsize: int = 8
     tick_rotation: int = 0
@@ -84,6 +88,7 @@ def manhattan_spec(
     prepared: PreparedManhattan,
     *,
     significance_threshold: Optional[float] = None,
+    suggestive_threshold: Optional[float] = None,
     x_label: Optional[str] = None,
     y_label_fontsize: int = 12,
     title: Optional[str] = None,
@@ -105,6 +110,8 @@ def manhattan_spec(
             frame and the shared :class:`~.manhattan.GenomeLayout`.
         significance_threshold: P-value to draw the significance line at, or
             None to draw no line.
+        suggestive_threshold: P-value to draw the suggestive line at, or
+            None to draw no line.
         x_label: X axis label, or None for none.
         y_label_fontsize: Y axis label size.
         title: Panel title, or None for none.
@@ -123,6 +130,7 @@ def manhattan_spec(
         group_col="_chrom_str",
         layout=prepared.layout,
         significance_threshold=significance_threshold,
+        suggestive_threshold=suggestive_threshold,
         x_label=x_label,
         y_label_fontsize=y_label_fontsize,
         title=title,
@@ -233,6 +241,9 @@ def render_manhattan_panel(
         )
 
     add_significance_line(backend, ax, spec.significance_threshold)
+    add_significance_line(
+        backend, ax, spec.suggestive_threshold, color=SUGGESTIVE_LINE_COLOR
+    )
     backend.set_xlim(ax, *spec.layout.x_limits)
     y_max = padded_ymax(df["neglog10p"].max())
     if spec.invert_y:

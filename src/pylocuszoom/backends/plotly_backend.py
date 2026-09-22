@@ -3,12 +3,14 @@
 Interactive backend with hover tooltips and zoom/pan capabilities.
 """
 
+import html
 from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from ..colors import FOOTER_COLOR
 from . import convert_latex_to_unicode, register_backend
 from ._coerce import (
     broadcast,
@@ -472,6 +474,23 @@ class PlotlyBackend:
                 x=0.5,
                 xanchor="center",
             )
+        )
+
+    def set_footer(self, fig: go.Figure, text: str, fontsize: int = 10) -> None:
+        """Grow the bottom margin by one text line and write the footer in it."""
+        bottom = fig.layout.margin.b + 2 * fontsize
+        fig.update_layout(margin=dict(b=bottom))
+        fig.add_annotation(
+            text=f"<i>{html.escape(text)}</i>",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0,
+            xanchor="center",
+            yanchor="bottom",
+            yshift=-bottom,
+            showarrow=False,
+            font=dict(size=fontsize, color=FOOTER_COLOR),
         )
 
     def create_twin_axis(self, ax: _Panel) -> _SecondaryAxis:
