@@ -173,6 +173,7 @@ class PlotBackend(Protocol):
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.
 
@@ -187,6 +188,8 @@ class PlotBackend(Protocol):
             linewidth: Marker edge width.
             zorder: Drawing order.
             hover_data: DataFrame with columns for hover tooltips.
+            alpha: Marker opacity in (0, 1], or None for the backend's
+                default, opaque.
         """
         ...
 
@@ -492,6 +495,15 @@ class PlotBackend(Protocol):
             fontsize: Font size.
             rotation: Label rotation in degrees.
             ha: Horizontal alignment for rotated labels.
+        """
+        ...
+
+    def set_tick_fontsize(self, ax: Any, fontsize: int) -> None:
+        """Set the tick label size on both axes, keeping the ticks.
+
+        Args:
+            ax: Axes or panel.
+            fontsize: Font size.
         """
         ...
 

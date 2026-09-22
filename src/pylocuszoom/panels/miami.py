@@ -6,6 +6,7 @@ from typing import Any, Optional, Tuple
 from .._figure import FigurePlan, RegionHighlight
 from ..backends.base import PlotBackend
 from ..backends.hover import HoverConfig
+from ..config import GenomeWideStyle
 from ..manhattan import PreparedManhattan
 from .manhattan import ManhattanPanelSpec, manhattan_spec
 
@@ -34,6 +35,7 @@ class MiamiRequest:
     highlight_alpha: float
     figsize: Tuple[float, float]
     title: Optional[str]
+    style: GenomeWideStyle = GenomeWideStyle()
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,7 @@ def miami_plan(req: MiamiRequest) -> FigurePlan:
             significance_threshold=req.top_threshold,
             panel_label=req.top_label,
             hover=req.hover,
+            style=req.style,
         ),
         rs_col=req.rs_col,
         annotations=req.top_annotations,
@@ -87,6 +90,7 @@ def miami_plan(req: MiamiRequest) -> FigurePlan:
             panel_label_y_frac=0.05,
             invert_y=True,
             hover=req.hover,
+            style=req.style,
         ),
         rs_col=req.rs_col,
         annotations=req.bottom_annotations,
@@ -107,6 +111,7 @@ def miami_plan(req: MiamiRequest) -> FigurePlan:
         figsize=req.figsize,
         highlights=highlights,
         suptitle=req.title,
+        title_fontsize=req.style.title_fontsize,
         top=0.92 if req.title else 0.95,
         hspace=0.05,
     )

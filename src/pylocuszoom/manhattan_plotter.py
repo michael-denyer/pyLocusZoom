@@ -19,7 +19,7 @@ from ._plotter_utils import (
     resolve_threshold,
 )
 from .backends import BackendType, get_backend
-from .config import GenomeWideConfig
+from .config import GenomeWideConfig, GenomeWideStyle
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
 from .panels.manhattan import (
     categorical_spec,
@@ -86,6 +86,7 @@ class ManhattanPlotter:
         significance_threshold: ThresholdArg = UNSET,
         figsize: Tuple[float, float] = (12, 5),
         title: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create a Manhattan plot.
 
@@ -105,6 +106,7 @@ class ManhattanPlotter:
                 ``genomewide_threshold``; pass None to draw no line.
             figsize: Figure size as (width, height).
             title: Plot title. Defaults to "Manhattan Plot".
+            style: Palette, points, fonts and chromosome axis.
 
         Returns:
             Figure object (type depends on backend).
@@ -138,16 +140,20 @@ class ManhattanPlotter:
                 significance_threshold=significance_threshold,
                 figsize=figsize,
                 title=title,
+                style=style,
             )
 
         # Standard Manhattan plot
-        prepared = prepare_genomewide_frames([df], config, species=self.species)[0]
+        prepared = prepare_genomewide_frames(
+            [df], config, species=self.species, style=style
+        )[0]
 
         panel = manhattan_spec(
             prepared,
             significance_threshold=significance_threshold,
             x_label="Chromosome",
             title=title or "Manhattan Plot",
+            style=style,
         )
         return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
@@ -160,6 +166,7 @@ class ManhattanPlotter:
         significance_threshold: Optional[float] = None,
         figsize: Tuple[float, float] = (12, 5),
         title: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create a categorical Manhattan plot (PheWAS-style).
 
@@ -171,11 +178,13 @@ class ManhattanPlotter:
             category_col=category_col,
             p_col=p_col,
             category_order=category_order,
+            palette=style.palette,
         )
         panel = categorical_spec(
             prepared,
             significance_threshold=significance_threshold,
             title=title or "Categorical Manhattan Plot",
+            style=style,
         )
         return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
@@ -188,6 +197,7 @@ class ManhattanPlotter:
         show_lambda: bool = True,
         figsize: Tuple[float, float] = (6, 6),
         title: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create a QQ (quantile-quantile) plot.
 
@@ -201,6 +211,8 @@ class ManhattanPlotter:
             show_lambda: If True, show genomic inflation factor in title.
             figsize: Figure size as (width, height).
             title: Plot title. If None and show_lambda is True, shows lambda.
+            style: Points and fonts; the palette and chromosome axis fields
+                do not apply to a QQ panel.
 
         Returns:
             Figure object (type depends on backend).
@@ -216,6 +228,7 @@ class ManhattanPlotter:
             title=title
             or qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=False),
             title_fontsize=14,
+            style=style,
         )
         return render_figure(self._backend, FigurePlan(panels=[panel], figsize=figsize))
 
@@ -228,6 +241,7 @@ class ManhattanPlotter:
         panel_labels: Optional[List[str]] = None,
         figsize: Tuple[float, float] = (12, 8),
         title: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create stacked Manhattan plots for multiple GWAS datasets.
 
@@ -243,6 +257,8 @@ class ManhattanPlotter:
             panel_labels: Labels for each panel (one per DataFrame).
             figsize: Figure size as (width, height).
             title: Overall plot title.
+            style: Palette, points, fonts and chromosome axis, shared by
+                every panel.
 
         Returns:
             Figure object (type depends on backend).
@@ -267,7 +283,9 @@ class ManhattanPlotter:
                 f"number of GWAS DataFrames ({n_gwas})"
             )
 
-        prepared = prepare_genomewide_frames(gwas_dfs, config, species=self.species)
+        prepared = prepare_genomewide_frames(
+            gwas_dfs, config, species=self.species, style=style
+        )
         return render_figure(
             self._backend,
             FigurePlan(
@@ -275,10 +293,12 @@ class ManhattanPlotter:
                     prepared,
                     significance_threshold=significance_threshold,
                     panel_labels=panel_labels,
+                    style=style,
                 ),
                 figsize=figsize,
                 height_ratios=[figsize[1] / n_gwas] * n_gwas,
                 first_panel_title=title,
+                title_fontsize=style.title_fontsize,
                 hspace=0.1,
             ),
         )
@@ -296,6 +316,7 @@ class ManhattanPlotter:
         suggestive_threshold: Optional[float] = None,
         lambda_gc: Optional[float] = None,
         footer: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create side-by-side Manhattan and QQ plots.
 
@@ -318,6 +339,7 @@ class ManhattanPlotter:
                 caller who computed it another way. None computes it from the
                 plotted p-values.
             footer: One small italic line under both panels, or None for none.
+            style: Palette, points, fonts and chromosome axis of both panels.
 
         Returns:
             Figure object (type depends on backend).
@@ -331,7 +353,9 @@ class ManhattanPlotter:
             significance_threshold, self.genomewide_threshold
         )
 
-        manhattan = prepare_genomewide_frames([df], config, species=self.species)[0]
+        manhattan = prepare_genomewide_frames(
+            [df], config, species=self.species, style=style
+        )[0]
         qq = prepare_qq_data(manhattan.frame)
         return render_figure(
             self._backend,
@@ -344,6 +368,7 @@ class ManhattanPlotter:
                         x_label="Chromosome",
                         title="Manhattan Plot",
                         title_fontsize=12,
+                        style=style,
                     ),
                     QQPanelSpec(
                         qq_df=qq.frame,
@@ -354,12 +379,14 @@ class ManhattanPlotter:
                             compact=False,
                         ),
                         title_fontsize=12,
+                        style=style,
                     ),
                 ],
                 figsize=figsize,
                 n_cols=2,
                 width_ratios=[2.5, 1],
                 suptitle=title,
+                title_fontsize=style.title_fontsize,
                 footer=footer,
                 top=0.90 if title else 0.95,
             ),
@@ -376,6 +403,7 @@ class ManhattanPlotter:
         panel_labels: Optional[List[str]] = None,
         figsize: Tuple[float, float] = (14, 8),
         title: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create stacked side-by-side Manhattan and QQ plots for multiple GWAS.
 
@@ -393,6 +421,8 @@ class ManhattanPlotter:
             panel_labels: List of labels for each GWAS (one per dataset).
             figsize: Figure size as (width, height).
             title: Overall plot title.
+            style: Palette, points, fonts and chromosome axis, shared by
+                every panel.
 
         Returns:
             Figure object (type depends on backend).
@@ -411,11 +441,14 @@ class ManhattanPlotter:
         if n_gwas == 0:
             raise ValueError("At least one GWAS DataFrame required")
 
-        manhattans = prepare_genomewide_frames(gwas_dfs, config, species=self.species)
+        manhattans = prepare_genomewide_frames(
+            gwas_dfs, config, species=self.species, style=style
+        )
         specs = stacked_manhattan_specs(
             manhattans,
             significance_threshold=significance_threshold,
             panel_labels=panel_labels,
+            style=style,
         )
         panels = []
         for index, (spec, prepared) in enumerate(zip(specs, manhattans)):
@@ -431,6 +464,7 @@ class ManhattanPlotter:
                     x_label="Expected $-\\log_{10}(p)$"
                     if index == n_gwas - 1
                     else None,
+                    style=style,
                 )
             )
         return render_figure(
@@ -441,6 +475,7 @@ class ManhattanPlotter:
                 n_cols=2,
                 width_ratios=[2.5, 1],
                 suptitle=title,
+                title_fontsize=style.title_fontsize,
                 top=0.90 if title else 0.95,
                 hspace=0.15,
             ),

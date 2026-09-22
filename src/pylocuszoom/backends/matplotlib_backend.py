@@ -119,6 +119,7 @@ class MatplotlibBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.
 
@@ -133,6 +134,7 @@ class MatplotlibBackend:
             edgecolor=edgecolor,
             linewidth=linewidth,
             zorder=zorder,
+            alpha=alpha,
         )
 
     def line(
@@ -335,6 +337,10 @@ class MatplotlibBackend:
         """Set x-axis tick positions and labels."""
         ax.set_xticks(positions)
         ax.set_xticklabels(labels, fontsize=fontsize, rotation=rotation, ha=ha)
+
+    def set_tick_fontsize(self, ax: Axes, fontsize: int) -> None:
+        """Set the tick label size on both axes."""
+        ax.tick_params(axis="both", labelsize=fontsize)
 
     def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
         """Set panel title."""

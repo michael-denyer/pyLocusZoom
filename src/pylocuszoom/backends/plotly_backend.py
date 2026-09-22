@@ -167,6 +167,7 @@ class PlotlyBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given panel."""
         fig, row, col = ax.fig, ax.row, ax.col
@@ -184,18 +185,20 @@ class PlotlyBackend:
             customdata = None
             hovertemplate = "x: %{x}<br>y: %{y:.2f}<extra></extra>"
 
-        marker_color = marker_colors(colors)
+        marker = dict(
+            color=marker_colors(colors),
+            size=size,
+            symbol=symbol,
+            line=dict(color=edgecolor, width=linewidth),
+        )
+        if alpha is not None:
+            marker["opacity"] = alpha
 
         trace = go.Scatter(
             x=x,
             y=y,
             mode="markers",
-            marker=dict(
-                color=marker_color,
-                size=size,
-                symbol=symbol,
-                line=dict(color=edgecolor, width=linewidth),
-            ),
+            marker=marker,
             customdata=customdata,
             hovertemplate=hovertemplate,
             name="",
@@ -435,6 +438,15 @@ class PlotlyBackend:
                     tickfont=dict(size=fontsize),
                     tickangle=-rotation if rotation else 0,
                 )
+            }
+        )
+
+    def set_tick_fontsize(self, ax: _Panel, fontsize: int) -> None:
+        """Set the tick label size on both axes."""
+        ax.fig.update_layout(
+            **{
+                ax.axis(axis): dict(tickfont=dict(size=fontsize))
+                for axis in ("xaxis", "yaxis")
             }
         )
 

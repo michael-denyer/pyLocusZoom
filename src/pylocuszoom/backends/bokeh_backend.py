@@ -201,6 +201,7 @@ class BokehBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given figure."""
         # Prepare data source
@@ -231,6 +232,7 @@ class BokehBackend:
             fill_color="color",
             line_color=edgecolor,
             line_width=linewidth,
+            **({} if alpha is None else {"fill_alpha": alpha, "line_alpha": alpha}),
         )
 
         # Add hover tool if we have hover data
@@ -437,6 +439,11 @@ class BokehBackend:
         ax.xaxis.major_label_text_font_size = f"{fontsize}pt"
         if rotation:
             ax.xaxis.major_label_orientation = math.radians(rotation)
+
+    def set_tick_fontsize(self, ax: figure, fontsize: int) -> None:
+        """Set the tick label size on both axes."""
+        for axis in (ax.xaxis, ax.yaxis):
+            axis.major_label_text_font_size = f"{fontsize}pt"
 
     def set_title(self, ax: figure, title: str, fontsize: int = 14) -> None:
         """Set figure title."""

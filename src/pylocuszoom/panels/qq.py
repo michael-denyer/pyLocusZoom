@@ -14,6 +14,8 @@ from .._plotter_utils import (
 )
 from ..backends.base import PlotBackend
 from ..colors import QQ_CI_COLOR, QQ_POINT_COLOR
+from ..config import GenomeWideStyle
+from .manhattan import scatter_alpha, styled
 
 
 def qq_title(lambda_gc: float, *, show_lambda: bool, compact: bool) -> str:
@@ -45,6 +47,8 @@ class QQPanelSpec:
         label_fontsize: Axis label size.
         x_label: X axis label, or None for none.
         y_label: Y axis label.
+        style: Caller styling. A field it sets overrides the matching
+            field above.
     """
 
     qq_df: pd.DataFrame
@@ -54,6 +58,7 @@ class QQPanelSpec:
     label_fontsize: int = 12
     x_label: Optional[str] = r"Expected $-\log_{10}(p)$"
     y_label: str = r"Observed $-\log_{10}(p)$"
+    style: GenomeWideStyle = GenomeWideStyle()
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw this panel onto a backend axis."""
@@ -69,6 +74,7 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         spec: The panel's data and presentation policy.
     """
     qq_df = spec.qq_df
+    style = spec.style
     if spec.show_confidence_band:
         backend.fill_between(
             ax,
@@ -95,15 +101,23 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         qq_df["_expected"],
         qq_df["_observed"],
         colors=QQ_POINT_COLOR,
-        sizes=QQ_POINT_SIZE,
+        sizes=styled(style.point_size, QQ_POINT_SIZE),
         marker="o",
         edgecolor=POINT_EDGE_COLOR,
         linewidth=QQ_EDGE_WIDTH,
         zorder=3,
+        **scatter_alpha(style),
     )
     backend.set_xlim(ax, 0, max_val * 1.05)
     backend.set_ylim(ax, 0, max_val * 1.05)
+    if style.tick_label_fontsize is not None:
+        backend.set_tick_fontsize(ax, style.tick_label_fontsize)
+    label_fontsize = styled(style.axis_label_fontsize, spec.label_fontsize)
     if spec.x_label is not None:
-        backend.set_xlabel(ax, spec.x_label, fontsize=spec.label_fontsize)
-    backend.set_ylabel(ax, spec.y_label, fontsize=spec.label_fontsize)
-    backend.set_title(ax, spec.title, fontsize=spec.title_fontsize)
+        backend.set_xlabel(ax, spec.x_label, fontsize=label_fontsize)
+    backend.set_ylabel(ax, spec.y_label, fontsize=label_fontsize)
+    backend.set_title(
+        ax,
+        spec.title,
+        fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
+    )

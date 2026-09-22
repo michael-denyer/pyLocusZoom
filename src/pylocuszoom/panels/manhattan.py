@@ -8,7 +8,7 @@ three copies.
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, TypeVar
 
 import pandas as pd
 
@@ -22,7 +22,24 @@ from .._plotter_utils import (
 )
 from ..backends.base import PlotBackend
 from ..backends.hover import HoverConfig, HoverDataBuilder
+from ..config import GenomeWideStyle
 from ..manhattan import PanelLayout, PreparedManhattan
+
+T = TypeVar("T")
+
+
+def styled(override: Optional[T], default: T) -> T:
+    """Return a style field the caller set, or the panel's own default."""
+    return default if override is None else override
+
+
+def scatter_alpha(style: GenomeWideStyle) -> Dict[str, float]:
+    """Return the ``alpha`` keyword for ``scatter``, or none when it is unset.
+
+    Left out rather than passed as None, so a backend registered before
+    ``scatter`` took ``alpha`` still draws an unstyled figure.
+    """
+    return {} if style.point_alpha is None else {"alpha": style.point_alpha}
 
 
 def padded_ymax(y_max: float) -> float:
@@ -58,6 +75,8 @@ class ManhattanPanelSpec:
         hover: Hover column mapping, or None for no tooltips. Built only
             when the backend reports ``supports_hover``, since matplotlib
             discards the frame the builder would allocate per group.
+        style: Caller styling. A field it sets overrides the matching
+            field above.
     """
 
     prepared_df: pd.DataFrame
@@ -78,6 +97,7 @@ class ManhattanPanelSpec:
     panel_label_y_frac: float = 0.95
     invert_y: bool = False
     hover: Optional[HoverConfig] = None
+    style: GenomeWideStyle = GenomeWideStyle()
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw this panel onto a backend axis."""
@@ -97,6 +117,7 @@ def manhattan_spec(
     panel_label_y_frac: float = 0.95,
     invert_y: bool = False,
     hover: Optional[HoverConfig] = None,
+    style: GenomeWideStyle = GenomeWideStyle(),
 ) -> ManhattanPanelSpec:
     """Build a genomic-position panel spec from a prepared Manhattan frame.
 
@@ -120,6 +141,7 @@ def manhattan_spec(
         panel_label_y_frac: Fractional height of the corner label.
         invert_y: Draw the y axis descending, as the lower Miami panel does.
         hover: Hover column mapping, or None for no tooltips.
+        style: Caller styling.
 
     Returns:
         The panel spec.
@@ -139,6 +161,7 @@ def manhattan_spec(
         panel_label_y_frac=panel_label_y_frac,
         invert_y=invert_y,
         hover=hover,
+        style=style,
     )
 
 
@@ -147,6 +170,7 @@ def categorical_spec(
     *,
     significance_threshold: Optional[float],
     title: str,
+    style: GenomeWideStyle = GenomeWideStyle(),
 ) -> ManhattanPanelSpec:
     """Build a category-axis panel spec from a prepared categorical frame.
 
@@ -155,6 +179,7 @@ def categorical_spec(
         significance_threshold: P-value to draw the significance line at, or
             None to draw no line.
         title: Panel title.
+        style: Caller styling.
 
     Returns:
         The panel spec, with the larger points and rotated ticks a category
@@ -172,6 +197,7 @@ def categorical_spec(
         tick_ha="right",
         x_label="Category",
         title=title,
+        style=style,
     )
 
 
@@ -180,6 +206,7 @@ def stacked_manhattan_specs(
     *,
     significance_threshold: Optional[float],
     panel_labels: Optional[Sequence[str]],
+    style: GenomeWideStyle = GenomeWideStyle(),
 ) -> List[ManhattanPanelSpec]:
     """Build specs for vertically stacked panels sharing one genome layout.
 
@@ -190,6 +217,7 @@ def stacked_manhattan_specs(
         prepared: Values from ``prepare_manhattan_frames``, top to bottom.
         significance_threshold: P-value for the significance line, or None.
         panel_labels: Corner label per panel, or None.
+        style: Caller styling, shared by every panel.
 
     Returns:
         One spec per frame, in the same order.
@@ -204,6 +232,7 @@ def stacked_manhattan_specs(
             panel_label=panel_labels[index]
             if panel_labels and index < len(panel_labels)
             else None,
+            style=style,
         )
         for index, value in enumerate(prepared)
     ]
@@ -220,6 +249,7 @@ def render_manhattan_panel(
         spec: The panel's data and presentation policy.
     """
     df = spec.prepared_df
+    style = spec.style
     for group in spec.layout.order:
         group_data = df[df[spec.group_col] == group]
         if group_data.empty:
@@ -232,12 +262,13 @@ def render_manhattan_panel(
             group_data[spec.x_col],
             group_data["neglog10p"],
             colors=group_data["_color"].iloc[0],
-            sizes=spec.point_size,
+            sizes=styled(style.point_size, spec.point_size),
             marker="o",
             edgecolor=POINT_EDGE_COLOR,
             linewidth=MANHATTAN_EDGE_WIDTH,
             zorder=2,
             hover_data=hover_data,
+            **scatter_alpha(style),
         )
 
     add_significance_line(backend, ax, spec.significance_threshold)
@@ -252,16 +283,28 @@ def render_manhattan_panel(
         backend.set_ylim(ax, 0, y_max)
     backend.set_xticks(
         ax,
-        spec.layout.tick_positions,
-        spec.layout.tick_labels,
-        fontsize=spec.tick_fontsize,
-        rotation=spec.tick_rotation,
+        spec.layout.tick_positions[:: style.tick_step],
+        spec.layout.tick_labels[:: style.tick_step],
+        fontsize=styled(style.tick_label_fontsize, spec.tick_fontsize),
+        rotation=styled(style.tick_rotation, spec.tick_rotation),
         ha=spec.tick_ha,
     )
+    if style.tick_label_fontsize is not None:
+        backend.set_tick_fontsize(ax, style.tick_label_fontsize)
     if spec.x_label:
-        backend.set_xlabel(ax, spec.x_label, fontsize=12)
-    backend.set_ylabel(ax, r"$-\log_{10}(p)$", fontsize=spec.y_label_fontsize)
+        backend.set_xlabel(
+            ax, spec.x_label, fontsize=styled(style.axis_label_fontsize, 12)
+        )
+    backend.set_ylabel(
+        ax,
+        r"$-\log_{10}(p)$",
+        fontsize=styled(style.axis_label_fontsize, spec.y_label_fontsize),
+    )
     if spec.title:
-        backend.set_title(ax, spec.title, fontsize=spec.title_fontsize)
+        backend.set_title(
+            ax,
+            spec.title,
+            fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
+        )
     if spec.panel_label:
         backend.add_panel_label(ax, spec.panel_label, y_frac=spec.panel_label_y_frac)

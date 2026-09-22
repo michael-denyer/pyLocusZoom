@@ -45,6 +45,7 @@ def resolve_threshold(
 
 
 # Manhattan/QQ plot styling constants
+CHROMOSOME_GAP = 1_000_000
 MANHATTAN_POINT_SIZE = 10
 MANHATTAN_CATEGORICAL_POINT_SIZE = 30
 QQ_POINT_SIZE = 10

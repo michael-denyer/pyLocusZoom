@@ -717,6 +717,32 @@ fig = plotter.plot_manhattan_qq(
 )
 ```
 
+### Styling genome-wide plots
+
+Every Manhattan, QQ, stacked, side-by-side and Miami method takes
+`style=GenomeWideStyle(...)` for the chromosome palette, points, font sizes
+and chromosome axis. Fields you leave unset keep the method's current look;
+see [GenomeWideStyle](#genomewidestyle) for each field.
+
+```python
+import colorcet as cc
+from pylocuszoom import GenomeWideStyle, ManhattanPlotter
+
+style = GenomeWideStyle(
+    palette=cc.glasbey_dark[::6],  # any list of colours; for a colormap, pass cmap.colors
+    point_size=75,
+    title_fontsize=30,
+    panel_title_fontsize=26,
+    axis_label_fontsize=20,
+    tick_label_fontsize=18,
+    tick_step=2,         # label chromosomes 1, 3, 5, ...
+    tick_rotation=90,
+)
+fig = ManhattanPlotter(species="canine").plot_manhattan_qq(
+    gwas_df, title="Coat colour", suggestive_threshold=1e-5, style=style
+)
+```
+
 ---
 
 ## Backends
@@ -905,6 +931,29 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `pos_col` | str | `"pos"` | Position column name. |
 | `p_col` | str | `"p_value"` | P-value column name. |
 | `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
+
+#### GenomeWideStyle
+
+Styling for the genome-wide families, passed as `style=`. `None` keeps the
+value each method draws with today, which differs by method: chromosome ticks
+are 8 pt on a genomic axis and 10 pt on a category axis, categorical points
+are larger, and stacked figures use smaller panel titles and axis labels.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `palette` | sequence of colours | None | Colours cycled over the chromosomes in display order, or over the categories of a categorical Manhattan. Any matplotlib colour spec, stored as hex. For a matplotlib colormap, pass its `colors`. `None` keeps the default glasbey palette. |
+| `point_size` | float | None | Marker area in matplotlib `s` units for Manhattan and QQ points. |
+| `point_alpha` | float | None | Marker opacity in (0, 1]. `None` draws opaque points. |
+| `title_fontsize` | int | 14 | The figure title that `title=` sets on Manhattan-QQ, stacked and Miami figures. |
+| `panel_title_fontsize` | int | None | Each panel's title: "Manhattan Plot", the QQ λ title, and the `title` of a single `plot_manhattan` or `plot_qq`. |
+| `axis_label_fontsize` | int | None | X and y axis labels. |
+| `tick_label_fontsize` | int | None | Tick labels on both axes. |
+| `tick_step` | int | 1 | Label every n-th chromosome or category that carries data, starting with the first. At least 1. |
+| `tick_rotation` | int | None | Chromosome or category tick label rotation in degrees. |
+| `chrom_gap` | int | 1,000,000 | Base pairs between one chromosome's last position and the next chromosome's first. |
+
+All three backends apply every field. Corner panel labels and Miami SNP
+annotations keep their own sizes.
 
 #### DisplayConfig
 
@@ -1624,7 +1673,7 @@ here means a major release, with a CHANGELOG entry and a migration note.
 | Group | Names |
 |-------|-------|
 | Plotters | `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, `StatsPlotter`, `LDHeatmapPlotter`, `ColocPlotter` |
-| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `LDConfig`, `LiftoverConfig`, `PanelInputs` |
+| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `GenomeWideStyle`, `LDConfig`, `LiftoverConfig`, `PanelInputs` |
 | Column vocabulary | `Canonical` |
 | GWAS loaders | `load_gwas`, `load_plink_assoc`, `load_regenie`, `load_bolt_lmm`, `load_gemma`, `load_saige`, `load_gwas_catalog` |
 | eQTL loaders | `load_gtex_eqtl`, `load_eqtl_catalogue`, `load_matrixeqtl` |

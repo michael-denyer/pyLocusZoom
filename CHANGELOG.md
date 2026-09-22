@@ -27,6 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   All three default to off, so existing calls render as before.
 - `PlotBackend.set_footer` writes that line. Backends registered with
   `@register_backend` need to implement it before they can draw a footer.
+- `GenomeWideStyle`, passed as `style=` to `plot_manhattan`, `plot_qq`,
+  `plot_manhattan_qq`, both stacked variants and `plot_miami`, sets the
+  chromosome palette, point size and alpha, the figure-title, panel-title,
+  axis-label and tick-label font sizes, the chromosome tick step and rotation,
+  and the gap between chromosomes. The palette also colours the categories of
+  a categorical Manhattan. Unset fields keep each method's current look, and
+  the example exports are unchanged.
+- `PlotBackend.scatter` takes `alpha`, and `PlotBackend.set_tick_fontsize`
+  sizes the tick labels on both axes. Neither is called unless the style sets
+  `point_alpha` or `tick_label_fontsize`, so backends registered with
+  `@register_backend` draw unstyled figures as before and need both to draw
+  those two fields.
 
 ### Fixed
 
