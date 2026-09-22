@@ -178,6 +178,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
 | 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
+| 2c | GenomeWideStyle | Palette, point, font and chromosome-axis styling the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 
 ---
 
@@ -453,6 +454,7 @@ two tiers, core and toolbox, tabulated under
 |------|---------|
 | `ManhattanPlotter` | Manhattan and QQ plot generator for genome-wide visualizations. |
 | `GenomeWideConfig` | Chromosome, position and p-value column names plus chromosome order, shared with `MiamiPlotter`. |
+| `GenomeWideStyle` | Chromosome palette, point size and alpha, font sizes, tick step and rotation, and chromosome gap, shared with `MiamiPlotter`. |
 
 ### Miami plots
 

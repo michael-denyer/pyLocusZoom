@@ -26,7 +26,18 @@ from dataclasses import dataclass
 
 from .exceptions import ValidationError
 
-CANINE_CHROMOSOMES = tuple(str(i) for i in range(1, 39)) + ("X", "Y", "MT")
+# PLINK --dog codes X, Y, XY and MT as 39, 40, 41 and 42. Each code sits beside
+# its letter so the X-linked codes stay together whichever spelling a frame uses.
+CANINE_CHROMOSOMES = tuple(str(i) for i in range(1, 39)) + (
+    "X",
+    "39",
+    "XY",
+    "41",
+    "Y",
+    "40",
+    "MT",
+    "42",
+)
 FELINE_CHROMOSOMES = (
     "A1",
     "A2",
@@ -44,6 +55,8 @@ FELINE_CHROMOSOMES = (
     "E1",
     "E2",
     "E3",
+    "F1",
+    "F2",
     "X",
     "Y",
     "MT",

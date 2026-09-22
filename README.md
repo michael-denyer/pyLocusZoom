@@ -630,6 +630,10 @@ fig = plotter.plot_manhattan_qq(
 fig.savefig("manhattan_qq.png", dpi=150)
 ```
 
+`suggestive_threshold` adds a second line, `lambda_gc` shows your own inflation factor instead of the computed one, and `footer` writes a line under both panels.
+
+Every genome-wide method also takes `style=GenomeWideStyle(...)` for the chromosome palette, point size and alpha, font sizes, chromosome tick step and rotation, and the gap between chromosomes. Unset fields keep the default look. See [Styling genome-wide plots](docs/USER_GUIDE.md#styling-genome-wide-plots).
+
 ![Example Manhattan and QQ side-by-side](https://raw.githubusercontent.com/michael-denyer/pyLocusZoom/main/examples/matplotlib/manhattan_qq_sidebyside.png)
 *Combined Manhattan and QQ plot showing genome-wide associations and p-value distribution.*
 

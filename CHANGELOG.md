@@ -21,6 +21,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Species.chain_chrom_aliases` names chromosome codes a chain spells
   differently. PLINK's numeric X codes (canine 39 and 41, feline 19 and 21) and
   `XY` are queried as `chrX`.
+- `plot_manhattan_qq` takes `suggestive_threshold` for a second line on the
+  Manhattan panel, `lambda_gc` to show a caller-computed inflation factor instead
+  of the computed one, and `footer` for a small italic line under both panels.
+  All three default to off, so existing calls render as before.
+- `PlotBackend.set_footer` writes that line. Backends registered with
+  `@register_backend` need to implement it before they can draw a footer.
+- `GenomeWideStyle`, passed as `style=` to `plot_manhattan`, `plot_qq`,
+  `plot_manhattan_qq`, both stacked variants and `plot_miami`, sets the
+  chromosome palette, point size and alpha, the figure-title, panel-title,
+  axis-label and tick-label font sizes, the chromosome tick step and rotation,
+  and the gap between chromosomes. The palette also colours the categories of
+  a categorical Manhattan. Unset fields keep each method's current look, and
+  the example exports are unchanged.
+- `PlotBackend.scatter` takes `alpha`, and `PlotBackend.set_tick_fontsize`
+  sizes the tick labels on both axes. Neither is called unless the style sets
+  `point_alpha` or `tick_label_fontsize`, so backends registered with
+  `@register_backend` draw unstyled figures as before and need both to draw
+  those two fields.
 
 ### Fixed
 
@@ -32,6 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Liftover kept the first hit even when there were several, or when the hit was
   on another chromosome. A position now lifts only to exactly one locus on the
   same chromosome.
+- The feline chromosome order omitted F1 and F2, so they plotted after X, Y
+  and MT. They now follow E3.
+- Canine frames using PLINK's numeric sex codes (39, 40, 41, 42) plotted them
+  after MT in string order. Each code now sits beside its letter: X, 39, XY, 41,
+  Y, 40, MT, 42.
 
 ### Changed
 

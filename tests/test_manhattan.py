@@ -555,3 +555,50 @@ class TestCategoricalManhattanNaNHandling:
             pytest.fail(
                 f"prepare_categorical_data raised TypeError on mixed types: {e}"
             )
+
+
+class TestChromosomeLayoutOrder:
+    """Species chromosome codes lay out in genome order, not appended after."""
+
+    @staticmethod
+    def _tick_labels(species, chroms):
+        from pylocuszoom.manhattan import prepare_genomewide_frames
+
+        df = pd.DataFrame(
+            {
+                "chr": [c for c in chroms for _ in range(2)],
+                "pos": [1000, 2000] * len(chroms),
+                "p_value": [0.5, 0.01] * len(chroms),
+            }
+        )
+        prepared = prepare_genomewide_frames([df], GenomeWideConfig(), species=species)
+        return prepared[0].layout.tick_labels
+
+    def test_feline_f1_and_f2_sit_between_e3_and_x(self):
+        assert self._tick_labels("feline", ["X", "F2", "E3", "F1", "A1"]) == [
+            "A1",
+            "E3",
+            "F1",
+            "F2",
+            "X",
+        ]
+
+    def test_canine_plink_sex_codes_sit_after_the_autosomes(self):
+        assert self._tick_labels("canine", ["42", "41", "39", "40", "38", "2"]) == [
+            "2",
+            "38",
+            "39",
+            "41",
+            "40",
+            "42",
+        ]
+
+    def test_canine_x_and_plink_x_codes_are_adjacent(self):
+        assert self._tick_labels("canine", ["MT", "41", "X", "39", "Y", "38"]) == [
+            "38",
+            "X",
+            "39",
+            "41",
+            "Y",
+            "MT",
+        ]

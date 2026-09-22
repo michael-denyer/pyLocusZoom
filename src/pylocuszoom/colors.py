@@ -333,6 +333,9 @@ STRAND_ARROW_COLORS: dict[str, str] = {"+": "#000000", "-": "#333333"}
 # Gene name drawn above the gene body
 GENE_LABEL_COLOR = "#000000"
 
+# Footer line under a figure's panels
+FOOTER_COLOR = "#808080"
+
 # =============================================================================
 # Regional Panel Overlays
 # =============================================================================

@@ -20,13 +20,18 @@ Example:
 
 import os
 import warnings
-from typing import Annotated, ClassVar, List, Optional, Tuple, TypeVar, Union
+from typing import Annotated, Any, ClassVar, List, Optional, Tuple, TypeVar, Union
 
+import matplotlib.colors as mcolors
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._liftover import CoordinateLifter, load_chain
-from ._plotter_utils import DEFAULT_EQTL_THRESHOLD, DEFAULT_GENOMEWIDE_THRESHOLD
+from ._plotter_utils import (
+    CHROMOSOME_GAP,
+    DEFAULT_EQTL_THRESHOLD,
+    DEFAULT_GENOMEWIDE_THRESHOLD,
+)
 from .schemas import (
     DEPRECATED_ALIAS_REMOVED_IN,
     DEPRECATED_COLUMN_ALIASES,
@@ -381,6 +386,92 @@ class GenomeWideConfig(BaseModel):
     )
 
 
+PositiveFontSize = Annotated[int, Field(gt=0)]
+
+
+class GenomeWideStyle(BaseModel):
+    """Colours, points, fonts and chromosome axis of the genome-wide plots.
+
+    Every Manhattan, QQ, Manhattan-QQ, stacked and Miami method takes one as
+    ``style``. The default reproduces each method's own look, so a field left
+    unset changes nothing. A field whose default is None takes the method's
+    own value, which differs by method: the chromosome ticks
+    are 8 pt on a genomic axis and 10 pt on a category axis, the points of a
+    categorical Manhattan are larger, and a stacked figure uses smaller panel
+    titles and axis labels.
+
+    Attributes:
+        palette: Colours cycled over the chromosomes in display order, or
+            over the categories of a categorical Manhattan. Any matplotlib
+            colour spec; each is stored as a hex string, which every backend
+            accepts. To use a matplotlib colormap, pass its ``colors``. None
+            keeps the default glasbey palette.
+        point_size: Marker area in matplotlib's ``s`` units, applied to the
+            Manhattan and QQ points. The interactive backends convert it to
+            a diameter. None keeps the method's size.
+        point_alpha: Marker opacity in (0, 1] for Manhattan and QQ points.
+            None draws them opaque.
+        title_fontsize: Size of the figure title that ``title`` sets on a
+            multi-panel figure (Manhattan-QQ, stacked, Miami).
+        panel_title_fontsize: Size of the title drawn on each panel: the
+            "Manhattan Plot" and QQ lambda titles, and the ``title`` of a
+            single-panel ``plot_manhattan`` or ``plot_qq``.
+        axis_label_fontsize: Size of the x and y axis labels.
+        tick_label_fontsize: Size of the tick labels on both axes.
+        tick_step: Label every ``tick_step``-th chromosome (or category) that
+            carries data, starting with the first. At least 1.
+        tick_rotation: Rotation of the chromosome or category tick labels in
+            degrees. None keeps the method's rotation.
+        chrom_gap: Gap in base pairs between one chromosome's last position
+            and the next chromosome's first on a genomic axis.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    palette: Optional[Tuple[str, ...]] = Field(
+        default=None, description="Colours cycled over chromosomes"
+    )
+    point_size: Optional[float] = Field(default=None, gt=0, description="Marker area")
+    point_alpha: Optional[float] = Field(
+        default=None, gt=0, le=1, description="Marker opacity"
+    )
+    title_fontsize: PositiveFontSize = Field(
+        default=14, description="Figure title size"
+    )
+    panel_title_fontsize: Optional[PositiveFontSize] = Field(
+        default=None, description="Panel title size"
+    )
+    axis_label_fontsize: Optional[PositiveFontSize] = Field(
+        default=None, description="Axis label size"
+    )
+    tick_label_fontsize: Optional[PositiveFontSize] = Field(
+        default=None, description="Tick label size"
+    )
+    tick_step: int = Field(default=1, ge=1, description="Label every n-th tick")
+    tick_rotation: Optional[int] = Field(
+        default=None, description="Chromosome tick label rotation"
+    )
+    chrom_gap: int = Field(
+        default=CHROMOSOME_GAP, ge=0, description="Gap between chromosomes (bp)"
+    )
+
+    @field_validator("palette", mode="before")
+    @classmethod
+    def validate_palette(cls, v: Any) -> Any:
+        """Validate a non-empty sequence of colours and store each as hex."""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            raise ValueError("palette must be a sequence of colours, not one string")
+        colours = list(v)
+        if not colours:
+            raise ValueError("palette must name at least one colour")
+        for colour in colours:
+            if not mcolors.is_color_like(colour):
+                raise ValueError(f"palette entry {colour!r} is not a colour")
+        return tuple(mcolors.to_hex(colour) for colour in colours)
+
+
 class ColocConfig(BaseModel):
     """Configuration for colocalization plot.
 
@@ -495,6 +586,7 @@ __all__ = [
     "PlotConfig",
     "StackedPlotConfig",
     "GenomeWideConfig",
+    "GenomeWideStyle",
     "ColocConfig",
     "resolve_deprecated_columns",
 ]

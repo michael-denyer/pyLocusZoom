@@ -215,7 +215,11 @@ stages:
    `add_significance_line` the Manhattan family uses
    ([ADR-0006](adr/0006-one-regional-pipeline.md)). Every `ManhattanPlotter`
    and `MiamiPlotter` method takes a `GenomeWideConfig` (column names and
-   chromosome order) and hands its frames to
+   chromosome order) and a `GenomeWideStyle` (palette, points, fonts, tick
+   step and rotation, chromosome gap). The style's gap and palette go into
+   the shared `GenomeLayout`; the rest rides on each `ManhattanPanelSpec`
+   and `QQPanelSpec`, whose renderers let a set field override the panel's
+   own default. The method hands its frames to
    `manhattan.prepare_genomewide_frames`, which runs `validate_gwas_df`
    against those names before any frame is laid out, so the genome-wide
    families guard the boundary the way `plot()` does. `ManhattanPlotter`

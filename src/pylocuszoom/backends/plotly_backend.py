@@ -3,12 +3,14 @@
 Interactive backend with hover tooltips and zoom/pan capabilities.
 """
 
+import html
 from typing import Any, List, Optional, Tuple, Union
 
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from ..colors import FOOTER_COLOR
 from . import convert_latex_to_unicode, register_backend
 from ._coerce import (
     broadcast,
@@ -165,6 +167,7 @@ class PlotlyBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given panel."""
         fig, row, col = ax.fig, ax.row, ax.col
@@ -182,18 +185,20 @@ class PlotlyBackend:
             customdata = None
             hovertemplate = "x: %{x}<br>y: %{y:.2f}<extra></extra>"
 
-        marker_color = marker_colors(colors)
+        marker = dict(
+            color=marker_colors(colors),
+            size=size,
+            symbol=symbol,
+            line=dict(color=edgecolor, width=linewidth),
+        )
+        if alpha is not None:
+            marker["opacity"] = alpha
 
         trace = go.Scatter(
             x=x,
             y=y,
             mode="markers",
-            marker=dict(
-                color=marker_color,
-                size=size,
-                symbol=symbol,
-                line=dict(color=edgecolor, width=linewidth),
-            ),
+            marker=marker,
             customdata=customdata,
             hovertemplate=hovertemplate,
             name="",
@@ -436,6 +441,15 @@ class PlotlyBackend:
             }
         )
 
+    def set_tick_fontsize(self, ax: _Panel, fontsize: int) -> None:
+        """Set the tick label size on both axes."""
+        ax.fig.update_layout(
+            **{
+                ax.axis(axis): dict(tickfont=dict(size=fontsize))
+                for axis in ("xaxis", "yaxis")
+            }
+        )
+
     def set_title(self, ax: _Panel, title: str, fontsize: int = 14) -> None:
         """Set subplot title using annotation.
 
@@ -472,6 +486,23 @@ class PlotlyBackend:
                 x=0.5,
                 xanchor="center",
             )
+        )
+
+    def set_footer(self, fig: go.Figure, text: str, fontsize: int = 10) -> None:
+        """Grow the bottom margin by one text line and write the footer in it."""
+        bottom = fig.layout.margin.b + 2 * fontsize
+        fig.update_layout(margin=dict(b=bottom))
+        fig.add_annotation(
+            text=f"<i>{html.escape(text)}</i>",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0,
+            xanchor="center",
+            yanchor="bottom",
+            yshift=-bottom,
+            showarrow=False,
+            font=dict(size=fontsize, color=FOOTER_COLOR),
         )
 
     def create_twin_axis(self, ax: _Panel) -> _SecondaryAxis:

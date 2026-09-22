@@ -173,6 +173,7 @@ class PlotBackend(Protocol):
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.
 
@@ -187,6 +188,8 @@ class PlotBackend(Protocol):
             linewidth: Marker edge width.
             zorder: Drawing order.
             hover_data: DataFrame with columns for hover tooltips.
+            alpha: Marker opacity in (0, 1], or None for the backend's
+                default, opaque.
         """
         ...
 
@@ -495,6 +498,15 @@ class PlotBackend(Protocol):
         """
         ...
 
+    def set_tick_fontsize(self, ax: Any, fontsize: int) -> None:
+        """Set the tick label size on both axes, keeping the ticks.
+
+        Args:
+            ax: Axes or panel.
+            fontsize: Font size.
+        """
+        ...
+
     def set_title(self, ax: Any, title: str, fontsize: int = 14) -> None:
         """Set panel title.
 
@@ -511,6 +523,19 @@ class PlotBackend(Protocol):
         Args:
             fig: Figure object.
             title: Title text.
+            fontsize: Font size.
+        """
+        ...
+
+    def set_footer(self, fig: Any, text: str, fontsize: int = 10) -> None:
+        """Write one line of small italic text centred under every panel.
+
+        Called after ``finalize_layout``; the backend makes room for the line
+        below the axis labels rather than drawing over them.
+
+        Args:
+            fig: Figure object.
+            text: Footer text, drawn literally.
             fontsize: Font size.
         """
         ...

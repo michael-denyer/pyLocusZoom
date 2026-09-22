@@ -12,6 +12,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
+from ..colors import FOOTER_COLOR
 from . import register_backend
 from .base import Mappable
 from .composition import LegendEntry, cell_edges
@@ -118,6 +119,7 @@ class MatplotlibBackend:
         linewidth: float = 0.5,
         zorder: int = 2,
         hover_data: Optional[pd.DataFrame] = None,
+        alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.
 
@@ -132,6 +134,7 @@ class MatplotlibBackend:
             edgecolor=edgecolor,
             linewidth=linewidth,
             zorder=zorder,
+            alpha=alpha,
         )
 
     def line(
@@ -335,6 +338,10 @@ class MatplotlibBackend:
         ax.set_xticks(positions)
         ax.set_xticklabels(labels, fontsize=fontsize, rotation=rotation, ha=ha)
 
+    def set_tick_fontsize(self, ax: Axes, fontsize: int) -> None:
+        """Set the tick label size on both axes."""
+        ax.tick_params(axis="both", labelsize=fontsize)
+
     def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
         """Set panel title."""
         ax.set_title(
@@ -347,6 +354,23 @@ class MatplotlibBackend:
     def set_suptitle(self, fig: Figure, title: str, fontsize: int = 14) -> None:
         """Set overall figure title (super title)."""
         fig.suptitle(title, fontsize=fontsize, fontweight="bold")
+
+    def set_footer(self, fig: Figure, text: str, fontsize: int = 10) -> None:
+        """Raise the panels by one text line and write the footer beneath."""
+        line = 2 * fontsize / 72 / fig.get_figheight()
+        fig.subplots_adjust(bottom=fig.subplotpars.bottom + line)
+        fig.text(
+            0.5,
+            0.005,
+            text,
+            ha="center",
+            va="bottom",
+            fontsize=fontsize,
+            style="italic",
+            color=FOOTER_COLOR,
+            usetex=False,
+            parse_math=False,
+        )
 
     def create_twin_axis(self, ax: Axes) -> Axes:
         """Create a secondary y-axis sharing the same x-axis."""

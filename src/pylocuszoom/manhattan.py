@@ -8,12 +8,11 @@ import numpy as np
 import pandas as pd
 
 from ._data import prepare_pvalue_data
-from .config import GenomeWideConfig, resolve_deprecated_columns
+from ._plotter_utils import CHROMOSOME_GAP
+from .config import GenomeWideConfig, GenomeWideStyle, resolve_deprecated_columns
 from .exceptions import ValidationError
 from .schemas import Canonical, validate_gwas_df
 from .species import Species, resolve_species
-
-CHROMOSOME_GAP = 1_000_000
 
 ALL_PVALUES_INVALID = (
     "All rows have invalid p-values in column '{p_col}' "
@@ -52,19 +51,23 @@ def get_chromosome_order(
     return list(record.chromosomes)
 
 
-def get_chromosome_colors(n_chromosomes: int) -> list[str]:
+def get_chromosome_colors(
+    n_chromosomes: int, palette: Sequence[str] | None = None
+) -> list[str]:
     """Get perceptually distinct colors for chromosomes.
 
-    Uses colorcet glasbey_dark palette for good visual
-    separation with saturated colors.
+    Uses a colorcet glasbey palette for good visual separation with
+    saturated colors, unless the caller names one.
 
     Args:
         n_chromosomes: Number of chromosomes to color.
+        palette: Colours to cycle through instead of the default.
 
     Returns:
         List of hex color strings.
     """
-    palette = cc.b_glasbey_bw_minc_20_maxl_70
+    if palette is None:
+        palette = cc.b_glasbey_bw_minc_20_maxl_70
     return [palette[i % len(palette)] for i in range(n_chromosomes)]
 
 
@@ -112,6 +115,8 @@ class GenomeLayout:
         chrom_col: str,
         pos_col: str,
         order: Sequence[str],
+        gap: int = CHROMOSOME_GAP,
+        palette: Sequence[str] | None = None,
     ) -> "GenomeLayout":
         """Lay out the genome axis once for every frame that shares it.
 
@@ -121,6 +126,8 @@ class GenomeLayout:
             pos_col: Column name for position.
             order: Display order of the known chromosomes. Chromosomes the
                 frames carry but this order omits are appended sorted.
+            gap: Base pairs between one chromosome's end and the next's start.
+            palette: Chromosome colours, or None for the default palette.
 
         Returns:
             The shared layout.
@@ -144,7 +151,7 @@ class GenomeLayout:
         for chrom in list(order) + unknown:
             if chrom in max_by_chrom.index:
                 offsets[chrom] = cumulative
-                cumulative += int(max_by_chrom[chrom]) + CHROMOSOME_GAP
+                cumulative += int(max_by_chrom[chrom]) + gap
 
         full_order = tuple(order) + tuple(unknown)
         chrom_to_idx = {chrom: i for i, chrom in enumerate(full_order)}
@@ -160,7 +167,9 @@ class GenomeLayout:
         return cls(
             order=full_order,
             offsets=offsets,
-            colors=dict(zip(full_order, get_chromosome_colors(len(full_order)))),
+            colors=dict(
+                zip(full_order, get_chromosome_colors(len(full_order), palette))
+            ),
             centers=pooled.groupby("_chrom_str", sort=False)["_cumulative_pos"]
             .mean()
             .to_dict(),
@@ -219,6 +228,7 @@ def prepare_genomewide_frames(
     *,
     species: Species | None,
     rs_col: str | None = None,
+    style: GenomeWideStyle = GenomeWideStyle(),
 ) -> list[PreparedManhattan]:
     """Validate each frame against ``config`` and lay them out on one genome.
 
@@ -233,6 +243,7 @@ def prepare_genomewide_frames(
         species: Species whose chromosome order lays the axis out, unless
             ``config.custom_chrom_order`` overrides it.
         rs_col: SNP id column to require as well, or None.
+        style: Supplies the chromosome gap and palette of the layout.
 
     Raises:
         ValidationError: If a frame is empty or lacks a named column.
@@ -261,6 +272,8 @@ def prepare_genomewide_frames(
         normalized,
         species=species,
         custom_order=config.custom_chrom_order,
+        gap=style.chrom_gap,
+        palette=style.palette,
     )
 
 
@@ -272,6 +285,8 @@ def prepare_manhattan_frames(
     p_col: str = Canonical.P,
     species: str | Species | None = None,
     custom_order: list[str] | None = None,
+    gap: int = CHROMOSOME_GAP,
+    palette: Sequence[str] | None = None,
 ) -> list[PreparedManhattan]:
     """Prepare several GWAS frames against one shared genome layout.
 
@@ -286,6 +301,8 @@ def prepare_manhattan_frames(
         p_col: Column name for p-value.
         species: Species for chromosome ordering.
         custom_order: Custom chromosome order.
+        gap: Base pairs between one chromosome's end and the next's start.
+        palette: Chromosome colours, or None for the default palette.
 
     Returns:
         One prepared value per input, in the same order, each carrying the
@@ -311,7 +328,12 @@ def prepare_manhattan_frames(
         for df in dfs
     ]
     layout = GenomeLayout.from_frames(
-        filtered, chrom_col=chrom_col, pos_col=pos_col, order=order
+        filtered,
+        chrom_col=chrom_col,
+        pos_col=pos_col,
+        order=order,
+        gap=gap,
+        palette=palette,
     )
     return [
         PreparedManhattan(
@@ -346,6 +368,7 @@ def prepare_categorical_data(
     category_col: str,
     p_col: str = Canonical.P,
     category_order: list[str] | None = None,
+    palette: Sequence[str] | None = None,
 ) -> PreparedManhattan:
     """Prepare DataFrame for categorical Manhattan plot (PheWAS-style).
 
@@ -355,6 +378,7 @@ def prepare_categorical_data(
         p_col: Column name for p-value.
         category_order: Custom category order. Observed groups omitted from it
             are appended, sorted by label. Missing values form "Uncategorised".
+        palette: Category colours, or None for the default palette.
 
     Returns:
         The frame with ``_cat_str``, ``_cat_idx``, ``_x_pos``, ``neglog10p``
@@ -388,7 +412,9 @@ def prepare_categorical_data(
 
     layout = CategoryLayout(
         order=tuple(category_order),
-        colors=dict(zip(category_order, get_chromosome_colors(len(category_order)))),
+        colors=dict(
+            zip(category_order, get_chromosome_colors(len(category_order), palette))
+        ),
     )
     result["_color"] = result["_cat_str"].map(layout.colors)
     return PreparedManhattan(result, layout)

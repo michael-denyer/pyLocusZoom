@@ -17,7 +17,7 @@ from ._plotter_utils import (
 )
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig
-from .config import GenomeWideConfig
+from .config import GenomeWideConfig, GenomeWideStyle
 from .manhattan import prepare_genomewide_frames
 from .panels.miami import MiamiRequest, miami_plan
 from .schemas import Canonical
@@ -79,6 +79,7 @@ class MiamiPlotter:
         highlight_alpha: float = 0.3,
         figsize: Tuple[float, float] = (12, 8),
         title: Optional[str] = None,
+        style: GenomeWideStyle = GenomeWideStyle(),
     ) -> Any:
         """Create a Miami plot comparing two GWAS datasets.
 
@@ -108,6 +109,7 @@ class MiamiPlotter:
             highlight_alpha: Transparency for highlighted regions (0-1).
             figsize: Figure size as (width, height).
             title: Overall plot title.
+            style: Palette, points, fonts and chromosome axis of both panels.
 
         Returns:
             Figure object (type depends on backend).
@@ -133,7 +135,11 @@ class MiamiPlotter:
         )
 
         top_prepared, bottom_prepared = prepare_genomewide_frames(
-            [top_df, bottom_df], config, species=self.species, rs_col=rs_col
+            [top_df, bottom_df],
+            config,
+            species=self.species,
+            rs_col=rs_col,
+            style=style,
         )
 
         request = MiamiRequest(
@@ -158,5 +164,6 @@ class MiamiPlotter:
             highlight_alpha=highlight_alpha,
             figsize=figsize,
             title=title,
+            style=style,
         )
         return render_figure(self._backend, miami_plan(request))
