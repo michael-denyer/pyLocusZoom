@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `LocusZoomPlotter.plot()` takes `liftover=LiftoverConfig(...)`, with a `lifter`
+  or a `chain_path`, to plot summary statistics from one build on the plotter's
+  build. The window keeps the requested margins around the lifted SNPs, the lead
+  follows its SNP, and `lift_recombination=True` lifts the plotter's
+  recombination maps through the same chain.
+- `liftover_region` returns a `RegionLiftResult`: the lifted rows, the lifted
+  lead, and counts of SNPs dropped as unmapped, multi-mapped or cross-chromosome.
+  `CoordinateLifter` is pyliftover's `convert_coordinate`, so a `LiftOver` is a
+  lifter as it stands.
+- `Species.chain_chrom_aliases` names chromosome codes a chain spells
+  differently. PLINK's numeric X codes (canine 39 and 41, feline 19 and 21) and
+  `XY` are queried as `chrX`.
 - `plot_manhattan_qq` takes `suggestive_threshold` for a second line on the
   Manhattan panel, `lambda_gc` to show a caller-computed inflation factor instead
   of the computed one, and `footer` for a small italic line under both panels.
@@ -18,11 +30,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Liftover queried pyliftover with 1-based positions. pyliftover is 0-based on
+  both sides, so every position was read one base late and a position on the
+  last base of a chain block lifted through the next block. Positions are now
+  converted to and from 0-based. This moves CanFam4 recombination positions by
+  one base.
+- Liftover kept the first hit even when there were several, or when the hit was
+  on another chromosome. A position now lifts only to exactly one locus on the
+  same chromosome.
 - The feline chromosome order omitted F1 and F2, so they plotted after X, Y
   and MT. They now follow E3.
 - Canine frames using PLINK's numeric sex codes (39, 40, 41, 42) plotted them
   after MT in string order. Each code now sits beside its letter: X, 39, XY, 41,
   Y, 40, MT, 42.
+
+### Changed
+
+- `CoordinateLifter.convert` is now `convert_coordinate`, matching pyliftover,
+  and the `PyLiftOverLifter` adapter is removed. Both were private.
 
 ## [4.0.0] - 2026-09-19
 

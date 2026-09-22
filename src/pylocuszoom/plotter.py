@@ -18,6 +18,7 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._ld_plotting import enrich_with_ld
+from ._liftover import CoordinateLifter, liftover_region
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
@@ -29,13 +30,14 @@ from .config import (
     ColumnConfig,
     DisplayConfig,
     LDConfig,
+    LiftoverConfig,
     PanelInputs,
     PlotConfig,
     RegionConfig,
     StackedPlotConfig,
     resolve_deprecated_columns,
 )
-from .exceptions import ReferenceAPIError
+from .exceptions import ReferenceAPIError, ValidationError
 from .ld import find_plink
 from .logging import enable_logging, logger
 from .panels import (
@@ -171,13 +173,19 @@ class LocusZoomPlotter:
         self._auto_genes = auto_genes
         self._recomb_cache = {}
 
-    def _get_recomb_for_region(self, chrom: int, start: int, end: int) -> RecombResult:
+    def _get_recomb_for_region(
+        self,
+        chrom: int,
+        start: int,
+        end: int,
+        lifter: Optional[CoordinateLifter] = None,
+    ) -> RecombResult:
         """Get a region's recombination rates, or the reason there are none.
 
-        Caches per region and build. The caller renders the outcome; this does
-        not warn, so a region asked for twice is reported once.
+        Caches per region, build and lifter. The caller renders the outcome;
+        this does not warn, so a region asked for twice is reported once.
         """
-        cache_key = (chrom, start, end, self.genome_build)
+        cache_key = (chrom, start, end, self.genome_build, lifter)
         if cache_key not in self._recomb_cache:
             self._recomb_cache[cache_key] = recomb_for_region(
                 chrom=chrom,
@@ -186,6 +194,7 @@ class LocusZoomPlotter:
                 species=self.species,
                 data_dir=self.recomb_data_dir,
                 genome_build=self.genome_build,
+                lifter=lifter,
             )
         return self._recomb_cache[cache_key]
 
@@ -201,6 +210,7 @@ class LocusZoomPlotter:
         ld: LDConfig = LDConfig(),
         panels: PanelInputs = PanelInputs(),
         significance_threshold: ThresholdArg = UNSET,
+        liftover: LiftoverConfig = LiftoverConfig(),
     ) -> Any:
         """Create a regional association plot for a single locus.
 
@@ -232,6 +242,12 @@ class LocusZoomPlotter:
             significance_threshold: P-value for the genome-wide significance
                 line. Defaults to the plotter's ``genomewide_threshold``;
                 pass None to draw no line.
+            liftover: :class:`~pylocuszoom.LiftoverConfig` naming a chain when
+                ``gwas_df``, ``start``, ``end`` and ``ld.lead_pos`` are in
+                another build than the plotter's ``genome_build``. The region's
+                SNPs are lifted with :func:`~pylocuszoom.liftover_region` and
+                the window keeps the requested margins around the outermost
+                lifted SNPs.
 
         Returns:
             Backend-specific figure object (``matplotlib.figure.Figure``,
@@ -240,7 +256,8 @@ class LocusZoomPlotter:
         Raises:
             ValueError: On an invalid region or a contradictory config
                 (raised by :class:`PlotConfig` as a ``ValidationError``), or
-                a missing required GWAS column.
+                a missing required GWAS column, or when no SNP in the region
+                lifts to the target build.
             pylocuszoom.exceptions.PlinkError: When PLINK itself fails
                 (timeout, non-zero exit, corrupt ``.bed``, missing output).
                 The specific "empty LD output" case, a singleton lead SNP with
@@ -259,6 +276,16 @@ class LocusZoomPlotter:
             ... )
         """
         gwas_df = to_pandas(gwas_df)
+        lifter = liftover.resolve()
+        if lifter is not None:
+            columns = resolve_deprecated_columns(gwas_df, columns)
+            gwas_df, start, end, ld = self._lift_region(
+                gwas_df,
+                lifter,
+                RegionConfig(chrom=chrom, start=start, end=end),
+                columns.pos_col,
+                ld,
+            )
         config = PlotConfig(
             region=RegionConfig(chrom=chrom, start=start, end=end),
             columns=columns,
@@ -275,6 +302,72 @@ class LocusZoomPlotter:
             label_top_n=5,
             association_height=display.figsize[1] * 0.6,
             min_figure_height=0.0,
+            recomb_lifter=lifter if liftover.lift_recombination else None,
+        )
+
+    def _lift_region(
+        self,
+        gwas_df: pd.DataFrame,
+        lifter: CoordinateLifter,
+        region: RegionConfig,
+        pos_col: str,
+        ld: LDConfig,
+    ) -> tuple[pd.DataFrame, int, int, LDConfig]:
+        """Lift a source-build region to the plotter's build for ``plot()``.
+
+        Returns the lifted rows, the lifted window and ``ld`` with its lead
+        lifted. The window keeps the requested margins around the outermost
+        SNPs, since the requested bounds themselves need not lift.
+        """
+        selected = filter_by_region(
+            gwas_df, region=(region.chrom, region.start, region.end), pos_col=pos_col
+        )
+        lift = liftover_region(
+            selected,
+            chrom=region.chrom,
+            lifter=lifter,
+            pos_col=pos_col,
+            lead_pos=ld.lead_pos,
+            species=self.species,
+        )
+        where = f"chr{region.chrom}:{region.start}-{region.end}"
+        if lift.lifted_df.empty:
+            raise ValidationError(
+                f"No SNP in {where} lifted to {self.genome_build}: "
+                f"{lift.n_unmapped} unmapped, {lift.n_multimapped} multi-mapped, "
+                f"{lift.n_cross_chrom} on another chromosome"
+            )
+        if lift.n_dropped:
+            logger.info(
+                "Liftover dropped {}/{} SNPs in {} ({} unmapped, {} multi-mapped, "
+                "{} on another chromosome)",
+                lift.n_dropped,
+                lift.n_input,
+                where,
+                lift.n_unmapped,
+                lift.n_multimapped,
+                lift.n_cross_chrom,
+            )
+        if not lift.is_collinear:
+            warnings.warn(
+                f"{where} is rearranged between builds; the regional plot's "
+                "left-to-right order may misrepresent it",
+                stacklevel=3,
+            )
+        if ld.lead_pos is not None and lift.lead_pos is None:
+            warnings.warn(
+                f"Lead SNP at chr{region.chrom}:{ld.lead_pos} did not lift to "
+                f"{self.genome_build}; the lead is auto-detected instead",
+                stacklevel=3,
+            )
+        source_pos = selected.loc[lift.lifted_df.index, pos_col]
+        start = max(1, lift.start - int(source_pos.min() - region.start))
+        end = max(lift.end + int(region.end - source_pos.max()), start + 1)
+        return (
+            lift.lifted_df,
+            start,
+            end,
+            ld.model_copy(update={"lead_pos": lift.lead_pos}),
         )
 
     def plot_stacked(
@@ -379,6 +472,7 @@ class LocusZoomPlotter:
         label_top_n: int,
         association_height: float,
         min_figure_height: float,
+        recomb_lifter: Optional[CoordinateLifter] = None,
     ) -> Any:
         """Build the panel plan for one regional figure and render it.
 
@@ -395,6 +489,8 @@ class LocusZoomPlotter:
                 leaves it unset.
             association_height: Height-ratio units for each association panel.
             min_figure_height: Floor on the figure height in inches.
+            recomb_lifter: Lifter for the plotter-loaded recombination maps,
+                or None to use the registered chain.
         """
         region = config.region
         display = config.display.with_defaults(
@@ -455,7 +551,9 @@ class LocusZoomPlotter:
         )
 
         if display.show_recombination and recomb_df is None:
-            recomb = self._get_recomb_for_region(region.chrom, region.start, region.end)
+            recomb = self._get_recomb_for_region(
+                region.chrom, region.start, region.end, recomb_lifter
+            )
             if recomb.status is RecombStatus.OK:
                 recomb_df = recomb.frame
             else:

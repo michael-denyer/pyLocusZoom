@@ -79,6 +79,9 @@ class Species:
             None when the species has no one obvious reference.
         chromosomes: Display order for whole-genome plots. Empty means the
             package has no built-in order and the caller must supply one.
+        chain_chrom_aliases: ``(code, chain name)`` pairs for chromosome codes
+            a UCSC liftover chain spells differently, such as PLINK's numeric
+            X codes. The chain name has no ``chr`` prefix.
     """
 
     key: str
@@ -87,6 +90,7 @@ class Species:
     plink_flags: tuple[str, ...] | None = None
     default_build: str | None = None
     chromosomes: tuple[str, ...] = ()
+    chain_chrom_aliases: tuple[tuple[str, str], ...] = ()
 
 
 SPECIES: dict[str, Species] = {
@@ -99,6 +103,8 @@ SPECIES: dict[str, Species] = {
             plink_flags=("--dog",),
             default_build="canfam3.1",
             chromosomes=CANINE_CHROMOSOMES,
+            # PLINK --dog codes X as 39 and the pseudoautosomal XY as 41.
+            chain_chrom_aliases=(("39", "X"), ("41", "X"), ("XY", "X")),
         ),
         Species(
             key="feline",
@@ -107,6 +113,8 @@ SPECIES: dict[str, Species] = {
             plink_flags=("--chr-set", "18"),
             default_build="felCat9",
             chromosomes=FELINE_CHROMOSOMES,
+            # PLINK --chr-set 18 codes X as 19 and the pseudoautosomal XY as 21.
+            chain_chrom_aliases=(("19", "X"), ("21", "X"), ("XY", "X")),
         ),
         Species(
             key="human",

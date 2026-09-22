@@ -882,6 +882,7 @@ fig = plotter.plot(
 | `ld` | `LDConfig` | `LDConfig()` | LD options, below. |
 | `panels` | `PanelInputs` | `PanelInputs()` | Optional-panel frames, below. |
 | `significance_threshold` | float or None | plotter's `genomewide_threshold` | P-value for the significance line; `None` draws none. |
+| `liftover` | `LiftoverConfig` | `LiftoverConfig()` | Lift source-build sumstats to the plotter's build, below. |
 
 > **Note:** all arguments after `gwas_df` are keyword-only.
 
@@ -922,6 +923,14 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `lead_pos` | int | None | Lead SNP position to highlight. Auto-detected as the strongest in-region p-value when omitted. |
 | `ld_reference_file` | str | None | PLINK fileset (without extension) for LD calculation. Requires a lead. |
 | `ld_col` | str | None | Column name if LD is pre-computed in gwas_df. Mutually exclusive with `ld_reference_file`. |
+
+#### LiftoverConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `lifter` | `CoordinateLifter` | None | Object with pyliftover's `convert_coordinate`, such as `pyliftover.LiftOver`. |
+| `chain_path` | str or path | None | UCSC chain from the sumstats build to the plotter's build. Mutually exclusive with `lifter`; loaded chains are cached per path. |
+| `lift_recombination` | bool | False | Lift the recombination maps the plotter loads through the same chain instead of the registered one. The maps must be in the chain's source build. |
 
 #### PanelInputs
 
@@ -1429,6 +1438,44 @@ fig = plotter.plot(
 )
 ```
 
+### Summary Statistics on Another Build
+
+Summary statistics stay on the build they were computed on. To draw them over
+another build's genes, give the plotter the target build and `plot()` a chain
+from the sumstats build to it. `gwas_df`, `start`, `end` and `ld.lead_pos` are
+then source-build coordinates; gene, eQTL and fine-mapping frames are
+target-build. The window keeps the requested margins around the outermost
+lifted SNPs. `plot_stacked()` does not lift.
+
+```python
+from pylocuszoom import LiftoverConfig
+
+plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
+fig = plotter.plot(
+    canfam3_gwas_df,
+    chrom=12, start=33_000_000, end=34_000_000,
+    ld=LDConfig(lead_pos=33_500_000, ld_col="R2"),
+    liftover=LiftoverConfig(chain_path="canFam3ToCanFam4.over.chain.gz"),
+)
+```
+
+pyliftover positions are 0-based; the lift converts to and from the 1-based
+positions in `gwas_df`. A SNP is kept only when it lifts to exactly one locus on
+the same chromosome, and the lead highlight follows it. PLINK's numeric X codes
+(canine 39 and 41, feline 19 and 21) and `XY` are queried as `chrX`. To see
+what was dropped, call `liftover_region` yourself:
+
+```python
+from pyliftover import LiftOver
+from pylocuszoom import liftover_region
+
+lift = liftover_region(
+    region_df, chrom=12, lifter=LiftOver("canFam3ToCanFam4.over.chain.gz"),
+    lead_pos=33_500_000, species=plotter.species,
+)
+lift.n_lifted, lift.n_unmapped, lift.n_multimapped, lift.n_cross_chrom
+```
+
 ### Save in Multiple Formats
 
 ```python
@@ -1577,7 +1624,7 @@ here means a major release, with a CHANGELOG entry and a migration note.
 | Group | Names |
 |-------|-------|
 | Plotters | `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, `StatsPlotter`, `LDHeatmapPlotter`, `ColocPlotter` |
-| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `LDConfig`, `PanelInputs` |
+| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `LDConfig`, `LiftoverConfig`, `PanelInputs` |
 | Column vocabulary | `Canonical` |
 | GWAS loaders | `load_gwas`, `load_plink_assoc`, `load_regenie`, `load_bolt_lmm`, `load_gemma`, `load_saige`, `load_gwas_catalog` |
 | eQTL loaders | `load_gtex_eqtl`, `load_eqtl_catalogue`, `load_matrixeqtl` |
@@ -1604,6 +1651,7 @@ do, and open an issue so the name can be promoted to core.
 | Gene track | `get_nearest_gene` |
 | Gene reference routing | `get_genes_for_build`, `source_for`, `clear_gene_cache`, `get_ensembl_species_name` |
 | Recombination maps | `download_canine_recombination_maps`, `ensure_recomb_maps`, `get_recombination_rate_for_region`, `load_recombination_map`, `recomb_for_region`, `RecombResult`, `RecombStatus` |
+| Liftover | `CoordinateLifter`, `liftover_region`, `RegionLiftResult` |
 | eQTL helpers | `validate_eqtl_df`, `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
 | Fine-mapping helpers | `validate_finemapping_df`, `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |
 | Frame validators | `validate_gwas_df`, `validate_genes_df`, `validate_phewas_df`, `validate_forest_df` |

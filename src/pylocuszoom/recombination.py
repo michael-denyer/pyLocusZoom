@@ -21,7 +21,7 @@ from typing import Optional
 import pandas as pd
 
 from ._http import download_file
-from ._liftover import PyLiftOverLifter, liftover_positions
+from ._liftover import CoordinateLifter, liftover_positions
 from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
 from .logging import logger
 from .species import Species, resolve_species
@@ -196,7 +196,7 @@ def liftover_recombination_map(
         DataFrame with lifted coordinates. Positions that fail to map are dropped.
     """
     try:
-        import pyliftover  # noqa: F401
+        from pyliftover import LiftOver
     except ImportError as e:
         raise OptionalDependencyMissing(
             "pyliftover is required for CanFam4 liftover. "
@@ -205,7 +205,7 @@ def liftover_recombination_map(
 
     chain_path = download_liftover_chain()
     logger.debug(f"Lifting over coordinates from {from_build} to {to_build}")
-    return liftover_positions(recomb_df, PyLiftOverLifter(chain_path), chrom)
+    return liftover_positions(recomb_df, LiftOver(str(chain_path)), chrom)
 
 
 def get_default_data_dir() -> Path:
@@ -450,6 +450,7 @@ def get_recombination_rate_for_region(
     species: str | Species | None = "canine",
     data_dir: Optional[str] = None,
     genome_build: Optional[str] = None,
+    lifter: Optional[CoordinateLifter] = None,
 ) -> pd.DataFrame:
     """Get recombination rate data for a genomic region.
 
@@ -463,6 +464,9 @@ def get_recombination_rate_for_region(
         genome_build: Target genome build (e.g., "canfam4"). Managed maps
             use a registered liftover chain when conversion is needed.
             Caller maps are already in this build.
+        lifter: Lift the loaded maps, managed or caller, through this lifter
+            instead. The maps must be in the lifter's source build; the
+            registered chain and ``genome_build`` are then not consulted.
 
     Returns:
         DataFrame with pos and rate columns for the region.
@@ -473,7 +477,11 @@ def get_recombination_rate_for_region(
         This requires pyliftover: pip install pyliftover
     """
     record = resolve_species(species)
-    source = RECOMB_SOURCES.get(record.key) if record and data_dir is None else None
+    source = (
+        RECOMB_SOURCES.get(record.key)
+        if record and data_dir is None and lifter is None
+        else None
+    )
     target_build = assembly_token(genome_build) if genome_build else ""
     if (
         source is not None
@@ -495,6 +503,8 @@ def get_recombination_rate_for_region(
             to_build=target_build,
             chrom=chrom,
         )
+    elif lifter is not None:
+        df = liftover_positions(df, lifter, chrom, species=record)
 
     # Filter to region
     region_df = filter_by_region(
@@ -582,6 +592,7 @@ def recomb_for_region(
     species: str | Species | None = "canine",
     data_dir: Optional[str] = None,
     genome_build: Optional[str] = None,
+    lifter: Optional[CoordinateLifter] = None,
 ) -> RecombResult:
     """Get a region's recombination rates, or say why there are none.
 
@@ -601,6 +612,8 @@ def recomb_for_region(
             managed built-in cache and permits downloads.
         genome_build: Target build. Managed maps use their registered chain,
             or report BUILD_UNAVAILABLE when no conversion is available.
+        lifter: Lift the maps through this lifter instead of the registered
+            chain; see ``get_recombination_rate_for_region``.
 
     Returns:
         A RecombResult carrying the frame, or the status and the reason.
@@ -632,6 +645,7 @@ def recomb_for_region(
             species=record,
             data_dir=data_dir,
             genome_build=genome_build,
+            lifter=lifter,
         )
     except FileNotFoundError as e:
         return RecombResult(RecombStatus.NO_MAP_FOR_CHROMOSOME, detail=str(e))
