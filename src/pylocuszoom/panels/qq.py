@@ -88,11 +88,14 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
             zorder=1,
         )
 
-    max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
+    # One strong hit can sit far above every expected value, so each axis
+    # follows its own data rather than sharing the larger maximum.
+    x_max = qq_df["_expected"].max() * 1.05
+    y_max = max(qq_df["_observed"].max() * 1.05, x_max)
     backend.line(
         ax,
-        x=pd.Series([0, max_val]),
-        y=pd.Series([0, max_val]),
+        x=pd.Series([0, x_max]),
+        y=pd.Series([0, x_max]),
         color=SIGNIFICANCE_LINE_COLOR,
         linestyle=style.line_style,
         linewidth=style.line_width,
@@ -110,8 +113,8 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         zorder=3,
         **scatter_alpha(style),
     )
-    backend.set_xlim(ax, 0, max_val * 1.05)
-    backend.set_ylim(ax, 0, max_val * 1.05)
+    backend.set_xlim(ax, 0, x_max)
+    backend.set_ylim(ax, 0, y_max)
     if style.tick_label_fontsize is not None:
         backend.set_tick_fontsize(ax, style.tick_label_fontsize)
     label_fontsize = styled(style.axis_label_fontsize, spec.label_fontsize)
