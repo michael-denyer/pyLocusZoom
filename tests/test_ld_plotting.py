@@ -130,3 +130,39 @@ class TestEnrichWithLDLookup:
                 ld_col=None,
                 **ARGS,
             )
+
+
+def test_a_malformed_optional_panel_raises_before_plink_runs(
+    monkeypatch, small_regional_gwas_df, sample_finemapping_df
+):
+    """The optional panels validate their frames before LD reaches for PLINK."""
+    from pylocuszoom import (
+        DisplayConfig,
+        FinemappingInput,
+        LDConfig,
+        LocusZoomPlotter,
+        PanelInputs,
+    )
+    from pylocuszoom.exceptions import FinemappingValidationError
+
+    calls = []
+    monkeypatch.setattr(
+        "pylocuszoom._ld_plotting.calculate_ld", lambda **kwargs: calls.append(kwargs)
+    )
+
+    with pytest.raises(FinemappingValidationError, match="credible"):
+        LocusZoomPlotter(species=None).plot(
+            small_regional_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            ld=LDConfig(lead_pos=1_100_000, ld_reference_file="/panel"),
+            panels=PanelInputs(
+                finemapping=FinemappingInput(
+                    data=sample_finemapping_df, cs_col="credible"
+                )
+            ),
+            display=DisplayConfig(show_recombination=False),
+        )
+
+    assert calls == []

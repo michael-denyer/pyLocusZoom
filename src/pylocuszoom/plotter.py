@@ -47,11 +47,9 @@ from .logging import logger
 from .panels import (
     AssociationInput,
     AssociationPanel,
-    EqtlPanel,
-    FinemappingPanel,
-    GenePanel,
-    HeatmapPanel,
     RegionalPanel,
+    ld_heatmap_panels,
+    optional_panels,
 )
 from .recombination import get_recombination_rate_for_region
 from .reference_genes import get_genes_for_build, source_for
@@ -72,11 +70,15 @@ def _optional_layer(
     ones listed in ``skip`` (every ``PyLocusZoomError`` by default) into one
     ``UserWarning`` pointing at the caller's ``plot()`` or ``plot_stacked()``
     line, and the figure is drawn without the layer.
+
+    The stacklevel counts on one call path: the public method, then
+    ``_render_regional``, then ``_resolve_annotations`` or
+    ``_association_panels``, which call this directly from a plain loop.
     """
     try:
         return build()
     except skip or PyLocusZoomError as e:
-        warnings.warn(f"{what} skipped; {e}", UserWarning, stacklevel=4)
+        warnings.warn(f"{what} skipped; {e}", UserWarning, stacklevel=5)
         return None
 
 
@@ -438,7 +440,8 @@ class LocusZoomPlotter:
         ``plot()`` and ``plot_stacked()`` differ only in how they resolve
         their per-panel lists and in per-panel policy: how many SNPs to
         label, the association panels' height and the floor on the figure
-        height. Everything else is here.
+        height. Everything else is here. The optional panels are built, and
+        their frames validated, before PLINK runs for LD.
 
         Args:
             config: Validated region, column, display, LD, and panel settings.
@@ -451,14 +454,57 @@ class LocusZoomPlotter:
             recomb_lifter: Lifter for the plotter-loaded recombination maps,
                 or None to use the registered chain.
         """
-        region = config.region
+        region, inputs = config.region, config.panels
         display = config.display.with_defaults(
             label_top_n=label_top_n, auto_genes=self._auto_genes
         )
-        inputs = config.panels
-        genes_df, exons_df = inputs.genes_df, inputs.exons_df
-        recomb_df = inputs.recomb_df
+        genes_df, exons_df, recomb_df = self._resolve_annotations(
+            inputs, region, display, recomb_lifter
+        )
+        tracks = optional_panels(inputs, region, genes_df=genes_df, exons_df=exons_df)
+        association = self._association_panels(
+            association_inputs,
+            region,
+            display,
+            threshold=threshold,
+            height=association_height,
+            recomb_df=recomb_df,
+        )
+        heatmap = ld_heatmap_panels(
+            inputs.ld_heatmap,
+            source=association[0],
+            region=region,
+            association_height=association_height,
+        )
+        panels: List[RegionalPanel] = [*association, *tracks, *heatmap]
+        height = max(min_figure_height, sum(panel.height for panel in panels))
+        logger.debug("Creating regional plot with {} panels", len(panels))
+        return render_figure(
+            self._backend,
+            FigurePlan(
+                panels=panels,
+                figsize=(display.figsize[0], height),
+                height_ratios=[panel.height for panel in panels],
+                xlabel=f"Chromosome {region.chrom} (Mb)",
+                mb_xaxis=True,
+                hspace=0.1,
+            ),
+        )
 
+    def _resolve_annotations(
+        self,
+        inputs: PanelInputs,
+        region: RegionConfig,
+        display: DisplayConfig,
+        recomb_lifter: Optional[CoordinateLifter],
+    ) -> tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+        """Return the gene, exon and recombination frames the figure draws.
+
+        A frame the caller passed wins. Otherwise genes are fetched when
+        ``auto_genes`` is on and recombination rates are looked up when the
+        overlay is shown; a lookup that fails is skipped with one warning.
+        """
+        genes_df, exons_df = inputs.genes_df, inputs.exons_df
         if genes_df is None and display.auto_genes:
             logger.debug(
                 "auto_genes enabled, fetching genes for chr{}:{}-{}",
@@ -466,7 +512,7 @@ class LocusZoomPlotter:
                 region.start,
                 region.end,
             )
-            annotations = _optional_layer(
+            fetched = _optional_layer(
                 f"Gene track for chr{region.chrom}:{region.start}-{region.end}",
                 lambda: get_genes_for_build(
                     source_for(self.species, self.genome_build),
@@ -476,41 +522,10 @@ class LocusZoomPlotter:
                 ),
                 ReferenceAPIError,
             )
-            if annotations is not None:
-                if annotations.genes.empty:
-                    logger.debug("No genes found in region")
-                else:
-                    genes_df = annotations.genes
-                    if exons_df is None:
-                        exons_df = annotations.exons
-
-        finemap = (
-            FinemappingPanel.from_frame(
-                inputs.finemapping.data,
-                region,
-                inputs.finemapping.cs_col,
-                chrom_col=inputs.finemapping.chrom_col,
-            )
-            if inputs.finemapping is not None
-            else None
-        )
-        eqtl = (
-            EqtlPanel.from_frame(
-                inputs.eqtl.data,
-                region,
-                inputs.eqtl.gene,
-                inputs.eqtl.threshold,
-                chrom_col=inputs.eqtl.chrom_col,
-            )
-            if inputs.eqtl is not None
-            else None
-        )
-        genes = (
-            GenePanel.from_genes(genes_df, region, exons_df)
-            if genes_df is not None
-            else None
-        )
-
+            if fetched is not None and not fetched.genes.empty:
+                genes_df = fetched.genes
+                exons_df = fetched.exons if exons_df is None else exons_df
+        recomb_df = inputs.recomb_df
         if display.show_recombination and recomb_df is None:
             recomb_df = _optional_layer(
                 "Recombination overlay",
@@ -518,9 +533,26 @@ class LocusZoomPlotter:
                     region.chrom, region.start, region.end, recomb_lifter
                 ),
             )
+        return genes_df, exons_df, recomb_df
 
-        association: List[AssociationPanel] = []
-        for index, request in enumerate(association_inputs):
+    def _association_panels(
+        self,
+        requests: List[AssociationInput],
+        region: RegionConfig,
+        display: DisplayConfig,
+        *,
+        threshold: Optional[float],
+        height: float,
+        recomb_df: Optional[pd.DataFrame],
+    ) -> List[AssociationPanel]:
+        """Colour each association frame by LD and build its panel.
+
+        LD that cannot be computed is skipped with one warning and the panel
+        is drawn uncoloured. Only the top panel carries the recombination
+        overlay and the LD legend.
+        """
+        panels = []
+        for index, request in enumerate(requests):
             enriched = _optional_layer(
                 f"LD colouring for panel {index + 1}",
                 lambda: enrich_with_ld(
@@ -540,51 +572,15 @@ class LocusZoomPlotter:
             if enriched is not None:
                 data, ld_col = enriched
                 request = replace(request, data=data, ld_col=ld_col)
-            association.append(
+            panels.append(
                 AssociationPanel.from_input(
                     request,
                     region=region,
                     display=display,
                     threshold=threshold,
-                    height=association_height,
+                    height=height,
                     recomb_df=recomb_df if index == 0 else None,
                     is_top=index == 0,
                 )
             )
-
-        heatmap = (
-            HeatmapPanel.from_matrix(
-                inputs.ld_heatmap.matrix,
-                inputs.ld_heatmap.snp_ids,
-                source=association[0],
-                region=region,
-                height=association_height * inputs.ld_heatmap.height,
-                metric=inputs.ld_heatmap.metric,
-            )
-            if inputs.ld_heatmap is not None
-            else None
-        )
-
-        panels: List[RegionalPanel] = [
-            *association,
-            *(panel for panel in (finemap, eqtl, genes, heatmap) if panel is not None),
-        ]
-        height = max(min_figure_height, sum(panel.height for panel in panels))
-        logger.debug(
-            "Creating regional plot with {} panels for chr{}:{}-{}",
-            len(panels),
-            region.chrom,
-            region.start,
-            region.end,
-        )
-        return render_figure(
-            self._backend,
-            FigurePlan(
-                panels=panels,
-                figsize=(display.figsize[0], height),
-                height_ratios=[panel.height for panel in panels],
-                xlabel=f"Chromosome {region.chrom} (Mb)",
-                mb_xaxis=True,
-                hspace=0.1,
-            ),
-        )
+        return panels

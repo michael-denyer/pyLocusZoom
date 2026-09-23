@@ -219,11 +219,15 @@ stages:
    (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`), so each
    option is declared once, on the model that owns it. They compose those
    into a `PlotConfig`, which holds the cross-model rules, then
-   share one private pipeline, `_render_regional`, which
-   builds every panel through its own constructor
-   (`AssociationPanel.from_input`, `FinemappingPanel.from_frame`,
+   share one private pipeline, `_render_regional`. It resolves the gene
+   and recombination layers (`_resolve_annotations`), builds the
+   fine-mapping, eQTL and gene panels (`panels.optional_panels`) before
+   PLINK runs, colours each association frame by LD
+   (`_association_panels`), adds the LD heatmap
+   (`panels.ld_heatmap_panels`), and builds every panel through its own
+   constructor (`AssociationPanel.from_input`, `FinemappingPanel.from_frame`,
    `EqtlPanel.from_frame`, `GenePanel.from_genes`,
-   `HeatmapPanel.from_matrix`) and puts them on a
+   `HeatmapPanel.from_matrix`). It puts them on a
    `FigurePlan` for `render_figure`, which creates the figure, calls each
    panel's `draw` method on its axis, labels and formats the shared
    megabase x axis, and finalizes the layout
