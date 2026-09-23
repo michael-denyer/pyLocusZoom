@@ -461,7 +461,8 @@ def get_recombination_rate_for_region(
                 f"no liftover chain is available for {genome_build!r}. "
                 "Supply data_dir with maps in the requested build."
             )
-        lifter, lift_build = chain_lifter(native, target), native
+        lifter = chain_lifter(native, target)
+        lift_build = native
     df = load_recombination_map(chrom, species=record, data_dir=map_dir)
     if lifter is not None:
         logger.debug(f"Lifting over recombination map for chr{chrom}")

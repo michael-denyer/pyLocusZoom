@@ -9,8 +9,8 @@ so CanFam3.1, CanFam4 and FelCat9 have no Ensembl source at any URL. UCSC hosts
 all three.
 
 ``GenomeBuild.ucsc_genome`` is the whole policy: a build that names one is
-fetched from UCSC, anything else from Ensembl. Both sources return the same columns, including
-``assembly``, so callers do not branch on which one answered.
+fetched from UCSC, anything else from Ensembl. Both sources return the same
+columns, including ``assembly``, so callers do not branch on which one answered.
 
 A ``GeneSource`` is everything the fetch-and-cache orchestration needs to know
 about a source: where it caches and how to ask it for genes and exons.

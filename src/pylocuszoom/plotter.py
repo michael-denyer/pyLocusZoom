@@ -532,12 +532,13 @@ class LocusZoomPlotter:
                 ),
                 ReferenceAPIError,
             )
-            if annotations is not None and annotations.genes.empty:
-                logger.debug("No genes found in region")
-            elif annotations is not None:
-                genes_df = annotations.genes
-                if exons_df is None:
-                    exons_df = annotations.exons
+            if annotations is not None:
+                if annotations.genes.empty:
+                    logger.debug("No genes found in region")
+                else:
+                    genes_df = annotations.genes
+                    if exons_df is None:
+                        exons_df = annotations.exons
 
         finemap = (
             FinemappingPanel.from_frame(
