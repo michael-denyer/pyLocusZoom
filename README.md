@@ -294,14 +294,16 @@ Add expression QTL data as a separate panel. `plot()` takes the same
 `PanelInputs` for a single GWAS:
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PanelInputs
+from pylocuszoom import EqtlInput, LocusZoomPlotter, PanelInputs
 
-eqtl_df = pd.DataFrame({
-    "chr": [1] * 3,
-    "pos": [1000500, 1001200, 1002000],
-    "p_value": [1e-6, 1e-4, 0.01],
-    "gene": ["BRCA1", "BRCA1", "BRCA1"],
-})
+eqtl_df = pd.DataFrame(
+    {
+        "chr": [1] * 3,
+        "pos": [1000500, 1001200, 1002000],
+        "p_value": [1e-6, 1e-4, 0.01],
+        "gene": ["BRCA1", "BRCA1", "BRCA1"],
+    }
+)
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -310,7 +312,7 @@ fig = plotter.plot_stacked(
     chrom=1,
     start=1000000,
     end=2000000,
-    panels=PanelInputs(eqtl_df=eqtl_df, eqtl_gene="BRCA1", genes_df=genes_df),
+    panels=PanelInputs(genes_df=genes_df, eqtl=EqtlInput(data=eqtl_df, gene="BRCA1")),
 )
 ```
 
@@ -322,14 +324,16 @@ fig = plotter.plot_stacked(
 Visualize SuSiE or other fine-mapping results with credible set coloring:
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PanelInputs
+from pylocuszoom import FinemappingInput, LocusZoomPlotter, PanelInputs
 
-finemapping_df = pd.DataFrame({
-    "chr": [1] * 4,
-    "pos": [1000500, 1001200, 1002000, 1003500],
-    "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
-    "cs": [1, 1, 0, 2],               # Credible set assignment (0 = not in CS)
-})
+finemapping_df = pd.DataFrame(
+    {
+        "chr": [1] * 4,
+        "pos": [1000500, 1001200, 1002000, 1003500],
+        "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
+        "cs": [1, 1, 0, 2],  # Credible set assignment (0 = not in CS)
+    }
+)
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -339,7 +343,8 @@ fig = plotter.plot_stacked(
     start=1000000,
     end=2000000,
     panels=PanelInputs(
-        finemapping_df=finemapping_df, finemapping_cs_col="cs", genes_df=genes_df
+        genes_df=genes_df,
+        finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
 ```
@@ -375,7 +380,7 @@ fig.savefig("ld_heatmap.png", dpi=150)
 Add an LD heatmap panel below a regional association plot:
 
 ```python
-from pylocuszoom import LDConfig, LocusZoomPlotter, PanelInputs
+from pylocuszoom import LDConfig, LDHeatmapInput, LocusZoomPlotter, PanelInputs
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -386,9 +391,7 @@ fig = plotter.plot(
     end=2000000,
     ld=LDConfig(lead_pos=1500000),
     panels=PanelInputs(
-        ld_heatmap_df=ld_matrix,     # Pairwise LD matrix
-        ld_heatmap_snp_ids=snp_ids,  # SNP IDs in matrix
-        ld_heatmap_height=0.25,      # Panel height ratio
+        ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids, height=0.25)
     ),
 )
 ```

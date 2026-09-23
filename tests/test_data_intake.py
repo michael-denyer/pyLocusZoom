@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom import DisplayConfig
+from pylocuszoom import DisplayConfig, EqtlInput
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.colors import LEAD_SNP_COLOR
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
@@ -478,7 +478,7 @@ def _eqtl_points(df):
         start=1,
         end=1000,
         display=DisplayConfig(show_recombination=False, snp_labels=False),
-        panels=PanelInputs(eqtl_df=df),
+        panels=PanelInputs(eqtl=EqtlInput(data=df)),
     )
     return len(PROBES["matplotlib"].marker_x(fig, panel=1))
 

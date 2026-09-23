@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from pylocuszoom import DisplayConfig, PanelInputs
+from pylocuszoom import DisplayConfig, FinemappingInput, PanelInputs
 from pylocuszoom.backends.hover import HoverConfig
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.config import RegionConfig
@@ -294,7 +294,7 @@ class TestPlotterDelegation:
             start=1,
             end=3000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(finemapping_df=fm_df),
+            panels=PanelInputs(finemapping=FinemappingInput(data=fm_df)),
         )
 
         pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
@@ -331,7 +331,9 @@ class TestFinemappingManyCredibleSets:
             start=900000,
             end=1700000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(finemapping_df=finemapping_df, finemapping_cs_col="cs"),
+            panels=PanelInputs(
+                finemapping=FinemappingInput(data=finemapping_df, cs_col="cs")
+            ),
         )
 
         pip_ax = fig.get_axes()[1]

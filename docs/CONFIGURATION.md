@@ -98,29 +98,49 @@ Cross-field rules:
 
 - `ld_col` and `ld_reference_file` are mutually exclusive.
 - If `ld_reference_file` is set, `lead_pos` is required (enforced on
-  `PlotConfig`). On `StackedPlotConfig` a `lead_positions` list satisfies it
-  instead.
+  `PlotConfig`). On `StackedPlotConfig` every panel computing LD from a
+  fileset, broadcast or from `ld_reference_files`, needs a lead from
+  `lead_positions` or the broadcast `lead_pos`.
 
 ### `PanelInputs` — optional panels beneath the association track
 
-| Field                | Type                      | Default  | Description                                    |
-| -------------------- | ------------------------- | -------- | ---------------------------------------------- |
-| `genes_df`           | `DataFrame \| None`       | `None`   | Gene annotations for the gene track            |
-| `exons_df`           | `DataFrame \| None`       | `None`   | Exon structure drawn within the gene track     |
-| `recomb_df`          | `DataFrame \| None`       | `None`   | Recombination rates, replacing the map lookup  |
-| `eqtl_df`            | `DataFrame \| None`       | `None`   | eQTL results for the eQTL panel                |
-| `eqtl_gene`          | `str \| None`             | `None`   | Filter the eQTL frame to one gene              |
-| `eqtl_threshold`     | `float`                   | `1e-5`   | Significance line on the eQTL panel            |
-| `finemapping_df`     | `DataFrame \| None`       | `None`   | Fine-mapping results for the PIP panel         |
-| `finemapping_cs_col` | `str \| None`             | `"cs"`   | Credible-set column, `None` for no colouring   |
-| `ld_heatmap_df`      | `DataFrame \| None`       | `None`   | Square LD matrix for the heatmap panel         |
-| `ld_heatmap_snp_ids` | `list[str] \| None`       | `None`   | Row and column SNP ids of the LD matrix        |
-| `ld_heatmap_height`  | `float`                   | `0.25`   | Heatmap height against the association panel   |
-| `ld_heatmap_metric`  | `str`                     | `"r2"`   | Colour-bar label, `"r2"` or `"dprime"`         |
+Every frame field also accepts a PySpark DataFrame, collected with
+`toPandas()`.
 
-Cross-field rules:
+| Field         | Type                        | Default | Description                                   |
+| ------------- | --------------------------- | ------- | --------------------------------------------- |
+| `genes_df`    | `DataFrame \| None`         | `None`  | Gene annotations for the gene track           |
+| `exons_df`    | `DataFrame \| None`         | `None`  | Exon structure drawn within the gene track    |
+| `recomb_df`   | `DataFrame \| None`         | `None`  | Recombination rates, replacing the map lookup |
+| `eqtl`        | `EqtlInput \| None`         | `None`  | The eQTL panel                                |
+| `finemapping` | `FinemappingInput \| None`  | `None`  | The fine-mapping (PIP) panel                  |
+| `ld_heatmap`  | `LDHeatmapInput \| None`    | `None`  | The LD heatmap panel                          |
 
-- If `ld_heatmap_df` is set, `ld_heatmap_snp_ids` is required.
+`EqtlInput`:
+
+| Field       | Type            | Default  | Description                                                   |
+| ----------- | --------------- | -------- | ------------------------------------------------------------- |
+| `data`      | `DataFrame`     | required | eQTL results with `pos` and `p_value`                         |
+| `gene`      | `str \| None`   | `None`   | Keep only this gene (exact match on the `gene` column)        |
+| `threshold` | `float`         | `1e-5`   | Significance line, in (0, 1]                                  |
+| `chrom_col` | `str \| None`   | `"chr"`  | Chromosome column; `None` selects by position only            |
+
+`FinemappingInput`:
+
+| Field       | Type            | Default  | Description                                                   |
+| ----------- | --------------- | -------- | ------------------------------------------------------------- |
+| `data`      | `DataFrame`     | required | Fine-mapping results with `pos` and `pip`                     |
+| `cs_col`    | `str \| None`   | `"cs"`   | Credible-set column; the default may be absent, another name must exist, `None` for no colouring |
+| `chrom_col` | `str \| None`   | `"chr"`  | Chromosome column; `None` selects by position only            |
+
+`LDHeatmapInput`:
+
+| Field     | Type                      | Default  | Description                                   |
+| --------- | ------------------------- | -------- | --------------------------------------------- |
+| `matrix`  | `DataFrame`               | required | Square LD matrix                              |
+| `snp_ids` | `list[str]`               | required | Row and column SNP ids of the matrix          |
+| `height`  | `float`                   | `0.25`   | Height against the association panel, `> 0`   |
+| `metric`  | `"r2"` or `"dprime"`      | `"r2"`   | Colour-bar label                              |
 
 ### Composite configs
 

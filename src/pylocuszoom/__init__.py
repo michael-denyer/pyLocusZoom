@@ -65,9 +65,12 @@ from .colors import (
 from .config import (
     ColumnConfig,
     DisplayConfig,
+    EqtlInput,
+    FinemappingInput,
     GenomeWideConfig,
     GenomeWideStyle,
     LDConfig,
+    LDHeatmapInput,
     LiftoverConfig,
     PanelInputs,
 )
@@ -205,6 +208,9 @@ __all__ = [
     "LDConfig",
     "LiftoverConfig",
     "PanelInputs",
+    "EqtlInput",
+    "FinemappingInput",
+    "LDHeatmapInput",
     # The column vocabulary every loader emits and every plotter defaults to
     "Canonical",
     # GWAS loaders

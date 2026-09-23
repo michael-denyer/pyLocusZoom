@@ -7,9 +7,10 @@ Tests cover:
 - LDConfig: lead_pos required when ld_reference_file provided, immutability
 """
 
+import pandas as pd
 import pytest
 
-from pylocuszoom import DisplayConfig
+from pylocuszoom import DisplayConfig, LDConfig, LDHeatmapInput
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.figure_probes import PROBES
@@ -206,7 +207,7 @@ class TestLDConfig:
         assert ld.lead_pos is None
 
         # But PlotConfig should raise since single plots need lead_pos
-        with pytest.raises(ValidationError, match="lead_pos.*required"):
+        with pytest.raises(ValidationError, match="needs a lead position"):
             PlotConfig(
                 region=RegionConfig(chrom=1, start=1000, end=2000),
                 ld=ld,
@@ -404,15 +405,43 @@ class TestStackedPlotConfig:
         assert config.panel_labels == ["Study A", "Study B"]
 
     def test_stacked_config_ld_reference_files_list(self):
-        """StackedPlotConfig should support multiple LD reference files."""
+        """Each panel computes LD from its own fileset against its own lead."""
         from pylocuszoom.config import RegionConfig, StackedPlotConfig
 
         config = StackedPlotConfig(
             region=RegionConfig(chrom=1, start=1000, end=2000),
             n_panels=2,
+            lead_positions=[1500, 1600],
             ld_reference_files=["/path/to/file1", "/path/to/file2"],
         )
-        assert config.ld_reference_files == ["/path/to/file1", "/path/to/file2"]
+        assert [(ld.lead_pos, ld.ld_reference_file) for ld in config.panel_lds()] == [
+            (1500, "/path/to/file1"),
+            (1600, "/path/to/file2"),
+        ]
+
+    def test_stacked_per_panel_ld_files_need_a_lead_per_panel(self):
+        """The lead rule plot() applies holds for every stacked panel too."""
+        from pylocuszoom.config import RegionConfig, StackedPlotConfig
+
+        with pytest.raises(ValidationError, match="panel 1: .*needs a lead position"):
+            StackedPlotConfig(
+                region=RegionConfig(chrom=1, start=1000, end=2000),
+                n_panels=2,
+                ld_reference_files=["/path/to/file1", "/path/to/file2"],
+            )
+
+    def test_stacked_panel_ld_rejects_a_fileset_beside_a_broadcast_ld_col(self):
+        """A per-panel fileset and a broadcast ld_col are the contradiction LDConfig bans."""
+        from pylocuszoom.config import RegionConfig, StackedPlotConfig
+
+        with pytest.raises(ValidationError, match="ld_col"):
+            StackedPlotConfig(
+                region=RegionConfig(chrom=1, start=1000, end=2000),
+                n_panels=1,
+                ld=LDConfig(ld_col="R2"),
+                lead_positions=[1500],
+                ld_reference_files=["/path/to/file1"],
+            )
 
     def test_stacked_config_single_ld_reference_file(self):
         """StackedPlotConfig should support single ld_reference_file for broadcast.
@@ -480,7 +509,7 @@ class TestStackedPlotConfig:
         """
         from pylocuszoom.config import LDConfig, RegionConfig, StackedPlotConfig
 
-        with pytest.raises(ValidationError, match="lead_pos.*required|lead_positions"):
+        with pytest.raises(ValidationError, match="needs a lead position"):
             StackedPlotConfig(
                 region=RegionConfig(chrom=1, start=1000000, end=2000000),
                 n_panels=2,
@@ -741,7 +770,61 @@ class TestPanelInputs:
     """The optional-panel inputs reject values the panels cannot draw."""
 
     def test_rejects_an_unknown_ld_heatmap_metric(self):
+        with pytest.raises(ValidationError, match="metric"):
+            LDHeatmapInput(matrix=pd.DataFrame([[1.0]]), snp_ids=["a"], metric="R2")
+
+    @pytest.mark.parametrize(
+        ("model", "field", "value"),
+        [
+            ("EqtlInput", "threshold", 5.0),
+            ("EqtlInput", "threshold", 0.0),
+            ("LDHeatmapInput", "height", -3),
+            ("LDHeatmapInput", "height", 0),
+        ],
+    )
+    def test_rejects_out_of_range_numbers(self, model, field, value):
+        """A threshold outside (0, 1] or a non-positive height used to pass."""
+        import pylocuszoom
+
+        frame = pd.DataFrame([[1.0]])
+        required = (
+            {"data": frame}
+            if model == "EqtlInput"
+            else {"matrix": frame, "snp_ids": ["a"]}
+        )
+        with pytest.raises(ValidationError, match=field):
+            getattr(pylocuszoom, model)(**required, **{field: value})
+
+    def test_an_eqtl_option_needs_its_frame(self):
+        """A gene filter with no eQTL frame is not a state PanelInputs can hold."""
+        from pylocuszoom import EqtlInput
+
+        with pytest.raises(ValidationError, match="data"):
+            EqtlInput(gene="BRCA1")
+
+    def test_frames_accept_a_spark_like_frame(self):
+        """Every PanelInputs frame is collected through toPandas, as README promises."""
+        from pylocuszoom import EqtlInput, PanelInputs
+
+        class SparkLike:
+            def __init__(self, frame):
+                self.frame = frame
+
+            def toPandas(self):
+                return self.frame
+
+        genes = pd.DataFrame({"chr": [1], "start": [1], "end": [2], "gene_name": ["G"]})
+        eqtl = pd.DataFrame({"pos": [1], "p_value": [0.1]})
+
+        panels = PanelInputs(
+            genes_df=SparkLike(genes), eqtl=EqtlInput(data=SparkLike(eqtl))
+        )
+
+        assert panels.genes_df is genes
+        assert panels.eqtl.data is eqtl
+
+    def test_rejects_an_object_that_is_not_a_frame(self):
         from pylocuszoom import PanelInputs
 
-        with pytest.raises(ValidationError, match="ld_heatmap_metric"):
-            PanelInputs(ld_heatmap_metric="R2")
+        with pytest.raises(ValidationError, match="genes_df"):
+            PanelInputs(genes_df=[1, 2, 3])

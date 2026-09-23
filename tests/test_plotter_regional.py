@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
+from pylocuszoom import ColumnConfig, DisplayConfig, EqtlInput, LDConfig, PanelInputs
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.colors import LEAD_SNP_COLOR
 from pylocuszoom.exceptions import ValidationError
@@ -130,7 +130,7 @@ def test_duplicate_index_does_not_make_lead_ambiguous():
     assert list(fig.data[-1].x) == [175]
 
 
-@pytest.mark.parametrize("lead_positions", [None, [150]])
+@pytest.mark.parametrize("lead_positions", [[150]])
 def test_duplicate_positions_use_one_strongest_lead_row(lead_positions):
     frame = pd.DataFrame(
         {
@@ -470,7 +470,7 @@ class TestPlotStackedEdgeCases:
                 start=1000000,
                 end=2000000,
                 display=DisplayConfig(show_recombination=False),
-                panels=PanelInputs(eqtl_df=bad_eqtl_df),
+                panels=PanelInputs(eqtl=EqtlInput(data=bad_eqtl_df)),
             )
 
 

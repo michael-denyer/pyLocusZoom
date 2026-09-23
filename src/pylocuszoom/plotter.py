@@ -411,16 +411,17 @@ class LocusZoomPlotter:
         Args:
             gwas_dfs: One GWAS summary-statistics frame per panel.
             lead_positions: One lead position per panel. Auto-detected as
-                the strongest in-region p-value when omitted. Required with
-                a broadcast ``ld.ld_reference_file``.
+                the strongest in-region p-value when omitted. Every panel that
+                computes LD from a reference fileset needs a lead, from this
+                list or from ``ld.lead_pos``.
             panel_labels: One label per panel, or None for none.
             ld_reference_files: One PLINK fileset per panel, replacing the
                 broadcast ``ld.ld_reference_file``.
             significance_threshold: As on :meth:`plot`.
 
         Raises:
-            ValidationError: If ``gwas_dfs`` is empty or a per-panel list has a
-                different length.
+            ValidationError: If ``gwas_dfs`` is empty, a per-panel list has a
+                different length, or a panel computes LD without a lead.
 
         Example:
             >>> fig = plotter.plot_stacked(
@@ -452,18 +453,10 @@ class LocusZoomPlotter:
                 frame,
                 config.region,
                 columns,
-                LDConfig(
-                    lead_pos=lead_positions[index]
-                    if lead_positions is not None
-                    else ld.lead_pos,
-                    ld_reference_file=ld_reference_files[index]
-                    if ld_reference_files is not None
-                    else ld.ld_reference_file,
-                    ld_col=ld.ld_col,
-                ),
+                panel_ld,
                 panel_labels[index] if panel_labels is not None else None,
             )
-            for index, frame in enumerate(gwas_dfs)
+            for index, (frame, panel_ld) in enumerate(zip(gwas_dfs, config.panel_lds()))
         ]
         return self._render_regional(
             config,
@@ -543,16 +536,23 @@ class LocusZoomPlotter:
 
         finemap = (
             FinemappingPanel.from_frame(
-                inputs.finemapping_df, region, inputs.finemapping_cs_col
+                inputs.finemapping.data,
+                region,
+                inputs.finemapping.cs_col,
+                chrom_col=inputs.finemapping.chrom_col,
             )
-            if inputs.finemapping_df is not None
+            if inputs.finemapping is not None
             else None
         )
         eqtl = (
             EqtlPanel.from_frame(
-                inputs.eqtl_df, region, inputs.eqtl_gene, inputs.eqtl_threshold
+                inputs.eqtl.data,
+                region,
+                inputs.eqtl.gene,
+                inputs.eqtl.threshold,
+                chrom_col=inputs.eqtl.chrom_col,
             )
-            if inputs.eqtl_df is not None
+            if inputs.eqtl is not None
             else None
         )
         genes = (
@@ -607,14 +607,14 @@ class LocusZoomPlotter:
 
         heatmap = (
             HeatmapPanel.from_matrix(
-                inputs.ld_heatmap_df,
-                inputs.ld_heatmap_snp_ids,
+                inputs.ld_heatmap.matrix,
+                inputs.ld_heatmap.snp_ids,
                 source=association[0],
                 region=region,
-                height=association_height * inputs.ld_heatmap_height,
-                metric=inputs.ld_heatmap_metric,
+                height=association_height * inputs.ld_heatmap.height,
+                metric=inputs.ld_heatmap.metric,
             )
-            if inputs.ld_heatmap_df is not None
+            if inputs.ld_heatmap is not None
             else None
         )
 

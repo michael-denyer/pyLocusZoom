@@ -176,7 +176,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2b | gwas_plot_spec, GENES_PLOT, EXONS_PLOT, eqtl_plot_spec, finemapping_plot_spec | The plot-time contracts for the regional and genome-wide frames | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | phewas_plot_spec, forest_plot_spec, coloc_plot_spec | The plot-time contracts for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | P_VALUE_POLICY | Per family: whether zero is a valid p-value, and whether an invalid one drops its row or raises | [_data.py](../src/pylocuszoom/_data.py) |
-| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
+| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs, EqtlInput, FinemappingInput, LDHeatmapInput | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
 | 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideStyle | Palette, point, font and chromosome-axis styling the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
@@ -448,6 +448,9 @@ two tiers, core and toolbox, tabulated under
 | `LDConfig` | Lead SNP and LD source: a pre-computed column or a PLINK fileset. |
 | `LiftoverConfig` | Chain or lifter for plotting source-build sumstats on another build. |
 | `PanelInputs` | Frames for the optional gene, eQTL, fine-mapping and LD-heatmap panels. |
+| `EqtlInput` | The eQTL panel's frame, gene filter, threshold and chromosome column. |
+| `FinemappingInput` | The fine-mapping panel's frame, credible-set column and chromosome column. |
+| `LDHeatmapInput` | The LD heatmap panel's matrix, SNP ids, height and metric. |
 
 ### Manhattan and QQ plots
 

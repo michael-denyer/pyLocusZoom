@@ -88,6 +88,7 @@ def prepare_eqtl_for_plotting(
     chrom: Optional[int] = None,
     start: Optional[int] = None,
     end: Optional[int] = None,
+    chrom_col: Optional[str] = Canonical.CHROM,
 ) -> pd.DataFrame:
     """Prepare eQTL data for plotting.
 
@@ -101,6 +102,8 @@ def prepare_eqtl_for_plotting(
         chrom: Optional chromosome for region filtering.
         start: Optional start position for region filtering.
         end: Optional end position for region filtering.
+        chrom_col: Chromosome column for region filtering, or None to filter
+            by position only.
 
     Returns:
         Prepared DataFrame with neglog10p column added.
@@ -115,7 +118,9 @@ def prepare_eqtl_for_plotting(
 
     # Filter by region if specified
     if chrom is not None and start is not None and end is not None:
-        result = filter_eqtl_by_region(result, chrom, start, end, pos_col=pos_col)
+        result = filter_eqtl_by_region(
+            result, chrom, start, end, pos_col=pos_col, chrom_col=chrom_col
+        )
 
     return prepare_pvalue_data(result, p_col, "eqtl")
 
