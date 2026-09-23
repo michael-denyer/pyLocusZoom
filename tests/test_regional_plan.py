@@ -32,7 +32,7 @@ def _gwas():
 
 def _association(**overrides):
     fields = dict(
-        data=prepare_pvalue_data(_gwas(), "p_value"),
+        data=prepare_pvalue_data(_gwas(), "p_value", "regional"),
         region=REGION,
         height=4.0,
         columns=ColumnConfig(),
@@ -70,7 +70,9 @@ def test_association_panel_draws_points_line_and_lead():
 
 
 def test_association_panel_label_and_ld_legend():
-    data = prepare_pvalue_data(_gwas(), "p_value").assign(R2=[1.0, 0.5, 0.1])
+    data = prepare_pvalue_data(_gwas(), "p_value", "regional").assign(
+        R2=[1.0, 0.5, 0.1]
+    )
     names = _names(
         _render(
             _association(data=data, ld_col="R2", panel_label="A", add_ld_legend=True)

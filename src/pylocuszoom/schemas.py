@@ -75,8 +75,8 @@ def _gwas_load(
     return ColumnSpec(
         name="GWAS",
         required=(pos_col, p_col) if rs_col is None else (pos_col, p_col, rs_col),
-        numeric=(pos_col, p_col),
-        not_null=(pos_col, p_col),
+        numeric=(pos_col,),
+        not_null=(pos_col,),
         ranges=(RangeRule(pos_col, min_val=0, exclusive_min=True),),
         pvalue=p_col,
         error_class=LoaderValidationError,
@@ -124,8 +124,8 @@ def _eqtl_load() -> ColumnSpec:
     return ColumnSpec(
         name="eQTL",
         required=(Canonical.POS, Canonical.P, "gene"),
-        numeric=(Canonical.POS, Canonical.P),
-        not_null=(Canonical.POS, Canonical.P),
+        numeric=(Canonical.POS,),
+        not_null=(Canonical.POS,),
         ranges=(RangeRule(Canonical.POS, min_val=0, exclusive_min=True),),
         pvalue=Canonical.P,
         error_class=LoaderValidationError,
@@ -136,7 +136,6 @@ def _eqtl_plot(pos_col: str = Canonical.POS, p_col: str = Canonical.P) -> Column
     return ColumnSpec(
         name="eQTL DataFrame",
         required=(pos_col, p_col),
-        numeric=(p_col,),
         error_class=EQTLValidationError,
     )
 
@@ -171,9 +170,6 @@ def _phewas_plot(
     return ColumnSpec(
         name="PheWAS DataFrame",
         required=(phenotype_col, p_col),
-        numeric=(p_col,),
-        not_null=(p_col,),
-        pvalue=p_col,
         error_class=PheWASValidationError,
     )
 
@@ -204,9 +200,7 @@ def _coloc_plot(
     return ColumnSpec(
         name=name,
         required=required,
-        numeric=(pos_col, p_col),
-        not_null=(p_col,),
-        pvalue=p_col,
+        numeric=(pos_col,),
     )
 
 

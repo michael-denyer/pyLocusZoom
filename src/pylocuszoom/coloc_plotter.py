@@ -75,7 +75,9 @@ def _project_coloc_input(
         if resolved is not None:
             roles[role] = resolved
     projected = pd.DataFrame({role: df[source] for role, source in roles.items()})
-    return prepare_pvalue_data(projected, f"p_{name}", out_col=f"neglog10_{name}")
+    return prepare_pvalue_data(
+        projected, f"p_{name}", "coloc", out_col=f"neglog10_{name}"
+    )
 
 
 def _merge_and_transform(

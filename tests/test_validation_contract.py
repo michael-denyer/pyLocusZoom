@@ -438,11 +438,11 @@ class TestPValueDomainHasOneOwner:
         return True
 
     @staticmethod
-    def _kept_by_intake(value, *, allow_zero):
+    def _kept_by_intake(value, *, family):
         from pylocuszoom._data import prepare_pvalue_data
 
         df = pd.DataFrame({"p": [value]})
-        return len(prepare_pvalue_data(df, "p", allow_zero=allow_zero)) == 1
+        return len(prepare_pvalue_data(df, "p", family)) == 1
 
     @pytest.mark.parametrize(
         "value", [1e-300, 1e-8, 0.05, 0.5, 0.999, 1.0, 1.0000001, 1.5, 2.0, -0.1]
@@ -450,14 +450,14 @@ class TestPValueDomainHasOneOwner:
     def test_strict_agrees_with_intake_when_zero_is_disallowed(self, value):
         """Away from zero, both ends of the library accept exactly the same values."""
         assert self._accepted_by_strict(value) == self._kept_by_intake(
-            value, allow_zero=False
+            value, family="qq"
         )
 
     def test_zero_is_the_only_deliberate_divergence(self):
         """p == 0 is rejected at load and kept by the Manhattan convention."""
         assert self._accepted_by_strict(0.0) is False
-        assert self._kept_by_intake(0.0, allow_zero=False) is False
-        assert self._kept_by_intake(0.0, allow_zero=True) is True
+        assert self._kept_by_intake(0.0, family="qq") is False
+        assert self._kept_by_intake(0.0, family="genome-wide") is True
 
     def test_upper_bound_has_a_single_source(self):
         """The p-value spec rule and prepare_pvalue_data read the same constant."""

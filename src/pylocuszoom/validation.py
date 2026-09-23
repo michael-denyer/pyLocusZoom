@@ -12,7 +12,7 @@ from typing import List, Optional, Set, Tuple, Type
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-from ._data import P_VALUE_MAX
+from ._data import P_VALUE_POLICY, pvalue_faults
 from .exceptions import ValidationError
 
 _COMPARE = {
@@ -47,9 +47,10 @@ class ColumnSpec:
         numeric: Columns that must have a numeric dtype.
         not_null: Columns that must contain no nulls.
         ranges: Numeric-range constraints applied in order.
-        pvalue: Column checked against the canonical ``(0, 1]`` p-value
-            domain, the single owner of that range; ``_data.P_VALUE_MAX`` is
-            the shared upper bound. Null policy is left to ``not_null``.
+        pvalue: The p-value column. It must be numeric, and every value
+            null, non-numeric or outside the domain is rejected, as the
+            ``"loader"`` row of ``_data.P_VALUE_POLICY`` says; do not list it
+            under ``numeric`` or ``not_null`` as well.
         ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
         non_empty: Reject a frame with no rows, before any column rule runs.
         error_class: Exception raised on failure.
@@ -151,7 +152,8 @@ def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
     if missing:
         errors.append(f"Missing columns: {missing}. Available: {list(df.columns)}")
 
-    for col in spec.numeric:
+    numeric = spec.numeric if spec.pvalue is None else (*spec.numeric, spec.pvalue)
+    for col in numeric:
         if col in df.columns and not is_numeric_dtype(df[col]):
             errors.append(f"Column '{col}' must be numeric, got {df[col].dtype}")
             non_numeric.add(col)
@@ -162,14 +164,17 @@ def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
             if null_count > 0:
                 errors.append(f"Column '{col}' has {null_count} null values")
 
-    rules = spec.ranges
-    if spec.pvalue is not None:
-        rules = (
-            *rules,
-            RangeRule(spec.pvalue, min_val=0, max_val=P_VALUE_MAX, exclusive_min=True),
-        )
-    for rule in rules:
+    for rule in spec.ranges:
         errors.extend(_range_errors(df, rule, non_numeric))
+
+    if spec.pvalue in df.columns and spec.pvalue not in non_numeric:
+        errors.extend(
+            pvalue_faults(
+                df[spec.pvalue],
+                spec.pvalue,
+                allow_zero=P_VALUE_POLICY["loader"].allow_zero,
+            )
+        )
 
     for lower_col, upper_col in spec.ordering:
         if any(

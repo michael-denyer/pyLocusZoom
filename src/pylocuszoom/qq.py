@@ -111,7 +111,7 @@ def prepare_qq_data(
     prepared = prepare_pvalue_data(
         df,
         p_col,
-        allow_zero=False,
+        "qq",
         on_empty="No valid p-values found (must be > 0 and <= 1)",
     )
     p_valid = pd.to_numeric(prepared[p_col]).to_numpy()

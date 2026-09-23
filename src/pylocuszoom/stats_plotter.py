@@ -109,7 +109,9 @@ class StatsPlotter:
         )
 
         panel = PhewasPanel.from_frame(
-            prepare_pvalue_data(phewas_df, p_col),
+            prepare_pvalue_data(
+                phewas_df, p_col, "phewas", error_class=PheWASValidationError
+            ),
             variant_id=variant_id,
             phenotype_col=phenotype_col,
             p_col=p_col,

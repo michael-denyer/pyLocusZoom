@@ -5,7 +5,6 @@ columns, numeric types, and p-value range checks fire correctly for GWAS and
 eQTL inputs.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -56,32 +55,6 @@ class TestValidateColocGwasDf:
         with pytest.raises(ValidationError):
             validate_coloc_df(df, "GWAS DataFrame", pos_col="pos", p_col="p")
 
-    def test_non_numeric_p_raises(self, valid_df):
-        """String p-values must raise ValidationError, not TypeError."""
-        df = valid_df.copy()
-        df["p"] = ["NS", "NS", "NS"]
-        with pytest.raises(ValidationError):
-            validate_coloc_df(df, "GWAS DataFrame", pos_col="pos", p_col="p")
-
-    def test_p_above_one_raises(self, valid_df):
-        df = valid_df.copy()
-        df.loc[0, "p"] = 1.5
-        with pytest.raises(ValidationError, match=r"values\s*>\s*1"):
-            validate_coloc_df(df, "GWAS DataFrame", pos_col="pos", p_col="p")
-
-    def test_p_equal_zero_raises(self, valid_df):
-        """p=0 yields -inf after -log10; validator enforces exclusive min."""
-        df = valid_df.copy()
-        df.loc[0, "p"] = 0.0
-        with pytest.raises(ValidationError):
-            validate_coloc_df(df, "GWAS DataFrame", pos_col="pos", p_col="p")
-
-    def test_p_negative_raises(self, valid_df):
-        df = valid_df.copy()
-        df.loc[0, "p"] = -0.1
-        with pytest.raises(ValidationError, match=r"values\s*<=\s*0"):
-            validate_coloc_df(df, "GWAS DataFrame", pos_col="pos", p_col="p")
-
     def test_p_equal_one_passes(self, valid_df):
         """p=1 is the closed upper bound of a p-value; must not raise."""
         df = valid_df.copy()
@@ -117,10 +90,3 @@ class TestValidateColocDfSharedHelper:
             {"pos": pd.Series(dtype="int64"), "p": pd.Series(dtype="float64")}
         )
         validate_coloc_df(df, "empty", pos_col="pos", p_col="p")
-
-    def test_nan_in_p_rejected(self, valid_df):
-        """NaN p-values must be rejected, not silently dropped."""
-        df = valid_df.copy()
-        df.loc[0, "p"] = np.nan
-        with pytest.raises(ValidationError):
-            validate_coloc_df(df, "gwas", pos_col="pos", p_col="p")

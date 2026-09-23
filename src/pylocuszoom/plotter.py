@@ -95,7 +95,8 @@ class _AssociationInput:
             chrom_col=columns.chrom_col,
             pos_col=columns.pos_col,
         )
-        data = prepare_pvalue_data(selected, columns.p_col).reset_index(drop=True)
+        data = prepare_pvalue_data(selected, columns.p_col, "regional")
+        data = data.reset_index(drop=True)
         candidates = (
             data if ld.lead_pos is None else data[data[columns.pos_col] == ld.lead_pos]
         )

@@ -331,7 +331,12 @@ def prepare_manhattan_frames(
 
     order = get_chromosome_order(species, custom_order)
     filtered = [
-        prepare_pvalue_data(df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col))
+        prepare_pvalue_data(
+            df,
+            p_col,
+            "genome-wide",
+            on_empty=ALL_PVALUES_INVALID.format(p_col=p_col),
+        )
         for df in dfs
     ]
     layout = GenomeLayout.from_frames(
@@ -398,7 +403,7 @@ def prepare_categorical_data(
         raise ValidationError(f"Column '{p_col}' not found in DataFrame")
 
     result = prepare_pvalue_data(
-        df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
+        df, p_col, "genome-wide", on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
     )
 
     result["_cat_str"] = (

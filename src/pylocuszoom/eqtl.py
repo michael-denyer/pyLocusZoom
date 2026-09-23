@@ -14,7 +14,7 @@ from .exceptions import EQTLValidationError
 from .logging import logger
 from .schemas import Canonical, Family, Tier, spec
 from .utils import filter_by_region, normalize_chrom, normalize_chrom_series
-from .validation import check
+from .validation import ColumnSpec, check
 
 
 def validate_eqtl_df(
@@ -135,7 +135,7 @@ def prepare_eqtl_for_plotting(
     if chrom is not None and start is not None and end is not None:
         result = filter_eqtl_by_region(result, chrom, start, end, pos_col=pos_col)
 
-    return prepare_pvalue_data(result, p_col, allow_zero=False)
+    return prepare_pvalue_data(result, p_col, "eqtl")
 
 
 def get_eqtl_genes(df: pd.DataFrame, gene_col: str = "gene") -> List[str]:
@@ -162,6 +162,12 @@ def _overlap_coordinates(
 ) -> pd.DataFrame:
     """Resolve each input to coordinate and p-value roles before joining."""
     validate_eqtl_df(df, pos_col=pos_col, p_col=p_col)
+    check(
+        df,
+        ColumnSpec(
+            name="eQTL DataFrame", numeric=(p_col,), error_class=EQTLValidationError
+        ),
+    )
     positions = pd.to_numeric(df[pos_col], errors="coerce")
     if (
         df[pos_col].map(lambda value: isinstance(value, (bool, np.bool_))).any()
