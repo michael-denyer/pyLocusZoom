@@ -1,6 +1,7 @@
 # ADR 0004: Complete the Rendering Seam and Unify Capability Negotiation
 
-- Status: accepted
+- Status: accepted; the `supports_hover` decision is superseded by
+  [ADR-0011](0011-protocol-diet-and-one-panel-body.md)
 - Date: 2026-07-21
 - Target: 2.0 (breaking change to the `PlotBackend` extension contract)
 
@@ -47,7 +48,7 @@ drive backend primitives.
   only: add `SupportsSNPLabels` and `SupportsSecondaryAxis`, keep
   `SupportsRegionHighlight`, and delete the `hasattr` guard. `supports_hover`
   remains a boolean property because it is a rendering-quality flag with no
-  method to key on.
+  method to key on. (Superseded by ADR-0011: `supports_hover` is deleted.)
 
 The required `PlotBackend` protocol therefore sheds the six composite methods and
 the moved optional methods, retaining only true primitives. This breaks the
