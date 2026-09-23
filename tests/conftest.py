@@ -37,6 +37,14 @@ def _figure_types() -> dict[str, type]:
 FIGURE_TYPES = _figure_types()
 
 
+def write_canine_map_set(path, content: str, *, complete: bool = True) -> None:
+    """Write one recombination map per canine autosome, or all but the last."""
+    path.mkdir(parents=True, exist_ok=True)
+    stop = 39 if complete else 38
+    for chrom in range(1, stop):
+        (path / f"chr{chrom}_recomb.tsv").write_text(content)
+
+
 @pytest.fixture(autouse=True)
 def close_matplotlib_figures():
     """Close every pyplot figure a test leaves open.
