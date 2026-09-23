@@ -12,7 +12,6 @@ import re
 import shutil
 import tarfile
 import tempfile
-import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Optional
@@ -161,40 +160,41 @@ def _holds_only_maps(path: Path, source: RecombSource) -> bool:
     )
 
 
-def _discard_map_dir(path: Path) -> None:
-    """Delete a replaced directory without acquiring ownership of symlink targets."""
-    if path.is_symlink():
-        path.unlink()
-    else:
-        shutil.rmtree(path, ignore_errors=True)
-
-
 def _publish_map_generation(
     staging_dir: Path, output_path: Path, source: RecombSource
 ) -> Path:
-    """Swap a complete map set into place, keeping the old one until it lands."""
+    """Install a complete map set without the directory ever going missing.
+
+    An absent target receives the staging directory in one rename. A target
+    that exists (a set being refreshed, a damaged set, or one a concurrent
+    writer installed first) keeps its directory while each map file is
+    swapped in with one ``os.replace``, so a reader finds the old file or the
+    new one, never a gap. Nothing is moved aside, so nothing can be left
+    behind, and a writer that loses the race to another still succeeds. The
+    map set for a source URL never changes, so interleaved writers converge
+    on the same files.
+    """
     if not _has_complete_maps(staging_dir, source):
         raise DataDownloadError(
             f"Downloaded recombination archive does not contain the complete "
             f"{source.species} map set ({len(source.filenames)} chromosome files)"
         )
 
-    parent = output_path.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    previous = parent / f".{output_path.name}.previous-{uuid.uuid4().hex}"
-    replacing = output_path.is_symlink() or output_path.exists()
-    if replacing:
-        os.replace(output_path, previous)
-
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.is_symlink():
+        # Older releases published behind a symlink; its target is not ours.
+        output_path.unlink()
     try:
-        os.replace(staging_dir, output_path)
-    except BaseException:
-        if replacing:
-            os.replace(previous, output_path)
-        raise
-
-    if replacing:
-        _discard_map_dir(previous)
+        os.rename(staging_dir, output_path)
+        return output_path
+    except OSError:
+        if not output_path.is_dir():
+            raise
+    for name in sorted(source.filenames):
+        os.replace(staging_dir / name, output_path / name)
+    for stray in output_path.glob("chr*_recomb.tsv"):
+        if stray.name not in source.filenames:
+            stray.unlink(missing_ok=True)
     return output_path
 
 

@@ -22,9 +22,13 @@ rename internal fields. The backends use the shared `cell_edges` geometry for
 heatmap cells and highlights.
 
 Reference-data ownership is explicit. Caller map directories are read-only;
-managed caches alone may download and replace generations. Download writers have
+managed caches alone may download and install map sets. Download writers have
 private staging files, map archives stream regular members into canonical names,
-and gene/exon pairs publish as one atomically replaced ZIP. See
+and gene/exon pairs publish as one atomically replaced ZIP. A map set installs
+by renaming its staging directory into place when none exists; over an existing
+set the directory stays and each map file is swapped in with one `os.replace`,
+so a reader never finds the directory missing and concurrent writers converge
+on the same files without moving anything aside. See
 [ADR 0009](adr/0009-resolved-inputs-and-owned-publication.md).
 
 ## Component Diagram
