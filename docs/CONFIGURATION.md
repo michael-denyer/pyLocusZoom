@@ -101,6 +101,9 @@ Cross-field rules:
   `PlotConfig`). On `StackedPlotConfig` every panel computing LD from a
   fileset, broadcast or from `ld_reference_files`, needs a lead from
   `lead_positions` or the broadcast `lead_pos`.
+- Every lead, `lead_pos` or a `lead_positions` entry, must lie inside the
+  region, `start` to `end` inclusive (enforced on `PlotConfig` and
+  `StackedPlotConfig`).
 
 ### `PanelInputs` — optional panels beneath the association track
 

@@ -321,6 +321,31 @@ class TestConfigIntegration:
 class TestPlotConfig:
     """Tests for PlotConfig composite class."""
 
+    def test_plot_rejects_a_lead_outside_the_region(self):
+        """The lead used to be drawn off the axis without a word."""
+        df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000, 3000], "p_value": [1e-3, 1e-9, 1e-2]}
+        )
+        plotter = LocusZoomPlotter(species=None, auto_genes=False)
+
+        with pytest.raises(
+            ValidationError, match="lead_pos 900000 is outside the region chr1:500-3500"
+        ):
+            plotter.plot(
+                df, chrom=1, start=500, end=3500, ld=LDConfig(lead_pos=900_000)
+            )
+
+    @pytest.mark.parametrize("lead", [1000, 2000])
+    def test_a_lead_on_the_region_boundary_is_inside(self, lead):
+        from pylocuszoom.config import PlotConfig, RegionConfig
+
+        config = PlotConfig(
+            region=RegionConfig(chrom=1, start=1000, end=2000),
+            ld=LDConfig(lead_pos=lead),
+        )
+
+        assert config.ld.lead_pos == lead
+
     def test_plot_config_composes_all_configs(self):
         """PlotConfig should compose region, columns, display, and ld configs."""
         from pylocuszoom.config import (
@@ -418,6 +443,16 @@ class TestStackedPlotConfig:
             (1500, "/path/to/file1"),
             (1600, "/path/to/file2"),
         ]
+
+    def test_stacked_rejects_a_panel_lead_outside_the_region(self):
+        from pylocuszoom.config import RegionConfig, StackedPlotConfig
+
+        with pytest.raises(ValidationError, match="panel 2: lead_pos 2500 "):
+            StackedPlotConfig(
+                region=RegionConfig(chrom=1, start=1000, end=2000),
+                n_panels=2,
+                lead_positions=[1500, 2500],
+            )
 
     def test_stacked_per_panel_ld_files_need_a_lead_per_panel(self):
         """The lead rule plot() applies holds for every stacked panel too."""
