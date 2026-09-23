@@ -336,7 +336,7 @@ class TestSetSuptitle:
             manhattan_gwas_df, title="Cohort A"
         )
 
-        assert "Manhattan Plot" in _plot_titles(fig)
+        assert any(t.startswith("λ = ") for t in _plot_titles(fig))
         assert "Cohort A" not in _plot_titles(fig)
         assert isinstance(fig.children[0], Div)
         assert fig.children[0].text == "Cohort A"
