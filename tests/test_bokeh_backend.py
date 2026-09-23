@@ -222,10 +222,10 @@ class TestAddTextAnchors:
 
 
 class TestBokehSetXticksCorruptsYAxis:
-    """High: Bokeh set_xticks writes x-axis labels into the y-axis.
+    """Bokeh set_xticks writes its labels to the x-axis only.
 
-    Bug: set_xticks writes to ax.yaxis.major_label_overrides instead of only
-    ax.xaxis.major_label_overrides, corrupting y-axis labels.
+    It once also wrote them to ax.yaxis.major_label_overrides, replacing the
+    y-axis labels.
     """
 
     def test_bokeh_set_xticks_does_not_modify_yaxis(self):
@@ -245,10 +245,6 @@ class TestBokehSetXticksCorruptsYAxis:
             fontsize=10,
         )
 
-        # Bug: set_xticks has these lines that corrupt y-axis:
-        # ax.yaxis.major_label_overrides = dict(zip(positions, labels))
-        # ax.yaxis.major_label_text_font_size = f"{fontsize}pt"
-
         # Check that y-axis was not modified by set_xticks
         y_overrides = ax.yaxis.major_label_overrides
 
@@ -262,10 +258,9 @@ class TestBokehSetXticksCorruptsYAxis:
 
 
 class TestBokehSetYticksIgnoresLabels:
-    """High: Bokeh set_yticks ignores the provided labels entirely.
+    """Bokeh set_yticks applies the labels it is given, not only the positions.
 
-    Bug: set_yticks only sets ax.yaxis.ticker = positions but doesn't set
-    ax.yaxis.major_label_overrides, so custom labels are ignored.
+    It once set ax.yaxis.ticker alone, so custom labels were dropped.
     """
 
     def test_bokeh_set_yticks_applies_labels(self):
@@ -280,18 +275,12 @@ class TestBokehSetYticksIgnoresLabels:
 
         backend.set_yticks(ax, positions=positions, labels=labels, fontsize=10)
 
-        # Bug: set_yticks only sets ticker, ignoring labels parameter
-        # Current implementation:
-        #   ax.yaxis.ticker = positions
-        # Missing:
-        #   ax.yaxis.major_label_overrides = dict(zip(positions, labels))
-
         # Check that labels were applied
         y_overrides = ax.yaxis.major_label_overrides
 
         assert len(y_overrides) > 0, (
-            "set_yticks should set major_label_overrides but it's empty. "
-            "Bug: labels parameter is ignored."
+            "set_yticks should set major_label_overrides but it's empty; "
+            "the labels parameter was ignored."
         )
 
         # Verify the correct labels are present

@@ -8,11 +8,12 @@ from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
 
 class TestPlotlyGridSubplotAxisAddressing:
-    """Critical: Plotly grid subplots are misaddressed.
+    """Plotly grid subplots are addressed by row and column.
 
-    Bug: axis helpers use row-only axis names and several helpers hard-code col=1,
-    so in create_figure_grid the QQ column doesn't receive axis limits/labels and
-    Manhattan can be overwritten by QQ settings; lines/shapes land only in column 1.
+    Axis helpers once used row-only axis names and several hard-coded col=1,
+    so in create_figure_grid the QQ column received no axis limits or labels,
+    QQ settings overwrote the Manhattan ones, and lines and shapes landed only
+    in column 1.
     """
 
     def test_plotly_axis_name_accounts_for_column(self):
@@ -24,9 +25,6 @@ class TestPlotlyGridSubplotAxisAddressing:
         # - (row=1, col=1) should use xaxis/yaxis (subplot index 1)
         # - (row=1, col=2) should use xaxis2/yaxis2 (subplot index 2)
 
-        # Current bug: _axis_name only considers row, not column
-        # For row=1 it always returns "xaxis"/"yaxis" regardless of column
-
         manhattan_ax = axes[0]  # (fig, row=1, col=1)
         qq_ax = axes[1]  # (fig, row=1, col=2)
 
@@ -35,7 +33,7 @@ class TestPlotlyGridSubplotAxisAddressing:
         backend.set_ylabel(qq_ax, "QQ Y")
 
         # Verify they are different axes - check layout has both yaxis and yaxis2
-        # If bug exists, both labels go to yaxis and yaxis2 is never set
+        # A row-only axis name would send both labels to yaxis
         layout = fig.layout
 
         # Check that we have distinct y-axis configurations
@@ -48,11 +46,11 @@ class TestPlotlyGridSubplotAxisAddressing:
 
         assert yaxis2_title is not None, (
             "yaxis2 should have a title set for column 2, but it's None. "
-            "Bug: _axis_name doesn't account for column."
+            "_axis_name ignores the column."
         )
         assert yaxis_title != yaxis2_title, (
             f"yaxis and yaxis2 have same title '{yaxis_title}'. "
-            "Bug: both columns writing to same axis."
+            "Both columns write to the same axis."
         )
 
     @staticmethod
@@ -122,7 +120,6 @@ class TestPlotlyGridSubplotAxisAddressing:
         backend.set_xlim(manhattan_ax, 0, 1000)
         backend.set_xlim(qq_ax, 0, 10)
 
-        # Bug: set_xlim uses _axis_name which only considers row
         # Both columns should have different x-axis ranges
         layout = fig.layout
 
@@ -135,7 +132,7 @@ class TestPlotlyGridSubplotAxisAddressing:
             "xaxis2 range should be set for column 2, but it's None"
         )
         assert xaxis_range != xaxis2_range, (
-            "xaxis and xaxis2 have same range. Bug: both columns using same axis."
+            "xaxis and xaxis2 have same range: both columns use the same axis."
         )
 
     def test_plot_manhattan_qq_distinct_axes(self, manhattan_rs_gwas_df):
@@ -208,10 +205,11 @@ class TestPlotlyGridSubplotAxisAddressing:
 
 
 class TestPlotlySetTitleOverwriting:
-    """Low: Plotly set_title only updates the overall figure title for row 1.
+    """Plotly set_title titles each grid subplot, not only the figure.
 
-    Bug: In plot_manhattan_qq the Manhattan title is overwritten by the QQ title,
-    and in stacked mode only the first row gets a QQ title.
+    It once updated only the figure title, so in plot_manhattan_qq the QQ title
+    replaced the Manhattan one and in stacked mode only the first row got a QQ
+    title.
     """
 
     def test_plotly_set_title_per_subplot(self):

@@ -178,19 +178,13 @@ class TestCalculateLd:
                 )
 
     def test_raises_validation_error_for_missing_plink_files(self, tmp_path):
-        """Bug: calculate_ld() raises ValidationError for missing PLINK files.
-
-        The docstring only documents FileNotFoundError, but validate_plink_files()
-        raises ValidationError when .bed/.bim/.fam files are missing.
-        This test documents the actual behavior.
-        """
+        """Missing .bed/.bim/.fam files raise ValidationError before PLINK runs."""
         from pylocuszoom.utils import ValidationError
 
         # Non-existent PLINK files
         nonexistent_bfile = str(tmp_path / "nonexistent")
 
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):
-            # Should raise ValidationError (not FileNotFoundError as docstring says)
             with pytest.raises(ValidationError, match="PLINK files missing"):
                 calculate_ld(
                     bfile_path=nonexistent_bfile,
