@@ -179,8 +179,16 @@ def normalize_chrom_series(chroms: pd.Series) -> pd.Series:
     Example:
         >>> normalize_chrom_series(pd.Series([1, "chr2", "chrX"])).tolist()
         ['1', '2', 'X']
+        >>> normalize_chrom_series(pd.Series([1.0, 2.0])).tolist()
+        ['1', '2']
     """
-    return chroms.astype(str).str.replace("chr", "", regex=False)
+    text = chroms.astype(str)
+    if pd.api.types.is_float_dtype(chroms):
+        # pandas reads an integer column holding a NaN as float; 1.0 means "1".
+        integral = chroms.notna() & (chroms % 1 == 0)
+        as_int = chroms.where(integral, 0).astype("int64").astype(str)
+        text = text.mask(integral, as_int)
+    return text.str.replace("chr", "", regex=False)
 
 
 def filter_by_region(
