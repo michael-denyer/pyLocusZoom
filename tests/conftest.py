@@ -52,6 +52,48 @@ def close_matplotlib_figures():
     plt.close("all")
 
 
+@pytest.fixture(autouse=True)
+def block_network(request, monkeypatch):
+    """Refuse outbound connections in every test not marked ``integration``.
+
+    A test that downloads passes only because the plotter degrades to a
+    warning, so it reads whatever the machine's cache holds instead of what
+    the test set up. RuntimeError is not an OSError, so no retry loop or
+    download wrapper turns the refusal back into a skipped-layer warning.
+    Local (AF_UNIX) sockets stay open.
+    """
+    if request.node.get_closest_marker("integration"):
+        return
+    import socket
+
+    real_connect, real_connect_ex = socket.socket.connect, socket.socket.connect_ex
+
+    def refuse(connect):
+        def guarded(sock, address):
+            if sock.family == getattr(socket, "AF_UNIX", None):
+                return connect(sock, address)
+            raise RuntimeError(
+                f"{request.node.nodeid} tried to connect to {address!r}; mock the "
+                "transport or mark the test integration"
+            )
+
+        return guarded
+
+    real_getaddrinfo = socket.getaddrinfo
+
+    def resolve_local_only(host, *args, **kwargs):
+        if host in (None, "localhost", "127.0.0.1", "::1"):
+            return real_getaddrinfo(host, *args, **kwargs)
+        raise RuntimeError(
+            f"{request.node.nodeid} tried to resolve {host!r}; mock the transport "
+            "or mark the test integration"
+        )
+
+    monkeypatch.setattr(socket.socket, "connect", refuse(real_connect))
+    monkeypatch.setattr(socket.socket, "connect_ex", refuse(real_connect_ex))
+    monkeypatch.setattr(socket, "getaddrinfo", resolve_local_only)
+
+
 @pytest.fixture
 def plink_assoc_file(tmp_path):
     """Three-SNP PLINK .assoc file on disk."""
@@ -223,11 +265,22 @@ def regional_plotter():
 
 
 @pytest.fixture
-def canine_plotter():
-    """LocusZoomPlotter on the canine default build."""
+def canine_plotter(tmp_path):
+    """LocusZoomPlotter on the canine default build, with local recombination maps.
+
+    The maps live in a caller directory, so the overlay never reads the
+    machine's cache or downloads the published set.
+    """
     from pylocuszoom import LocusZoomPlotter
 
-    return LocusZoomPlotter(species="canine")
+    maps = tmp_path / "recombination_maps"
+    maps.mkdir()
+    for chrom in range(1, 39):
+        (maps / f"chr{chrom}_recomb.tsv").write_text(
+            f"chr\tpos\trate\tcM\n{chrom}\t1\t0.5\t0.0\n"
+            f"{chrom}\t1500000\t1.0\t1.0\n{chrom}\t100000000\t0.5\t50.0\n"
+        )
+    return LocusZoomPlotter(species="canine", recomb_data_dir=str(maps))
 
 
 @pytest.fixture

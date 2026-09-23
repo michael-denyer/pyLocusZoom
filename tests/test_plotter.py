@@ -214,6 +214,7 @@ class TestAutoGenes:
                 chrom=1,
                 start=1000000,
                 end=2000000,
+                display=DisplayConfig(show_recombination=False),
             )
 
         assert not mock_fetch.called, "auto_genes is off, so no gene fetch is allowed"
@@ -386,6 +387,7 @@ class TestPlotEdgeCases:
             chrom=1,
             start=1000000,
             end=2000000,
+            display=DisplayConfig(show_recombination=False),
             ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
         )
 

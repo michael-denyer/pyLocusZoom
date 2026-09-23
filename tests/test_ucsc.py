@@ -256,7 +256,7 @@ class TestBuildRouting:
 
     def test_plotter_fetches_in_its_own_build(self):
         """auto_genes fetches from the source its own build routes to."""
-        from pylocuszoom import LocusZoomPlotter
+        from pylocuszoom import DisplayConfig, LocusZoomPlotter
         from pylocuszoom._gene_source import GeneAnnotations
 
         plotter = LocusZoomPlotter(species="canine", auto_genes=True, log_level=None)
@@ -271,7 +271,13 @@ class TestBuildRouting:
                 pd.DataFrame(),
             ),
         ) as mock_fetch:
-            plotter.plot(gwas, chrom=1, start=900_000, end=1_200_000)
+            plotter.plot(
+                gwas,
+                chrom=1,
+                start=900_000,
+                end=1_200_000,
+                display=DisplayConfig(show_recombination=False),
+            )
 
         source = mock_fetch.call_args.args[0]
         assert source.name == "ucsc"

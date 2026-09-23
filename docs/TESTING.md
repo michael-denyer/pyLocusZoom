@@ -12,7 +12,7 @@ pyLocusZoom uses **pytest** (`>=7.0.0`) along with several plugins configured in
 | `pytest-cov` | `>=4.0.0` | Coverage reporting (source: `pylocuszoom`, branch coverage enabled) |
 | `pytest-randomly` | `>=3.0.0` | Randomizes test order to surface hidden ordering dependencies |
 | `pytest-xdist` | `>=3.0.0` | Parallel test execution (`-n 3`) |
-| `pytest-timeout` | `>=2.0.0` | Per-test timeout of 30s (catches hung tests and accidental network calls) |
+| `pytest-timeout` | `>=2.0.0` | Per-test timeout of 30s (catches hung tests) |
 | `hypothesis` | `>=6.0.0` | Property-based testing |
 
 `tests/test_rendering_contract.py` drives the plotters through a `RecordingBackend` and asserts on the call sequence it records, because no backend can serialise a figure the same way twice. Every other test asserts on observable output. A change to a backend or a panel must also pass `scripts/example_diff.sh`. It regenerates `examples/`, normalises plotly UUIDs and bokeh element ids, and prints `NO REAL DIFFS` or one `REAL DIFF:` line per export whose content changed. Matplotlib PNGs are deterministic, so any PNG diff is a real rendering change.
@@ -50,7 +50,7 @@ so none of those flags belong on a command line or in a CI step.
 
 Currently a single custom marker is registered in `pyproject.toml`:
 
-- `integration` — tests that require external services (e.g. the Ensembl REST API). Deselected by default; opt in with `-m integration`.
+- `integration` — tests that require external services (e.g. the Ensembl REST API). Deselected by default; opt in with `-m integration`. Every other test runs with outbound connections and DNS lookups refused by the autouse `block_network` fixture in `tests/conftest.py`, so a test that would download fails instead of reading or filling the machine's cache.
 
 ## Writing New Tests
 
