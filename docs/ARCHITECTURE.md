@@ -220,15 +220,19 @@ stages:
    option is declared once, on the model that owns it. They compose those
    into a `PlotConfig`, which holds the cross-model rules, then
    share one private pipeline, `_render_regional`, which
-   builds each optional panel through its own constructor
-   (`FinemappingPanel.from_frame`, `EqtlPanel.from_frame`,
-   `GenePanel.from_genes`, `HeatmapPanel.from_matrix`) and puts them on a
+   builds every panel through its own constructor
+   (`AssociationPanel.from_input`, `FinemappingPanel.from_frame`,
+   `EqtlPanel.from_frame`, `GenePanel.from_genes`,
+   `HeatmapPanel.from_matrix`) and puts them on a
    `FigurePlan` for `render_figure`, which creates the figure, calls each
    panel's `draw` method on its axis, labels and formats the shared
    megabase x axis, and finalizes the layout
    ([ADR-0007](adr/0007-one-figure-plan.md)). Every panel resolves its
-   mode, its region and its hover contract when it is built, so the drawing
-   never inspects the frame's columns; axes, labels, LD legend, SNP-label,
+   mode, its region and its hover contract when it is built, so no `draw`
+   method checks which columns the frame has: the regional, colocalization,
+   LD-heatmap and stats panels through a `from_*` classmethod, the Manhattan
+   and QQ specs from the `PreparedManhattan` and `PreparedQQ` values their
+   preparation returns. Axes, labels, LD legend, SNP-label,
    and recombination policy live on the association panel, and both the
    association and eQTL significance lines go through the same
    `add_significance_line` the Manhattan family uses
@@ -272,7 +276,7 @@ stages:
 | `MiamiRequest`, `MiamiPanel`, `miami_plan` | Internal module | `src/pylocuszoom/panels/miami.py` | The Miami figure: a request the plotter resolves, a panel that draws one mirrored Manhattan half with its SNP annotations, and the builder that lays two of them on a `FigurePlan` with the cross-panel highlights |
 | `PhewasPanel`, `ForestPanel` | Internal module | `src/pylocuszoom/panels/stats.py` | The PheWAS and forest panels, each built through `from_frame` and drawing itself. Every family is a panel value with `draw` on a `FigurePlan`; no family holds a renderer class |
 | `ColocPanel` | Internal module | `src/pylocuszoom/panels/coloc.py` | The colocalization scatter. `from_frames` validates both frames, merges them on position with fixed source-owned column roles, and resolves the lead, its label, the legend and the correlation; `draw` reads those fields and draws both threshold lines through `add_significance_line` |
-| `LDHeatmapPanel` | Internal module | `src/pylocuszoom/panels/ld_heatmap.py` | The standalone heatmap: the matrix, its ids, and the lead and highlight indices, drawing itself |
+| `LDHeatmapPanel` | Internal module | `src/pylocuszoom/panels/ld_heatmap.py` | The standalone heatmap. `from_matrix` validates the matrix, metric, SNP ids and highlights and resolves the lead and highlight indices; `draw` draws through `composition.draw_ld_heatmap` |
 | `ManhattanPlotter` | Class | `src/pylocuszoom/manhattan_plotter.py` | Genome-wide Manhattan and QQ plots |
 | `StatsPlotter` | Class | `src/pylocuszoom/stats_plotter.py` | PheWAS and forest plots |
 | `MiamiPlotter` | Class | `src/pylocuszoom/miami_plotter.py` | Mirrored Manhattan comparison plots |
