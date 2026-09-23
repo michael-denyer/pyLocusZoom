@@ -60,7 +60,6 @@ The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.m
 
 ### Changed
 
-- **Manhattan-QQ figures drop the redundant panel titles.** `plot_manhattan_qq` no longer titles its Manhattan panel "Manhattan Plot", and its QQ panel reads `λ = 1.009` instead of `QQ Plot (λ = 1.009)`, as the stacked figure already did. With `show_lambda=False` the QQ panels of both figures are untitled rather than "QQ Plot" or "QQ". A standalone `plot_qq` keeps its "QQ Plot (λ = …)" title.
 - **Each family's p-value policy is stated in one table.** `_data.P_VALUE_POLICY` says, per family, whether an exact zero is valid and whether an invalid p-value drops its row or raises: regional and genome-wide plots keep zero and drop; QQ and the regional eQTL panel drop zero; PheWAS, colocalization and the loaders reject. Outcomes are unchanged, except that the eQTL panel now drops non-numeric p-values instead of rejecting the frame, as the regional panel above it does. The drop warning names the domain, `[0, 1]` or `(0, 1]`, that the family uses.
 - **Genome-wide chromosomes are normalised once.** A `chr`-prefixed or float chromosome column laid out lexicographically (`chr1, chr10, chr2`; `1.0, 10.0, 2.0`) after the species order. Chromosome names now go through `normalize_chrom_series` with the other columns, so they lay out in species order and the ticks read `1`, `2`, `10`. `custom_chrom_order` is normalised the same way.
 - **`normalize_chrom` strips only a leading `chr`, in any case.** `Chr1` stayed `Chr1`, and `chrUn_chr5` lost both prefixes.
@@ -98,6 +97,12 @@ The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.m
 - **The test suite no longer reads the user cache or the network.** Ten tests plotted with managed recombination maps, reading `~/.cache` or downloading the map archive. They now use maps in the test's own directory or turn the overlay off, and every test not marked `integration` fails if it opens an outbound connection.
 - **Plotly draws reference lines and highlights on a panel with no data.** plotly's `add_hline`, `add_vline` and `add_vrect` skip a subplot holding no trace, so `axhline`, `axvline` and `add_region_highlight` drew nothing there on plotly while matplotlib and bokeh drew them.
 - **A plotly legend stays in its own grid column.** Every legend was anchored at the right edge of the whole figure, so one on a left-hand grid panel sat over the right-hand panel. It now sits inside its panel's right edge; one-column figures are unchanged.
+
+## [4.3.0] - 2026-09-23
+
+### Changed
+
+- **Manhattan-QQ figures drop the redundant panel titles.** `plot_manhattan_qq` no longer titles its Manhattan panel "Manhattan Plot", and its QQ panel reads `λ = 1.009` instead of `QQ Plot (λ = 1.009)`, as the stacked figure already did. With `show_lambda=False` the QQ panels of both figures are untitled rather than "QQ Plot" or "QQ". A standalone `plot_qq` keeps its "QQ Plot (λ = …)" title.
 
 ## [4.2.0] - 2026-09-23
 
