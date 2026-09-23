@@ -15,10 +15,11 @@ from pylocuszoom.finemapping import (
     get_credible_sets,
     get_top_pip_variants,
     prepare_finemapping_for_plotting,
-    validate_finemapping_df,
 )
 from pylocuszoom.panels.finemapping import FinemappingPanel
 from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.schemas import finemapping_plot_spec
+from pylocuszoom.validation import check
 
 DRAW_REGION = RegionConfig(chrom=1, start=1, end=1_000_000)
 
@@ -38,35 +39,35 @@ def finemapping_df():
 
 
 class TestValidateFinemappingDf:
-    """Tests for validate_finemapping_df function."""
+    """Tests for the plot-time fine-mapping contract."""
 
     def test_valid_df(self, finemapping_df):
         """Should not raise for valid DataFrame."""
-        validate_finemapping_df(finemapping_df)
+        check(finemapping_df, finemapping_plot_spec())
 
     def test_missing_pos_col(self, finemapping_df):
         """Should raise for missing position column."""
         df = finemapping_df.drop(columns=["pos"])
         with pytest.raises(FinemappingValidationError, match="Missing columns"):
-            validate_finemapping_df(df)
+            check(df, finemapping_plot_spec())
 
     def test_missing_pip_col(self, finemapping_df):
         """Should raise for missing PIP column."""
         df = finemapping_df.drop(columns=["pip"])
         with pytest.raises(FinemappingValidationError, match="Missing columns"):
-            validate_finemapping_df(df)
+            check(df, finemapping_plot_spec())
 
     def test_invalid_pip_values(self, finemapping_df):
         """Should raise for PIP values outside [0, 1]."""
         df = finemapping_df.copy()
         df.loc[0, "pip"] = 1.5
         with pytest.raises(FinemappingValidationError, match="values > 1"):
-            validate_finemapping_df(df)
+            check(df, finemapping_plot_spec())
 
     def test_custom_column_names(self):
         """Should accept custom column names."""
         df = pd.DataFrame({"position": [1000, 2000], "probability": [0.5, 0.3]})
-        validate_finemapping_df(df, pos_col="position", pip_col="probability")
+        check(df, finemapping_plot_spec(pos_col="position", pip_col="probability"))
 
 
 class TestFilterFinemappingByRegion:

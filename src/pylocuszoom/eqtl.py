@@ -12,27 +12,9 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
-from .schemas import Canonical, Family, Tier, spec
+from .schemas import Canonical, eqtl_plot_spec
 from .utils import filter_by_region, normalize_chrom, normalize_chrom_series
 from .validation import ColumnSpec, check
-
-
-def validate_eqtl_df(
-    df: pd.DataFrame,
-    pos_col: str = Canonical.POS,
-    p_col: str = Canonical.P,
-) -> None:
-    """Validate eQTL DataFrame has required columns.
-
-    Args:
-        df: eQTL DataFrame to validate.
-        pos_col: Column name for genomic position.
-        p_col: Column name for p-value.
-
-    Raises:
-        EQTLValidationError: If required columns are missing.
-    """
-    check(df, spec(Family.EQTL, Tier.PLOT, pos_col=pos_col, p_col=p_col))
 
 
 def filter_eqtl_by_gene(
@@ -123,7 +105,7 @@ def prepare_eqtl_for_plotting(
     Returns:
         Prepared DataFrame with neglog10p column added.
     """
-    validate_eqtl_df(df, pos_col=pos_col, p_col=p_col)
+    check(df, eqtl_plot_spec(pos_col, p_col))
 
     result = df.copy()
 
@@ -161,7 +143,7 @@ def _overlap_coordinates(
     common_chrom: int | str | None,
 ) -> pd.DataFrame:
     """Resolve each input to coordinate and p-value roles before joining."""
-    validate_eqtl_df(df, pos_col=pos_col, p_col=p_col)
+    check(df, eqtl_plot_spec(pos_col, p_col))
     check(
         df,
         ColumnSpec(

@@ -85,21 +85,21 @@ class TestExceptionChaining:
 
 
 class TestSpecializedExceptionsInUse:
-    """The PheWAS and forest validators raise their own subclasses."""
+    """The PheWAS and forest plots raise their own subclasses."""
 
-    def test_phewas_validation_raises_phewas_error(self):
-        """validate_phewas_df raises PheWASValidationError, not generic ValidationError."""
-        from pylocuszoom.schemas import validate_phewas_df
-
+    def test_phewas_plot_raises_phewas_error(self):
+        """A malformed PheWAS frame raises PheWASValidationError."""
         with pytest.raises(PheWASValidationError):
-            validate_phewas_df(pd.DataFrame({"wrong_col": [1]}))
+            pylocuszoom.StatsPlotter().plot_phewas(
+                pd.DataFrame({"wrong_col": [1]}), variant_id="rs1"
+            )
 
-    def test_forest_validation_raises_forest_error(self):
-        """validate_forest_df raises ForestValidationError, not generic ValidationError."""
-        from pylocuszoom.schemas import validate_forest_df
-
+    def test_forest_plot_raises_forest_error(self):
+        """A malformed forest frame raises ForestValidationError."""
         with pytest.raises(ForestValidationError):
-            validate_forest_df(pd.DataFrame({"wrong_col": [1]}))
+            pylocuszoom.StatsPlotter().plot_forest(
+                pd.DataFrame({"wrong_col": [1]}), variant_id="rs1"
+            )
 
 
 _GWAS = pd.DataFrame(

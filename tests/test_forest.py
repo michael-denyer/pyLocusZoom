@@ -6,9 +6,10 @@ import pytest
 from pylocuszoom.utils import ValidationError
 
 
-def test_validate_forest_df_valid():
+def test_forest_contract_valid():
     """Test validation passes for valid forest plot DataFrame."""
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -19,12 +20,13 @@ def test_validate_forest_df_valid():
         }
     )
     # Should not raise
-    validate_forest_df(df)
+    check(df, forest_plot_spec())
 
 
-def test_validate_forest_df_missing_column():
+def test_forest_contract_missing_column():
     """Test validation fails for missing required column."""
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -34,12 +36,13 @@ def test_validate_forest_df_missing_column():
         }
     )
     with pytest.raises(ValidationError, match="ci_lower"):
-        validate_forest_df(df)
+        check(df, forest_plot_spec())
 
 
-def test_validate_forest_df_with_weight():
+def test_forest_contract_with_weight():
     """Test validation allows optional weight column."""
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -51,15 +54,16 @@ def test_validate_forest_df_with_weight():
         }
     )
     # Should not raise
-    validate_forest_df(df)
+    check(df, forest_plot_spec())
 
 
-def test_validate_forest_df_ci_lower_gt_effect():
+def test_forest_contract_ci_lower_gt_effect():
     """Test validation fails when ci_lower > effect.
 
     This would produce negative error bar lengths on the lower side.
     """
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -70,15 +74,16 @@ def test_validate_forest_df_ci_lower_gt_effect():
         }
     )
     with pytest.raises(ValidationError, match="ci_lower > effect"):
-        validate_forest_df(df)
+        check(df, forest_plot_spec())
 
 
-def test_validate_forest_df_effect_gt_ci_upper():
+def test_forest_contract_effect_gt_ci_upper():
     """Test validation fails when effect > ci_upper.
 
     This would produce negative error bar lengths on the upper side.
     """
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -89,15 +94,16 @@ def test_validate_forest_df_effect_gt_ci_upper():
         }
     )
     with pytest.raises(ValidationError, match="effect > ci_upper"):
-        validate_forest_df(df)
+        check(df, forest_plot_spec())
 
 
-def test_validate_forest_df_ci_lower_gt_ci_upper():
+def test_forest_contract_ci_lower_gt_ci_upper():
     """Test validation fails when ci_lower > ci_upper.
 
     Completely inverted interval - no valid visualization.
     """
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -108,16 +114,17 @@ def test_validate_forest_df_ci_lower_gt_ci_upper():
         }
     )
     with pytest.raises(ValidationError, match="ci_lower > ci_upper"):
-        validate_forest_df(df)
+        check(df, forest_plot_spec())
 
 
-def test_validate_forest_df_non_numeric_effect():
+def test_forest_contract_non_numeric_effect():
     """Non-numeric effect reports a validation error, not a comparison TypeError.
 
     Ordering comparisons run after the dtype check, so a text column would
     otherwise surface as a bare TypeError from pandas.
     """
-    from pylocuszoom.schemas import validate_forest_df
+    from pylocuszoom.schemas import forest_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -128,4 +135,4 @@ def test_validate_forest_df_non_numeric_effect():
         }
     )
     with pytest.raises(ValidationError, match="must be numeric"):
-        validate_forest_df(df)
+        check(df, forest_plot_spec())

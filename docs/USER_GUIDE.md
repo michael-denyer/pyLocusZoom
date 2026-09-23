@@ -1711,9 +1711,8 @@ do, and open an issue so the name can be promoted to core.
 | Gene reference routing | `get_genes_for_build`, `source_for`, `clear_gene_cache`, `get_ensembl_species_name` |
 | Recombination maps | `download_canine_recombination_maps`, `ensure_recomb_maps`, `get_recombination_rate_for_region`, `load_recombination_map`, `recomb_for_region`, `RecombResult`, `RecombStatus` |
 | Liftover | `CoordinateLifter`, `liftover_region`, `RegionLiftResult` |
-| eQTL helpers | `validate_eqtl_df`, `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
-| Fine-mapping helpers | `validate_finemapping_df`, `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |
-| Frame validators | `validate_gwas_df`, `validate_genes_df`, `validate_phewas_df`, `validate_forest_df` |
+| eQTL helpers | `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
+| Fine-mapping helpers | `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |
 | DataFrame helpers | `to_pandas` |
 
 ---

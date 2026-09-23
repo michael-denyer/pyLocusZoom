@@ -205,14 +205,6 @@ class TestPrepareManhattanData:
             == chr2_second["_cumulative_pos"].iloc[0]
         )
 
-    def test_validates_required_columns(self):
-        """Should raise on missing required columns."""
-        from pylocuszoom.manhattan import prepare_manhattan_frames
-
-        df = pd.DataFrame({"wrong_col": [1, 2, 3]})
-        with pytest.raises(ValueError, match="not found"):
-            prepare_manhattan_frames([df], species="human")
-
     def test_handles_integer_chromosomes(self):
         """Should handle int chromosome column."""
         from pylocuszoom.manhattan import prepare_manhattan_frames

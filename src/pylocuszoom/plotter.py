@@ -51,10 +51,10 @@ from .panels import (
 )
 from .recombination import RecombResult, RecombStatus, recomb_for_region
 from .reference_genes import get_genes_for_build, source_for
-from .schemas import Canonical, validate_gwas_df
+from .schemas import Canonical, gwas_plot_spec
 from .species import Species, resolve_species
 from .utils import DataFrameLike, filter_by_region, to_pandas
-from .validation import resolve_column
+from .validation import check, resolve_column
 
 
 @dataclass(frozen=True)
@@ -78,7 +78,7 @@ class _AssociationInput:
         label: Optional[str] = None,
     ) -> "_AssociationInput":
         columns = resolve_deprecated_columns(frame, columns)
-        validate_gwas_df(frame, pos_col=columns.pos_col, p_col=columns.p_col)
+        check(frame, gwas_plot_spec(columns.pos_col, columns.p_col))
         resolve_column(frame, ld.ld_col, parameter="ld_col")
         rs_col = resolve_column(
             frame, columns.rs_col, parameter="rs_col", optional_default=Canonical.RS

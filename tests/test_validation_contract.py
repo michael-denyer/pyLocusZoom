@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom.exceptions import LoaderValidationError
-from pylocuszoom.schemas import Family, Tier, spec
+from pylocuszoom.schemas import EQTL_LOAD, FINEMAPPING_LOAD, GENES_LOAD, gwas_load_spec
 from pylocuszoom.validation import check
 
 
@@ -32,42 +32,42 @@ def _genes(**overrides):
 ACCEPTED = [
     (
         "gwas-minimal",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [100], "p_value": [0.5]}),
     ),
     (
         "gwas-p-exactly-one",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [1], "p_value": [1.0]}),
     ),
     (
         "gwas-tiny-p",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [42], "p_value": [1e-300]}),
     ),
     (
         "gwas-extra-columns",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [100], "p_value": [0.5], "beta": [0.3], "rs": ["rs1"]}),
     ),
     (
         "eqtl-minimal",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100], "p_value": [0.05], "gene": ["BRCA1"]}),
     ),
     (
         "eqtl-p-exactly-one",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100], "p_value": [1.0], "gene": ["BRCA1"]}),
     ),
     (
         "finemapping-pip-bounds-inclusive",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [100, 200], "pip": [0.0, 1.0]}),
     ),
     (
         "gwas-multi-row",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame(
             {
                 "pos": [1000000, 1001000, 1002000],
@@ -78,7 +78,7 @@ ACCEPTED = [
     ),
     (
         "eqtl-with-effect-column",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame(
             {
                 "pos": [1000000, 1001000],
@@ -90,7 +90,7 @@ ACCEPTED = [
     ),
     (
         "finemapping-with-credible-sets",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame(
             {
                 "pos": [1000000, 1001000, 1002000],
@@ -99,12 +99,12 @@ ACCEPTED = [
             }
         ),
     ),
-    ("genes-minimal", Family.GENES, _genes()),
-    ("genes-start-at-zero", Family.GENES, _genes(start=[0])),
-    ("genes-point-feature", Family.GENES, _genes(start=[1000], end=[1000])),
+    ("genes-minimal", GENES_LOAD, _genes()),
+    ("genes-start-at-zero", GENES_LOAD, _genes(start=[0])),
+    ("genes-point-feature", GENES_LOAD, _genes(start=[1000], end=[1000])),
     (
         "genes-multi-row",
-        Family.GENES,
+        GENES_LOAD,
         _genes(
             chr=["1", "1", "1"],
             start=[1000000, 1050000, 1100000],
@@ -116,214 +116,214 @@ ACCEPTED = [
 
 
 @pytest.mark.parametrize(
-    ("family", "df"),
+    ("contract", "df"),
     [pytest.param(f, df, id=name) for name, f, df in ACCEPTED],
 )
-def test_accepted_input_raises_nothing(family, df):
+def test_accepted_input_raises_nothing(contract, df):
     """Accepted frames satisfy the load-time contract."""
-    check(df, spec(family, Tier.LOAD))
+    check(df, contract)
 
 
 REJECTED = [
     (
         "gwas-missing-pos",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"p_value": [0.5]}),
         ["pos"],
         "Missing columns",
     ),
     (
         "gwas-missing-pvalue",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [1000000, 1001000], "rs": ["rs1", "rs2"]}),
         ["p_value"],
         "Missing columns",
     ),
     (
         "gwas-missing-both",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"chr": [1]}),
         ["pos", "p_value"],
         "Missing columns",
     ),
     (
         "gwas-position-zero",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [0], "p_value": [0.5]}),
         ["pos"],
         "'pos': 1 values <= 0",
     ),
     (
         "gwas-position-negative",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [-1], "p_value": [0.5]}),
         ["pos"],
         "'pos': 1 values <= 0",
     ),
     (
         "gwas-null-position",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [100, None], "p_value": [0.5, 0.5]}),
         ["pos"],
         "'pos' has 1 null values",
     ),
     (
         "gwas-null-pvalue",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [100, 200], "p_value": [0.05, None]}),
         ["p_value"],
         "'p_value' has 1 null values",
     ),
     (
         "gwas-pvalue-zero",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [100], "p_value": [0.0]}),
         ["p_value"],
         "'p_value': 1 values <= 0",
     ),
     (
         "gwas-pvalue-above-one",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [100], "p_value": [1.5]}),
         ["p_value"],
         "'p_value': 1 values > 1",
     ),
     (
         "gwas-non-numeric-pos",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": ["chr1:1000", "chr1:2000"], "p_value": [0.01, 0.001]}),
         ["pos"],
         "must be numeric",
     ),
     (
         "gwas-non-numeric-pvalue",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": [1000000, 1001000], "p_value": ["0.01", "significant"]}),
         ["p_value"],
         "must be numeric",
     ),
     (
         "gwas-both-non-numeric",
-        Family.GWAS,
+        gwas_load_spec(),
         pd.DataFrame({"pos": ["chr1:100"], "p_value": ["not_a_number"]}),
         ["pos", "p_value"],
         "must be numeric",
     ),
     (
         "eqtl-missing-all",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"extra": [1]}),
         ["pos", "p_value", "gene"],
         "Missing columns",
     ),
     (
         "eqtl-missing-gene-only",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100], "p_value": [0.05]}),
         ["gene"],
         "Missing columns",
     ),
     (
         "eqtl-non-numeric-pos",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": ["chr1:100"], "p_value": [0.05], "gene": ["A"]}),
         ["pos"],
         "must be numeric",
     ),
     (
         "eqtl-non-numeric-pvalue",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100], "p_value": ["significant"], "gene": ["A"]}),
         ["p_value"],
         "must be numeric",
     ),
     (
         "eqtl-pvalue-zero",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100], "p_value": [0.0], "gene": ["A"]}),
         ["p_value"],
         "'p_value': 1 values <= 0",
     ),
     (
         "eqtl-non-positive-pos",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [-5, 100], "p_value": [0.05, 0.1], "gene": ["A", "B"]}),
         ["pos"],
         "'pos': 1 values <= 0",
     ),
     (
         "eqtl-null-pvalue",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100, 200], "p_value": [0.05, None], "gene": ["A", "B"]}),
         ["p_value"],
         "'p_value' has 1 null values",
     ),
     (
         "eqtl-null-pos",
-        Family.EQTL,
+        EQTL_LOAD,
         pd.DataFrame({"pos": [100, None], "p_value": [0.05, 0.1], "gene": ["A", "B"]}),
         ["pos"],
         "'pos' has 1 null values",
     ),
     (
         "finemapping-missing-both",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"other": [1]}),
         ["pos", "pip"],
         "Missing columns",
     ),
     (
         "finemapping-non-numeric-pip",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [100], "pip": ["high"]}),
         ["pip"],
         "must be numeric",
     ),
     (
         "finemapping-non-numeric-pos",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": ["abc"], "pip": [0.5]}),
         ["pos"],
         "must be numeric",
     ),
     (
         "finemapping-pip-above-one",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [100], "pip": [1.5]}),
         ["pip"],
         "'pip': 1 values > 1",
     ),
     (
         "finemapping-pip-negative",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [100], "pip": [-0.1]}),
         ["pip"],
         "'pip': 1 values < 0",
     ),
     (
         "finemapping-non-positive-pos",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [0], "pip": [0.5]}),
         ["pos"],
         "'pos': 1 values <= 0",
     ),
     (
         "finemapping-null-pip",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [100, 200], "pip": [0.5, None]}),
         ["pip"],
         "'pip' has 1 null values",
     ),
     (
         "finemapping-null-pos",
-        Family.FINEMAPPING,
+        FINEMAPPING_LOAD,
         pd.DataFrame({"pos": [100, None], "pip": [0.5, 0.6]}),
         ["pos"],
         "'pos' has 1 null values",
     ),
     (
         "genes-null-start",
-        Family.GENES,
+        GENES_LOAD,
         _genes(
             chr=["1", "1"], start=[1000, None], end=[2000, 3000], gene_name=["A", "B"]
         ),
@@ -332,35 +332,35 @@ REJECTED = [
     ),
     (
         "genes-missing-all",
-        Family.GENES,
+        GENES_LOAD,
         pd.DataFrame({"extra": [1]}),
         ["chr", "start", "end", "gene_name"],
         "Missing columns",
     ),
     (
         "genes-non-numeric-start",
-        Family.GENES,
+        GENES_LOAD,
         _genes(start=["abc"]),
         ["start"],
         "must be numeric",
     ),
     (
         "genes-non-numeric-end",
-        Family.GENES,
+        GENES_LOAD,
         _genes(end=["xyz"]),
         ["end"],
         "must be numeric",
     ),
     (
         "genes-negative-start",
-        Family.GENES,
+        GENES_LOAD,
         _genes(start=[-1]),
         ["start"],
         "'start': 1 values < 0",
     ),
     (
         "genes-end-before-start",
-        Family.GENES,
+        GENES_LOAD,
         _genes(start=[2000], end=[1000]),
         ["start", "end"],
         "rows have start > end",
@@ -369,18 +369,18 @@ REJECTED = [
 
 
 @pytest.mark.parametrize(
-    ("family", "df", "named_columns", "fragment"),
+    ("contract", "df", "named_columns", "fragment"),
     [
         pytest.param(f, df, cols, fragment, id=name)
         for name, f, df, cols, fragment in REJECTED
     ],
 )
 def test_rejected_input_raises_and_names_the_offending_columns(
-    family, df, named_columns, fragment
+    contract, df, named_columns, fragment
 ):
     """Rejection is a LoaderValidationError naming each bad column, and why."""
     with pytest.raises(LoaderValidationError) as exc_info:
-        check(df, spec(family, Tier.LOAD))
+        check(df, contract)
 
     message = str(exc_info.value)
     for column in named_columns:
@@ -397,17 +397,15 @@ def test_custom_gwas_column_names_are_honoured():
     than the one the frame happens to have.
     """
     df = pd.DataFrame({"position": [100], "pvalue": [0.5]})
-    check(df, spec(Family.GWAS, Tier.LOAD, pos_col="position", p_col="pvalue"))
+    check(df, gwas_load_spec(pos_col="position", p_col="pvalue"))
 
     with pytest.raises(LoaderValidationError) as exc_info:
-        check(df, spec(Family.GWAS, Tier.LOAD, pos_col="missing_pos", p_col="pvalue"))
+        check(df, gwas_load_spec(pos_col="missing_pos", p_col="pvalue"))
     assert "missing_pos" in str(exc_info.value)
 
     defaults = pd.DataFrame({"pos": [100], "p_value": [0.5]})
     with pytest.raises(LoaderValidationError) as exc_info:
-        check(
-            defaults, spec(Family.GWAS, Tier.LOAD, pos_col="position", p_col="p_value")
-        )
+        check(defaults, gwas_load_spec(pos_col="position", p_col="p_value"))
     assert "Missing columns" in str(exc_info.value)
     assert "position" in str(exc_info.value)
 
@@ -416,7 +414,7 @@ def test_all_problems_are_reported_in_one_pass():
     """Validation accumulates rather than raising on the first fault."""
     df = pd.DataFrame({"pos": [0, 100], "p_value": [0.5, 2.0]})
     with pytest.raises(LoaderValidationError) as exc_info:
-        check(df, spec(Family.GWAS, Tier.LOAD))
+        check(df, gwas_load_spec())
 
     message = str(exc_info.value)
     assert "pos" in message
@@ -432,7 +430,7 @@ class TestPValueDomainHasOneOwner:
 
         df = pd.DataFrame({"pos": [100], "p_value": [value]})
         try:
-            check(df, spec(Family.GWAS, Tier.LOAD))
+            check(df, gwas_load_spec())
         except LoaderValidationError:
             return False
         return True
@@ -466,5 +464,5 @@ class TestPValueDomainHasOneOwner:
 
         just_over = pd.DataFrame({"pos": [100], "p_value": [P_VALUE_MAX * 1.000001]})
         with pytest.raises(LoaderValidationError):
-            check(just_over, spec(Family.GWAS, Tier.LOAD))
+            check(just_over, gwas_load_spec())
         assert self._accepted_by_strict(P_VALUE_MAX) is True

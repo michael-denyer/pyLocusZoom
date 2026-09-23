@@ -16,7 +16,7 @@ from urllib.parse import unquote
 import pandas as pd
 
 from ..logging import logger
-from ..schemas import Family, Tier, spec
+from ..schemas import GENES_LOAD
 from ..utils import normalize_chrom_series
 from ..validation import check
 from ._engine import LoaderSpec, _load_tabular
@@ -96,7 +96,7 @@ def load_gtf(
     # Select and return relevant columns
     result = df[["chr", "start", "end", "gene_name", "strand"]].copy()
     logger.debug(f"Loaded {len(result)} {feature_type} features from GTF")
-    check(result, spec(Family.GENES, Tier.LOAD))
+    check(result, GENES_LOAD)
     return result
 
 
@@ -139,7 +139,7 @@ _BED_SPEC = LoaderSpec(
     },
     transform=_bed_names,
     clean_chrom=True,
-    schema=lambda out_cols: spec(Family.GENES, Tier.LOAD),
+    schema=lambda out_cols: GENES_LOAD,
 )
 
 
@@ -190,7 +190,7 @@ _ENSEMBL_SPEC = LoaderSpec(
         "external_gene_name": "gene_name",
     },
     transform=_ensembl_strand,
-    schema=lambda out_cols: spec(Family.GENES, Tier.LOAD),
+    schema=lambda out_cols: GENES_LOAD,
 )
 
 

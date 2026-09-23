@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 
 from pylocuszoom.exceptions import ValidationError
-from pylocuszoom.schemas import validate_genes_df, validate_gwas_df
+from pylocuszoom.schemas import GENES_PLOT, gwas_plot_spec
 from pylocuszoom.validation import ColumnSpec, RangeRule, check
 from tests.strategies import gwas_dataframes, pvalues, pvalues_invalid
 
@@ -504,28 +504,6 @@ class TestErrorPathCoverage:
         assert "  - Column 'a' must be numeric" in error_msg
 
 
-class TestEQTLValidation:
-    """Tests for eQTL-specific validation.
-
-    Bug fix: pyLocusZoom-7a5
-    validate_eqtl_df should enforce numeric p_value column.
-    """
-
-    def test_validate_eqtl_df_accepts_numeric_pvalue(self):
-        """eQTL validation should pass for numeric p_value."""
-        from pylocuszoom.eqtl import validate_eqtl_df
-
-        df = pd.DataFrame(
-            {
-                "pos": [1000, 2000, 3000],
-                "p_value": [0.01, 0.05, 0.001],  # Numeric
-            }
-        )
-
-        # Should not raise
-        validate_eqtl_df(df, pos_col="pos", p_col="p_value")
-
-
 # =============================================================================
 # Property-Based Tests (Hypothesis)
 # =============================================================================
@@ -574,40 +552,40 @@ class TestRangeValidationProperties:
 
 
 class TestValidateGwasDf:
-    """Tests for validate_gwas_df function."""
+    """Tests for the plot-time GWAS contract."""
 
     def test_valid_gwas_passes(self):
         """Valid GWAS DataFrame passes."""
         df = pd.DataFrame({"pos": [1000], "p_value": [0.01]})
-        validate_gwas_df(df)  # Should not raise
+        check(df, gwas_plot_spec())  # Should not raise
 
     def test_custom_column_names(self):
         """Custom column names work."""
         df = pd.DataFrame({"pos": [1000], "pval": [0.01]})
-        validate_gwas_df(df, pos_col="pos", p_col="pval")  # Should not raise
+        check(df, gwas_plot_spec(pos_col="pos", p_col="pval"))  # Should not raise
 
     def test_missing_position_raises(self):
         """Missing position column raises error."""
         df = pd.DataFrame({"p_value": [0.01]})
 
         with pytest.raises(ValidationError):
-            validate_gwas_df(df)
+            check(df, gwas_plot_spec())
 
     def test_with_rs_col(self):
         """Including rs_col validates that column too."""
         df = pd.DataFrame({"pos": [1000], "p_value": [0.01], "rs": ["rs123"]})
-        validate_gwas_df(df, rs_col="rs")  # Should not raise
+        check(df, gwas_plot_spec(rs_col="rs"))  # Should not raise
 
     def test_missing_rs_col_when_required(self):
         """Missing rs_col when specified raises error."""
         df = pd.DataFrame({"pos": [1000], "p_value": [0.01]})
 
         with pytest.raises(ValidationError):
-            validate_gwas_df(df, rs_col="rs")
+            check(df, gwas_plot_spec(rs_col="rs"))
 
 
 class TestValidateGenesDf:
-    """Tests for validate_genes_df function."""
+    """Tests for the plot-time gene-annotation contract."""
 
     def test_valid_genes_passes(self):
         """Valid genes DataFrame passes."""
@@ -619,7 +597,7 @@ class TestValidateGenesDf:
                 "gene_name": ["BRCA1"],
             }
         )
-        validate_genes_df(df)  # Should not raise
+        check(df, GENES_PLOT)  # Should not raise
 
     def test_missing_column_raises(self):
         """Missing required column raises error."""
@@ -632,4 +610,4 @@ class TestValidateGenesDf:
         )
 
         with pytest.raises(ValidationError):
-            validate_genes_df(df)
+            check(df, GENES_PLOT)

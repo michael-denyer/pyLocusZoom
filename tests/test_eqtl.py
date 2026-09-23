@@ -10,12 +10,13 @@ from pylocuszoom.eqtl import (
     filter_eqtl_by_region,
     get_eqtl_genes,
     prepare_eqtl_for_plotting,
-    validate_eqtl_df,
 )
+from pylocuszoom.schemas import eqtl_plot_spec
+from pylocuszoom.validation import check
 
 
 class TestValidateEqtlDf:
-    """Tests for validate_eqtl_df function."""
+    """Tests for the plot-time eQTL contract."""
 
     def test_valid_eqtl_passes(self):
         """Valid eQTL DataFrame passes validation."""
@@ -26,7 +27,7 @@ class TestValidateEqtlDf:
             }
         )
         # Should not raise
-        validate_eqtl_df(df)
+        check(df, eqtl_plot_spec())
 
     def test_missing_position_column_fails(self):
         """Missing position column raises EQTLValidationError."""
@@ -36,7 +37,7 @@ class TestValidateEqtlDf:
             }
         )
         with pytest.raises(EQTLValidationError):
-            validate_eqtl_df(df)
+            check(df, eqtl_plot_spec())
 
     def test_missing_pvalue_column_fails(self):
         """Missing p-value column raises EQTLValidationError."""
@@ -46,7 +47,7 @@ class TestValidateEqtlDf:
             }
         )
         with pytest.raises(EQTLValidationError):
-            validate_eqtl_df(df)
+            check(df, eqtl_plot_spec())
 
     def test_custom_column_names(self):
         """Custom column names work correctly."""
@@ -56,7 +57,7 @@ class TestValidateEqtlDf:
                 "pval": [1e-6, 0.01],
             }
         )
-        validate_eqtl_df(df, pos_col="position", p_col="pval")
+        check(df, eqtl_plot_spec(pos_col="position", p_col="pval"))
 
 
 class TestFilterEqtlByGene:

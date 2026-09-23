@@ -18,9 +18,9 @@ from ._plotter_utils import (
 from .backends import BackendType, get_backend
 from .exceptions import ForestValidationError, PheWASValidationError
 from .panels.stats import ForestPanel, PhewasPanel
-from .schemas import Canonical, validate_forest_df, validate_phewas_df
+from .schemas import Canonical, forest_plot_spec, phewas_plot_spec
 from .utils import DataFrameLike, to_pandas
-from .validation import resolve_column
+from .validation import check, resolve_column
 
 
 class StatsPlotter:
@@ -93,7 +93,7 @@ class StatsPlotter:
         significance_threshold = resolve_threshold(
             significance_threshold, self.genomewide_threshold
         )
-        validate_phewas_df(phewas_df, phenotype_col, p_col)
+        check(phewas_df, phewas_plot_spec(phenotype_col, p_col))
         category_col = resolve_column(
             phewas_df,
             category_col,
@@ -161,7 +161,10 @@ class StatsPlotter:
             ... )
         """
         forest_df = to_pandas(forest_df)
-        validate_forest_df(forest_df, study_col, effect_col, ci_lower_col, ci_upper_col)
+        check(
+            forest_df,
+            forest_plot_spec(study_col, effect_col, ci_lower_col, ci_upper_col),
+        )
         weight_col = resolve_column(
             forest_df,
             weight_col,

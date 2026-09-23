@@ -31,16 +31,14 @@ import pandas as pd
 from .._data import P_VALUE_FLOOR
 from ..exceptions import ValidationError
 from ..logging import logger
-from ..schemas import Family, Tier, spec
+from ..schemas import gwas_load_spec
 from ..validation import ColumnSpec
 from ._engine import LoaderSpec, _load_tabular
 
 
 def _gwas_schema(out_cols: dict[str, str]) -> ColumnSpec:
     """Strict GWAS contract over the caller's position/p-value columns."""
-    return spec(
-        Family.GWAS, Tier.LOAD, pos_col=out_cols["pos_col"], p_col=out_cols["p_col"]
-    )
+    return gwas_load_spec(pos_col=out_cols["pos_col"], p_col=out_cols["p_col"])
 
 
 # No comment= here on purpose. PLINK 2's --glm header line starts with "#CHROM",

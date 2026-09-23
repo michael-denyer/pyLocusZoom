@@ -17,7 +17,7 @@ from ..gene_track import (
     compute_arrow_geometry,
     filter_genes_by_region,
 )
-from ..schemas import EXONS_PLOT, validate_genes_df
+from ..schemas import EXONS_PLOT, GENES_PLOT
 from ..validation import check
 
 
@@ -48,7 +48,7 @@ class GenePanel:
             ValidationError: If either frame lacks a chr, start, end or
                 gene_name column.
         """
-        validate_genes_df(genes_df)
+        check(genes_df, GENES_PLOT)
         if exons_df is not None and not exons_df.empty:
             check(exons_df, EXONS_PLOT)
         genes = filter_genes_by_region(

@@ -175,7 +175,7 @@ stages:
    renaming. This boundary is strict
    ([ADR-0010](adr/0010-strict-intake-boundary.md)). A column the caller
    names must exist; only the canonical `rs`, `cs` and `category` defaults
-   are optional, through `validation.optional_column`. The chromosome is a
+   are optional, through `validation.resolve_column`. The chromosome is a
    column role like the others: a frame without `chrom_col` raises unless the
    caller passes `chrom_col=None` for position-only selection. Every input
    error, including a config model's, raises `pylocuszoom.ValidationError`.
@@ -228,7 +228,7 @@ stages:
    the shared `GenomeLayout`; the rest rides on each `ManhattanPanelSpec`
    and `QQPanelSpec`, whose renderers let a set field override the panel's
    own default. The method hands its frames to
-   `manhattan.prepare_genomewide_frames`, which runs `validate_gwas_df`
+   `manhattan.prepare_genomewide_frames`, which checks `gwas_plot_spec`
    against those names before any frame is laid out, so the genome-wide
    families guard the boundary the way `plot()` does. `ManhattanPlotter`
    builds `ManhattanPanelSpec` and `QQPanelSpec` values through

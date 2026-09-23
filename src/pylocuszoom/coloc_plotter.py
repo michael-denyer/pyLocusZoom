@@ -27,9 +27,9 @@ from .colors import (
 from .config import ColocConfig
 from .exceptions import ValidationError
 from .panels.coloc import ColocPanel
-from .schemas import Canonical, validate_coloc_df
+from .schemas import Canonical, coloc_plot_spec
 from .utils import DataFrameLike, to_pandas
-from .validation import resolve_column
+from .validation import check, resolve_column
 
 
 def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
@@ -282,8 +282,14 @@ class ColocPlotter:
             h4_posterior=h4_posterior,
             figsize=figsize,
         )
-        validate_coloc_df(gwas_df, "GWAS DataFrame", config.pos_col, config.gwas_p_col)
-        validate_coloc_df(eqtl_df, "eQTL DataFrame", config.pos_col, config.eqtl_p_col)
+        check(
+            gwas_df,
+            coloc_plot_spec("GWAS DataFrame", config.pos_col, config.gwas_p_col),
+        )
+        check(
+            eqtl_df,
+            coloc_plot_spec("eQTL DataFrame", config.pos_col, config.eqtl_p_col),
+        )
 
         merged = _merge_and_transform(gwas_df, eqtl_df, config)
         lead_idx = _resolve_lead_idx(merged, config)

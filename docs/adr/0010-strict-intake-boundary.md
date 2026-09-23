@@ -51,7 +51,7 @@ overrides were scheduled for removal in 5.0.
   column. Nothing downstream probes the frame to compensate. Three optional
   columns have canonical defaults (`rs`, the fine-mapping `cs` and the PheWAS
   `category`): left at the default, a frame without the column draws without
-  the feature; any other name is required. `validation.optional_column` is
+  the feature; any other name is required. `validation.resolve_column` is
   the one owner of that rule. LD from a reference fileset needs SNP ids, so
   it requires the `rs_col` column.
 - **The chromosome is a column role.** `ColumnConfig.chrom_col` defaults to

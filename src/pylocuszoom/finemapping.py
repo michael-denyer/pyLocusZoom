@@ -10,27 +10,9 @@ import pandas as pd
 
 from .exceptions import FinemappingValidationError
 from .logging import logger
-from .schemas import Canonical, Family, Tier, spec
+from .schemas import Canonical, finemapping_plot_spec
 from .utils import filter_by_region
 from .validation import check
-
-
-def validate_finemapping_df(
-    df: pd.DataFrame,
-    pos_col: str = Canonical.POS,
-    pip_col: str = "pip",
-) -> None:
-    """Validate fine-mapping DataFrame has required columns.
-
-    Args:
-        df: Fine-mapping DataFrame to validate.
-        pos_col: Column name for genomic position.
-        pip_col: Column name for posterior inclusion probability.
-
-    Raises:
-        FinemappingValidationError: If required columns are missing.
-    """
-    check(df, spec(Family.FINEMAPPING, Tier.PLOT, pos_col=pos_col, pip_col=pip_col))
 
 
 def filter_finemapping_by_region(
@@ -135,7 +117,7 @@ def prepare_finemapping_for_plotting(
     Returns:
         Prepared DataFrame sorted by position.
     """
-    validate_finemapping_df(df, pos_col=pos_col, pip_col=pip_col)
+    check(df, finemapping_plot_spec(pos_col, pip_col))
 
     result = df.copy()
 
