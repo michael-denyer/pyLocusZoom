@@ -41,6 +41,15 @@ class EmptyLDOutputError(PlinkError):
     """Raised when PLINK succeeds but produces no LD pairs."""
 
 
+class LDUnavailableError(ValidationError):
+    """Raised when LD values cannot be matched to variants by id.
+
+    The GWAS frame has no SNP-id column, or PLINK's output names a variant id
+    more than once (common where a ``.bim`` spells missing ids ``.``).
+    Regional plots skip LD colouring with a warning instead.
+    """
+
+
 class OptionalDependencyMissing(PyLocusZoomError, ImportError):
     """Raised when a feature needs an optional extra that is not installed."""
 

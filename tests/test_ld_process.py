@@ -314,8 +314,17 @@ class TestPlinkFailureModes:
         bfile, _ = fake_plink
 
         with patch("pylocuszoom.ld.find_plink", return_value=None):
-            with pytest.raises(FileNotFoundError, match="PLINK not found"):
+            with pytest.raises(PlinkError, match="PLINK not found"):
                 entry_point(bfile_path=bfile)
+
+    def test_an_unstartable_plink_is_a_plink_error(self, entry_point, fake_plink):
+        bfile, _ = fake_plink
+
+        with (
+            patch("subprocess.run", side_effect=PermissionError("not executable")),
+            pytest.raises(PlinkError, match="could not be started"),
+        ):
+            entry_point(bfile_path=bfile, plink_path="/mock/plink")
 
     def test_nonzero_exit_raises_plink_error_with_stderr(
         self, entry_point, tmp_path, fake_plink
@@ -427,5 +436,5 @@ def test_missing_bare_executable_name_raises(tmp_path, monkeypatch):
     from pylocuszoom.ld import _resolve_plink
 
     monkeypatch.setenv("PATH", str(tmp_path))
-    with pytest.raises(FileNotFoundError, match="PLINK not found"):
+    with pytest.raises(PlinkError, match="PLINK not found"):
         _resolve_plink("missing-plink")

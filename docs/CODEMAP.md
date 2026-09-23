@@ -304,7 +304,8 @@ PyLocusZoomError
 │   ├── FinemappingValidationError
 │   ├── LoaderValidationError
 │   ├── PheWASValidationError
-│   └── ForestValidationError
+│   ├── ForestValidationError
+│   └── LDUnavailableError
 ├── OptionalDependencyMissing (also ImportError)
 ├── RecombinationMapNotFound (also FileNotFoundError)
 ├── PlinkError (also RuntimeError)
@@ -631,6 +632,7 @@ two tiers, core and toolbox, tabulated under
 | `EnsemblAPIError` | Raised when the Ensembl REST API is unreachable or returns an error. |
 | `FinemappingValidationError` | Raised when fine-mapping DataFrame validation fails. |
 | `ForestValidationError` | Raised when forest plot DataFrame validation fails. |
+| `LDUnavailableError` | Raised when LD values cannot be matched to variants by id. |
 | `LoaderValidationError` | Raised when loaded data fails validation. |
 | `OptionalDependencyMissing` | Raised when a feature needs an optional extra that is not installed. |
 | `PheWASValidationError` | Raised when PheWAS DataFrame validation fails. |

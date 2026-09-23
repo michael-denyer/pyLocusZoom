@@ -2,7 +2,7 @@
 
 import pytest
 
-from pylocuszoom.exceptions import EmptyLDOutputError, PlinkError
+from pylocuszoom.exceptions import EmptyLDOutputError, LDUnavailableError, PlinkError
 from pylocuszoom.ld import (
     parse_ld_output,
     parse_pairwise_ld_output,
@@ -109,6 +109,17 @@ class TestParseLdOutput:
         assert 1.0 in r2_values
         assert 0.0 in r2_values
         assert 0.5 in r2_values
+
+    def test_rejects_a_variant_id_named_twice(self, tmp_path):
+        """A .bim that spells missing ids "." yields output no id can key."""
+        ld_file = tmp_path / "l.ld"
+        ld_file.write_text(
+            "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
+            "1 1 rs1 1 1 rs1 1\n1 1 rs1 1 5 rs2 0.3\n1 1 rs1 1 6 rs2 0.4\n"
+        )
+
+        with pytest.raises(LDUnavailableError, match="rs2"):
+            parse_ld_output(str(ld_file), "rs1")
 
 
 class TestParsePairwiseLdOutput:
@@ -254,3 +265,12 @@ rs3"""
 
         assert matrix.shape == (3, 3)
         assert matrix.loc["rs1", "rs2"] == 0.85
+
+    def test_rejects_a_snplist_naming_a_variant_twice(self, tmp_path):
+        (tmp_path / "p.ld").write_text("1 0.5\n0.5 1\n")
+        (tmp_path / "p.snplist").write_text("rs1\nrs1\n")
+
+        with pytest.raises(LDUnavailableError, match="rs1"):
+            parse_pairwise_ld_output(
+                str(tmp_path / "p.ld"), str(tmp_path / "p.snplist")
+            )

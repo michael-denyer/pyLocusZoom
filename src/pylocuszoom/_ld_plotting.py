@@ -4,9 +4,9 @@ from typing import Optional
 
 import pandas as pd
 
-from .exceptions import EmptyLDOutputError
 from .ld import calculate_ld
 from .logging import logger
+from .species import Species
 
 
 def enrich_with_ld(
@@ -19,8 +19,7 @@ def enrich_with_ld(
     start: int,
     end: int,
     plink_path: Optional[str],
-    species: str,
-    context: str = "plot",
+    species: Optional[Species],
 ) -> tuple[pd.DataFrame, Optional[str]]:
     """Assign LD values by SNP ID without changing the selected rows or their index.
 
@@ -28,26 +27,24 @@ def enrich_with_ld(
     The helper never infers a variant ID from a potentially ambiguous position.
     The regional boundary has already required ``rs_col`` whenever
     ``reference_file`` is set.
+
+    Raises:
+        LDUnavailableError: If PLINK's output names a variant id twice.
+        EmptyLDOutputError: If PLINK finds no LD pairs for the lead.
+        PlinkError: If PLINK is missing or fails.
     """
     if not reference_file or lead_index is None or ld_col is not None:
         return df, ld_col
 
     lead_snp_id = df.at[lead_index, rs_col]
     logger.debug(f"Calculating LD for lead SNP {lead_snp_id}")
-    try:
-        ld_df = calculate_ld(
-            bfile_path=reference_file,
-            lead_snp=lead_snp_id,
-            window_kb=max((end - start) // 1000, 500),
-            plink_path=plink_path,
-            species=species,
-        )
-    except EmptyLDOutputError as exc:
-        logger.warning(
-            f"LD calculation skipped for {context}: {exc}. "
-            "Proceeding without LD coloring."
-        )
-        return df, ld_col
+    ld_df = calculate_ld(
+        bfile_path=reference_file,
+        lead_snp=lead_snp_id,
+        window_kb=max((end - start) // 1000, 500),
+        plink_path=plink_path,
+        species=species,
+    )
 
     lookup = ld_df.set_index("SNP", verify_integrity=True)["R2"]
     return df.assign(R2=df[rs_col].map(lookup)), "R2"

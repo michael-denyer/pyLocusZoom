@@ -36,7 +36,13 @@ from .config import (
     RegionConfig,
     StackedPlotConfig,
 )
-from .exceptions import PyLocusZoomError, ReferenceAPIError, ValidationError
+from .exceptions import (
+    EmptyLDOutputError,
+    LDUnavailableError,
+    PyLocusZoomError,
+    ReferenceAPIError,
+    ValidationError,
+)
 from .ld import find_plink
 from .logging import enable_logging, logger
 from .panels import (
@@ -291,10 +297,12 @@ class LocusZoomPlotter:
                 a missing required GWAS column, or when no SNP in the region
                 lifts to the target build.
             pylocuszoom.exceptions.PlinkError: When PLINK itself fails
-                (timeout, non-zero exit, corrupt ``.bed``, missing output).
-                The specific "empty LD output" case, a singleton lead SNP with
-                no neighbours in the window, is downgraded to a warning and
-                the plot is drawn without LD colouring.
+                (not found, timeout, non-zero exit, corrupt ``.bed``, missing
+                output). LD that cannot colour the panel, because PLINK found
+                no pairs for a singleton lead or the frame has no usable
+                variant ids, is a warning and the plot is drawn without LD
+                colouring; so is an unavailable gene track or recombination
+                overlay.
 
         Example:
             >>> from pylocuszoom import LDConfig, PanelInputs
@@ -575,18 +583,23 @@ class LocusZoomPlotter:
         association: List[AssociationPanel] = []
         for index, request in enumerate(association_inputs):
             columns, ld = request.columns, request.ld
-            df, ld_col = enrich_with_ld(
-                request.data,
-                reference_file=ld.ld_reference_file,
-                lead_index=request.lead_index,
-                ld_col=ld.ld_col,
-                rs_col=request.rs_col,
-                start=region.start,
-                end=region.end,
-                plink_path=self.plink_path,
-                species=self.species,
-                context=f"panel {index + 1}",
+            enriched = _optional_layer(
+                f"LD colouring for panel {index + 1}",
+                lambda: enrich_with_ld(
+                    request.data,
+                    reference_file=ld.ld_reference_file,
+                    lead_index=request.lead_index,
+                    ld_col=ld.ld_col,
+                    rs_col=request.rs_col,
+                    start=region.start,
+                    end=region.end,
+                    plink_path=self.plink_path,
+                    species=self.species,
+                ),
+                EmptyLDOutputError,
+                LDUnavailableError,
             )
+            df, ld_col = enriched or (request.data, ld.ld_col)
             association.append(
                 AssociationPanel(
                     data=df,

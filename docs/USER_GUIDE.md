@@ -1632,7 +1632,7 @@ fig = plotter.plot(pandas_df, chrom=1, start=1e6, end=2e6)
 ### PLINK Not Found
 
 ```text
-ValidationError: Could not find PLINK executable
+PlinkError: PLINK not found. Install PLINK 1.9 or specify plink_path.
 ```
 
 Install PLINK 1.9 and add to PATH, or specify:
@@ -1663,7 +1663,11 @@ Image("plot.png")
 
 ### LD Calculation Fails
 
-Ensure:
+When LD cannot colour a panel (PLINK finds no pairs for the lead, or the
+reference panel names a variant twice), the plot is drawn without LD colouring
+and one `UserWarning` names the panel and the reason. A GWAS frame without its
+SNP-id column raises `ValidationError` before any PLINK call, and a PLINK
+failure (not found, non-zero exit, timeout) raises `PlinkError`. Ensure:
 
 1. GWAS DataFrame has `rs` column (or specify `rs_col`)
 2. SNP IDs match those in PLINK fileset

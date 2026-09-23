@@ -71,18 +71,18 @@ class TestLocusZoomPlotterLdCalculation:
         pd.testing.assert_frame_equal(frame, original)
 
     def test_empty_ld_output_is_downgraded_to_warning(
-        self, fake_plink, tiny_regional_gwas_df, warning_records
+        self, fake_plink, tiny_regional_gwas_df
     ):
         """An empty PLINK output (singleton lead SNP) should not abort the plot.
 
         Singleton lead SNPs with no LD neighbours in the window are a real
-        scenario; plot() catches only this specific PlinkError and continues
-        without LD colouring, leaving a warning in the log.
+        scenario; plot() skips only this specific PlinkError and continues
+        without LD colouring, with one warning at the caller's line.
         """
         bfile, plink_writes = fake_plink
         header_only = "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
 
-        with plink_writes(header_only):
+        with plink_writes(header_only), pytest.warns(UserWarning) as caught:
             fig = LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
                 tiny_regional_gwas_df,
                 chrom=1,
@@ -92,8 +92,36 @@ class TestLocusZoomPlotterLdCalculation:
                 ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
             )
 
-        assert fig is not None
-        assert any("LD calculation skipped" in message for message in warning_records)
+        assert [str(w.message).split(";")[0] for w in caught] == [
+            "LD colouring for panel 1 skipped"
+        ]
+        assert caught[0].filename == __file__
+        assert fig.get_axes()[0].get_legend() is None
+
+    def test_duplicate_variant_ids_skip_ld_with_one_warning(
+        self, fake_plink, tiny_regional_gwas_df
+    ):
+        """A reference panel naming a variant twice cannot colour by id."""
+        bfile, plink_writes = fake_plink
+        duplicated = (
+            "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
+            "1 1100000 rs1 1 1500000 rs2 0.3\n"
+            "1 1100000 rs1 1 1500001 rs2 0.4\n"
+        )
+
+        with plink_writes(duplicated), pytest.warns(UserWarning) as caught:
+            fig = LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
+                tiny_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
+            )
+
+        assert len(caught) == 1
+        assert "more than once: rs2" in str(caught[0].message)
+        assert _drawn_positions(fig.get_axes()[0]) == {1100000.0, 1500000.0, 1900000.0}
 
     def test_stacked_plot_downgrades_empty_ld_output(
         self, fake_plink, tiny_regional_gwas_df
@@ -102,7 +130,10 @@ class TestLocusZoomPlotterLdCalculation:
         bfile, plink_writes = fake_plink
         header_only = "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
 
-        with plink_writes(header_only):
+        with (
+            plink_writes(header_only),
+            pytest.warns(UserWarning, match="LD colouring for panel 1 skipped"),
+        ):
             fig = LocusZoomPlotter(
                 species="canine", plink_path="/mock/plink"
             ).plot_stacked(
