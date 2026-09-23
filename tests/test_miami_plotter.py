@@ -292,14 +292,12 @@ class TestMiamiPlotterHoverData:
         return top_df, bottom_df
 
     def test_plotly_hover_data(self, gwas_data_with_rs):
-        """Test that plotly backend creates figure with hover data."""
+        """Attach hover text to the plotly figure."""
         plotter = MiamiPlotter(species="canine", backend="plotly")
         top_df, bottom_df = gwas_data_with_rs
         fig = plotter.plot_miami(top_df, bottom_df, rs_col="rs")
-        assert fig is not None
 
-        # Verify traces exist (plotly-specific)
-        assert len(fig.data) > 0, "Plotly figure should have traces for hover data"
+        assert PROBES["plotly"].has_hover(fig)
 
     def test_bokeh_hover_data(self, gwas_data_with_rs):
         """Attach a hover tool to the bokeh figure."""
