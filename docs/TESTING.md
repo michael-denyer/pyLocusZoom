@@ -138,6 +138,18 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 - **Respect the 30s timeout.** If a test is legitimately slow, override with `@pytest.mark.timeout(60)` rather than raising the global default.
 - **Randomization-safe**: tests must not depend on execution order. If a test only passes under a specific seed, that is a bug in the test.
 
+## Model Checking
+
+`specs/tla/RecombPublish.tla` models concurrent writers and a reader of the recombination map cache, one filesystem call per step, and checks the claims in the `_publish_map_generation` docstring. It is not run in CI. After changing `_publish_map_generation` or its callers, update the spec to match and run both configurations with TLC ([`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later):
+
+```bash
+cd specs/tla
+java -cp tla2tools.jar tlc2.TLC -config RecombPublish.cfg RecombPublish.tla
+java -cp tla2tools.jar tlc2.TLC -config RecombPublishNoGap.cfg RecombPublish.tla
+```
+
+Each run ends with `Model checking completed. No error has been found.` A violation prints the interleaving that breaks the claim; replay it against the real function with a test that patches the check the model split from its action, as `test_a_writer_that_loses_the_legacy_symlink_race_still_succeeds` does.
+
 ## Coverage Requirements
 
 Coverage is measured with `pytest-cov` over the `pylocuszoom` package with branch coverage enabled (`[tool.coverage.run]` in `pyproject.toml`). The terminal report lists missing lines via `--cov-report=term-missing`.

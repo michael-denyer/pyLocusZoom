@@ -239,6 +239,41 @@ class TestPublishMapGeneration:
             "a replaced symlink does not confer ownership of its target"
         )
 
+    @pytest.mark.parametrize("rival_publishes", [True, False])
+    def test_a_writer_that_loses_the_legacy_symlink_race_still_succeeds(
+        self, tmp_path, monkeypatch, rival_publishes
+    ):
+        """Between this writer's is_symlink() and its unlink(), a rival removes
+        the symlink and possibly publishes; specs/tla/RecombPublish.tla found both."""
+        generation = tmp_path / ".maps.generation-old"
+        write_canine_map_set(generation, "old")
+        output = tmp_path / "maps"
+        output.symlink_to(generation.name, target_is_directory=True)
+        rival_staging = tmp_path / "rival-staging"
+        write_canine_map_set(rival_staging, "rival")
+        staging = tmp_path / "staging"
+        write_canine_map_set(staging, "new")
+
+        real_is_symlink = Path.is_symlink
+
+        def rival_runs_after_check(path):
+            seen = real_is_symlink(path)
+            if path == output and seen:
+                monkeypatch.setattr(Path, "is_symlink", real_is_symlink)
+                if rival_publishes:
+                    _publish_map_generation(rival_staging, output, CANINE_SOURCE)
+                else:
+                    output.unlink()
+            return seen
+
+        monkeypatch.setattr(Path, "is_symlink", rival_runs_after_check)
+        _publish_map_generation(staging, output, CANINE_SOURCE)
+
+        assert not output.is_symlink()
+        assert (output / "chr1_recomb.tsv").read_text() == "new"
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+        assert (generation / "chr1_recomb.tsv").read_text() == "old"
+
     def test_a_stray_map_in_the_target_does_not_make_the_set_incomplete(self, tmp_path):
         """Otherwise every later ensure_recomb_maps would download again."""
         output = tmp_path / "maps"
