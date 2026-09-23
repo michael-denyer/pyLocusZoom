@@ -54,7 +54,9 @@ def load_susie(
 
     Example:
         >>> fm_df = load_susie("susie_results.tsv")
-        >>> fig = plotter.plot_stacked([gwas_df], ..., finemapping_df=fm_df)
+        >>> fig = plotter.plot_stacked(
+        ...     [gwas_df], ..., panels=PanelInputs(finemapping=FinemappingInput(data=fm_df))
+        ... )
     """
     return _load_tabular(filepath, _SUSIE_SPEC, cs_col=cs_col)
 
