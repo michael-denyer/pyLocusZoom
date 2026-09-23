@@ -1,4 +1,4 @@
-"""One Manhattan panel: the typed request and the function that draws it.
+"""One Manhattan panel: the typed request, which draws itself.
 
 A Manhattan panel, a categorical (PheWAS-style) panel, and each half of a
 Miami plot are the same nine drawing steps over different data columns, tick
@@ -8,25 +8,23 @@ three copies.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional, Sequence, TypeVar
 
 import numpy as np
 import pandas as pd
 
-from .._figure import title_weight
-from .._plotter_utils import (
-    MANHATTAN_CATEGORICAL_POINT_SIZE,
+from ..backends.base import PlotBackend
+from ..backends.hover import HoverConfig, HoverDataBuilder
+from ..config import GenomeWideStyle
+from ..exceptions import ValidationError
+from ..manhattan import PreparedManhattan
+from ._shared import (
     MANHATTAN_EDGE_WIDTH,
     MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
     SUGGESTIVE_LINE_COLOR,
     add_significance_line,
 )
-from ..backends.base import PlotBackend
-from ..backends.hover import HoverConfig, HoverDataBuilder
-from ..config import GenomeWideStyle
-from ..exceptions import ValidationError
-from ..manhattan import PanelLayout, PreparedManhattan
 
 T = TypeVar("T")
 
@@ -34,15 +32,6 @@ T = TypeVar("T")
 def styled(override: Optional[T], default: T) -> T:
     """Return a style field the caller set, or the panel's own default."""
     return default if override is None else override
-
-
-def scatter_alpha(style: GenomeWideStyle) -> Dict[str, float]:
-    """Return the ``alpha`` keyword for ``scatter``, or none when it is unset.
-
-    Left out rather than passed as None, so a backend registered before
-    ``scatter`` took ``alpha`` still draws an unstyled figure.
-    """
-    return {} if style.point_alpha is None else {"alpha": style.point_alpha}
 
 
 def padded_ymax(y_max: float, headroom: float) -> float:
@@ -55,11 +44,10 @@ class ManhattanPanelSpec:
     """One Manhattan-style panel's data and presentation policy.
 
     Attributes:
-        prepared_df: The ``frame`` of a :class:`~.manhattan.PreparedManhattan`.
-        x_col: Column holding each point's x coordinate.
-        group_col: Column the scatter loop groups by, one colour per group.
-        layout: Group order, x limits, and ticks, shared by every panel of
-            the figure.
+        prepared: The frame from ``prepare_genomewide_frames`` or
+            ``prepare_categorical_data``, with the x and group columns its
+            preparation created and the layout every panel of the figure
+            shares.
         significance_threshold: P-value to draw the significance line at, or
             None to draw no line.
         suggestive_threshold: P-value to draw the suggestive line at, or
@@ -75,17 +63,12 @@ class ManhattanPanelSpec:
         panel_label: Corner label, or None for none.
         panel_label_y_frac: Fractional height of the corner label.
         invert_y: Draw the y axis descending, as the lower Miami panel does.
-        hover: Hover column mapping, or None for no tooltips. Built only
-            when the backend reports ``supports_hover``, since matplotlib
-            discards the frame the builder would allocate per group.
+        hover: Hover column mapping, or None for no tooltips.
         style: Caller styling. A field it sets overrides the matching
             field above.
     """
 
-    prepared_df: pd.DataFrame
-    x_col: str
-    group_col: str
-    layout: PanelLayout
+    prepared: PreparedManhattan
     significance_threshold: Optional[float] = None
     suggestive_threshold: Optional[float] = None
     point_size: int = MANHATTAN_POINT_SIZE
@@ -104,104 +87,83 @@ class ManhattanPanelSpec:
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw this panel onto a backend axis."""
-        render_manhattan_panel(backend, ax, self)
+        df, layout = self.prepared.frame, self.prepared.layout
+        style = self.style
+        for group in layout.order:
+            group_data = df[df[self.prepared.group_col] == group]
+            if group_data.empty:
+                continue
+            hover_data = (
+                HoverDataBuilder(self.hover).build(group_data)
+                if self.hover is not None
+                else None
+            )
+            backend.scatter(
+                ax,
+                group_data[self.prepared.x_col],
+                group_data["neglog10p"],
+                colors=group_data["_color"].iloc[0],
+                sizes=styled(style.point_size, self.point_size),
+                marker="o",
+                edgecolor=POINT_EDGE_COLOR,
+                linewidth=styled(style.point_edge_width, MANHATTAN_EDGE_WIDTH),
+                zorder=2,
+                hover_data=hover_data,
+                alpha=style.point_alpha,
+            )
 
-
-def manhattan_spec(
-    prepared: PreparedManhattan,
-    *,
-    significance_threshold: Optional[float] = None,
-    suggestive_threshold: Optional[float] = None,
-    x_label: Optional[str] = None,
-    y_label_fontsize: int = 12,
-    title: Optional[str] = None,
-    title_fontsize: int = 14,
-    panel_label: Optional[str] = None,
-    panel_label_y_frac: float = 0.95,
-    invert_y: bool = False,
-    hover: Optional[HoverConfig] = None,
-    style: GenomeWideStyle = GenomeWideStyle(),
-) -> ManhattanPanelSpec:
-    """Build a genomic-position panel spec from a prepared Manhattan frame.
-
-    The keyword arguments are the :class:`ManhattanPanelSpec` fields the
-    single, stacked and Miami call sites vary; the tick styling fields keep
-    the spec's own defaults. ``test_manhattan_spec_defaults_match_the_spec``
-    fails if the two lists of defaults drift.
-
-    Args:
-        prepared: One value from ``prepare_manhattan_frames``, carrying the
-            frame and the shared :class:`~.manhattan.GenomeLayout`.
-        significance_threshold: P-value to draw the significance line at, or
-            None to draw no line.
-        suggestive_threshold: P-value to draw the suggestive line at, or
-            None to draw no line.
-        x_label: X axis label, or None for none.
-        y_label_fontsize: Y axis label size.
-        title: Panel title, or None for none.
-        title_fontsize: Panel title size.
-        panel_label: Corner label, or None for none.
-        panel_label_y_frac: Fractional height of the corner label.
-        invert_y: Draw the y axis descending, as the lower Miami panel does.
-        hover: Hover column mapping, or None for no tooltips.
-        style: Caller styling.
-
-    Returns:
-        The panel spec.
-    """
-    return ManhattanPanelSpec(
-        prepared_df=prepared.frame,
-        x_col="_cumulative_pos",
-        group_col="_chrom_str",
-        layout=prepared.layout,
-        significance_threshold=significance_threshold,
-        suggestive_threshold=suggestive_threshold,
-        x_label=x_label,
-        y_label_fontsize=y_label_fontsize,
-        title=title,
-        title_fontsize=title_fontsize,
-        panel_label=panel_label,
-        panel_label_y_frac=panel_label_y_frac,
-        invert_y=invert_y,
-        hover=hover,
-        style=style,
-    )
-
-
-def categorical_spec(
-    prepared: PreparedManhattan,
-    *,
-    significance_threshold: Optional[float],
-    title: str,
-    style: GenomeWideStyle = GenomeWideStyle(),
-) -> ManhattanPanelSpec:
-    """Build a category-axis panel spec from a prepared categorical frame.
-
-    Args:
-        prepared: The value from ``prepare_categorical_data``.
-        significance_threshold: P-value to draw the significance line at, or
-            None to draw no line.
-        title: Panel title.
-        style: Caller styling.
-
-    Returns:
-        The panel spec, with the larger points and rotated ticks a category
-        axis needs.
-    """
-    return ManhattanPanelSpec(
-        prepared_df=prepared.frame,
-        x_col="_x_pos",
-        group_col="_cat_str",
-        layout=prepared.layout,
-        significance_threshold=significance_threshold,
-        point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
-        tick_fontsize=10,
-        tick_rotation=45,
-        tick_ha="right",
-        x_label="Category",
-        title=title,
-        style=style,
-    )
+        line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
+        add_significance_line(backend, ax, self.significance_threshold, **line_kwargs)
+        add_significance_line(
+            backend,
+            ax,
+            self.suggestive_threshold,
+            color=SUGGESTIVE_LINE_COLOR,
+            **line_kwargs,
+        )
+        backend.set_xlim(ax, *layout.x_limits)
+        line_levels = [
+            -np.log10(threshold)
+            for threshold in (self.significance_threshold, self.suggestive_threshold)
+            if threshold is not None
+        ]
+        y_max = padded_ymax(
+            max([df["neglog10p"].max(), *line_levels]), style.y_headroom
+        )
+        if self.invert_y:
+            backend.set_ylim(ax, y_max, 0)
+        else:
+            backend.set_ylim(ax, 0, y_max)
+        backend.set_xticks(
+            ax,
+            layout.tick_positions[:: style.tick_step],
+            layout.tick_labels[:: style.tick_step],
+            fontsize=styled(style.tick_label_fontsize, self.tick_fontsize),
+            rotation=styled(style.tick_rotation, self.tick_rotation),
+            ha=self.tick_ha,
+        )
+        if style.tick_label_fontsize is not None:
+            backend.set_tick_fontsize(ax, style.tick_label_fontsize)
+        if self.x_label:
+            backend.set_xlabel(
+                ax, self.x_label, fontsize=styled(style.axis_label_fontsize, 12)
+            )
+        backend.set_ylabel(
+            ax,
+            r"$-\log_{10}(p)$",
+            fontsize=styled(style.axis_label_fontsize, self.y_label_fontsize),
+        )
+        if self.title:
+            backend.set_title(
+                ax,
+                self.title,
+                fontsize=styled(style.panel_title_fontsize, self.title_fontsize),
+                fontweight=style.title_fontweight,
+            )
+        if self.panel_label:
+            backend.add_panel_label(
+                ax, self.panel_label, y_frac=self.panel_label_y_frac
+            )
 
 
 def stacked_manhattan_specs(
@@ -235,7 +197,7 @@ def stacked_manhattan_specs(
             f"number of GWAS DataFrames ({n_panels})"
         )
     return [
-        manhattan_spec(
+        ManhattanPanelSpec(
             value,
             significance_threshold=significance_threshold,
             y_label_fontsize=10,
@@ -245,86 +207,3 @@ def stacked_manhattan_specs(
         )
         for index, value in enumerate(prepared)
     ]
-
-
-def render_manhattan_panel(
-    backend: PlotBackend, ax: Any, spec: ManhattanPanelSpec
-) -> None:
-    """Draw one Manhattan-style panel onto a backend axis.
-
-    Args:
-        backend: Backend that owns the drawing primitives.
-        ax: Axis to draw onto.
-        spec: The panel's data and presentation policy.
-    """
-    df = spec.prepared_df
-    style = spec.style
-    for group in spec.layout.order:
-        group_data = df[df[spec.group_col] == group]
-        if group_data.empty:
-            continue
-        hover_data = None
-        if spec.hover is not None and backend.supports_hover:
-            hover_data = HoverDataBuilder(spec.hover).build_dataframe(group_data)
-        backend.scatter(
-            ax,
-            group_data[spec.x_col],
-            group_data["neglog10p"],
-            colors=group_data["_color"].iloc[0],
-            sizes=styled(style.point_size, spec.point_size),
-            marker="o",
-            edgecolor=POINT_EDGE_COLOR,
-            linewidth=styled(style.point_edge_width, MANHATTAN_EDGE_WIDTH),
-            zorder=2,
-            hover_data=hover_data,
-            **scatter_alpha(style),
-        )
-
-    line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
-    add_significance_line(backend, ax, spec.significance_threshold, **line_kwargs)
-    add_significance_line(
-        backend,
-        ax,
-        spec.suggestive_threshold,
-        color=SUGGESTIVE_LINE_COLOR,
-        **line_kwargs,
-    )
-    backend.set_xlim(ax, *spec.layout.x_limits)
-    line_levels = [
-        -np.log10(threshold)
-        for threshold in (spec.significance_threshold, spec.suggestive_threshold)
-        if threshold is not None
-    ]
-    y_max = padded_ymax(max([df["neglog10p"].max(), *line_levels]), style.y_headroom)
-    if spec.invert_y:
-        backend.set_ylim(ax, y_max, 0)
-    else:
-        backend.set_ylim(ax, 0, y_max)
-    backend.set_xticks(
-        ax,
-        spec.layout.tick_positions[:: style.tick_step],
-        spec.layout.tick_labels[:: style.tick_step],
-        fontsize=styled(style.tick_label_fontsize, spec.tick_fontsize),
-        rotation=styled(style.tick_rotation, spec.tick_rotation),
-        ha=spec.tick_ha,
-    )
-    if style.tick_label_fontsize is not None:
-        backend.set_tick_fontsize(ax, style.tick_label_fontsize)
-    if spec.x_label:
-        backend.set_xlabel(
-            ax, spec.x_label, fontsize=styled(style.axis_label_fontsize, 12)
-        )
-    backend.set_ylabel(
-        ax,
-        r"$-\log_{10}(p)$",
-        fontsize=styled(style.axis_label_fontsize, spec.y_label_fontsize),
-    )
-    if spec.title:
-        backend.set_title(
-            ax,
-            spec.title,
-            fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
-            **title_weight(style.title_fontweight),
-        )
-    if spec.panel_label:
-        backend.add_panel_label(ax, spec.panel_label, y_frac=spec.panel_label_y_frac)

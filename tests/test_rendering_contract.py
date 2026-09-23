@@ -1,7 +1,5 @@
 """Contract tests for what each family's panels send through the backend seam."""
 
-import dataclasses
-import inspect
 from types import SimpleNamespace
 
 import pandas as pd
@@ -11,7 +9,7 @@ from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.manhattan import prepare_manhattan_frames
-from pylocuszoom.panels.manhattan import ManhattanPanelSpec, manhattan_spec
+from pylocuszoom.panels.manhattan import ManhattanPanelSpec
 from pylocuszoom.panels.miami import MiamiRequest, miami_plan
 from pylocuszoom.panels.qq import QQPanelSpec, qq_title
 from pylocuszoom.qq import prepare_qq_data
@@ -19,8 +17,6 @@ from pylocuszoom.qq import prepare_qq_data
 
 class RecordingBackend:
     """Small primitive adapter that records every backend call it receives."""
-
-    supports_hover = False
 
     def __init__(self):
         self.calls = []
@@ -105,9 +101,6 @@ class RecordingBackend:
     def add_heatmap(self, *args, **kwargs):
         return self._record("add_heatmap", *args, **kwargs)
 
-    def add_colorbar(self, *args, **kwargs):
-        return self._record("add_colorbar", *args, **kwargs)
-
     def errorbar_h(self, *args, **kwargs):
         return self._record("errorbar_h", *args, **kwargs)
 
@@ -141,7 +134,7 @@ def prepared_data():
 
 def _manhattan_plan(manhattan):
     """The single Manhattan figure, as ManhattanPlotter.plot_manhattan builds it."""
-    panel = manhattan_spec(
+    panel = ManhattanPanelSpec(
         manhattan,
         significance_threshold=5e-8,
         x_label="Chromosome",
@@ -264,10 +257,8 @@ def test_ld_heatmap_panel_owns_its_policy():
     assert "set_xticks" in names and "set_yticks" in names
     assert "set_title" in names
 
-    colorbar = next(
-        kwargs for name, _, kwargs in backend.calls if name == "add_colorbar"
-    )
-    assert colorbar["label"] == "D'"
+    heatmap = next(kwargs for name, _, kwargs in backend.calls if name == "add_heatmap")
+    assert heatmap["colorbar_label"] == "D'"
 
 
 def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
@@ -289,8 +280,8 @@ def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
     render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
-    assert "add_heatmap" in names
-    assert "add_colorbar" not in names
+    heatmap = next(kwargs for name, _, kwargs in backend.calls if name == "add_heatmap")
+    assert heatmap["colorbar_label"] is None
     assert "add_rectangle" not in names
     assert "set_title" not in names
 
@@ -402,26 +393,15 @@ def test_coloc_panel_owns_its_policy():
     from pylocuszoom.panels.coloc import ColocPanel
 
     backend = RecordingBackend()
-    merged = pd.DataFrame(
-        {
-            "neglog10_gwas": [8.0, 3.0],
-            "neglog10_eqtl": [6.0, 2.0],
-            "color": ["#FF0000", "#0000FF"],
-            "rs": ["rs1", "rs2"],
-        }
-    )
-
-    panel = ColocPanel(
-        merged=merged,
-        config=ColocConfig(
-            gwas_threshold=5e-8,
-            eqtl_threshold=1e-5,
-            show_correlation=True,
-            color_by_effect=False,
-            h4_posterior=0.92,
-            figsize=(8.0, 8.0),
+    positions = [100, 200, 300]
+    panel = ColocPanel.from_frames(
+        pd.DataFrame(
+            {"pos": positions, "p_gwas": [1e-8, 1e-3, 0.2], "rs": ["a", "b", "c"]}
         ),
-        lead_idx=0,
+        pd.DataFrame({"pos": positions, "p_eqtl": [1e-6, 1e-2, 0.5]}),
+        ColocConfig(lead_snp="a", h4_posterior=0.92),
+        gwas_threshold=5e-8,
+        eqtl_threshold=1e-5,
         title="Contract Coloc",
     )
     render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
@@ -435,22 +415,8 @@ def test_coloc_panel_owns_its_policy():
     assert names.count("axvline") == 1
     assert "set_xlabel" in names and "set_ylabel" in names
     assert "set_title" in names
-    # Correlation and H4 posterior are both annotations.
-    assert names.count("add_text") >= 2
-
-
-def test_manhattan_spec_defaults_match_the_spec():
-    """``manhattan_spec``'s keyword defaults must not drift from the dataclass."""
-    spec_defaults = {
-        field.name: field.default
-        for field in dataclasses.fields(ManhattanPanelSpec)
-        if field.default is not dataclasses.MISSING
-    }
-    helper_defaults = {
-        name: parameter.default
-        for name, parameter in inspect.signature(manhattan_spec).parameters.items()
-        if parameter.default is not inspect.Parameter.empty
-    }
-
-    assert helper_defaults
-    assert helper_defaults == {name: spec_defaults[name] for name in helper_defaults}
+    # The lead's id, the correlation and the H4 posterior are annotations.
+    texts = [args[3] for name, args, _ in backend.calls if name == "add_text"]
+    assert texts[0] == "a"
+    assert texts[1].startswith("r = ")
+    assert texts[2] == "H4 PP = 0.920"

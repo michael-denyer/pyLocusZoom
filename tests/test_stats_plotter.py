@@ -304,6 +304,12 @@ class TestForestPlotEdgeCases:
 class TestStatsPlotterInit:
     """Tests for StatsPlotter initialization."""
 
+    @pytest.mark.parametrize("method", ["plot_phewas", "plot_forest"])
+    def test_options_after_the_variant_are_keyword_only(self, method):
+        """The frame and the variant id are positional; every option is named."""
+        with pytest.raises(TypeError):
+            getattr(StatsPlotter(), method)(pd.DataFrame(), "rs1", "column")
+
     def test_default_initialization(self):
         """StatsPlotter should initialize with default parameters."""
         plotter = StatsPlotter()

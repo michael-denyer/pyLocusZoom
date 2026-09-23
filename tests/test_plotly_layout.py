@@ -28,45 +28,25 @@ class TestSecondaryAxisKey:
         assert plotly_layout.secondary_axis_key("x2") == "x2"
 
 
-class TestPanelY:
-    """A row's paper coordinates are read from its y-axis domain."""
+class TestPanelTop:
+    """A row's top edge is read from its y-axis domain."""
 
-    @pytest.fixture
-    def two_row_figure(self):
-        """A two-row subplot figure with explicit, unequal row heights."""
-        return make_subplots(rows=2, cols=1, row_heights=[0.75, 0.25])
+    def test_each_row_reports_its_own_top(self):
+        """The lower row's top is below the upper row's."""
+        fig = make_subplots(rows=2, cols=1, row_heights=[0.75, 0.25])
 
-    @pytest.mark.parametrize("vertical", ["bottom", "middle", "top"])
-    def test_coordinate_lies_inside_the_row_domain(self, two_row_figure, vertical):
-        """Every anchor of a row falls within that row's own domain."""
-        domain = two_row_figure.layout.yaxis.domain
-
-        y = plotly_layout.panel_y(plotly_layout._Panel(two_row_figure, 1), vertical)
-
-        assert domain[0] <= y <= domain[1]
-
-    def test_the_three_anchors_are_ordered(self, two_row_figure):
-        """Bottom, middle and top increase in paper coordinates."""
-        anchors = [
-            plotly_layout.panel_y(plotly_layout._Panel(two_row_figure, 1), vertical)
-            for vertical in ("bottom", "middle", "top")
+        tops = [
+            plotly_layout.panel_top(plotly_layout._Panel(fig, row)) for row in (1, 2)
         ]
 
-        assert anchors == sorted(anchors)
-
-    def test_middle_is_the_midpoint_of_the_domain(self, two_row_figure):
-        """The middle anchor is exactly halfway up the row."""
-        domain = two_row_figure.layout.yaxis.domain
-
-        assert plotly_layout.panel_y(
-            plotly_layout._Panel(two_row_figure, 1), "middle"
-        ) == pytest.approx((domain[0] + domain[1]) / 2)
+        assert tops == [fig.layout.yaxis.domain[1], fig.layout.yaxis2.domain[1]]
+        assert tops[1] < tops[0]
 
     def test_a_figure_without_domains_falls_back(self):
         """A plain figure with no subplot domains still yields a coordinate."""
-        assert plotly_layout.panel_y(
-            plotly_layout._Panel(go.Figure(), 1), "bottom"
-        ) == pytest.approx(0.01)
+        assert plotly_layout.panel_top(
+            plotly_layout._Panel(go.Figure(), 1)
+        ) == pytest.approx(0.99)
 
 
 class TestXRange:

@@ -2,8 +2,10 @@
 
 Rewrites every ``plot`` and ``plot_stacked`` call whose keywords include
 ``chrom`` so that each option is passed inside the model that declares it,
-and every Manhattan and Miami call so that the column names and chromosome
-order are passed as a ``GenomeWideConfig``. Every ``PanelInputs`` call, the
+every Manhattan and Miami call so that the column names and chromosome
+order are passed as a ``GenomeWideConfig``, and every ``plot_coloc`` call so
+that its column, lead, colouring, annotation and figure-size options are
+passed as a ``ColocConfig`` (the thresholds and title stay keywords). Every ``PanelInputs`` call, the
 rewritten ones and 4.x ones alike, passes each optional panel's options as
 the 5.0 nested model (``eqtl_df=df, eqtl_gene=g`` becomes
 ``eqtl=EqtlInput(data=df, gene=g)``). Files are edited in place and
@@ -84,6 +86,20 @@ GENOMEWIDE_METHODS = {
     "plot_manhattan_qq_stacked",
     "plot_miami",
 }
+COLOC = (
+    "pos_col",
+    "gwas_p_col",
+    "eqtl_p_col",
+    "rs_col",
+    "ld_col",
+    "lead_snp",
+    "show_correlation",
+    "color_by_effect",
+    "gwas_effect_col",
+    "eqtl_effect_col",
+    "h4_posterior",
+    "figsize",
+)
 
 
 def _keywords(call: cst.Call) -> set:
@@ -117,6 +133,8 @@ class Rewriter(cst.CSTTransformer):
             return self._regroup(updated, GROUPS)
         if method in GENOMEWIDE_METHODS and _keywords(updated) & set(GENOMEWIDE):
             return self._regroup(updated, {"config": ("GenomeWideConfig", GENOMEWIDE)})
+        if method == "plot_coloc" and _keywords(updated) & set(COLOC):
+            return self._regroup(updated, {"config": ("ColocConfig", COLOC)})
         return updated
 
     def _regroup(self, call: cst.Call, groups: dict) -> cst.Call:

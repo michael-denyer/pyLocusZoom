@@ -9,7 +9,7 @@ only code above ``backends/`` that creates a figure or finalizes its layout.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, Tuple
+from typing import Any, List, Literal, Optional, Protocol, Sequence, Tuple
 
 from .backends.base import PlotBackend
 
@@ -18,16 +18,6 @@ class Panel(Protocol):
     """A prepared panel that draws itself onto one backend axis."""
 
     def draw(self, backend: PlotBackend, ax: Any) -> None: ...
-
-
-def title_weight(fontweight: Literal["bold", "normal"]) -> Dict[str, str]:
-    """Return the ``fontweight`` keyword for a title, or none when it is bold.
-
-    Left out rather than passed as "bold", so a backend registered before
-    ``set_title`` and ``set_suptitle`` took ``fontweight`` still draws an
-    unstyled figure.
-    """
-    return {} if fontweight == "bold" else {"fontweight": fontweight}
 
 
 @dataclass(frozen=True)
@@ -89,25 +79,10 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
     Raises:
         ValueError: If the plan has no panels.
     """
-    n_panels = len(plan.panels)
-    if n_panels == 0:
+    if not plan.panels:
         raise ValueError("Figure plan must contain at least one panel")
 
-    if plan.n_cols == 1:
-        fig, axes = backend.create_figure(
-            height_ratios=plan.height_ratios or [1.0] * n_panels,
-            figsize=plan.figsize,
-            sharex=plan.sharex,
-        )
-    else:
-        fig, axes = backend.create_figure_grid(
-            n_rows=n_panels // plan.n_cols,
-            n_cols=plan.n_cols,
-            width_ratios=plan.width_ratios,
-            height_ratios=plan.height_ratios,
-            figsize=plan.figsize,
-        )
-
+    fig, axes = _create_figure(backend, plan)
     for ax, panel in zip(axes, plan.panels):
         panel.draw(backend, ax)
 
@@ -122,15 +97,40 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
         backend.add_region_highlight(
             axes, span.start, span.end, color=span.color, alpha=span.alpha
         )
-    weight = title_weight(plan.title_fontweight)
     if plan.first_panel_title:
         backend.set_title(
-            axes[0], plan.first_panel_title, fontsize=plan.title_fontsize, **weight
+            axes[0],
+            plan.first_panel_title,
+            fontsize=plan.title_fontsize,
+            fontweight=plan.title_fontweight,
         )
     if plan.suptitle:
-        backend.set_suptitle(fig, plan.suptitle, fontsize=plan.title_fontsize, **weight)
+        backend.set_suptitle(
+            fig,
+            plan.suptitle,
+            fontsize=plan.title_fontsize,
+            fontweight=plan.title_fontweight,
+        )
     backend.finalize_layout(fig, top=plan.top, hspace=plan.hspace)
     # After the layout, so the backend can grow the bottom margin it just set.
     if plan.footer:
         backend.set_footer(fig, plan.footer)
     return fig
+
+
+def _create_figure(backend: PlotBackend, plan: FigurePlan) -> Tuple[Any, List[Any]]:
+    """Create a vertical stack for a one-column plan, or a grid."""
+    n_panels = len(plan.panels)
+    if plan.n_cols == 1:
+        return backend.create_figure(
+            height_ratios=plan.height_ratios or [1.0] * n_panels,
+            figsize=plan.figsize,
+            sharex=plan.sharex,
+        )
+    return backend.create_figure_grid(
+        n_rows=n_panels // plan.n_cols,
+        n_cols=plan.n_cols,
+        width_ratios=plan.width_ratios,
+        height_ratios=plan.height_ratios,
+        figsize=plan.figsize,
+    )

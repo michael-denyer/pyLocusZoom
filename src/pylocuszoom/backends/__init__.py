@@ -18,7 +18,7 @@ Error Behavior:
 from typing import Literal, get_args
 
 from ..exceptions import ValidationError
-from .base import Mappable, PlotBackend, SupportsSNPLabels
+from .base import PlotBackend, SupportsSNPLabels
 
 BackendType = Literal["matplotlib", "plotly", "bokeh"]
 
@@ -131,7 +131,6 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    "Mappable",
     "PlotBackend",
     "SupportsSNPLabels",
     "BackendType",

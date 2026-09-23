@@ -14,8 +14,8 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from ..colors import FOOTER_COLOR
 from . import register_backend
-from .base import Mappable
 from .composition import LegendEntry, cell_edges
+from .hover import HoverData
 
 # Side and bottom margins, as fractions of the figure. No caller has ever
 # varied them, so they are this backend's own layout policy rather than part
@@ -31,22 +31,9 @@ class MatplotlibBackend:
     """Matplotlib backend for static plot generation.
 
     This is the default backend, producing publication-quality static plots
-    suitable for papers and presentations.
-
-    Capability Properties:
-        supports_snp_labels: True - uses adjustText for automatic label positioning.
-        supports_hover: False - static plots don't support hover tooltips.
-        supports_secondary_axis: True - supports twin y-axis via twinx().
+    suitable for papers and presentations. It is the one built-in backend
+    that implements ``SupportsSNPLabels``, through adjustText.
     """
-
-    # =========================================================================
-    # Capability Properties
-    # =========================================================================
-
-    @property
-    def supports_hover(self) -> bool:
-        """Matplotlib does not support hover tooltips."""
-        return False
 
     def create_figure(
         self,
@@ -118,7 +105,7 @@ class MatplotlibBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-        hover_data: Optional[pd.DataFrame] = None,
+        hover_data: Optional[HoverData] = None,
         alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.
@@ -201,13 +188,10 @@ class MatplotlibBackend:
         fontsize: int = 10,
         ha: str = "center",
         va: str = "bottom",
-        rotation: float = 0,
         color: str = "black",
     ) -> None:
         """Add text annotation to axes."""
-        ax.text(
-            x, y, text, fontsize=fontsize, ha=ha, va=va, rotation=rotation, color=color
-        )
+        ax.text(x, y, text, fontsize=fontsize, ha=ha, va=va, color=color)
 
     def add_panel_label(
         self,
@@ -235,23 +219,17 @@ class MatplotlibBackend:
         neglog10p_col: str,
         rs_col: str,
         label_top_n: int,
-        adjust: bool = True,
-        lead_pos: Optional[int] = None,
-        region_span: Optional[int] = None,
-    ) -> List[Any]:
+    ) -> None:
         """Add SNP labels using adjustText."""
         from ..labels import add_snp_labels as _add_snp_labels
 
-        return _add_snp_labels(
+        _add_snp_labels(
             ax,
             df,
             pos_col=pos_col,
             neglog10p_col=neglog10p_col,
             rs_col=rs_col,
             label_top_n=label_top_n,
-            adjust=adjust,
-            lead_pos=lead_pos,
-            region_span=region_span,
         )
 
     def add_rectangle(
@@ -415,7 +393,6 @@ class MatplotlibBackend:
         self,
         ax: Axes,
         entries: List[LegendEntry],
-        loc: str = "upper left",
         title: Optional[str] = None,
     ) -> None:
         """Render backend-neutral legend entries as matplotlib handles."""
@@ -444,7 +421,7 @@ class MatplotlibBackend:
                 )
         ax.legend(
             handles=handles,
-            loc=loc,
+            loc="upper right",
             title=title,
             fontsize=9,
             frameon=True,
@@ -551,7 +528,8 @@ class MatplotlibBackend:
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Mappable:
+        colorbar_label: Optional[str] = None,
+    ) -> None:
         """Render a heatmap of an already-shaped matrix."""
         from matplotlib.colors import LinearSegmentedColormap
 
@@ -559,7 +537,7 @@ class MatplotlibBackend:
 
         x_edges = cell_edges(x_coords)
         y_edges = cell_edges(y_coords)
-        return ax.pcolormesh(
+        mesh = ax.pcolormesh(
             [x_edges[0][0], *(right for _, right in x_edges)],
             [y_edges[0][0], *(right for _, right in y_edges)],
             data,
@@ -569,19 +547,9 @@ class MatplotlibBackend:
             shading="flat",
             rasterized=True,
         )
-
-    def add_colorbar(
-        self,
-        ax: Axes,
-        mappable: Mappable,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> None:
-        """Add colorbar legend for heatmap."""
-        if (
-            orientation == "vertical"
-            and len(ax.get_shared_x_axes().get_siblings(ax)) > 1
-        ):
+        if colorbar_label is None:
+            return
+        if len(ax.get_shared_x_axes().get_siblings(ax)) > 1:
             from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
             # Native colorbar allocation shrinks only its parent subplot. An
@@ -596,10 +564,8 @@ class MatplotlibBackend:
                 bbox_transform=ax.transAxes,
                 borderpad=0,
             )
-            cbar = ax.figure.colorbar(
-                mappable, cax=colorbar_ax, orientation=orientation
-            )
+            cbar = ax.figure.colorbar(mesh, cax=colorbar_ax)
             colorbar_ax.set_label(_INSET_COLORBAR_LABEL)
         else:
-            cbar = ax.figure.colorbar(mappable, ax=ax, orientation=orientation)
-        cbar.set_label(label)
+            cbar = ax.figure.colorbar(mesh, ax=ax)
+        cbar.set_label(colorbar_label)

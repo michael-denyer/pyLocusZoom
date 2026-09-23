@@ -195,6 +195,15 @@ class TestPlotlyGridSubplotAxisAddressing:
         assert (entry.xaxis, entry.yaxis) == ("x4", "y4")
         assert fig.layout.legend.y == fig.layout.yaxis4.domain[1]
 
+    def test_legend_sits_in_the_column_of_the_panel_given(self):
+        backend, fig, axes = self._grid_2x2()
+
+        backend.add_legend(axes[2], [LegendEntry(label="a", color="red", marker="o")])
+
+        left, right = fig.layout.xaxis3.domain
+        assert left < fig.layout.legend.x < right
+        assert fig.layout.legend.xanchor == "right"
+
     def test_fill_between_accepts_a_scalar_y2(self):
         backend = PlotlyBackend()
         fig, axes = backend.create_figure(height_ratios=[1.0], figsize=(6, 4))
@@ -267,6 +276,30 @@ class TestPlotlySetTitleOverwriting:
 
         assert has_manhattan, f"Manhattan title not found in annotations: {all_text}"
         assert has_qq, f"QQ title not found in annotations: {all_text}"
+
+
+class TestPlotlyTitleSlots:
+    """A panel title and the figure title never share one layout slot."""
+
+    def test_first_panel_title_survives_a_suptitle_on_one_column(self):
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(height_ratios=[1.0, 1.0], figsize=(6, 6))
+
+        backend.set_title(axes[0], "Panel")
+        backend.set_suptitle(fig, "Figure")
+
+        assert fig.layout.title.text == "Figure"
+        assert [a.text for a in fig.layout.annotations] == ["<b>Panel</b>"]
+
+    def test_a_panel_title_sits_above_its_own_panel(self):
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(height_ratios=[1.0], figsize=(6, 6))
+
+        backend.set_title(axes[0], "Panel", fontweight="normal")
+
+        (title,) = fig.layout.annotations
+        assert (title.text, title.xref, title.yref) == ("Panel", "x domain", "y domain")
+        assert (title.y, title.yanchor) == (1.0, "bottom")
 
 
 class TestPlotlyMegabaseTicksFollowTheAxisRange:

@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import (
+    ColocConfig,
     ColocPlotter,
     LocusZoomPlotter,
     ManhattanPlotter,
@@ -119,6 +120,6 @@ def test_coloc_collects_both_frames():
         pd.DataFrame({"pos": positions, "p_eqtl": rng.uniform(1e-9, 1, 50)})
     )
 
-    ColocPlotter().plot_coloc(gwas, eqtl, rs_col=None)
+    ColocPlotter().plot_coloc(gwas, eqtl, config=ColocConfig(rs_col=None))
 
     assert (gwas.collected, eqtl.collected) == (1, 1)

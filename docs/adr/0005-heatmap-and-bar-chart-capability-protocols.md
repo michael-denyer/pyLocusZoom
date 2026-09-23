@@ -1,6 +1,7 @@
 # ADR 0005: Move Heatmap and Bar-Chart Drawing to Capability Protocols
 
-- Status: accepted
+- Status: accepted; `add_colorbar` and the rejected fold are superseded by
+  [ADR-0011](0011-protocol-diet-and-one-panel-body.md)
 - Date: 2026-07-25
 - Target: 2.1 (additive change to the `PlotBackend` extension contract)
 
@@ -68,6 +69,7 @@ caller for the sake of about ninety lines.
   code that answers it. The defect the review found was a fat required protocol,
   not file length.
 - Fold `add_colorbar` into `add_heatmap` as a `show_colorbar` argument: rejected.
+  (Superseded by ADR-0011, which folds it as `add_heatmap(colorbar_label=)`.)
   It removes a protocol method, but changes a primitive's signature for every
   custom backend after 2.0 shipped. Making Plotly's `add_colorbar` enable the
   trace's own scale fixes the same two bugs inside the existing contract.

@@ -258,6 +258,11 @@ stays consistent while the backend protocol handles drawing primitives.
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#custom-backends-in-20) for the
 > three changes required.
 
+5.0 breaks the protocol again: it drops the members and parameters no caller
+used, folds the colour bar into `add_heatmap`, and hands `scatter` hover columns
+with their roles. [docs/MIGRATING-5.0.md](docs/MIGRATING-5.0.md#custom-backends)
+lists each signature change.
+
 `SupportsSNPLabels` (matplotlib-style repositioned labels) is the one optional
 capability, negotiated with a `@runtime_checkable` protocol: a custom backend
 opts in by implementing `add_snp_labels` and out by omitting it. A backend
@@ -404,7 +409,7 @@ fig = plotter.plot(
 Visualize GWAS-eQTL colocalization by comparing association signals in a scatter plot with LD coloring:
 
 ```python
-from pylocuszoom import ColocPlotter
+from pylocuszoom import ColocConfig, ColocPlotter
 
 # GWAS and eQTL data with matching positions
 gwas_df = pd.DataFrame({
@@ -420,12 +425,9 @@ eqtl_df = pd.DataFrame({
 
 plotter = ColocPlotter()
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
 )
@@ -439,15 +441,17 @@ fig.savefig("colocalization.png", dpi=150)
 
 ```python
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    gwas_effect_col="beta",
-    eqtl_effect_col="slope",
-    color_by_effect=True,  # Green=congruent, Red=incongruent
-    h4_posterior=0.85,     # Display coloc H4 probability
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(
+        pos_col="pos",
+        gwas_p_col="p",
+        eqtl_p_col="p",
+        gwas_effect_col="beta",
+        eqtl_effect_col="slope",
+        color_by_effect=True,  # Green=congruent, Red=incongruent
+        h4_posterior=0.85,  # Display coloc H4 probability
+    ),
 )
 ```
 

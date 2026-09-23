@@ -176,7 +176,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2b | gwas_plot_spec, GENES_PLOT, EXONS_PLOT, eqtl_plot_spec, finemapping_plot_spec | The plot-time contracts for the regional and genome-wide frames | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | phewas_plot_spec, forest_plot_spec, coloc_plot_spec | The plot-time contracts for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | P_VALUE_POLICY | Per family: whether zero is a valid p-value, and whether an invalid one drops its row or raises | [_data.py](../src/pylocuszoom/_data.py) |
-| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs, EqtlInput, FinemappingInput, LDHeatmapInput | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
+| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs, EqtlInput, FinemappingInput, LDHeatmapInput, ColocConfig | The values `plot()`, `plot_stacked()` and `plot_coloc()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
 | 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideStyle | Palette, point, font and chromosome-axis styling the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
@@ -213,7 +213,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3h | ucsc_source, fetch_track_frames | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
 | 3h | gene cache | Atomic gene/exon archive cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
 | 3j | _AssociationInput | Region-selected data and resolved per-panel options | [plotter.py](../src/pylocuszoom/plotter.py) |
-| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
+| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_enrichment.py](../src/pylocuszoom/_ld_enrichment.py) |
 | 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
 | 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
@@ -221,14 +221,15 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | load_chain, chain_lifter, liftover_region, lift_window | The one chain loader (cached; registered chains come from `GenomeBuild.liftover_chains`) and the one lift path, shared by `plot()`, `plot_stacked()` and the recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
+| 3j | add_significance_line | The one dashed threshold line every panel draws, plus the Manhattan and QQ drawing constants | [panels/_shared.py](../src/pylocuszoom/panels/_shared.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |
-| 3i | ColocPanel | The colocalization scatter, built by the plotter and drawing itself | [panels/coloc.py](../src/pylocuszoom/panels/coloc.py) |
+| 3i | ColocPanel | The colocalization scatter: `from_frames` validates and merges the two frames and resolves the lead, its label, the legend and the correlation, and `draw` reads only those fields | [panels/coloc.py](../src/pylocuszoom/panels/coloc.py) |
 | 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [panels/ld_heatmap.py](../src/pylocuszoom/panels/ld_heatmap.py) |
 | 3i | FigurePlan, render_figure | The one figure model every family builds, and the only code above the backends that creates a figure or finalizes its layout | [_figure.py](../src/pylocuszoom/_figure.py) |
 | 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [panels/stats.py](../src/pylocuszoom/panels/stats.py) |
-| 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [panels/qq.py](../src/pylocuszoom/panels/qq.py) |
-| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, the function that draws it, and the `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` builders, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [panels/manhattan.py](../src/pylocuszoom/panels/manhattan.py) |
+| 3i | QQPanelSpec | One typed QQ-panel request that draws itself, used by the standalone, side-by-side and stacked QQ panels | [panels/qq.py](../src/pylocuszoom/panels/qq.py) |
+| 3i | ManhattanPanelSpec | One typed panel request over a `PreparedManhattan` (its frame, x and group columns and shared layout) that draws itself, plus the `stacked_manhattan_specs` builder, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [panels/manhattan.py](../src/pylocuszoom/panels/manhattan.py) |
 
 ### LD Colour Bins [3b]
 
@@ -257,8 +258,8 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 | 4b | MatplotlibBackend | Static publication plots | [matplotlib_backend.py](../src/pylocuszoom/backends/matplotlib_backend.py) |
 | 4c | PlotlyBackend | Interactive HTML with hover | [plotly_backend.py](../src/pylocuszoom/backends/plotly_backend.py) |
 | 4d | BokehBackend | Dashboard-friendly interactive | [bokeh_backend.py](../src/pylocuszoom/backends/bokeh_backend.py) |
-| 4e | hover | `HoverDataBuilder` plus the shared `plotly_hovertemplate` / `bokeh_tooltips` builders | [hover.py](../src/pylocuszoom/backends/hover.py) |
-| 4f | composition | Legend, recombination-overlay, and heatmap-highlight composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
+| 4e | hover | `HoverDataBuilder`, which returns `HoverData` (columns plus a `HoverRole` each), and the shared `plotly_hovertemplate` / `bokeh_tooltips` builders that format by role | [hover.py](../src/pylocuszoom/backends/hover.py) |
+| 4f | composition | Legend, recombination-overlay, heatmap-highlight and LD-heatmap (`draw_ld_heatmap`) composition above the primitive seam | [composition.py](../src/pylocuszoom/backends/composition.py) |
 | 4g | _coerce | Coercions out of matplotlib's vocabulary (figure sizing, marker area, scalar broadcast) shared by the interactive backends | [_coerce.py](../src/pylocuszoom/backends/_coerce.py) |
 | 4h | plotly_layout | Plotly subplot geometry: the `_Panel` and `_SecondaryAxis` value types and pure layout helpers | [plotly_layout.py](../src/pylocuszoom/backends/plotly_layout.py) |
 
@@ -377,8 +378,7 @@ classDiagram
         +axhline()
         +add_rectangle()
         +add_legend(entries)
-        +add_heatmap()
-        +add_colorbar()
+        +add_heatmap(colorbar_label)
         +errorbar_h()
         +create_twin_axis()
         +add_region_highlight()
@@ -485,6 +485,7 @@ two tiers, core and toolbox, tabulated under
 | Name | Purpose |
 |------|---------|
 | `ColocPlotter` | Colocalization scatter plot generator. |
+| `ColocConfig` | Column names, lead SNP, colouring, annotations and figure size of a colocalization plot. |
 
 ### File loaders
 

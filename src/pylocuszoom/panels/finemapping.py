@@ -101,13 +101,12 @@ class FinemappingPanel:
                     edgecolor="black",
                     linewidth=linewidth,
                     zorder=zorder,
-                    hover_data=hover_builder.build_dataframe(subset),
+                    hover_data=hover_builder.build(subset),
                 )
             if self.credible_sets:
                 backend.add_legend(
                     ax,
                     finemapping_legend_entries(self.credible_sets),
-                    loc="upper right",
                     title="Credible sets",
                 )
         backend.set_ylabel(ax, "PIP")

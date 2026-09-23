@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from .._plotter_utils import add_significance_line
 from ..backends.base import PlotBackend
 from ..backends.composition import LegendEntry, eqtl_legend_entries
 from ..backends.hover import HoverConfig, HoverDataBuilder
@@ -13,7 +12,7 @@ from ..colors import EQTL_MARKER_COLOR, get_eqtl_color
 from ..config import RegionConfig
 from ..eqtl import prepare_eqtl_for_plotting
 from ..schemas import Canonical
-from ._shared import REGIONAL_LINE_ALPHA
+from ._shared import REGIONAL_LINE_ALPHA, add_significance_line
 
 
 @dataclass(frozen=True)
@@ -97,12 +96,11 @@ class EqtlPanel:
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
-                            hover_data=hover_builder.build_dataframe(subset),
+                            hover_data=hover_builder.build(subset),
                         )
                 backend.add_legend(
                     ax,
                     eqtl_legend_entries(),
-                    loc="upper right",
                     title="eQTL effect",
                 )
             else:
@@ -117,12 +115,11 @@ class EqtlPanel:
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=2,
-                    hover_data=hover_builder.build_dataframe(data),
+                    hover_data=hover_builder.build(data),
                 )
                 backend.add_legend(
                     ax,
                     [LegendEntry(label, EQTL_MARKER_COLOR, marker="D")],
-                    loc="upper right",
                 )
         backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
         add_significance_line(backend, ax, self.threshold, alpha=REGIONAL_LINE_ALPHA)

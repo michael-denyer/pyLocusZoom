@@ -1,11 +1,10 @@
-"""Shared utilities for plotter classes.
+"""Significance-threshold defaults and resolution shared by the plotters.
 
-Internal module - not part of public API.
+Internal module - not part of public API. Drawing constants and the
+significance line live with the panels, in ``panels._shared``.
 """
 
-from typing import Any, Literal, Optional, Union
-
-import numpy as np
+from typing import Optional, Union
 
 # Significance thresholds
 DEFAULT_GENOMEWIDE_THRESHOLD = 5e-8
@@ -44,50 +43,5 @@ def resolve_threshold(
     return plotter_default if isinstance(supplied, _Unset) else supplied
 
 
-# Manhattan/QQ plot styling constants
+# Space left between chromosomes on a genome-wide x axis, in base pairs.
 CHROMOSOME_GAP = 1_000_000
-MANHATTAN_POINT_SIZE = 10
-MANHATTAN_CATEGORICAL_POINT_SIZE = 30
-QQ_POINT_SIZE = 10
-POINT_EDGE_COLOR = "black"
-MANHATTAN_EDGE_WIDTH = 0.1
-QQ_EDGE_WIDTH = 0.02
-QQ_CI_ALPHA = 0.5
-SIGNIFICANCE_LINE_COLOR = "red"
-SUGGESTIVE_LINE_COLOR = "blue"
-
-
-def add_significance_line(
-    backend: Any,
-    ax: Any,
-    threshold: Optional[float],
-    *,
-    axis: Literal["x", "y"] = "y",
-    color: str = SIGNIFICANCE_LINE_COLOR,
-    alpha: float = 1.0,
-    linestyle: str = "--",
-    linewidth: float = 1,
-) -> None:
-    """Draw the significance line at ``-log10(threshold)``.
-
-    Args:
-        backend: Plot backend instance.
-        ax: Axes object from backend.
-        threshold: P-value threshold (e.g., 5e-8). None to skip.
-        axis: The axis the p-value is plotted on: ``"y"`` draws a horizontal
-            line, ``"x"`` a vertical one.
-        color: Line colour.
-        alpha: Opacity of the line.
-        linestyle: Matplotlib linestyle of the line.
-        linewidth: Width of the line.
-    """
-    if threshold is None:
-        return
-    value = -np.log10(threshold)
-    style = dict(
-        color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=1
-    )
-    if axis == "x":
-        backend.axvline(ax, x=value, **style)
-    else:
-        backend.axhline(ax, y=value, **style)

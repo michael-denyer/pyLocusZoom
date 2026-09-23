@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from pylocuszoom import (
+    ColocConfig,
     ColocPlotter,
     DisplayConfig,
     EqtlInput,
@@ -1441,12 +1442,9 @@ coloc_plotter = ColocPlotter()
 fig = coloc_plotter.plot_coloc(
     gwas_df=coloc_gwas_df,
     eqtl_df=coloc_eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
 )
 fig.savefig("examples/matplotlib/colocalization_plot.png", dpi=150, bbox_inches="tight")
 print("   Saved: examples/matplotlib/colocalization_plot.png")
@@ -1456,15 +1454,17 @@ print("41. Colocalization plot with effect direction coloring...")
 fig = coloc_plotter.plot_coloc(
     gwas_df=coloc_gwas_df,
     eqtl_df=coloc_eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    gwas_effect_col="beta",
-    eqtl_effect_col="slope",
-    color_by_effect=True,
-    h4_posterior=0.85,  # Display H4 probability
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
+    config=ColocConfig(
+        pos_col="pos",
+        gwas_p_col="p",
+        eqtl_p_col="p",
+        gwas_effect_col="beta",
+        eqtl_effect_col="slope",
+        color_by_effect=True,
+        h4_posterior=0.85,  # Display H4 probability
+    ),
 )
 fig.savefig(
     "examples/matplotlib/colocalization_effect_plot.png", dpi=150, bbox_inches="tight"
@@ -1477,12 +1477,9 @@ coloc_plotter_plotly = ColocPlotter(backend="plotly")
 fig = coloc_plotter_plotly.plot_coloc(
     gwas_df=coloc_gwas_df,
     eqtl_df=coloc_eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
 )
 fig.write_html("examples/plotly/colocalization_plotly.html")
 print("   Saved: examples/plotly/colocalization_plotly.html")
@@ -1493,12 +1490,9 @@ coloc_plotter_bokeh = ColocPlotter(backend="bokeh")
 fig = coloc_plotter_bokeh.plot_coloc(
     gwas_df=coloc_gwas_df,
     eqtl_df=coloc_eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
 )
 output_file("examples/bokeh/colocalization_bokeh.html")
 save(fig)

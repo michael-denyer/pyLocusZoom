@@ -88,6 +88,13 @@ def small_ld_matrix():
 class TestPlotLDHeatmap:
     """Tests for plot_ld_heatmap method."""
 
+    def test_options_after_the_snp_ids_are_keyword_only(self, small_ld_matrix):
+        """The matrix and its SNP ids are positional; every option is named."""
+        from pylocuszoom.ld_heatmap_plotter import LDHeatmapPlotter
+
+        with pytest.raises(TypeError):
+            LDHeatmapPlotter().plot_ld_heatmap(small_ld_matrix, None, "rs1")
+
     @pytest.mark.parametrize("as_dataframe", [True, False])
     def test_dataframe_and_array_draw_the_same_cells(
         self, small_ld_matrix, as_dataframe

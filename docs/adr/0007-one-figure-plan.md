@@ -5,6 +5,9 @@
 - Supersedes: the third decision of ADR-0006 (`RegionalPlotComposer.render_panel`
   as a `singledispatchmethod`) and the option it rejected ("a `render` method
   on each panel dataclass")
+- Superseded in part by: [ADR-0011](0011-protocol-diet-and-one-panel-body.md)
+  (the Manhattan and QQ forwarders and the `manhattan_spec` and
+  `categorical_spec` builders)
 
 ## Context
 
@@ -48,14 +51,16 @@ every other family resolved it through `UNSET` into an `Optional[float]`.
 - Every panel value has `draw(backend, ax)` and nothing else reads the plan.
   The five regional panels carry their region and draw the way their
   `draw_*` functions did; the Manhattan and QQ specs forward to
-  `render_manhattan_panel` and `render_qq_panel`.
+  `render_manhattan_panel` and `render_qq_panel`. (Superseded by ADR-0011:
+  each spec's `draw` is its body.)
 - A plotter validates, prepares, builds a plan, and returns
   `render_figure(self._backend, plan)`. Plan builders issue no backend calls.
 - The renderer classes go. `RegionalPlotComposer` is deleted, its threshold
   moving onto `AssociationPanel` as the same `Optional[float]` every other
   family draws from. `ManhattanQQRenderer`'s six methods become plan builders,
   with `render_manhattan` and `render_categorical` one builder over
-  `manhattan_spec` or `categorical_spec`. `StatsRenderer`'s two methods become
+  `manhattan_spec` or `categorical_spec` (superseded by ADR-0011: the spec is
+  built directly from a `PreparedManhattan`). `StatsRenderer`'s two methods become
   `PhewasPanel` and `ForestPanel`. `ColocRequest` and `LDHeatmapRequest` are
   `ColocPanel` and `LDHeatmapPanel`, panels that draw themselves. Miami stays
   a request value, `MiamiRequest`, because it describes a two-panel figure:

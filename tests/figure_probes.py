@@ -25,6 +25,9 @@ Vocabulary:
   them. A matplotlib twin axis or colorbar is not a panel.
 - ``Box``: an axis-aligned rectangle drawn in data coordinates with
   ``add_rectangle``. A ``RegionHighlight`` spans the panel's full height.
+- Hover fields: ``(label, format)`` pairs in tooltip order, the format one of
+  ``HOVER_FORMATS``' values or ``"plain"``. Emphasis such as plotly's bold is
+  not a format.
 """
 
 import json
@@ -40,6 +43,16 @@ BOKEH_MARKER_NAMES = {
 INTERACTIVE_BACKENDS = ("plotly", "bokeh")
 
 LEGEND_VERTICAL = {"bottom": "lower", "top": "upper"}
+
+# Each library's number-format spec, in the shared hover vocabulary.
+HOVER_FORMATS = {
+    ".2e": "scientific",
+    "0.2e": "scientific",
+    ".3f": "3dp",
+    "0.3f": "3dp",
+    ",.0f": "grouped",
+    "0,0": "grouped",
+}
 
 
 class Box(NamedTuple):
@@ -143,6 +156,14 @@ class MatplotlibProbe:
             and (linestyle is None or line.get_linestyle() == linestyle)
         ]
 
+    def vline_levels(self, fig, panel=0):
+        """Positions of full-height vertical lines on one panel."""
+        return [
+            float(line.get_xdata()[0])
+            for line in self.panels(fig)[panel].get_lines()
+            if list(line.get_ydata()) == [0, 1]
+        ]
+
     def marker_x(self, fig, panel=0, color=None):
         """Sorted x of every scatter marker on one panel, optionally of one fill."""
         from matplotlib.collections import PathCollection
@@ -203,6 +224,10 @@ class MatplotlibProbe:
             for p in ax.patches
             if isinstance(p, Rectangle) and p.get_data_transform() is not ax.transData
         ]
+
+    def colorbar_titles(self, fig):
+        """The title of every colour scale on the figure."""
+        return [ax.get_ylabel() for ax in fig.axes if hasattr(ax, "_colorbar")]
 
     def font_sizes(self, fig):
         """Point sizes of the figure title, panel titles, axis labels and ticks."""
@@ -273,6 +298,30 @@ class PlotlyProbe:
             for value in row
         }
 
+    def hover_fields(self, fig, panel=0):
+        """The distinct tooltip layouts of one panel's traces."""
+        import re
+
+        xref = self._xref(fig, panel)
+        layouts = set()
+        for trace in fig.data:
+            template = getattr(trace, "hovertemplate", None)
+            if not template or (trace.xaxis or "x") != xref:
+                continue
+            lines = template.replace("<extra></extra>", "").split("<br>")
+            layouts.add(
+                tuple(
+                    (label, HOVER_FORMATS.get(spec, "plain"))
+                    for line in lines
+                    if line
+                    for label, spec in re.findall(
+                        r"^(?:(.*?): )?%\{customdata\[\d+\](?::([^}]*))?\}$",
+                        re.sub(r"</?b>", "", line),
+                    )
+                )
+            )
+        return layouts
+
     def standalone_html(self, fig):
         """A complete HTML document carrying the figure and its library."""
         return fig.to_html(include_plotlyjs=True, full_html=True)
@@ -331,6 +380,14 @@ class PlotlyProbe:
             and (dash is None or s.line.dash == dash)
         ]
 
+    def vline_levels(self, fig, panel=0):
+        """Positions of full-height vertical lines on one panel."""
+        return [
+            float(s.x0)
+            for s in self._shapes(fig, panel, "line")
+            if str(s.yref).endswith("domain") and s.x0 == s.x1
+        ]
+
     def marker_x(self, fig, panel=0, color=None):
         """Sorted x of every scatter marker on one panel, optionally of one fill."""
         xref = self._xref(fig, panel)
@@ -375,6 +432,14 @@ class PlotlyProbe:
             RegionHighlight(s.x0, s.x1, _hex(s.fillcolor))
             for s in self._shapes(fig, panel, "rect")
             if str(s.yref).endswith("domain")
+        ]
+
+    def colorbar_titles(self, fig):
+        """The title of every colour scale on the figure."""
+        return [
+            trace.colorbar.title.text
+            for trace in fig.data
+            if trace.type == "heatmap" and trace.showscale
         ]
 
     def font_sizes(self, fig):
@@ -461,6 +526,27 @@ class BokehProbe:
                         values.update(str(v) for v in data[field])
         return values
 
+    def hover_fields(self, fig, panel=0):
+        """The distinct tooltip layouts of one panel's hover tools."""
+        import re
+
+        from bokeh.models import HoverTool
+
+        return {
+            tuple(
+                (
+                    label,
+                    HOVER_FORMATS.get(
+                        re.fullmatch(r"@\{[^}]*\}(?:\{(.*)\})?", spec).group(1),
+                        "plain",
+                    ),
+                )
+                for label, spec in tool.tooltips
+            )
+            for tool in self.panels(fig)[panel].tools
+            if isinstance(tool, HoverTool)
+        }
+
     def standalone_html(self, fig):
         """A complete HTML document carrying the figure and its library."""
         from bokeh.embed import file_html
@@ -526,6 +612,16 @@ class BokehProbe:
             and (dash is None or _dash_name(span.line_dash) == dash)
         ]
 
+    def vline_levels(self, fig, panel=0):
+        """Positions of full-height vertical lines on one panel."""
+        from bokeh.models import Span
+
+        return [
+            float(span.location)
+            for span in self.panels(fig)[panel].center
+            if isinstance(span, Span) and span.dimension == "height"
+        ]
+
     def marker_x(self, fig, panel=0, color=None):
         """Sorted x of every scatter marker on one panel, optionally of one fill."""
         from bokeh.models import GlyphRenderer, Scatter
@@ -588,6 +684,17 @@ class BokehProbe:
             RegionHighlight(box.left, box.right, _hex(box.fill_color))
             for box in self.panels(fig)[panel].center
             if isinstance(box, BoxAnnotation)
+        ]
+
+    def colorbar_titles(self, fig):
+        """The title of every colour scale on the figure."""
+        from bokeh.models import ColorBar
+
+        return [
+            bar.title
+            for plot in self.panels(fig)
+            for bar in plot.right
+            if isinstance(bar, ColorBar)
         ]
 
     def font_sizes(self, fig):

@@ -6,8 +6,13 @@ import pytest
 from bokeh.models import Div, Plot
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
-from pylocuszoom.colors import LD_HEATMAP_COLORS
+from pylocuszoom.backends.hover import HoverData, HoverRole
 from pylocuszoom.stats_plotter import StatsPlotter
+
+
+def _plain(frame):
+    """Hover data whose every column is shown unformatted."""
+    return HoverData(frame, (HoverRole.PLAIN,) * len(frame.columns))
 
 
 class TestAddPanelLabelWithDataRange1d:
@@ -90,7 +95,7 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=_plain(hover_data))
 
         # The scatter coordinates must still be [1, 2, 3], not overwritten
         source = ax.renderers[-1].data_source
@@ -111,7 +116,7 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        backend.scatter(ax, x, y, colors="red", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="red", hover_data=_plain(hover_data))
 
         # The color data must still be the scatter colors, not overwritten
         source = ax.renderers[-1].data_source
@@ -132,7 +137,7 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        backend.scatter(ax, x, y, colors="red", sizes=60, hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="red", sizes=60, hover_data=_plain(hover_data))
 
         source = ax.renderers[-1].data_source
         expected_size = max(6, 60**0.5)
@@ -162,38 +167,6 @@ class TestCreateColorPalette:
         assert len(palette) == 3
         assert palette[0] == "#ffffff"
         assert palette[-1] == "#ff0000"
-
-
-class TestAddColorbarNoIdentityMap:
-    """add_colorbar orients its ticks for the requested colourbar direction."""
-
-    def test_colorbar_vertical(self):
-        """Vertical colorbar should work without identity map."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
-        ax = axes[0]
-
-        data = np.array([[1.0, 0.5], [0.5, 1.0]])
-        mapper = backend.add_heatmap(
-            ax, data, [0, 1], [0, 1], cmap_colors=LD_HEATMAP_COLORS
-        )
-        backend.add_colorbar(ax, mapper, label="R²", orientation="vertical")
-
-        assert ax.right[-1].orientation == "vertical"
-
-    def test_colorbar_horizontal(self):
-        """Horizontal colorbar should work."""
-        backend = BokehBackend()
-        layout, axes = backend.create_figure(height_ratios=[1.0], figsize=(8, 4))
-        ax = axes[0]
-
-        data = np.array([[1.0, 0.5], [0.5, 1.0]])
-        mapper = backend.add_heatmap(
-            ax, data, [0, 1], [0, 1], cmap_colors=LD_HEATMAP_COLORS
-        )
-        backend.add_colorbar(ax, mapper, label="R²", orientation="horizontal")
-
-        assert ax.right[-1].orientation == "horizontal"
 
 
 class TestAddTextAnchors:

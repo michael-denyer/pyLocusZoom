@@ -9,7 +9,7 @@ from pylocuszoom import DisplayConfig, EqtlInput, FinemappingInput, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
-from tests.figure_probes import PROBES
+from tests.figure_probes import INTERACTIVE_BACKENDS, PROBES
 from tests.strategies import gwas_dataframes
 
 
@@ -273,3 +273,72 @@ class TestPlotterProperties:
         assert isinstance(fig, FIGURE_TYPES[backend])
         drawn = set(PROBES[backend].marker_x(fig))
         assert drawn == set(df["pos"].astype(float))
+
+
+class TestHoverParity:
+    """Plotly and bokeh show the same tooltip fields in the same formats.
+
+    Formats come from the role each column plays, not from its display name,
+    and no column is assumed to be the SNP id: the fine-mapping and eQTL
+    panels have none.
+    """
+
+    @staticmethod
+    def _hover_by_backend(gwas_df, panels):
+        figures = {
+            backend: LocusZoomPlotter(species=None, backend=backend).plot(
+                gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                panels=panels,
+                display=DisplayConfig(show_recombination=False),
+            )
+            for backend in INTERACTIVE_BACKENDS
+        }
+        return {
+            backend: [
+                PROBES[backend].hover_fields(fig, panel=panel)
+                for panel in range(PROBES[backend].panel_count(fig))
+            ]
+            for backend, fig in figures.items()
+        }
+
+    def test_finemapping_hover_matches_across_backends(
+        self, small_regional_gwas_df, sample_finemapping_df
+    ):
+        hover = self._hover_by_backend(
+            small_regional_gwas_df,
+            PanelInputs(finemapping=FinemappingInput(data=sample_finemapping_df)),
+        )
+
+        assert hover["plotly"] == hover["bokeh"]
+        assert hover["plotly"][1] == {
+            (("Position", "grouped"), ("PIP", "plain"), ("Credible Set", "plain"))
+        }
+
+    def test_eqtl_hover_matches_across_backends(
+        self, small_regional_gwas_df, sample_eqtl_df
+    ):
+        hover = self._hover_by_backend(
+            small_regional_gwas_df, PanelInputs(eqtl=EqtlInput(data=sample_eqtl_df))
+        )
+
+        assert hover["plotly"] == hover["bokeh"]
+        assert hover["plotly"][1] == {
+            (
+                ("Position", "grouped"),
+                ("P-value", "scientific"),
+                ("Effect", "plain"),
+                ("Gene", "plain"),
+            )
+        }
+
+    def test_association_hover_labels_the_snp_id(self, small_regional_gwas_df):
+        hover = self._hover_by_backend(small_regional_gwas_df, PanelInputs())
+
+        assert (
+            hover["plotly"][0]
+            == hover["bokeh"][0]
+            == {(("SNP", "plain"), ("Position", "grouped"), ("P-value", "scientific"))}
+        )

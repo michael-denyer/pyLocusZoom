@@ -4,7 +4,7 @@ Provides triangular heatmap display of pairwise LD values (R² or D')
 with colorbar legend and SNP highlighting support.
 """
 
-from typing import Any, List, Optional, Tuple, Union, get_args
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,6 @@ import pandas as pd
 from ._figure import FigurePlan, render_figure
 from .backends import BackendType, get_backend
 from .config import LDMetric
-from .exceptions import ValidationError
 from .panels.ld_heatmap import LDHeatmapPanel
 
 
@@ -48,6 +47,7 @@ class LDHeatmapPlotter:
         self,
         ld_matrix: Union[pd.DataFrame, np.ndarray],
         snp_ids: Optional[List[str]] = None,
+        *,
         lead_snp: Optional[str] = None,
         highlight_snps: Optional[List[str]] = None,
         metric: LDMetric = "r2",
@@ -84,49 +84,11 @@ class LDHeatmapPlotter:
             ...     metric="r2",
             ... )
         """
-        if metric not in get_args(LDMetric):
-            raise ValidationError(f"metric must be 'r2' or 'dprime', got {metric!r}")
-
-        # Extract data and snp_ids from DataFrame if needed
-        if isinstance(ld_matrix, pd.DataFrame):
-            data = ld_matrix.values
-            if snp_ids is None:
-                snp_ids = list(ld_matrix.index.astype(str))
-        else:
-            data = np.asarray(ld_matrix)
-            if snp_ids is None:
-                snp_ids = [str(i) for i in range(data.shape[0])]
-
-        # Validate square matrix
-        if data.ndim != 2 or data.shape[0] != data.shape[1]:
-            raise ValidationError(f"ld_matrix must be square, got shape {data.shape}")
-
-        n_snps = len(snp_ids)
-        if data.shape[0] != n_snps:
-            raise ValidationError(
-                f"snp_ids length ({n_snps}) does not match matrix dimension ({data.shape[0]})"
-            )
-
-        # Validate lead_snp
-        lead_idx = None
-        if lead_snp is not None:
-            if lead_snp not in snp_ids:
-                raise ValidationError(f"lead_snp '{lead_snp}' not found in snp_ids")
-            lead_idx = snp_ids.index(lead_snp)
-
-        # Validate highlight_snps
-        highlight_indices = []
-        if highlight_snps:
-            for snp in highlight_snps:
-                if snp not in snp_ids:
-                    raise ValidationError(f"highlight_snp '{snp}' not found in snp_ids")
-                highlight_indices.append(snp_ids.index(snp))
-
-        panel = LDHeatmapPanel(
-            data=data,
-            snp_ids=snp_ids,
-            lead_idx=lead_idx,
-            highlight_indices=highlight_indices,
+        panel = LDHeatmapPanel.from_matrix(
+            ld_matrix,
+            snp_ids,
+            lead_snp=lead_snp,
+            highlight_snps=highlight_snps,
             metric=metric,
             title=title,
             show_colorbar=show_colorbar,

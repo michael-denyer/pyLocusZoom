@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 
 from pylocuszoom._data import prepare_pvalue_data
-from pylocuszoom._plotter_utils import add_significance_line
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+from pylocuszoom.panels._shared import add_significance_line
 
 
 class TestTransformPvalues:

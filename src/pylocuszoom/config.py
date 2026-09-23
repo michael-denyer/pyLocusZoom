@@ -46,7 +46,6 @@ from ._liftover import CoordinateLifter, load_chain
 from ._plotter_utils import (
     CHROMOSOME_GAP,
     DEFAULT_EQTL_THRESHOLD,
-    DEFAULT_GENOMEWIDE_THRESHOLD,
 )
 from .exceptions import ValidationError
 from .schemas import Canonical
@@ -645,8 +644,6 @@ class ColocConfig(_Config):
         rs_col: Optional column name for SNP identifiers.
         ld_col: Optional column name for pre-computed LD values.
         lead_snp: Optional lead SNP identifier for highlighting.
-        gwas_threshold: GWAS significance threshold, or None to draw no line.
-        eqtl_threshold: eQTL significance threshold, or None to draw no line.
         show_correlation: Whether to display Pearson correlation.
         color_by_effect: Whether to color by effect direction agreement.
         gwas_effect_col: Column name for GWAS effect sizes.
@@ -663,12 +660,6 @@ class ColocConfig(_Config):
     rs_col: Optional[str] = Field(default=Canonical.RS, description="SNP ID column")
     ld_col: Optional[str] = Field(default=None, description="Pre-computed LD column")
     lead_snp: Optional[str] = Field(default=None, description="Lead SNP ID")
-    gwas_threshold: Optional[PValueThreshold] = Field(
-        default=DEFAULT_GENOMEWIDE_THRESHOLD, description="GWAS significance"
-    )
-    eqtl_threshold: Optional[PValueThreshold] = Field(
-        default=DEFAULT_EQTL_THRESHOLD, description="eQTL significance"
-    )
     show_correlation: bool = Field(default=True, description="Show Pearson correlation")
     color_by_effect: bool = Field(
         default=False, description="Color by effect agreement"

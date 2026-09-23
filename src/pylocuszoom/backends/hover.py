@@ -1,81 +1,87 @@
 """Hover data and tooltip construction for the interactive backends.
 
-``HoverDataBuilder`` turns a caller's column mapping into a display-named hover
-DataFrame. ``plotly_hovertemplate`` and ``bokeh_tooltips`` turn that DataFrame
-into each backend's native tooltip spec, so the column-name-to-number-format
-heuristic is owned here rather than re-derived inside every ``scatter``.
+``HoverDataBuilder`` turns a caller's column mapping into ``HoverData``: the
+display-named columns and the role each one plays. ``plotly_hovertemplate``
+and ``bokeh_tooltips`` format each column by its role, so both backends show
+the same fields in the same formats and neither guesses from a display name.
 """
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import List, Optional, Tuple
 
 import pandas as pd
 
-# Display-name substrings mapped to the number format each backend wants.
-# Checked in order: an exact p-value name, then any r^2/LD hint, then position.
-_PLOTLY_FORMATS = {"p_value": ".2e", "r2": ".3f", "position": ",.0f"}
-_BOKEH_FORMATS = {"p_value": "0.2e", "r2": "0.3f", "position": "0,0"}
 
-_P_VALUE_NAMES = ("p-value", "pval", "p_value")
-_R2_HINTS = ("r2", "r²", "ld")
+class HoverRole(Enum):
+    """What a hover column holds, which decides how it is formatted."""
 
-
-def _format_key(col_name: str) -> Optional[str]:
-    """Classify a hover column by display name, or None for default format."""
-    col_lower = col_name.lower()
-    if col_lower in _P_VALUE_NAMES:
-        return "p_value"
-    if any(hint in col_lower for hint in _R2_HINTS):
-        return "r2"
-    if "pos" in col_lower:
-        return "position"
-    return None
+    ID = "id"
+    POSITION = "position"
+    P_VALUE = "p_value"
+    R2 = "r2"
+    PLAIN = "plain"
 
 
-def plotly_hovertemplate(hover_df: pd.DataFrame) -> str:
-    """Build a Plotly hovertemplate over ``hover_df`` as customdata.
+_PLOTLY_FORMATS = {
+    HoverRole.POSITION: ":,.0f",
+    HoverRole.P_VALUE: ":.2e",
+    HoverRole.R2: ":.3f",
+}
+_BOKEH_FORMATS = {
+    HoverRole.POSITION: "{0,0}",
+    HoverRole.P_VALUE: "{0.2e}",
+    HoverRole.R2: "{0.3f}",
+}
 
-    The first column is rendered bold and unformatted; it is the SNP identifier
-    by ``HoverDataBuilder`` convention. Later columns get the format their
-    display name implies.
+
+@dataclass(frozen=True)
+class HoverData:
+    """The columns a tooltip shows, under their display names, with their roles.
+
+    Attributes:
+        frame: One column per tooltip field, in display order.
+        roles: The role of each column of ``frame``, in the same order.
+    """
+
+    frame: pd.DataFrame
+    roles: Tuple[HoverRole, ...]
+
+
+def plotly_hovertemplate(hover: HoverData) -> str:
+    """Build a Plotly hovertemplate over ``hover.frame`` as customdata.
+
+    Every field is labelled with its display name; the SNP id line is bold.
 
     Args:
-        hover_df: DataFrame returned by ``HoverDataBuilder.build_dataframe``.
+        hover: Columns and roles from ``HoverDataBuilder.build``.
 
     Returns:
         Plotly hovertemplate string referencing ``customdata`` by position.
     """
     parts = []
-    for i, col in enumerate(hover_df.columns):
-        if i == 0:
-            parts.append(f"<b>%{{customdata[{i}]}}</b>")
-            continue
-        key = _format_key(col)
-        spec = f":{_PLOTLY_FORMATS[key]}" if key else ""
-        parts.append(f"{col}: %{{customdata[{i}]{spec}}}")
+    for i, (col, role) in enumerate(zip(hover.frame.columns, hover.roles)):
+        line = f"{col}: %{{customdata[{i}]{_PLOTLY_FORMATS.get(role, '')}}}"
+        parts.append(f"<b>{line}</b>" if role is HoverRole.ID else line)
     parts.append("<extra></extra>")
     return "<br>".join(parts)
 
 
-def bokeh_tooltips(
-    hover_df: pd.DataFrame, key_prefix: str = ""
-) -> List[Tuple[str, str]]:
-    """Build Bokeh ``HoverTool`` tooltips over ``hover_df``.
+def bokeh_tooltips(hover: HoverData, key_prefix: str = "") -> List[Tuple[str, str]]:
+    """Build Bokeh ``HoverTool`` tooltips over ``hover.frame``.
 
     Args:
-        hover_df: DataFrame returned by ``HoverDataBuilder.build_dataframe``.
+        hover: Columns and roles from ``HoverDataBuilder.build``.
         key_prefix: Prefix applied to each ``ColumnDataSource`` key, letting a
             caller namespace hover columns away from its own keys.
 
     Returns:
         List of ``(display_name, field_reference)`` tuples.
     """
-    tooltips = []
-    for col in hover_df.columns:
-        key = _format_key(col)
-        spec = f"{{{_BOKEH_FORMATS[key]}}}" if key else ""
-        tooltips.append((col, f"@{{{key_prefix}{col}}}{spec}"))
-    return tooltips
+    return [
+        (col, f"@{{{key_prefix}{col}}}{_BOKEH_FORMATS.get(role, '')}")
+        for col, role in zip(hover.frame.columns, hover.roles)
+    ]
 
 
 @dataclass
@@ -89,7 +95,8 @@ class HoverConfig:
         pos_col: Column name for genomic position (displayed as "Position").
         p_col: Column name for p-value (displayed as "P-value").
         ld_col: Column name for LD/R-squared (displayed as "R²").
-        extra_cols: Additional columns to include, mapping source name to display name.
+        extra_cols: Additional columns to include, mapping source name to
+            display name. They are shown unformatted.
     """
 
     snp_col: Optional[str] = None
@@ -100,18 +107,18 @@ class HoverConfig:
 
 
 class HoverDataBuilder:
-    """Builder for the display-named hover DataFrame a backend renders.
+    """Builder for the hover columns and roles a backend renders.
 
     Holds one ``HoverConfig`` so a caller can build hover data for several
     frames (all points, then the lead SNP) under the same column mapping.
     """
 
-    # Standard column mappings (source config attr -> display name)
+    # Standard column mappings: config attr -> (display name, role)
     _COLUMN_MAPPING = {
-        "snp_col": "SNP",
-        "pos_col": "Position",
-        "p_col": "P-value",
-        "ld_col": "R²",
+        "snp_col": ("SNP", HoverRole.ID),
+        "pos_col": ("Position", HoverRole.POSITION),
+        "p_col": ("P-value", HoverRole.P_VALUE),
+        "ld_col": ("R²", HoverRole.R2),
     }
 
     def __init__(self, config: HoverConfig) -> None:
@@ -122,33 +129,35 @@ class HoverDataBuilder:
         """
         self.config = config
 
-    def build_dataframe(self, df: pd.DataFrame) -> Optional[pd.DataFrame]:
-        """Build standardized hover DataFrame with renamed columns.
+    def build(self, df: pd.DataFrame) -> Optional[HoverData]:
+        """Build the display-named hover columns and their roles.
 
         Extracts configured columns from the input DataFrame, renames them to
-        standardized display names, and returns a new DataFrame. Columns that
-        don't exist in the input are skipped gracefully.
+        standardized display names, and records each one's role. Columns that
+        don't exist in the input are skipped.
 
         Args:
             df: Input DataFrame containing hover data columns.
 
         Returns:
-            DataFrame with renamed columns, or None if no configured columns exist.
+            The hover columns and roles, or None if no configured column exists.
         """
-        result_data = {}
-
-        # Process standard columns in order
-        for config_attr, display_name in self._COLUMN_MAPPING.items():
-            source_col = getattr(self.config, config_attr)
+        columns = {}
+        roles = []
+        standard = (
+            (getattr(self.config, attr), name, role)
+            for attr, (name, role) in self._COLUMN_MAPPING.items()
+        )
+        extra = (
+            (source, name, HoverRole.PLAIN)
+            for source, name in self.config.extra_cols.items()
+        )
+        for source_col, display_name, role in (*standard, *extra):
             if source_col is not None and source_col in df.columns:
-                result_data[display_name] = df[source_col].values
+                columns[display_name] = df[source_col].values
+                roles.append(role)
 
-        # Process extra columns
-        for source_col, display_name in self.config.extra_cols.items():
-            if source_col in df.columns:
-                result_data[display_name] = df[source_col].values
-
-        if not result_data:
+        if not columns:
             return None
 
-        return pd.DataFrame(result_data)
+        return HoverData(pd.DataFrame(columns), tuple(roles))

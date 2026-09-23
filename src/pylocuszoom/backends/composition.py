@@ -8,12 +8,13 @@ owned once instead of duplicated in every adapter.
 The same rule applies to any geometry a backend would otherwise recompute:
 ``render_recombination_overlay`` drives the secondary-axis primitives, and
 ``heatmap_highlight_rects`` decides where a SNP highlight is drawn, leaving
-each adapter to draw plain rectangles.
+each adapter to draw plain rectangles. ``draw_ld_heatmap`` is the one draw
+sequence both LD heatmap panels use.
 """
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Sequence, Tuple
 
 from ..colors import (
     EFFECT_CONGRUENT_COLOR,
@@ -21,6 +22,7 @@ from ..colors import (
     EQTL_NEGATIVE_BINS,
     EQTL_POSITIVE_BINS,
     LD_BINS,
+    LD_HEATMAP_COLORS,
     LD_NA_COLOR,
     LEAD_SNP_COLOR,
     RECOMB_COLOR,
@@ -254,3 +256,57 @@ def heatmap_highlight_rects(
         (x0, x1), (y0, y1) = x_edges[x], y_edges[y]
         rects.append((x0, y0, x1 - x0, y1 - y0))
     return rects
+
+
+def draw_ld_heatmap(
+    backend: "PlotBackend",
+    ax: Any,
+    matrix: "np.ndarray",
+    x_coords: Sequence[float],
+    *,
+    metric: str,
+    show_colorbar: bool,
+    outlines: Sequence[Tuple[int, str]],
+) -> None:
+    """Draw an LD matrix's lower triangle, its colour scale and SNP outlines.
+
+    Rows run bottom to top at ``0 .. n - 1``; columns sit at ``x_coords``,
+    which are genomic positions in a regional figure and matrix indices in a
+    standalone one.
+
+    Args:
+        backend: Backend to draw with.
+        ax: Panel to draw on.
+        matrix: Square LD matrix, one row and column per SNP.
+        x_coords: Cell centre of each SNP along the x axis.
+        metric: ``"r2"`` or ``"dprime"``, which titles the colour scale.
+        show_colorbar: Whether to draw the colour scale.
+        outlines: ``(snp_index, colour)`` for each SNP to outline, drawn in
+            order.
+    """
+    y_coords = list(range(len(x_coords)))
+    label = "R²" if metric == "r2" else "D'"
+    backend.add_heatmap(
+        ax,
+        data=lower_triangle(matrix),
+        x_coords=list(x_coords),
+        y_coords=y_coords,
+        cmap_colors=LD_HEATMAP_COLORS,
+        vmin=0.0,
+        vmax=1.0,
+        colorbar_label=label if show_colorbar else None,
+    )
+    for snp_index, color in outlines:
+        for x0, y0, width, height in heatmap_highlight_rects(
+            snp_index, x_coords, y_coords
+        ):
+            backend.add_rectangle(
+                ax,
+                (x0, y0),
+                width,
+                height,
+                facecolor=None,
+                edgecolor=color,
+                linewidth=2,
+                zorder=10,
+            )

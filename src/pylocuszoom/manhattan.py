@@ -217,13 +217,16 @@ PanelLayout = Union[GenomeLayout, CategoryLayout]
 class PreparedManhattan:
     """One frame laid out for a Manhattan-style panel, with its layout.
 
-    ``frame`` carries ``neglog10p``, ``_color`` and the x column the layout
-    places it on. ``layout`` is the one every frame prepared in the same call
-    shares, so a given point lands at the same x in all of them.
+    ``frame`` carries ``neglog10p``, ``_color``, ``x_col`` (the x each point
+    is drawn at) and ``group_col`` (the chromosome or category that colours
+    it). ``layout`` is the one every frame prepared in the same call shares,
+    so a given point lands at the same x in all of them.
     """
 
     frame: pd.DataFrame
     layout: PanelLayout
+    x_col: str
+    group_col: str
 
 
 def prepare_genomewide_frames(
@@ -333,7 +336,10 @@ def prepare_manhattan_frames(
     )
     return [
         PreparedManhattan(
-            _apply_genome_layout(frame, chrom_col, pos_col, layout), layout
+            _apply_genome_layout(frame, chrom_col, pos_col, layout),
+            layout,
+            x_col="_cumulative_pos",
+            group_col="_chrom_str",
         )
         for frame in filtered
     ]
@@ -413,4 +419,4 @@ def prepare_categorical_data(
         ),
     )
     result["_color"] = result["_cat_str"].map(layout.colors)
-    return PreparedManhattan(result, layout)
+    return PreparedManhattan(result, layout, x_col="_x_pos", group_col="_cat_str")
