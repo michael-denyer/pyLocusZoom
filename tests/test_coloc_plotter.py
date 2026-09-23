@@ -8,6 +8,7 @@ from matplotlib.colors import to_hex
 from pylocuszoom import ValidationError
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.coloc_plotter import ColocPlotter
+from pylocuszoom.colors import LEAD_SNP_COLOR
 from tests.conftest import FIGURE_TYPES
 from tests.figure_probes import PROBES
 
@@ -759,63 +760,42 @@ class TestLeadSelectionRules:
         )
         return gwas, eqtl
 
-    def test_auto_selects_the_strongest_combined_signal_when_ld_is_present(self):
-        from pylocuszoom.coloc_plotter import (
-            ColocConfig,
-            _merge_and_transform,
-            _resolve_lead_idx,
+    @staticmethod
+    def _lead(fig):
+        """The GWAS -log10(p) of the lead marker, and the labels on the panel."""
+        ax = fig.axes[0]
+        return (
+            PROBES["matplotlib"].marker_x(fig, color=LEAD_SNP_COLOR),
+            [text.get_text() for text in ax.texts if text.get_text().startswith("rs")],
         )
 
+    def test_auto_selects_the_strongest_combined_signal_when_ld_is_present(self):
         gwas, eqtl = self._frames()
-        config = ColocConfig(ld_col="ld")
-        merged = _merge_and_transform(gwas, eqtl, config)
 
-        lead = _resolve_lead_idx(merged, config)
+        fig = ColocPlotter().plot_coloc(gwas, eqtl, ld_col="ld")
 
-        assert merged.loc[lead, "rs"] == "rs1"
+        assert self._lead(fig) == ([8.0], ["rs1"])
 
     def test_no_lead_without_ld_and_without_a_named_snp(self):
-        from pylocuszoom.coloc_plotter import (
-            ColocConfig,
-            _merge_and_transform,
-            _resolve_lead_idx,
-        )
-
         gwas, eqtl = self._frames()
-        config = ColocConfig(ld_col=None)
-        merged = _merge_and_transform(gwas, eqtl, config)
 
-        assert _resolve_lead_idx(merged, config) is None
+        fig = ColocPlotter().plot_coloc(gwas, eqtl, ld_col=None)
+
+        assert self._lead(fig) == ([], [])
 
     def test_a_named_lead_snp_beats_the_auto_selection(self):
-        from pylocuszoom.coloc_plotter import (
-            ColocConfig,
-            _merge_and_transform,
-            _resolve_lead_idx,
-        )
-
         gwas, eqtl = self._frames()
-        config = ColocConfig(ld_col="ld", lead_snp="rs3")
-        merged = _merge_and_transform(gwas, eqtl, config)
 
-        lead = _resolve_lead_idx(merged, config)
+        fig = ColocPlotter().plot_coloc(gwas, eqtl, ld_col="ld", lead_snp="rs3")
 
-        assert merged.loc[lead, "rs"] == "rs3"
+        assert self._lead(fig) == ([pytest.approx(-np.log10(0.4))], ["rs3"])
 
     def test_named_lead_snp_without_an_rs_column_raises(self):
-        from pylocuszoom.coloc_plotter import (
-            ColocConfig,
-            _merge_and_transform,
-            _resolve_lead_idx,
-        )
-
         gwas, eqtl = self._frames()
         gwas, eqtl = gwas.drop(columns=["rs"]), eqtl.drop(columns=["rs"])
-        config = ColocConfig(rs_col=None, lead_snp="rs1")
-        merged = _merge_and_transform(gwas, eqtl, config)
 
         with pytest.raises(ValueError, match="rs_col not found"):
-            _resolve_lead_idx(merged, config)
+            ColocPlotter().plot_coloc(gwas, eqtl, rs_col=None, lead_snp="rs1")
 
 
 class TestColocColumnOwnership:

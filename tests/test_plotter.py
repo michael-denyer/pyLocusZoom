@@ -10,9 +10,7 @@ from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.colors import LEAD_SNP_COLOR
-from pylocuszoom.panels.association import AssociationPanel
 from pylocuszoom.plotter import LocusZoomPlotter
-from pylocuszoom.recombination import RecombResult, RecombStatus
 from tests.figure_probes import PROBES
 from tests.reference_mocks import (
     gene_transcript_exon_payload,
@@ -31,24 +29,6 @@ def _drawn_positions(ax):
 def _lead_marker_positions(fig, panel=0):
     """Return the x of every lead-SNP marker drawn on one panel."""
     return PROBES["matplotlib"].marker_x(fig, panel, color=LEAD_SNP_COLOR)
-
-
-def _captured_association_leads(call):
-    """Run ``call`` and return the lead position of each association panel drawn."""
-    captured = []
-    original = AssociationPanel.draw
-
-    def spy(panel, backend, ax):
-        captured.append(
-            None
-            if panel.lead_index is None
-            else int(panel.data.at[panel.lead_index, panel.columns.pos_col])
-        )
-        return original(panel, backend, ax)
-
-    with patch.object(AssociationPanel, "draw", spy):
-        call()
-    return captured
 
 
 class TestLocusZoomPlotterInit:
@@ -265,6 +245,10 @@ class TestLocusZoomPlotterPlot:
             r"$-\log_{10}$ P",
             "Recombination rate (cM/Mb)",
         ]
+        # The fixture's own map: its one in-region row, at its canfam3.1 position.
+        (recomb_line,) = fig.axes[1].get_lines()
+        assert list(recomb_line.get_xdata()) == [1500000]
+        assert list(recomb_line.get_ydata()) == [1.0]
 
     def test_plots_with_gene_track(
         self, canine_plotter, regional_gwas_df, sample_genes_df
@@ -529,53 +513,24 @@ class TestPlotterDelegation:
         a change to the internal dispatch path cannot break this test without
         changing what the reader sees.
         """
-        plotter = LocusZoomPlotter(
-            species="canine", backend="matplotlib", log_level=None
-        )
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
         gwas_df = pd.DataFrame({"pos": [1000, 2000], "p_value": [0.01, 0.001]})
         fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
 
-        no_maps = RecombResult(RecombStatus.NO_MAPS_FOR_SPECIES, detail="none here")
-        with (
-            patch.object(plotter, "_get_recomb_for_region", return_value=no_maps),
-            pytest.warns(UserWarning, match="Recombination overlay skipped"),
-        ):
-            fig = plotter.plot_stacked(
-                [gwas_df],
-                chrom=1,
-                start=1,
-                end=3000,
-                panels=PanelInputs(finemapping_df=fm_df),
-            )
+        fig = plotter.plot_stacked(
+            [gwas_df],
+            chrom=1,
+            start=1,
+            end=3000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(finemapping_df=fm_df),
+        )
 
         pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
         assert len(pip_axes) == 1, "fine-mapping data should add one PIP panel"
         plotted = pip_axes[0].collections[0].get_offsets().tolist()
         assert plotted == [[1000.0, 0.5], [2000.0, 0.3]]
-
-
-def test_plotter_delegates_the_recombination_decision_to_one_function():
-    """The plotter asks recomb_for_region and renders whatever it says."""
-    frame = pd.DataFrame({"pos": [1000], "rate": [0.5]})
-    with patch(
-        "pylocuszoom.plotter.recomb_for_region",
-        return_value=RecombResult(RecombStatus.OK, frame=frame),
-    ) as mock_recomb:
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
-        result = plotter._get_recomb_for_region(1, 1_000_000, 2_000_000)
-
-    mock_recomb.assert_called_once_with(
-        chrom=1,
-        start=1_000_000,
-        end=2_000_000,
-        species=plotter.species,
-        data_dir=None,
-        genome_build="canfam3.1",
-        lifter=None,
-    )
-    assert result.status is RecombStatus.OK
-    assert result.frame is frame
 
 
 # =============================================================================
@@ -612,18 +567,16 @@ class TestStackedPlotLeadDetectionCrossChrom:
             }
         )
 
-        captured = _captured_association_leads(
-            lambda: canine_plotter.plot_stacked(
-                [gwas_df],
-                chrom=1,
-                start=1_000_000,
-                end=2_000_000,
-                columns=ColumnConfig(pos_col="pos", p_col="p_value"),
-                display=DisplayConfig(show_recombination=False),
-            )
+        fig = canine_plotter.plot_stacked(
+            [gwas_df],
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            columns=ColumnConfig(pos_col="pos", p_col="p_value"),
+            display=DisplayConfig(show_recombination=False),
         )
 
-        assert captured == [1_200_000], (
+        assert _lead_marker_positions(fig) == [1_200_000], (
             "Lead must be chr1's strongest hit (1_200_000), not chr2's (1_500_000)"
         )
 
@@ -647,13 +600,11 @@ class TestLeadAutoDetectionAgreesAcrossEntryPoints:
             end=2_000_000,
             display=DisplayConfig(show_recombination=False),
         )
-        single = _captured_association_leads(
-            lambda: canine_plotter.plot(gwas_df, **kwargs)
-        )
-        stacked = _captured_association_leads(
-            lambda: canine_plotter.plot_stacked([gwas_df], **kwargs)
-        )
-        assert single == stacked == [1_500_000]
+        single = canine_plotter.plot(gwas_df, **kwargs)
+        stacked = canine_plotter.plot_stacked([gwas_df], **kwargs)
+
+        assert _lead_marker_positions(single) == [1_500_000]
+        assert _lead_marker_positions(stacked) == [1_500_000]
 
 
 class TestLeadPosBoundary:
@@ -664,31 +615,31 @@ class TestLeadPosBoundary:
     """
 
     def test_lead_pos_one_reaches_plot_association(self):
-        """lead_pos=1 (smallest valid position) reaches the association scatter."""
+        """lead_pos=1 (smallest valid position) marks the SNP at position 1.
+
+        The SNP at 1 is not the strongest, so a falsy check that dropped the
+        lead to None would move the marker to the auto-detected hit.
+        """
         plotter = LocusZoomPlotter(species="canine", log_level=None)
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs_lead", "rs2", "rs3"],
                 "pos": [1, 100_000, 200_000],
-                "p_value": [1e-8, 1e-5, 1e-3],
+                "p_value": [1e-3, 1e-8, 1e-5],
             }
         )
 
-        captured = _captured_association_leads(
-            lambda: plotter.plot(
-                gwas_df,
-                chrom=1,
-                start=1,
-                end=300_000,
-                columns=ColumnConfig(pos_col="pos", p_col="p_value"),
-                display=DisplayConfig(show_recombination=False),
-                ld=LDConfig(lead_pos=1),
-            )
+        fig = plotter.plot(
+            gwas_df,
+            chrom=1,
+            start=1,
+            end=300_000,
+            columns=ColumnConfig(pos_col="pos", p_col="p_value"),
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1),
         )
 
-        assert captured == [1], (
-            "lead_pos=1 must pass through; falsy-check regression would drop it to None"
-        )
+        assert _lead_marker_positions(fig) == [1.0]
 
     def test_lead_pos_zero_rejected_at_api(self):
         """Public API enforces genomic coords are 1-based; lead_pos=0 rejected."""
@@ -948,29 +899,14 @@ class TestRegionalPlotColumnValidation:
 class TestRegionalOptionSurface:
     """The regional options are declared once, on the config models."""
 
-    def _thresholds(self, call):
-        captured = []
-        original = AssociationPanel.draw
-
-        def spy(panel, backend, ax):
-            captured.append(panel.genomewide_threshold)
-            return original(panel, backend, ax)
-
-        with patch.object(AssociationPanel, "draw", spy):
-            call()
-        return captured
-
-    def _label_top_ns(self, call):
-        captured = []
-        original = AssociationPanel.draw
-
-        def spy(panel, backend, ax):
-            captured.append(panel.display.label_top_n)
-            return original(panel, backend, ax)
-
-        with patch.object(AssociationPanel, "draw", spy):
-            call()
-        return captured
+    @staticmethod
+    def _label_counts(fig):
+        """The number of SNP labels drawn on each panel that carries any."""
+        counts = [
+            sum(1 for text in ax.texts if text.get_text())
+            for ax in PROBES["matplotlib"].panels(fig)
+        ]
+        return [count for count in counts if count]
 
     @pytest.fixture
     def quiet(self):
@@ -980,51 +916,46 @@ class TestRegionalOptionSurface:
         plotter = LocusZoomPlotter(
             species="canine", genomewide_threshold=1e-5, log_level=None
         )
-        seen = self._thresholds(
-            lambda: plotter.plot(
-                small_regional_gwas_df,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                display=DisplayConfig(show_recombination=False),
-            )
+        fig = plotter.plot(
+            small_regional_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
         )
-        assert seen == [1e-5]
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([5.0])
 
     def test_threshold_none_draws_no_line(self, canine_plotter, small_regional_gwas_df):
-        seen = self._thresholds(
-            lambda: canine_plotter.plot_stacked(
-                [small_regional_gwas_df, small_regional_gwas_df],
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                display=DisplayConfig(show_recombination=False),
-                significance_threshold=None,
-            )
+        fig = canine_plotter.plot_stacked(
+            [small_regional_gwas_df, small_regional_gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            significance_threshold=None,
         )
-        assert seen == [None, None]
+        assert PROBES["matplotlib"].panel_count(fig) == 2
+        assert PROBES["matplotlib"].hline_levels(fig) == []
 
     def test_threshold_overrides_for_one_call(
         self, canine_plotter, small_regional_gwas_df
     ):
-        seen = self._thresholds(
-            lambda: canine_plotter.plot(
-                small_regional_gwas_df,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                display=DisplayConfig(show_recombination=False),
-                significance_threshold=1e-6,
-            )
+        fig = canine_plotter.plot(
+            small_regional_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            significance_threshold=1e-6,
         )
-        assert seen == [1e-6]
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([6.0])
         assert canine_plotter.genomewide_threshold == 5e-8
 
     def test_label_top_n_takes_the_method_default(
         self, canine_plotter, small_regional_gwas_df, quiet
     ):
-        single = self._label_top_ns(
-            lambda: canine_plotter.plot(
+        single = self._label_counts(
+            canine_plotter.plot(
                 small_regional_gwas_df,
                 chrom=1,
                 start=1000000,
@@ -1032,8 +963,8 @@ class TestRegionalOptionSurface:
                 display=quiet,
             )
         )
-        stacked = self._label_top_ns(
-            lambda: canine_plotter.plot_stacked(
+        stacked = self._label_counts(
+            canine_plotter.plot_stacked(
                 [small_regional_gwas_df],
                 chrom=1,
                 start=1000000,
@@ -1047,8 +978,8 @@ class TestRegionalOptionSurface:
         self, canine_plotter, small_regional_gwas_df
     ):
         display = DisplayConfig(show_recombination=False, label_top_n=2)
-        single = self._label_top_ns(
-            lambda: canine_plotter.plot(
+        single = self._label_counts(
+            canine_plotter.plot(
                 small_regional_gwas_df,
                 chrom=1,
                 start=1000000,
@@ -1056,8 +987,8 @@ class TestRegionalOptionSurface:
                 display=display,
             )
         )
-        stacked = self._label_top_ns(
-            lambda: canine_plotter.plot_stacked(
+        stacked = self._label_counts(
+            canine_plotter.plot_stacked(
                 [small_regional_gwas_df],
                 chrom=1,
                 start=1000000,
