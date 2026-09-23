@@ -31,9 +31,6 @@ from .logging import logger
 from .utils import normalize_chrom
 
 UCSC_REST_URL = "https://api.genome.ucsc.edu"
-UCSC_REQUEST_TIMEOUT = 30  # seconds
-UCSC_MAX_RETRIES = 3
-UCSC_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 UCSC_GENE_TRACK = "ncbiRefSeq"
 
 # RefSeq accession prefixes for transcripts that code for protein.
@@ -64,9 +61,6 @@ def _fetch_track(
         },
         error_cls=UCSCAPIError,
         service="UCSC",
-        timeout=UCSC_REQUEST_TIMEOUT,
-        max_retries=UCSC_MAX_RETRIES,
-        retry_delay=UCSC_RETRY_DELAY,
     )
     rows = payload.get(UCSC_GENE_TRACK, [])
     # UCSC returns a chrom-keyed dict when the request spans the whole genome.

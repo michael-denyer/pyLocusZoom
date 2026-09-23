@@ -13,8 +13,10 @@ recombination tarball gets the attempts the 5 KB JSON payload always had.
 import os
 import tempfile
 import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import requests
 from tqdm import tqdm
@@ -23,6 +25,66 @@ from .exceptions import DataDownloadError
 from .logging import logger
 
 RETRYABLE_STATUS = (429, 503)
+
+T = TypeVar("T")
+
+
+def _retryable(error: requests.RequestException) -> bool:
+    """Retry connection failures, and HTTP errors only on 429 or 503."""
+    if isinstance(error, requests.HTTPError):
+        return _status_of(error) in RETRYABLE_STATUS
+    return True
+
+
+def _status_of(error: requests.HTTPError) -> int | None:
+    """Read the status code off an HTTPError, or None if it carries no response."""
+    response = getattr(error, "response", None)
+    return getattr(response, "status_code", None)
+
+
+def _with_retries(
+    attempt: Callable[[], T], *, what: str, max_retries: int, retry_delay: float
+) -> T:
+    """Run ``attempt``, retrying retryable request errors with doubling backoff.
+
+    The one retry loop: a JSON GET and a streamed download differ only in
+    what one attempt does.
+
+    Raises:
+        requests.RequestException: The last attempt's error, or the first
+            error that is not worth retrying.
+    """
+    delay = retry_delay
+    attempt_number = 1
+    while True:
+        try:
+            return attempt()
+        except requests.RequestException as e:
+            if attempt_number >= max_retries or not _retryable(e):
+                raise
+            logger.warning(f"{what} failed (attempt {attempt_number}): {e}")
+            time.sleep(delay)
+            delay *= 2
+            attempt_number += 1
+
+
+@contextmanager
+def staged_path(dest: Path) -> Iterator[Path]:
+    """Yield a private sibling of ``dest``, published over it only on success.
+
+    The one temp-file-then-replace writer. Concurrent writers never share an
+    in-progress file, a reader never sees a partial one, and the sibling is
+    removed whether or not the block succeeds.
+    """
+    with tempfile.NamedTemporaryFile(
+        dir=dest.parent, prefix=f".{dest.name}.", suffix=".part", delete=False
+    ) as partial:
+        partial_path = Path(partial.name)
+    try:
+        yield partial_path
+        os.replace(partial_path, dest)
+    finally:
+        partial_path.unlink(missing_ok=True)
 
 
 def request_json(
@@ -57,48 +119,34 @@ def request_json(
     Raises:
         error_cls: If the request ultimately fails.
     """
-    delay = retry_delay
 
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(
-                url, params=params, headers=headers, timeout=timeout
+    def get() -> requests.Response:
+        response = requests.get(url, params=params, headers=headers, timeout=timeout)
+        if not response.ok:
+            raise requests.HTTPError(
+                f"{service} API error {response.status_code}: {response.text[:200]}",
+                response=response,
             )
-        except requests.RequestException as e:
-            logger.warning(f"{service} API request failed (attempt {attempt + 1}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            raise error_cls(
-                f"{service} API request failed after {max_retries} attempts: {e}"
-            )
+        return response
 
-        if response.ok:
-            try:
-                return response.json()
-            except (ValueError, requests.exceptions.JSONDecodeError) as e:
-                logger.warning(f"{service} API returned invalid JSON: {e}")
-                raise error_cls(f"{service} API returned invalid JSON: {e}")
+    try:
+        response = _with_retries(
+            get,
+            what=f"{service} API request",
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+        )
+    except requests.HTTPError as e:
+        raise error_cls(str(e)) from e
+    except requests.RequestException as e:
+        raise error_cls(
+            f"{service} API request failed after {max_retries} attempts: {e}"
+        ) from e
 
-        # Retryable errors (429 rate limit, 503 service unavailable)
-        if response.status_code in RETRYABLE_STATUS and attempt < max_retries - 1:
-            logger.warning(
-                f"{service} API returned {response.status_code} "
-                f"(attempt {attempt + 1}), retrying..."
-            )
-            time.sleep(delay)
-            delay *= 2
-            continue
-
-        error_msg = f"{service} API error {response.status_code}: {response.text[:200]}"
-        logger.warning(error_msg)
-        raise error_cls(error_msg)
-
-    # All retries exhausted (e.g., repeated 429/503 responses)
-    raise error_cls(
-        f"{service} API request failed after {max_retries} attempts (rate limited)"
-    )
+    try:
+        return response.json()
+    except ValueError as e:  # requests' JSONDecodeError is a ValueError
+        raise error_cls(f"{service} API returned invalid JSON: {e}") from e
 
 
 def download_file(
@@ -132,40 +180,16 @@ def download_file(
     Raises:
         DataDownloadError: If the download ultimately fails.
     """
-    with tempfile.NamedTemporaryFile(
-        dir=dest_path.parent, prefix=f".{dest_path.name}.", suffix=".part", delete=False
-    ) as partial:
-        partial_path = Path(partial.name)
-    delay = retry_delay
-
-    try:
-        for attempt in range(max_retries):
-            try:
-                _stream_to(url, partial_path, desc, timeout)
-            except requests.RequestException as e:
-                retryable = (
-                    not isinstance(e, requests.HTTPError)
-                    or _status_of(e) in RETRYABLE_STATUS
-                )
-                if retryable and attempt < max_retries - 1:
-                    logger.warning(
-                        f"Download of {url} failed (attempt {attempt + 1}): {e}"
-                    )
-                    time.sleep(delay)
-                    delay *= 2
-                    continue
-                raise DataDownloadError(f"Failed to download {url}: {e}") from e
-
-            os.replace(partial_path, dest_path)
-            return
-    finally:
-        partial_path.unlink(missing_ok=True)
-
-
-def _status_of(error: requests.HTTPError) -> int | None:
-    """Read the status code off an HTTPError, or None if it carries no response."""
-    response = getattr(error, "response", None)
-    return getattr(response, "status_code", None)
+    with staged_path(dest_path) as partial_path:
+        try:
+            _with_retries(
+                lambda: _stream_to(url, partial_path, desc, timeout),
+                what=f"Download of {url}",
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+            )
+        except requests.RequestException as e:
+            raise DataDownloadError(f"Failed to download {url}: {e}") from e
 
 
 def _stream_to(url: str, partial_path: Path, desc: str, timeout: float) -> None:

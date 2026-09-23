@@ -40,9 +40,6 @@ ENSEMBL_MAX_REGION_SIZE = 5_000_000
 
 
 ENSEMBL_REST_URL = "https://rest.ensembl.org"
-ENSEMBL_REQUEST_TIMEOUT = 30  # seconds
-ENSEMBL_MAX_RETRIES = 3
-ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 
 
 def _response_assembly(features: list) -> str:
@@ -214,9 +211,6 @@ def fetch_overlap_frames(
         error_cls=EnsemblAPIError,
         service="Ensembl",
         headers={"Content-Type": "application/json"},
-        timeout=ENSEMBL_REQUEST_TIMEOUT,
-        max_retries=ENSEMBL_MAX_RETRIES,
-        retry_delay=ENSEMBL_RETRY_DELAY,
     )
 
     if not data:
