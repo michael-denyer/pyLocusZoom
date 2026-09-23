@@ -8,7 +8,7 @@ from ..backends.base import PlotBackend
 from ..backends.hover import HoverConfig
 from ..config import GenomeWideStyle
 from ..manhattan import PreparedManhattan
-from .manhattan import ManhattanPanelSpec, manhattan_spec
+from .manhattan import ManhattanPanelSpec
 
 
 @dataclass(frozen=True)
@@ -55,11 +55,11 @@ class MiamiPanel:
         self.spec.draw(backend, ax)
         if self.rs_col is None or not self.annotations:
             return
-        frame = self.spec.prepared_df
+        frame, x_col = self.spec.prepared.frame, self.spec.prepared.x_col
         for _, row in frame[frame[self.rs_col].isin(self.annotations)].iterrows():
             backend.add_text(
                 ax,
-                x=row["_cumulative_pos"],
+                x=row[x_col],
                 y=row["neglog10p"],
                 text=str(row[self.rs_col]),
                 fontsize=8,
@@ -71,7 +71,7 @@ class MiamiPanel:
 def miami_plan(req: MiamiRequest) -> FigurePlan:
     """Lay out the two mirrored panels and the highlights spanning both."""
     top = MiamiPanel(
-        spec=manhattan_spec(
+        spec=ManhattanPanelSpec(
             req.top,
             significance_threshold=req.top_threshold,
             panel_label=req.top_label,
@@ -82,7 +82,7 @@ def miami_plan(req: MiamiRequest) -> FigurePlan:
         annotations=req.top_annotations,
     )
     bottom = MiamiPanel(
-        spec=manhattan_spec(
+        spec=ManhattanPanelSpec(
             req.bottom,
             significance_threshold=req.bottom_threshold,
             x_label="Chromosome",

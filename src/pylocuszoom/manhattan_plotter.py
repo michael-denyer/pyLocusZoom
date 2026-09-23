@@ -14,6 +14,7 @@ import pandas as pd
 from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
+    MANHATTAN_CATEGORICAL_POINT_SIZE,
     UNSET,
     ThresholdArg,
     resolve_threshold,
@@ -22,11 +23,7 @@ from .backends import BackendType, get_backend
 from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
-from .panels.manhattan import (
-    categorical_spec,
-    manhattan_spec,
-    stacked_manhattan_specs,
-)
+from .panels.manhattan import ManhattanPanelSpec, stacked_manhattan_specs
 from .panels.qq import QQPanelSpec, qq_title
 from .qq import prepare_qq_data
 from .schemas import Canonical
@@ -149,7 +146,7 @@ class ManhattanPlotter:
             [df], config, species=self.species, style=style
         )[0]
 
-        panel = manhattan_spec(
+        panel = ManhattanPanelSpec(
             prepared,
             significance_threshold=significance_threshold,
             x_label="Chromosome",
@@ -181,9 +178,14 @@ class ManhattanPlotter:
             category_order=category_order,
             palette=style.palette,
         )
-        panel = categorical_spec(
+        panel = ManhattanPanelSpec(
             prepared,
             significance_threshold=significance_threshold,
+            point_size=MANHATTAN_CATEGORICAL_POINT_SIZE,
+            tick_fontsize=10,
+            tick_rotation=45,
+            tick_ha="right",
+            x_label="Category",
             title=title or "Categorical Manhattan Plot",
             style=style,
         )
@@ -357,7 +359,7 @@ class ManhattanPlotter:
             self._backend,
             FigurePlan(
                 panels=[
-                    manhattan_spec(
+                    ManhattanPanelSpec(
                         manhattan,
                         significance_threshold=significance_threshold,
                         suggestive_threshold=suggestive_threshold,

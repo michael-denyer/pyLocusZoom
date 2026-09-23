@@ -227,8 +227,8 @@ Data transformation between validated input and backend-ready primitives.
 | 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [panels/ld_heatmap.py](../src/pylocuszoom/panels/ld_heatmap.py) |
 | 3i | FigurePlan, render_figure | The one figure model every family builds, and the only code above the backends that creates a figure or finalizes its layout | [_figure.py](../src/pylocuszoom/_figure.py) |
 | 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [panels/stats.py](../src/pylocuszoom/panels/stats.py) |
-| 3i | QQPanelSpec, render_qq_panel | One typed QQ-panel request and the function that draws it, used by the standalone, side-by-side and stacked QQ panels | [panels/qq.py](../src/pylocuszoom/panels/qq.py) |
-| 3i | ManhattanPanelSpec, render_manhattan_panel | One typed panel request carrying its shared `GenomeLayout`, the function that draws it, and the `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` builders, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [panels/manhattan.py](../src/pylocuszoom/panels/manhattan.py) |
+| 3i | QQPanelSpec | One typed QQ-panel request that draws itself, used by the standalone, side-by-side and stacked QQ panels | [panels/qq.py](../src/pylocuszoom/panels/qq.py) |
+| 3i | ManhattanPanelSpec | One typed panel request over a `PreparedManhattan` (its frame, x and group columns and shared layout) that draws itself, plus the `stacked_manhattan_specs` builder, used by the standard, categorical and Miami panels, since a Miami plot is a mirrored Manhattan | [panels/manhattan.py](../src/pylocuszoom/panels/manhattan.py) |
 
 ### LD Colour Bins [3b]
 

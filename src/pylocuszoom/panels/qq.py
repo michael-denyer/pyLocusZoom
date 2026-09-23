@@ -1,4 +1,4 @@
-"""One QQ panel: the typed request and the function that draws it."""
+"""One QQ panel: the typed request, which draws itself."""
 
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -62,63 +62,52 @@ class QQPanelSpec:
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw this panel onto a backend axis."""
-        render_qq_panel(backend, ax, self)
+        qq_df = self.qq_df
+        style = self.style
+        if self.show_confidence_band:
+            backend.fill_between(
+                ax,
+                x=qq_df["_expected"],
+                y1=qq_df["_ci_lower"],
+                y2=qq_df["_ci_upper"],
+                color=QQ_CI_COLOR,
+                alpha=QQ_CI_ALPHA,
+                zorder=1,
+            )
 
-
-def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
-    """Draw one QQ panel onto a backend axis.
-
-    Args:
-        backend: Backend that owns the drawing primitives.
-        ax: Axis to draw onto.
-        spec: The panel's data and presentation policy.
-    """
-    qq_df = spec.qq_df
-    style = spec.style
-    if spec.show_confidence_band:
-        backend.fill_between(
+        max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
+        backend.line(
             ax,
-            x=qq_df["_expected"],
-            y1=qq_df["_ci_lower"],
-            y2=qq_df["_ci_upper"],
-            color=QQ_CI_COLOR,
-            alpha=QQ_CI_ALPHA,
-            zorder=1,
+            x=pd.Series([0, max_val]),
+            y=pd.Series([0, max_val]),
+            color=SIGNIFICANCE_LINE_COLOR,
+            linestyle=style.line_style,
+            linewidth=style.line_width,
+            zorder=2,
         )
-
-    max_val = max(qq_df["_expected"].max(), qq_df["_observed"].max())
-    backend.line(
-        ax,
-        x=pd.Series([0, max_val]),
-        y=pd.Series([0, max_val]),
-        color=SIGNIFICANCE_LINE_COLOR,
-        linestyle=style.line_style,
-        linewidth=style.line_width,
-        zorder=2,
-    )
-    backend.scatter(
-        ax,
-        qq_df["_expected"],
-        qq_df["_observed"],
-        colors=QQ_POINT_COLOR,
-        sizes=styled(style.point_size, QQ_POINT_SIZE),
-        marker="o",
-        edgecolor=POINT_EDGE_COLOR,
-        linewidth=styled(style.point_edge_width, QQ_EDGE_WIDTH),
-        zorder=3,
-        alpha=style.point_alpha,
-    )
-    backend.set_xlim(ax, 0, max_val * 1.05)
-    backend.set_ylim(ax, 0, max_val * 1.05)
-    if style.tick_label_fontsize is not None:
-        backend.set_tick_fontsize(ax, style.tick_label_fontsize)
-    label_fontsize = styled(style.axis_label_fontsize, spec.label_fontsize)
-    if spec.x_label is not None:
-        backend.set_xlabel(ax, spec.x_label, fontsize=label_fontsize)
-    backend.set_ylabel(ax, spec.y_label, fontsize=label_fontsize)
-    backend.set_title(
-        ax,
-        spec.title,
-        fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
-        fontweight=style.title_fontweight,
-    )
+        backend.scatter(
+            ax,
+            qq_df["_expected"],
+            qq_df["_observed"],
+            colors=QQ_POINT_COLOR,
+            sizes=styled(style.point_size, QQ_POINT_SIZE),
+            marker="o",
+            edgecolor=POINT_EDGE_COLOR,
+            linewidth=styled(style.point_edge_width, QQ_EDGE_WIDTH),
+            zorder=3,
+            alpha=style.point_alpha,
+        )
+        backend.set_xlim(ax, 0, max_val * 1.05)
+        backend.set_ylim(ax, 0, max_val * 1.05)
+        if style.tick_label_fontsize is not None:
+            backend.set_tick_fontsize(ax, style.tick_label_fontsize)
+        label_fontsize = styled(style.axis_label_fontsize, self.label_fontsize)
+        if self.x_label is not None:
+            backend.set_xlabel(ax, self.x_label, fontsize=label_fontsize)
+        backend.set_ylabel(ax, self.y_label, fontsize=label_fontsize)
+        backend.set_title(
+            ax,
+            self.title,
+            fontsize=styled(style.panel_title_fontsize, self.title_fontsize),
+            fontweight=style.title_fontweight,
+        )
