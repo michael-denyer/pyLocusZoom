@@ -357,8 +357,8 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        assert trace is not None
         assert isinstance(trace, go.Heatmap)
+        assert trace is fig.data[-1], "the figure's own trace, so add_colorbar sticks"
 
     def test_plotly_add_colorbar_enables_the_trace_scale(self, ld_matrix_array):
         """Plotly's colorbar is the trace's own scale, off until asked for."""
@@ -412,8 +412,9 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        assert mapper is not None
         assert isinstance(mapper, LinearColorMapper)
+        (renderer,) = axes[0].renderers
+        assert renderer.glyph.fill_color.transform is mapper
 
     def test_bokeh_add_colorbar_adds_to_layout(self, ld_matrix_array):
         """Bokeh add_colorbar should add ColorBar to figure."""

@@ -9,6 +9,7 @@ import io
 
 import pytest
 
+from pylocuszoom.exceptions import LoaderValidationError
 from pylocuszoom.loaders import (
     load_gwas,
     load_plink_assoc,
@@ -125,7 +126,7 @@ class TestFileValidation:
         """Test that non-existent file raises appropriate error."""
         fake_path = tmp_path / "nonexistent.assoc"
 
-        with pytest.raises(Exception):  # FileNotFoundError or LoaderValidationError
+        with pytest.raises(FileNotFoundError):
             load_plink_assoc(fake_path)
 
     def test_corrupt_file_raises_error(self, tmp_path):
@@ -133,7 +134,7 @@ class TestFileValidation:
         filepath = tmp_path / "corrupt.assoc"
         filepath.write_text("this is not valid tabular data\n!!!\n")
 
-        with pytest.raises(Exception):
+        with pytest.raises(LoaderValidationError, match="Missing columns"):
             load_plink_assoc(filepath)
 
     def test_empty_file_raises_error(self, tmp_path):
@@ -141,7 +142,8 @@ class TestFileValidation:
         filepath = tmp_path / "empty.assoc"
         filepath.write_text("")
 
-        with pytest.raises(Exception):
+        # pandas' EmptyDataError today; a ValueError either way.
+        with pytest.raises(ValueError):
             load_plink_assoc(filepath)
 
 

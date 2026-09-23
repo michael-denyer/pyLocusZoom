@@ -1,10 +1,12 @@
 """Tests for gene track visualization module."""
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
+from matplotlib.patches import Polygon, Rectangle
 
 from pylocuszoom.colors import STRAND_COLORS
 from pylocuszoom.config import RegionConfig
@@ -205,6 +207,21 @@ def _draw(backend, ax, genes_df, chrom, start, end):
     GenePanel.from_genes(genes_df, region, None).draw(backend, ax)
 
 
+def _strand_drawing(ax, start, end):
+    """Body colours and arrow count of the genes drawn within [start, end]."""
+    bodies = [
+        mcolors.to_hex(p.get_facecolor()).upper()
+        for p in ax.patches
+        if isinstance(p, Rectangle) and start <= p.get_x() < end
+    ]
+    arrows = [
+        p
+        for p in ax.patches
+        if isinstance(p, Polygon) and start <= p.get_xy()[:, 0].min() < end
+    ]
+    return bodies, len(arrows)
+
+
 class TestStrandColors:
     """Strand color constants are used by GenePanel.draw."""
 
@@ -276,6 +293,9 @@ class TestGeneTrackProperties:
         fig, ax = plt.subplots()
         _draw(MatplotlibBackend(), ax, genes_df, chrom, start, end)
 
+        bodies = [p for p in ax.patches if isinstance(p, Rectangle)]
+        assert len(bodies) >= len(genes_df)
+
 
 class TestStrandNaNHandling:
     """Regression: NaN strand should not silently render reversed arrows.
@@ -305,6 +325,11 @@ class TestStrandNaNHandling:
 
         _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
 
+        assert _strand_drawing(ax, 1_500_000, 1_600_000) == (
+            [STRAND_COLORS[None]],
+            0,
+        )
+
     def test_invalid_strand_string_treated_as_missing(self):
         """A garbage strand value (not '+' or '-') is treated like NaN."""
         genes_df = pd.DataFrame(
@@ -320,3 +345,8 @@ class TestStrandNaNHandling:
         from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 
         _draw(MatplotlibBackend(), ax, genes_df, 1, 1_000_000, 2_000_000)
+
+        assert _strand_drawing(ax, 1_000_000, 1_100_000) == (
+            [STRAND_COLORS[None]],
+            0,
+        )

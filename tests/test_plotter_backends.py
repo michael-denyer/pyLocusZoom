@@ -30,28 +30,6 @@ class TestBackendIntegration:
 
         assert isinstance(fig, FIGURE_TYPES["matplotlib"])
 
-    def test_plotly_backend_creates_figure(self, tiny_regional_gwas_df):
-        """plot() with backend='plotly' produces a plotly Figure.
-
-        This also implicitly confirms plot() routes through the backend
-        protocol: if plot() bypassed the backend and called matplotlib
-        directly, the returned object would be a matplotlib Figure and
-        this isinstance check would fail.
-        """
-        import plotly.graph_objects as go
-
-        plotter = LocusZoomPlotter(species="canine", backend="plotly")
-
-        fig = plotter.plot(
-            tiny_regional_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        assert isinstance(fig, go.Figure)
-
     def test_matplotlib_plot_renders_expected_artists(self, tiny_regional_gwas_df):
         """plot() renders scatter points, a significance line, and axis labels.
 
@@ -289,3 +267,5 @@ class TestPlotterProperties:
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend])
+        drawn = set(PROBES[backend].marker_x(fig))
+        assert drawn == set(df["pos"].astype(float))

@@ -548,13 +548,12 @@ class TestCategoricalManhattanNaNHandling:
             }
         )
 
-        # Bug: sorted() fails on mixed types
-        try:
-            prepare_categorical_data(df, category_col="category", p_col="p_value")
-        except TypeError as e:
-            pytest.fail(
-                f"prepare_categorical_data raised TypeError on mixed types: {e}"
-            )
+        result = prepare_categorical_data(
+            df, category_col="category", p_col="p_value"
+        ).frame
+
+        assert len(result) == 5
+        assert sorted(result["_cat_idx"]) == [0, 1, 2, 3, 4]
 
 
 class TestChromosomeLayoutOrder:
