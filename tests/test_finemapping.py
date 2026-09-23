@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+from pylocuszoom import DisplayConfig, PanelInputs
 from pylocuszoom.backends.hover import HoverConfig
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.config import RegionConfig
@@ -17,6 +18,7 @@ from pylocuszoom.finemapping import (
     validate_finemapping_df,
 )
 from pylocuszoom.panels.finemapping import FinemappingPanel
+from pylocuszoom.plotter import LocusZoomPlotter
 
 DRAW_REGION = RegionConfig(chrom=1, start=1, end=1_000_000)
 
@@ -246,3 +248,85 @@ class TestDrawFinemapping:
 
         assert len(ax.get_lines()) == 0
         assert len(ax.collections) == 0
+
+
+class TestPlotterDelegation:
+    """Tests for plotter delegation to specialized classes."""
+
+    def test_finemapping_panel_renders_the_supplied_pips(self):
+        """plot_stacked() draws the fine-mapping frame onto its own PIP panel.
+
+        Asserts on the plotted points rather than on a call to the renderer, so
+        a change to the internal dispatch path cannot break this test without
+        changing what the reader sees.
+        """
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+
+        gwas_df = pd.DataFrame({"pos": [1000, 2000], "p_value": [0.01, 0.001]})
+        fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
+
+        fig = plotter.plot_stacked(
+            [gwas_df],
+            chrom=1,
+            start=1,
+            end=3000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(finemapping_df=fm_df),
+        )
+
+        pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
+        assert len(pip_axes) == 1, "fine-mapping data should add one PIP panel"
+        plotted = pip_axes[0].collections[0].get_offsets().tolist()
+        assert plotted == [[1000.0, 0.5], [2000.0, 0.3]]
+
+
+class TestFinemappingManyCredibleSets:
+    """Test fine-mapping plot with many credible sets cycles colors correctly."""
+
+    def test_finemapping_12_credible_sets_cycle_the_palette(
+        self, regional_plotter, small_regional_gwas_df
+    ):
+        """Draw all 12 credible sets in the palette's 10 colours, cycled."""
+        from pylocuszoom.colors import CREDIBLE_SET_COLORS
+
+        n_variants = 60
+        positions = list(range(1000000, 1000000 + n_variants * 10000, 10000))
+        credible_sets = [((i // 5) % 12) + 1 for i in range(n_variants)]
+
+        finemapping_df = pd.DataFrame(
+            {
+                "pos": positions,
+                "pip": [0.8 if i % 5 == 0 else 0.1 for i in range(n_variants)],
+                "cs": credible_sets,
+            }
+        )
+
+        fig = regional_plotter.plot_stacked(
+            [small_regional_gwas_df],
+            chrom=1,
+            start=900000,
+            end=1700000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(finemapping_df=finemapping_df, finemapping_cs_col="cs"),
+        )
+
+        pip_ax = fig.get_axes()[1]
+        drawn_points = sum(len(c.get_offsets()) for c in pip_ax.collections)
+        drawn_colours = {
+            tuple(face) for c in pip_ax.collections for face in c.get_facecolor()
+        }
+        assert drawn_points == n_variants
+        assert len(drawn_colours) == len(CREDIBLE_SET_COLORS)
+
+    def test_credible_set_color_cycling(self):
+        """Verify get_credible_set_color cycles correctly for cs > 10."""
+        from pylocuszoom.colors import CREDIBLE_SET_COLORS, get_credible_set_color
+
+        # Test that colors cycle after 10
+        for cs_id in range(1, 25):
+            color = get_credible_set_color(cs_id)
+            expected_idx = (cs_id - 1) % len(CREDIBLE_SET_COLORS)
+            expected_color = CREDIBLE_SET_COLORS[expected_idx]
+            assert color == expected_color, (
+                f"CS {cs_id}: got {color}, expected {expected_color}"
+            )

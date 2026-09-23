@@ -637,3 +637,39 @@ def test_regional_colorbar_preserves_genomic_display_alignment(
     colorbar = next(axis for axis in fig.axes if axis.get_ylabel() == "R²")
     assert colorbar.get_position().x0 > association.get_position().x1
     assert colorbar.get_tightbbox(fig.canvas.get_renderer()).x1 <= fig.bbox.x1
+
+
+class TestPlotEdgeCases:
+    """Tests for plot() edge cases and error handling."""
+
+    @pytest.fixture
+    def mock_plink_plotter(self):
+        """Create plotter instance."""
+        return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
+
+    def test_plot_skips_ld_when_rs_col_missing(
+        self, mock_plink_plotter, warning_records
+    ):
+        """LD needs SNP IDs, so a frame without rs_col plots uncoloured.
+
+        The alternative, a KeyError from deep inside the LD merge, tells the
+        caller nothing about which column is missing.
+        """
+        df = pd.DataFrame(
+            {
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [1e-8, 1e-5, 1e-3],
+            }
+        )
+
+        fig = mock_plink_plotter.plot(
+            df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
+        )
+
+        assert fig.get_axes()[0].get_legend() is None
+        assert any("rs" in message for message in warning_records)

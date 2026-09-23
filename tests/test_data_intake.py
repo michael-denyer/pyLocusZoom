@@ -354,3 +354,71 @@ class TestPlotStackedProperties:
         ]
         assert drawn[0] == drawn[1]
         assert drawn[0]
+
+
+class TestNaNPvalues:
+    """Test handling of NaN p-values in plots."""
+
+    def test_plot_with_all_nan_pvalues_draws_no_points(self, regional_plotter):
+        """Render an empty association panel rather than raising."""
+        gwas_df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2", "rs3"],
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [np.nan, np.nan, np.nan],
+            }
+        )
+
+        fig = regional_plotter.plot(
+            gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+        )
+
+        assert set(PROBES["matplotlib"].marker_x(fig)) == set()
+
+
+class TestRegionalPlotColumnValidation:
+    """Test column validation in regional plots."""
+
+    def test_plot_missing_pos_col_raises(self, regional_plotter):
+        """Plot with missing position column should raise ValidationError."""
+        from pylocuszoom.exceptions import ValidationError
+
+        df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2"],
+                "p_value": [1e-8, 0.01],
+                # missing 'pos' column
+            }
+        )
+
+        with pytest.raises(ValidationError, match="pos"):
+            regional_plotter.plot(
+                df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+            )
+
+    def test_plot_missing_p_col_raises(self, regional_plotter):
+        """Plot with missing p-value column should raise ValidationError."""
+        from pylocuszoom.exceptions import ValidationError
+
+        df = pd.DataFrame(
+            {
+                "rs": ["rs1", "rs2"],
+                "pos": [1100000, 1900000],
+                # missing 'p_value' column
+            }
+        )
+
+        with pytest.raises(ValidationError, match="p_value"):
+            regional_plotter.plot(
+                df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+            )

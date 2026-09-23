@@ -56,7 +56,7 @@ The common development commands are:
 | `uv sync --all-extras` | Install all dependencies (runtime + `dev` + `spark` + `all` extras) into `.venv/`. |
 | `uv run python -m pytest tests/` | Run the full test suite. Parallelism, the timeout, coverage and marker selection come from `addopts`. |
 | `uv run python -m pytest tests/ --no-cov` | Fast iteration: skip coverage reporting. |
-| `uv run python -m pytest tests/test_plotter.py` | Run a single test file. |
+| `uv run python -m pytest tests/test_plotter_regional.py` | Run a single test file. |
 | `uv run python -m pytest tests/ -m integration` | Run only the integration tests, which `addopts` deselects by default. |
 | `uv tool run ruff check src/ tests/` | Run ruff lint checks (no fixes). |
 | `uv tool run ruff format src/ tests/` | Apply ruff formatting. |
