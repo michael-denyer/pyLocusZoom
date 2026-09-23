@@ -349,3 +349,14 @@ def test_a_lifted_map_is_sorted_by_its_new_positions(tmp_path):
 
     assert frame["pos"].tolist() == [1_000, 5_000]
     assert frame["rate"].tolist() == [0.6, 0.5]
+
+
+@pytest.mark.parametrize(
+    "content", ["", "pos\tcM\n100\t0.1\n", "pos\trate\n100\t1\n200\t2\textra\n"]
+)
+def test_unreadable_map_raises_a_typed_error(tmp_path, content):
+    path = tmp_path / "chr1_recomb.tsv"
+    path.write_text(content)
+
+    with pytest.raises(DataDownloadError, match="chr1_recomb.tsv"):
+        load_recombination_map(1, species=None, data_dir=tmp_path)

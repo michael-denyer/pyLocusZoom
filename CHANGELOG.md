@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Regional LD heatmaps validate matrix dimensions against SNP ids before annotation downloads or PLINK execution. Standalone and regional heatmaps share the same matrix checks.
+- PheWAS plots order numeric string p-values numerically and accept mixed numeric/string columns without a sorting error. Shared p-value intake returns the parsed numeric column without modifying the caller's frame.
+- Unreadable recombination maps raise `DataDownloadError`, allowing regional plots to warn once and continue. Invalid caller-supplied liftover chains raise `ValidationError`; unusable managed chain caches raise `DataDownloadError`.
+- Plotly figure titles now honor `GenomeWideStyle.title_fontweight`, including the default bold weight.
+
 ### Breaking
 
 [docs/MIGRATING-5.0.md](docs/MIGRATING-5.0.md) collects every change below that needs one from you, including each `PlotBackend` signature change for custom backends.

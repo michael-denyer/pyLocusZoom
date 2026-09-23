@@ -406,3 +406,20 @@ class TestPheWASManyCategories:
             len(collection.get_offsets()) for collection in ax.collections
         )
         assert total_points == 15
+
+
+@pytest.mark.parametrize("p_values", [["0.1", 0.02, "1e-5"], ["0.1", "0.02", "1e-5"]])
+def test_phewas_orders_numeric_strings_by_probability(p_values):
+    frame = pd.DataFrame(
+        {"phenotype": ["weak", "middle", "strong"], "p_value": p_values}
+    )
+    original = frame.copy(deep=True)
+
+    fig = StatsPlotter().plot_phewas(frame, "rs1")
+
+    assert [label.get_text() for label in fig.axes[0].get_yticklabels()] == [
+        "strong",
+        "middle",
+        "weak",
+    ]
+    pd.testing.assert_frame_equal(frame, original)

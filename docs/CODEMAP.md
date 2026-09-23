@@ -214,9 +214,10 @@ Data transformation between validated input and backend-ready primitives.
 | 3h | gene cache | Atomic gene/exon archive cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
 | 3j | _AssociationInput | Region-selected data and resolved per-panel options | [plotter.py](../src/pylocuszoom/plotter.py) |
 | 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_enrichment.py](../src/pylocuszoom/_ld_enrichment.py) |
-| 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
+| 3j | prepare_pvalue_data | Shared p-value intake: numeric conversion, filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
 | 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
+| 3j | prepare_ld_matrix | Shared square-matrix and SNP-id validation for standalone and regional LD heatmaps | [_ld_matrix.py](../src/pylocuszoom/_ld_matrix.py) |
 | 3j | select_label_candidates | Shared lead-proximity eligibility for regional and standalone SNP labels | [_label_data.py](../src/pylocuszoom/_label_data.py) |
 | 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | load_chain, chain_lifter, liftover_region, lift_window | The one chain loader (cached; registered chains come from `GenomeBuild.liftover_chains`) and the one lift path, shared by `plot()`, `plot_stacked()` and the recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |

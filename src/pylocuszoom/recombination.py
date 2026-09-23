@@ -351,6 +351,7 @@ def load_recombination_map(
 
     Raises:
         RecombinationMapNotFound: If the map file is not there.
+        DataDownloadError: If the file cannot be read or lacks pos/rate columns.
         ValidationError: If the species is not one this package knows.
     """
     record = resolve_species(species)
@@ -370,7 +371,23 @@ def load_recombination_map(
             f"Recombination map not found: {map_file}\n{remedy}"
         )
 
-    df = pd.read_csv(map_file, sep="\t")
+    try:
+        df = pd.read_csv(map_file, sep="\t")
+    except (
+        OSError,
+        UnicodeError,
+        pd.errors.ParserError,
+        pd.errors.EmptyDataError,
+    ) as e:
+        raise DataDownloadError(
+            f"Could not read recombination map {map_file}: {e}"
+        ) from e
+
+    missing = {"pos", "rate"} - set(df.columns)
+    if missing:
+        raise DataDownloadError(
+            f"Recombination map {map_file} is missing required columns: {sorted(missing)}"
+        )
 
     for col in ("pos", "rate", "cM"):
         if col not in df.columns:
