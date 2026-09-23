@@ -23,6 +23,7 @@ class TestBuildLdCommand:
             bfile_path="/path/to/data",
             lead_snp="rs12345",
             output_path="/path/to/output",
+            species="canine",
         )
 
         assert "/usr/bin/plink1.9" in cmd
@@ -42,6 +43,7 @@ class TestBuildLdCommand:
             lead_snp="rs12345",
             output_path="/path/to/output",
             window_kb=1000,
+            species="canine",
         )
         assert "--ld-window-kb" in cmd
         idx = cmd.index("--ld-window-kb")
@@ -54,6 +56,7 @@ class TestBuildLdCommand:
             bfile_path="/path/to/data",
             lead_snp="rs12345",
             output_path="/path/to/output",
+            species="canine",
         )
         assert "--ld-window" in cmd
         idx = cmd.index("--ld-window")
@@ -67,6 +70,7 @@ class TestBuildLdCommand:
             lead_snp="rs12345",
             output_path="/path/to/output",
             threads=4,
+            species="canine",
         )
         assert "--threads" in cmd
         idx = cmd.index("--threads")
@@ -82,6 +86,7 @@ class TestBuildPairwiseLdCommand:
             plink_path="/usr/bin/plink1.9",
             bfile_path="/path/to/data",
             output_path="/path/to/output",
+            species="canine",
         )
 
         assert "--r2" in cmd
@@ -93,6 +98,7 @@ class TestBuildPairwiseLdCommand:
             plink_path="/usr/bin/plink1.9",
             bfile_path="/path/to/data",
             output_path="/path/to/output",
+            species="canine",
         )
 
         assert "--write-snplist" in cmd
@@ -104,6 +110,7 @@ class TestBuildPairwiseLdCommand:
             bfile_path="/path/to/data",
             output_path="/path/to/output",
             snp_list_file="/path/to/snps.txt",
+            species="canine",
         )
 
         assert "--extract" in cmd
@@ -118,6 +125,7 @@ class TestBuildPairwiseLdCommand:
             chrom=1,
             start=1000000,
             end=2000000,
+            species="canine",
         )
 
         assert "--chr" in cmd
@@ -134,6 +142,7 @@ class TestBuildPairwiseLdCommand:
             bfile_path="/path/to/data",
             output_path="/path/to/output",
             metric="dprime",
+            species="canine",
         )
 
         # For D', PLINK uses --r (not --r2) with dprime modifier
@@ -150,6 +159,7 @@ class TestBuildPairwiseLdCommand:
                 bfile_path="/path/to/data",
                 output_path="/path/to/output",
                 metric=metric,
+                species="canine",
             )
 
     def test_calculate_pairwise_ld_rejects_metric_before_running_plink(self, tmp_path):
@@ -162,6 +172,7 @@ class TestBuildPairwiseLdCommand:
                     bfile_path=str(tmp_path / "data"),
                     plink_path="/usr/bin/plink1.9",
                     metric="Dprime",
+                    species="canine",
                 )
         mock_run.assert_not_called()
 
@@ -171,6 +182,7 @@ class TestBuildPairwiseLdCommand:
             plink_path="/usr/bin/plink1.9",
             bfile_path="/path/to/data",
             output_path="/path/to/output",
+            species="canine",
         )
 
         assert "--r2" in cmd
@@ -253,3 +265,18 @@ def _species_flags(cmd):
 def test_both_builders_carry_the_same_species_flags(builder, species, flags):
     """Neither builder may drift from the shared species table."""
     assert _species_flags(builder(species)) == flags
+
+
+@pytest.mark.parametrize(
+    "entry_point",
+    [
+        lambda: build_ld_command("plink", "data", "rs1", "out"),
+        lambda: build_pairwise_ld_command("plink", "data", "out"),
+        lambda: calculate_pairwise_ld("data", ["rs1"]),
+    ],
+    ids=["build_ld_command", "build_pairwise_ld_command", "calculate_pairwise_ld"],
+)
+def test_species_has_no_default(entry_point):
+    """A canine default read human chromosomes 23-26 as dog autosomes silently."""
+    with pytest.raises(TypeError, match="species"):
+        entry_point()

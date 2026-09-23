@@ -78,7 +78,8 @@ def build_pairwise_ld_command(
     chrom: Optional[int] = None,
     start: Optional[int] = None,
     end: Optional[int] = None,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     metric: LDMetric = "r2",
 ) -> list:
     """Build PLINK command for pairwise LD matrix computation.
@@ -95,7 +96,9 @@ def build_pairwise_ld_command(
         start: Start position (bp) for region-based extraction.
         end: End position (bp) for region-based extraction.
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         metric: LD metric ('r2' or 'dprime').
 
     Returns:
@@ -263,7 +266,8 @@ def build_ld_command(
     output_path: str,
     window_kb: int = 500,
     ld_window_r2: float = 0.0,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     threads: Optional[int] = None,
 ) -> list:
     """Build PLINK command for LD calculation.
@@ -276,7 +280,9 @@ def build_ld_command(
         window_kb: Window size in kilobases.
         ld_window_r2: Minimum R² to report (0.0 reports all).
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         threads: Number of threads (auto-detect if None).
 
     Returns:
@@ -429,7 +435,8 @@ def calculate_ld(
     window_kb: int = 500,
     plink_path: Optional[str] = None,
     working_dir: Optional[str] = None,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     threads: Optional[int] = None,
 ) -> pd.DataFrame:
     """Calculate LD (R²) between a lead SNP and all SNPs in a region.
@@ -445,7 +452,9 @@ def calculate_ld(
             for a bare name. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         threads: Number of threads for PLINK.
 
     Returns:
@@ -461,6 +470,7 @@ def calculate_ld(
         ...     bfile_path="/path/to/genotypes",
         ...     lead_snp="rs12345",
         ...     window_kb=500,
+        ...     species="canine",
         ... )
         >>> # Merge with GWAS results for plotting
         >>> gwas_with_ld = gwas_df.merge(ld_df, left_on="rs", right_on="SNP")
@@ -504,7 +514,8 @@ def calculate_pairwise_ld(
     end: int | None = None,
     plink_path: str | None = None,
     working_dir: str | None = None,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     metric: LDMetric = "r2",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Calculate pairwise LD matrix for a set of variants.
@@ -522,7 +533,9 @@ def calculate_pairwise_ld(
             for a bare name. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         metric: LD metric ('r2' or 'dprime').
 
     Returns:
@@ -539,6 +552,7 @@ def calculate_pairwise_ld(
         >>> matrix, snp_ids = calculate_pairwise_ld(
         ...     bfile_path="/path/to/genotypes",
         ...     snp_list=["rs1", "rs2", "rs3"],
+        ...     species=None,
         ... )
         >>> # matrix is 3x3 DataFrame with LD values
         >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2
