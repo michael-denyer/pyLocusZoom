@@ -402,6 +402,15 @@ def _require_lead(ld: LDConfig, where: str) -> None:
         )
 
 
+def _require_lead_in_region(ld: LDConfig, region: RegionConfig, where: str) -> None:
+    """Reject a lead the plot would draw off its own axis."""
+    if ld.lead_pos is not None and not region.start <= ld.lead_pos <= region.end:
+        raise ValueError(
+            f"{where}lead_pos {ld.lead_pos} is outside the region "
+            f"chr{region.chrom}:{region.start}-{region.end}"
+        )
+
+
 class PlotConfig(_Config):
     """Everything ``plot()`` was asked for, as one validated value.
 
@@ -429,11 +438,14 @@ class PlotConfig(_Config):
         return [self.ld]
 
     @model_validator(mode="after")
-    def validate_ld_requires_lead(self) -> "PlotConfig":
-        """Validate that every panel computing LD from a fileset has a lead."""
+    def validate_panel_leads(self) -> "PlotConfig":
+        """Validate that every panel computing LD from a fileset has a lead,
+        and that every lead lies inside the region."""
         lds = self.panel_lds()
         for index, ld in enumerate(lds):
-            _require_lead(ld, f"panel {index + 1}: " if len(lds) > 1 else "")
+            where = f"panel {index + 1}: " if len(lds) > 1 else ""
+            _require_lead(ld, where)
+            _require_lead_in_region(ld, self.region, where)
         return self
 
 

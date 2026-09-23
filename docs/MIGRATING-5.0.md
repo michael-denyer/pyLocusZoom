@@ -77,6 +77,8 @@ Every input error is a `pylocuszoom.ValidationError`, which subclasses
 - LD from a reference fileset needs a SNP id column, and every stacked panel
   that computes it needs a lead (`lead_positions=[...]` or
   `LDConfig(lead_pos=...)`).
+- A lead position must lie inside the region, `start` to `end` inclusive. Omit
+  it to auto-detect the strongest in-region SNP.
 - `exons_df` is validated, the LD heatmap metric must be `"r2"` or `"dprime"`,
   and `plot_manhattan_qq_stacked` checks the length of `panel_labels`.
 - Frames in the pre-4.0 `ps`/`p_wald` names are no longer read as `pos` and
