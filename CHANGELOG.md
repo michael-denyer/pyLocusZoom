@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`download_canine_recombination_maps(output_dir=...)` no longer deletes the caller's directory.** Publishing the map set replaced the whole directory, so any other file in it, including a custom chrX map beside a complete set, was deleted. The directory must now be new, empty or hold only a previous canine map set. Anything else raises `ValidationError` before a download starts, and the directory is left untouched. The managed cache is unchanged.
+- **The bokeh figure title no longer replaces the first panel's title.** `plot_manhattan_qq(title=...)` and the stacked variants lost "Manhattan Plot" on bokeh. The title is now its own row above the panels, as the footer is below them, so bokeh exports with a title gain that row.
+- **Plotly highlights, legends and fills land on the panel they are given.** `add_region_highlight` and `add_legend` drew in column 1 whatever panel they were handed, and a legend on a lower-right panel was anchored at the top of the figure. `fill_between` raised `TypeError` for a scalar `y2`, which the protocol allows. Existing plots use one column or a Series, so their output is unchanged.
+- **A float chromosome column filters like an integer one.** pandas reads an integer column holding a NaN as float, and `1.0` never matched chromosome `"1"`, so a regional plot of such a frame drew no points and gave no warning. Integral float values now read as their integer names.
+- **`load_regenie` loads `LOG10P` values beyond the float range, and integer `LOG10P` columns.** `LOG10P=350.5` underflowed to `p=0` and the file was rejected, and an integer column raised `ValueError`. P-values below `1e-300` now load at `1e-300`, the value every plot already clips to, and the `LOG10P` column keeps the exact value.
+- **A liftover chain failure skips the recombination overlay instead of the whole plot.** With `genome_build="canfam4"`, a failed chain download crashed `plot()` while a failed map download only warned; both now warn and draw the figure without the overlay. A cached chain that no longer parses is downloaded again. A lifter or chain that maps none of a chromosome's map positions now reports why, instead of an empty overlay with status `OK`.
+- **`import pylocuszoom` leaves the host application's loguru output alone.** The import removed loguru's default stderr sink, so the application's own `logger.info` calls printed nothing afterwards. The default sink is now kept, filtered so that pyLocusZoom messages are not printed twice. pyLocusZoom's own output is unchanged.
+- **The test suite no longer reads the user cache or the network.** Ten tests plotted with managed recombination maps, reading `~/.cache` or downloading the map archive. They now use maps in the test's own directory or turn the overlay off, and every test not marked `integration` fails if it opens an outbound connection.
+
 ## [4.2.0] - 2026-09-23
 
 ### Added
