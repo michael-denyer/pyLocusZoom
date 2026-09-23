@@ -107,19 +107,6 @@ def test_stacked_rejects_invalid_lead_positions(lead):
         )
 
 
-def test_stacked_resolves_columns_per_frame():
-    canonical = pd.DataFrame({"chr": 1, "pos": [150], "p_value": [0.01]})
-    legacy = pd.DataFrame({"chr": 1, "ps": [160], "p_wald": [0.001]})
-    with pytest.warns(DeprecationWarning):
-        fig = LocusZoomPlotter(
-            species=None, backend="plotly", log_level=None
-        ).plot_stacked(
-            [canonical, legacy], chrom=1, start=100, end=200, display=DISPLAY
-        )
-    assert list(fig.data[0].x) == [150]
-    assert list(fig.data[2].x) == [160]
-
-
 def test_duplicate_index_does_not_make_lead_ambiguous():
     frame = pd.DataFrame(
         {"chr": 1, "pos": [150, 175], "p_value": [0.01, 1e-8]}, index=[0, 0]

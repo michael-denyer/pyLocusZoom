@@ -19,7 +19,6 @@ Example:
 """
 
 import os
-import warnings
 from typing import (
     Annotated,
     Any,
@@ -27,7 +26,6 @@ from typing import (
     Literal,
     Optional,
     Tuple,
-    TypeVar,
     Union,
 )
 
@@ -51,11 +49,7 @@ from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
 )
 from .exceptions import ValidationError
-from .schemas import (
-    DEPRECATED_ALIAS_REMOVED_IN,
-    DEPRECATED_COLUMN_ALIASES,
-    Canonical,
-)
+from .schemas import Canonical
 from .utils import to_pandas
 
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
@@ -697,50 +691,6 @@ class ColocConfig(_Config):
         return self
 
 
-Columns = TypeVar("Columns", ColumnConfig, GenomeWideConfig)
-
-
-def resolve_deprecated_columns(
-    df: pd.DataFrame,
-    columns: Columns,
-    *,
-    fields: tuple[str, ...] = ("pos_col", "p_col"),
-) -> Columns:
-    """Fall back to a frame's pre-4.0 column names, with a deprecation warning.
-
-    A GWAS frame written by a 3.x loader carries ``ps`` and ``p_wald`` where a
-    4.0 one carries the canonical ``pos`` and ``p_value``. Where the canonical
-    column is absent and the old spelling is present, the old spelling is used
-    and a ``DeprecationWarning`` names its replacement. A caller who asked for
-    a column name of their own is left alone, because only the canonical names
-    have aliases.
-
-    Args:
-        df: The frame about to be plotted.
-        columns: The column model the plot method was given.
-        fields: Column roles consumed by this input boundary.
-
-    Returns:
-        ``columns`` unchanged, or a copy naming the frame's old columns.
-    """
-    updates = {}
-    for field in fields:
-        name = getattr(columns, field)
-        alias = DEPRECATED_COLUMN_ALIASES.get(name)
-        if alias is None or name in df.columns or alias not in df.columns:
-            continue
-        warnings.warn(
-            f"Column '{alias}' is the pre-4.0 name for '{name}'. pyLocusZoom "
-            f"loaders now emit '{name}'; rename the column, or pass the name "
-            f"you want. The fallback is removed in "
-            f"{DEPRECATED_ALIAS_REMOVED_IN}.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        updates[field] = alias
-    return columns.model_copy(update=updates) if updates else columns
-
-
 __all__ = [
     "RegionConfig",
     "ColumnConfig",
@@ -756,5 +706,4 @@ __all__ = [
     "GenomeWideConfig",
     "GenomeWideStyle",
     "ColocConfig",
-    "resolve_deprecated_columns",
 ]

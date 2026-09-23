@@ -708,15 +708,14 @@ fm_df = load_susie("susie_output.tsv")
 ### GWAS Results DataFrame
 
 These are the canonical column names: every `load_*` function emits them and every
-plotter defaults to them, so a loaded frame plots without renaming. A frame still
-carrying the pre-4.0 `ps` and `p_wald` names is accepted with a `DeprecationWarning`
-until 5.0.0. Other names are supported through `ColumnConfig`.
+plotter defaults to them, so a loaded frame plots without renaming. Other names,
+including the pre-4.0 `ps` and `p_wald`, are named through `ColumnConfig`.
 
 Required columns (names configurable through `ColumnConfig`):
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
-| `chr` | str or int | No | Chromosome. Filters a whole-genome frame to the plotted region. |
+| `chr` | str or int | Yes | Chromosome. Selects the plotted region's rows; pass `ColumnConfig(chrom_col=None)` for a frame already scoped to that chromosome. |
 | `pos` | int | Yes | Genomic position in base pairs (1-based). Must match coordinate system of genes/recombination data. |
 | `p_value` | float | Yes | Association p-value (0 < p ≤ 1). Values are -log10 transformed for plotting. |
 | `rs` | str | No | SNP identifier (e.g., "rs12345" or "chr1:12345"). Used for labeling top SNPs if `snp_labels=True`. |

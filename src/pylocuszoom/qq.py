@@ -7,7 +7,6 @@ import pandas as pd
 from scipy import stats
 
 from ._data import prepare_pvalue_data
-from .config import GenomeWideConfig, resolve_deprecated_columns
 from .exceptions import ValidationError
 from .schemas import Canonical
 
@@ -102,9 +101,6 @@ def prepare_qq_data(
     Raises:
         ValidationError: If ``p_col`` is missing or no p-value lies in ``(0, 1]``.
     """
-    p_col = resolve_deprecated_columns(
-        df, GenomeWideConfig(p_col=p_col), fields=("p_col",)
-    ).p_col
     if p_col not in df.columns:
         raise ValidationError(f"Column '{p_col}' not found in DataFrame")
 

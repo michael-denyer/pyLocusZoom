@@ -8,7 +8,7 @@ plotter applies to a frame the caller assembled. The split is deliberate:
 tightening the plot tier would reject input that plots correctly today.
 """
 
-from typing import Dict, Optional
+from typing import Optional
 
 from .exceptions import (
     EQTLValidationError,
@@ -34,17 +34,6 @@ class Canonical:
     POS = "pos"
     P = "p_value"
     RS = "rs"
-
-
-# The pre-4.0 GEMMA spellings, keyed by the canonical name that replaced them.
-# Read by the loaders (which no longer emit them) and by the plotters (which
-# still accept a frame carrying them). Removed in DEPRECATED_ALIAS_REMOVED_IN.
-DEPRECATED_COLUMN_ALIASES: Dict[str, str] = {
-    Canonical.POS: "ps",
-    Canonical.P: "p_wald",
-}
-
-DEPRECATED_ALIAS_REMOVED_IN = "5.0.0"
 
 
 def gwas_load_spec(

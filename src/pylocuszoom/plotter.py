@@ -35,7 +35,6 @@ from .config import (
     PlotConfig,
     RegionConfig,
     StackedPlotConfig,
-    resolve_deprecated_columns,
 )
 from .exceptions import ReferenceAPIError, ValidationError
 from .ld import find_plink
@@ -77,7 +76,6 @@ class _AssociationInput:
         ld: LDConfig,
         label: Optional[str] = None,
     ) -> "_AssociationInput":
-        columns = resolve_deprecated_columns(frame, columns)
         check(frame, gwas_plot_spec(columns.pos_col, columns.p_col))
         resolve_column(frame, ld.ld_col, parameter="ld_col")
         rs_col = resolve_column(
@@ -291,7 +289,6 @@ class LocusZoomPlotter:
         gwas_df = to_pandas(gwas_df)
         lifter = liftover.resolve()
         if lifter is not None:
-            columns = resolve_deprecated_columns(gwas_df, columns)
             gwas_df, start, end, ld = self._lift_region(
                 gwas_df,
                 lifter,

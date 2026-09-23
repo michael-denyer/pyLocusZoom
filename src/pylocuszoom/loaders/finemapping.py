@@ -38,7 +38,7 @@ _SUSIE_SPEC = LoaderSpec(
         "rs": ("snp", "SNP", "variant_id", "rsid"),
     },
     transform=_susie_cs,
-    schema=lambda out_cols: FINEMAPPING_LOAD,
+    schema=FINEMAPPING_LOAD,
 )
 
 
@@ -69,7 +69,7 @@ _FINEMAP_SPEC = LoaderSpec(
         "chromosome": "chr",
         "cs": "cs_col",
     },
-    schema=lambda out_cols: FINEMAPPING_LOAD,
+    schema=FINEMAPPING_LOAD,
 )
 
 
@@ -93,7 +93,7 @@ _CAVIAR_SPEC = LoaderSpec(
     log_fmt="Loaded CAVIAR file with {n} variants",
     # CAVIAR .set files are headerless: SNP_ID Causal_Post_Prob.
     read={"sep": r"\s+", "header": None, "names": ["rs", "pip"]},
-    schema=lambda out_cols: FINEMAPPING_LOAD,
+    schema=FINEMAPPING_LOAD,
     # CAVIAR carries no position; callers merge a SNP annotation to add it.
     schema_requires=("pos",),
 )
@@ -132,7 +132,7 @@ _POLYFUN_SPEC = LoaderSpec(
         "CREDIBLE_SET": "cs_col",
     },
     transform=_polyfun_cs,
-    schema=lambda out_cols: FINEMAPPING_LOAD,
+    schema=FINEMAPPING_LOAD,
 )
 
 

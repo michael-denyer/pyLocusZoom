@@ -8,7 +8,6 @@ constant plus a thin wrapper in the family module, not another copy-pasted
 function body.
 """
 
-import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -17,14 +16,12 @@ from typing import Any, Optional, Union
 import pandas as pd
 
 from ..logging import logger
-from ..schemas import DEPRECATED_ALIAS_REMOVED_IN, Canonical
 from ..utils import normalize_chrom_series
 from ..validation import ColumnSpec, check
 
 # Output-column tokens: a spec target equal to one of the `**out_cols` keys
-# passed by the wrapper (`pos_col`, `p_col`, `rs_col`, `cs_col`) is substituted
-# with the caller's chosen name; any other target is used literally. This is how
-# the caller-configurable column names flow into an otherwise constant spec.
+# passed by the wrapper (the fine-mapping loaders' `cs_col`) is substituted with
+# the caller's chosen name; any other target is used literally.
 
 
 @dataclass(frozen=True)
@@ -34,14 +31,12 @@ class LoaderSpec:
     Attributes:
         log_fmt: Debug log template; ``{n}`` is filled with the row count.
         read: Keyword arguments forwarded to ``pandas.read_csv``.
-        schema: Validation to run after mapping. Takes the resolved output
-            columns and returns the format's ``ColumnSpec``. None skips
-            validation for a format that carries nothing checkable.
+        schema: Validation to run after mapping. None skips validation for a
+            format that carries nothing checkable.
         schema_requires: Columns the format may structurally lack. An absent
             one is dropped from the schema's rules rather than failing, which
             is how CAVIAR and MatrixEQTL load without a position column.
         col_map: Static ``source -> target`` renames. Targets may be tokens.
-        p_candidates: P-value source columns; the first present maps to ``p_col``.
         col_candidates: ``target -> candidates``; first present candidate maps to
             the (possibly token) target. Replaces hand-rolled first-match loops.
         transform: Optional ``(df, out_cols) -> df`` applied after renaming, for
@@ -52,10 +47,9 @@ class LoaderSpec:
 
     log_fmt: str
     read: dict[str, Any] = field(default_factory=dict)
-    schema: Optional[Callable[[dict[str, str]], ColumnSpec]] = None
+    schema: Optional[ColumnSpec] = None
     schema_requires: tuple[str, ...] = ()
     col_map: dict[str, str] = field(default_factory=dict)
-    p_candidates: tuple[str, ...] = ()
     col_candidates: dict[str, tuple[str, ...]] = field(default_factory=dict)
     transform: Optional[Callable[[pd.DataFrame, dict[str, str]], pd.DataFrame]] = None
     gene_filter: Optional[str] = None
@@ -95,7 +89,7 @@ def _relax(spec: ColumnSpec, absent: tuple[str, ...]) -> ColumnSpec:
     )
 
 
-def _validate(df: pd.DataFrame, spec: LoaderSpec, out_cols: dict[str, str]) -> None:
+def _validate(df: pd.DataFrame, spec: LoaderSpec) -> None:
     """Validate ``df`` against the format's schema.
 
     Every format validates strictly, so a failed column mapping is reported
@@ -105,34 +99,7 @@ def _validate(df: pd.DataFrame, spec: LoaderSpec, out_cols: dict[str, str]) -> N
     if spec.schema is None:
         return
     absent = tuple(c for c in spec.schema_requires if c not in df.columns)
-    check(df, _relax(spec.schema(out_cols), absent))
-
-
-# The canonical name each output-column token resolves to when the caller
-# names none. Overriding one is deprecated: a loader's job is to produce the
-# package's vocabulary, and a caller who wants another name can rename.
-_CANONICAL_OUT_COLS = {
-    "pos_col": Canonical.POS,
-    "p_col": Canonical.P,
-    "rs_col": Canonical.RS,
-}
-
-
-def _canonical_out_cols(out_cols: dict[str, Optional[str]]) -> dict[str, str]:
-    """Resolve the output-column tokens onto ``Canonical``, warning on overrides."""
-    overridden = sorted(
-        k for k, v in out_cols.items() if v is not None and k in _CANONICAL_OUT_COLS
-    )
-    if overridden:
-        warnings.warn(
-            f"{', '.join(overridden)} on the GWAS loaders is deprecated. Loaders "
-            f"emit the canonical columns '{Canonical.CHROM}', '{Canonical.POS}', "
-            f"'{Canonical.P}' and '{Canonical.RS}'; rename after loading instead. "
-            f"The parameters are removed in {DEPRECATED_ALIAS_REMOVED_IN}.",
-            DeprecationWarning,
-            stacklevel=4,
-        )
-    return {k: _CANONICAL_OUT_COLS[k] if v is None else v for k, v in out_cols.items()}
+    check(df, _relax(spec.schema, absent))
 
 
 def _load_tabular(
@@ -143,14 +110,10 @@ def _load_tabular(
     **requested: Optional[str],
 ) -> pd.DataFrame:
     """Load a tabular file per ``spec``: read, map, rename, transform, validate."""
-    out_cols = _canonical_out_cols(requested)
+    out_cols = {k: v for k, v in requested.items() if v is not None}
     df = pd.read_csv(filepath, **spec.read)
 
     col_map = {src: _resolve(dst, out_cols) for src, dst in spec.col_map.items()}
-
-    match = _first_present(df, spec.p_candidates)
-    if match is not None:
-        col_map[match] = out_cols["p_col"]
 
     for target, candidates in spec.col_candidates.items():
         match = _first_present(df, candidates)
@@ -169,5 +132,5 @@ def _load_tabular(
         df["chr"] = normalize_chrom_series(df["chr"])
 
     logger.debug(spec.log_fmt.format(n=len(df)))
-    _validate(df, spec, out_cols)
+    _validate(df, spec)
     return df

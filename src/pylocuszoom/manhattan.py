@@ -9,7 +9,7 @@ import pandas as pd
 
 from ._data import prepare_pvalue_data
 from ._plotter_utils import CHROMOSOME_GAP
-from .config import GenomeWideConfig, GenomeWideStyle, resolve_deprecated_columns
+from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
 from .schemas import Canonical, gwas_plot_spec
 from .species import Species, resolve_species
@@ -239,8 +239,8 @@ def prepare_genomewide_frames(
 
     The boundary for the genome-wide families: every frame is checked for
     the chromosome, position and p-value columns the config names (and
-    ``rs_col`` when given) before any of them is laid out. A frame still
-    carrying the pre-4.0 column names is accepted with a deprecation warning.
+    ``rs_col`` when given) before any of them is laid out, and projected onto
+    the canonical columns with its chromosome names normalised.
 
     Args:
         dfs: GWAS results DataFrames, in panel order.
@@ -255,17 +255,16 @@ def prepare_genomewide_frames(
     """
     normalized = []
     for df in dfs:
-        resolved = resolve_deprecated_columns(df, config)
         check(
             df,
             gwas_plot_spec(
-                resolved.pos_col, resolved.p_col, rs_col, chrom_col=resolved.chrom_col
+                config.pos_col, config.p_col, rs_col, chrom_col=config.chrom_col
             ),
         )
         roles = {
-            Canonical.CHROM: normalize_chrom_series(df[resolved.chrom_col]),
-            Canonical.POS: df[resolved.pos_col],
-            Canonical.P: df[resolved.p_col],
+            Canonical.CHROM: normalize_chrom_series(df[config.chrom_col]),
+            Canonical.POS: df[config.pos_col],
+            Canonical.P: df[config.p_col],
         }
         if rs_col is not None:
             roles[Canonical.RS] = df[rs_col]

@@ -139,7 +139,7 @@ _BED_SPEC = LoaderSpec(
     },
     transform=_bed_names,
     clean_chrom=True,
-    schema=lambda out_cols: GENES_LOAD,
+    schema=GENES_LOAD,
 )
 
 
@@ -190,7 +190,7 @@ _ENSEMBL_SPEC = LoaderSpec(
         "external_gene_name": "gene_name",
     },
     transform=_ensembl_strand,
-    schema=lambda out_cols: GENES_LOAD,
+    schema=GENES_LOAD,
 )
 
 

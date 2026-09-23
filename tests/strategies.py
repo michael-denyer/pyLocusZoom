@@ -98,7 +98,7 @@ def gwas_dataframes(
         end: Region end (random if None).
 
     Returns:
-        DataFrame with rs, chr, ps, p_wald columns.
+        DataFrame with rs, chr, pos, p_value columns.
     """
     n_snps = draw(st.integers(min_value=min_snps, max_value=max_snps))
 

@@ -11,7 +11,6 @@ GWAS formats (:mod:`~.gwas`):
 - BOLT-LMM (.stats)
 - GEMMA (.assoc.txt)
 - SAIGE (.txt)
-- Generic TSV/CSV
 
 eQTL formats (:mod:`~.eqtl`):
 - GTEx significant pairs format

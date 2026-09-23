@@ -443,7 +443,7 @@ two tiers, core and toolbox, tabulated under
 | Name | Purpose |
 |------|---------|
 | `LocusZoomPlotter` | Regional association plot generator with LD coloring and annotations. |
-| `ColumnConfig` | Position, p-value and SNP id column names of a GWAS frame. |
+| `ColumnConfig` | Chromosome, position, p-value and SNP id column names of a GWAS frame. |
 | `DisplayConfig` | SNP labels, recombination overlay, automatic gene fetching and figure size. |
 | `LDConfig` | Lead SNP and LD source: a pre-computed column or a PLINK fileset. |
 | `LiftoverConfig` | Chain or lifter for plotting source-build sumstats on another build. |

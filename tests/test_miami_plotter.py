@@ -646,31 +646,6 @@ class TestConstructorThresholdIsTheDefault:
         assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([6.0])
 
 
-def test_legacy_and_canonical_miami_inputs_preserve_hover_roles():
-    canonical = pd.DataFrame(
-        {
-            "chr": [1, 1, 2],
-            "pos": [10, 20, 30],
-            "p_value": [0.1, 0.01, 0.001],
-            "rs": ["a", "b", "c"],
-        }
-    )
-    legacy = canonical.rename(columns={"pos": "ps", "p_value": "p_wald"})
-    with pytest.warns(DeprecationWarning):
-        fig = MiamiPlotter(species="human", backend="plotly").plot_miami(
-            canonical, legacy, rs_col="rs"
-        )
-    traces = [
-        trace
-        for trace in fig.data
-        if trace.type == "scatter" and trace.mode == "markers"
-    ]
-    assert traces
-    for trace in traces:
-        assert "Position" in trace.hovertemplate
-        assert "P-value" in trace.hovertemplate
-
-
 def test_custom_miami_roles_override_unselected_canonical_columns():
     canonical = pd.DataFrame(
         {"chr": [1, 1], "pos": [10, 20], "p_value": [0.1, 0.01], "rs": ["a", "b"]}

@@ -266,14 +266,3 @@ class TestEmptyQQInput:
 
         with pytest.raises(ValueError, match="No valid p-values"):
             plotter.plot_qq(empty_df, config=GenomeWideConfig(p_col="p"))
-
-
-def test_qq_resolves_only_the_pvalue_role():
-    from pylocuszoom.qq import prepare_qq_data
-
-    legacy = pd.DataFrame({"ps": [10, 20], "p_wald": [0.1, 0.01]})
-    with pytest.warns(DeprecationWarning) as warnings:
-        prepared = prepare_qq_data(legacy)
-    assert len(warnings) == 1
-    assert "p_wald" in str(warnings[0].message)
-    np.testing.assert_array_equal(prepared.frame["_observed"], [2, 1])

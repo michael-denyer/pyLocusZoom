@@ -84,20 +84,6 @@ class TestPLINKLoader:
         assert "rs" in df.columns
         assert len(df) == 3
 
-    def test_load_plink_assoc_custom_columns(self, plink_assoc_file):
-        """Naming the output columns still works, and warns that it will not."""
-        with pytest.warns(DeprecationWarning, match="5.0.0"):
-            df = load_plink_assoc(
-                plink_assoc_file,
-                pos_col="position",
-                p_col="pvalue",
-                rs_col="snp_id",
-            )
-
-        assert "position" in df.columns
-        assert "pvalue" in df.columns
-        assert "snp_id" in df.columns
-
     def test_load_plink_assoc_values_correct(self, plink_assoc_file):
         """Test that loaded values are correct."""
         df = load_plink_assoc(plink_assoc_file)
@@ -312,18 +298,6 @@ class TestGEMMALoader:
         df = load_gemma(gemma_all_p_file)
 
         assert df["p_value"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
-
-    def test_load_gemma_precedence_with_custom_p_col(self, gemma_all_p_file):
-        """Test GEMMA p-value precedence through a custom output column.
-
-        With the default p_col a reordered candidate tuple would rename p_lrt
-        onto the existing p_wald column, so the assertion would hit duplicate
-        labels rather than a clean value mismatch.
-        """
-        with pytest.warns(DeprecationWarning):
-            df = load_gemma(gemma_all_p_file, p_col="pval")
-
-        assert df["pval"].iloc[0] == 0.001  # Not 0.02 (p_lrt), not 0.3 (p_score)
 
     def test_load_gemma_basic(self, gemma_file):
         """Test basic GEMMA file loading."""

@@ -1075,13 +1075,8 @@ from pylocuszoom import load_gwas, load_plink_assoc, load_regenie
 # Auto-detect format from filename extension
 gwas_df = load_gwas("results.assoc.linear")
 
-# Or use specific loader with custom column names
-gwas_df = load_plink_assoc(
-    "results.assoc",
-    pos_col="position",  # Rename output column
-    p_col="pvalue",
-    rs_col="snp_id",
-)
+# Or use a specific loader; rename after loading if you want other names
+gwas_df = load_plink_assoc("results.assoc").rename(columns={"pos": "position"})
 
 # REGENIE (handles LOG10P conversion automatically)
 gwas_df = load_regenie("ukb_chr1.regenie")
@@ -1197,15 +1192,16 @@ fig = plotter.plot(
 | `rs` | str | For LD/labels | SNP identifier. |
 
 These are the canonical column names: every `load_*` function emits them and
-every plotter defaults to them, so a loaded frame plots without renaming. A
-frame still carrying the pre-4.0 `ps` and `p_wald` names is accepted with a
-`DeprecationWarning` until 5.0.0. Other names are supported through
+every plotter defaults to them, so a loaded frame plots without renaming.
+Other names, including the pre-4.0 `ps` and `p_wald`, are named through
 `ColumnConfig` and `GenomeWideConfig`.
 
 Regional plots select chromosome and inclusive position bounds before choosing a
-lead, scaling axes, labeling points or calculating LD. A frame without `chr` is
-assumed to contain only the requested chromosome. In stacks, shared `LDConfig`
-values apply to every panel unless a per-panel list overrides them. A lead
+lead, scaling axes, labeling points or calculating LD. A frame without the
+`chrom_col` column raises; pass `ColumnConfig(chrom_col=None)` for a frame that
+already holds only the requested chromosome. In stacks, shared `LDConfig`
+values apply to every panel unless a per-panel list overrides them, and every
+panel computing LD from a reference fileset needs a lead position. A lead
 position shared by multiple variants selects the strongest p-value at that
 position, with input order breaking ties. That selected row also defines label
 eligibility; nearby non-lead variants are excluded before ranking labels.

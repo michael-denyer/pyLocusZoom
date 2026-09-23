@@ -6,16 +6,10 @@ format:
 
 Args:
     filepath: Path to the results file.
-    pos_col: Deprecated output column name for position; None emits the
-        canonical "pos".
-    p_col: Deprecated output column name for p-value; None emits the
-        canonical "p_value".
-    rs_col: Deprecated output column name for SNP ID; None emits the
-        canonical "rs".
 
 Returns:
     DataFrame in the canonical column vocabulary: chr, pos, p_value, rs.
-    Naming any of the three columns explicitly is deprecated and warns.
+    Rename columns after loading if you want other names.
 
 Raises:
     LoaderValidationError: If the format's columns cannot be mapped or the
@@ -31,14 +25,10 @@ import pandas as pd
 from .._data import P_VALUE_FLOOR
 from ..exceptions import ValidationError
 from ..logging import logger
-from ..schemas import gwas_load_spec
-from ..validation import ColumnSpec
+from ..schemas import Canonical, gwas_load_spec
 from ._engine import LoaderSpec, _load_tabular
 
-
-def _gwas_schema(out_cols: dict[str, str]) -> ColumnSpec:
-    """Strict GWAS contract over the caller's position/p-value columns."""
-    return gwas_load_spec(pos_col=out_cols["pos_col"], p_col=out_cols["p_col"])
+_GWAS_SCHEMA = gwas_load_spec()
 
 
 # No comment= here on purpose. PLINK 2's --glm header line starts with "#CHROM",
@@ -48,21 +38,16 @@ _PLINK_SPEC = LoaderSpec(
     log_fmt="Loaded PLINK file with {n} variants",
     read={"sep": r"\s+"},
     col_candidates={
-        "pos_col": ("BP", "POS", "bp", "pos"),
-        "p_col": ("P", "P_BOLT_LMM", "p", "PVAL", "pval", "P_LINREG"),
-        "rs_col": ("SNP", "ID", "rsid", "RSID", "MarkerName", "variant_id"),
-        "chr": ("CHR", "chr", "CHROM", "chrom", "#CHROM"),
+        Canonical.POS: ("BP", "POS", "bp", "pos"),
+        Canonical.P: ("P", "P_BOLT_LMM", "p", "PVAL", "pval", "P_LINREG"),
+        Canonical.RS: ("SNP", "ID", "rsid", "RSID", "MarkerName", "variant_id"),
+        Canonical.CHROM: ("CHR", "chr", "CHROM", "chrom", "#CHROM"),
     },
-    schema=_gwas_schema,
+    schema=_GWAS_SCHEMA,
 )
 
 
-def load_plink_assoc(
-    filepath: Union[str, Path],
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-) -> pd.DataFrame:
+def load_plink_assoc(filepath: Union[str, Path]) -> pd.DataFrame:
     """Load PLINK association results (.assoc, .assoc.linear, .assoc.logistic, .qassoc).
 
     Automatically detects PLINK format variant and maps columns to standard names.
@@ -72,14 +57,12 @@ def load_plink_assoc(
         >>> gwas_df = load_plink_assoc("results.assoc.linear")
         >>> fig = plotter.plot(gwas_df, chrom=1, start=1e6, end=2e6)
     """
-    return _load_tabular(
-        filepath, _PLINK_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
-    )
+    return _load_tabular(filepath, _PLINK_SPEC)
 
 
 def _regenie_pvalue(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
     """Derive REGENIE p-values: prefer computed LOG10P, else rename P."""
-    p_col = out_cols["p_col"]
+    p_col = Canonical.P
     if "LOG10P" in df.columns:
         # REGENIE writes LOG10P so that p below the float range survives. The
         # plot clips p at P_VALUE_FLOOR anyway; clipping here keeps those rows
@@ -93,18 +76,13 @@ def _regenie_pvalue(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
 _REGENIE_SPEC = LoaderSpec(
     log_fmt="Loaded REGENIE file with {n} variants",
     read={"sep": r"\s+", "comment": "#"},
-    col_map={"GENPOS": "pos_col", "ID": "rs_col", "CHROM": "chr"},
+    col_map={"GENPOS": Canonical.POS, "ID": Canonical.RS, "CHROM": Canonical.CHROM},
     transform=_regenie_pvalue,
-    schema=_gwas_schema,
+    schema=_GWAS_SCHEMA,
 )
 
 
-def load_regenie(
-    filepath: Union[str, Path],
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-) -> pd.DataFrame:
+def load_regenie(filepath: Union[str, Path]) -> pd.DataFrame:
     """Load REGENIE association results (.regenie).
 
     Prefers the computed LOG10P column over a raw P column.
@@ -113,26 +91,19 @@ def load_regenie(
     Example:
         >>> gwas_df = load_regenie("results.regenie")
     """
-    return _load_tabular(
-        filepath, _REGENIE_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
-    )
+    return _load_tabular(filepath, _REGENIE_SPEC)
 
 
 _BOLT_LMM_SPEC = LoaderSpec(
     log_fmt="Loaded BOLT-LMM file with {n} variants",
     read={"sep": "\t"},
-    col_map={"BP": "pos_col", "SNP": "rs_col", "CHR": "chr"},
-    p_candidates=("P_BOLT_LMM", "P_BOLT_LMM_INF"),
-    schema=_gwas_schema,
+    col_map={"BP": Canonical.POS, "SNP": Canonical.RS, "CHR": Canonical.CHROM},
+    col_candidates={Canonical.P: ("P_BOLT_LMM", "P_BOLT_LMM_INF")},
+    schema=_GWAS_SCHEMA,
 )
 
 
-def load_bolt_lmm(
-    filepath: Union[str, Path],
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-) -> pd.DataFrame:
+def load_bolt_lmm(filepath: Union[str, Path]) -> pd.DataFrame:
     """Load BOLT-LMM association results (.stats).
 
     See the module docstring for the shared GWAS loader arguments and return value.
@@ -140,26 +111,19 @@ def load_bolt_lmm(
     Example:
         >>> gwas_df = load_bolt_lmm("results.stats")
     """
-    return _load_tabular(
-        filepath, _BOLT_LMM_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
-    )
+    return _load_tabular(filepath, _BOLT_LMM_SPEC)
 
 
 _GEMMA_SPEC = LoaderSpec(
     log_fmt="Loaded GEMMA file with {n} variants",
     read={"sep": "\t"},
-    col_map={"ps": "pos_col", "rs": "rs_col", "chr": "chr"},
-    p_candidates=("p_wald", "p_lrt", "p_score"),
-    schema=_gwas_schema,
+    col_map={"ps": Canonical.POS, "rs": Canonical.RS, "chr": Canonical.CHROM},
+    col_candidates={Canonical.P: ("p_wald", "p_lrt", "p_score")},
+    schema=_GWAS_SCHEMA,
 )
 
 
-def load_gemma(
-    filepath: Union[str, Path],
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-) -> pd.DataFrame:
+def load_gemma(filepath: Union[str, Path]) -> pd.DataFrame:
     """Load GEMMA association results (.assoc.txt).
 
     See the module docstring for the shared GWAS loader arguments and return value.
@@ -167,26 +131,19 @@ def load_gemma(
     Example:
         >>> gwas_df = load_gemma("output.assoc.txt")
     """
-    return _load_tabular(
-        filepath, _GEMMA_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
-    )
+    return _load_tabular(filepath, _GEMMA_SPEC)
 
 
 _SAIGE_SPEC = LoaderSpec(
     log_fmt="Loaded SAIGE file with {n} variants",
     read={"sep": "\t"},
-    col_map={"POS": "pos_col", "MarkerID": "rs_col", "CHR": "chr"},
-    p_candidates=("p.value.NA", "p.value"),
-    schema=_gwas_schema,
+    col_map={"POS": Canonical.POS, "MarkerID": Canonical.RS, "CHR": Canonical.CHROM},
+    col_candidates={Canonical.P: ("p.value.NA", "p.value")},
+    schema=_GWAS_SCHEMA,
 )
 
 
-def load_saige(
-    filepath: Union[str, Path],
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-) -> pd.DataFrame:
+def load_saige(filepath: Union[str, Path]) -> pd.DataFrame:
     """Load SAIGE association results.
 
     See the module docstring for the shared GWAS loader arguments and return value.
@@ -194,37 +151,28 @@ def load_saige(
     Example:
         >>> gwas_df = load_saige("results.txt")
     """
-    return _load_tabular(
-        filepath, _SAIGE_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
-    )
+    return _load_tabular(filepath, _SAIGE_SPEC)
 
 
 _GWAS_CATALOG_SPEC = LoaderSpec(
     log_fmt="Loaded GWAS Catalog file with {n} variants",
     read={"sep": "\t"},
     col_map={
-        "base_pair_location": "pos_col",
-        "variant_id": "rs_col",
-        "chromosome": "chr",
-        "p_value": "p_col",
+        "base_pair_location": Canonical.POS,
+        "variant_id": Canonical.RS,
+        "chromosome": Canonical.CHROM,
+        "p_value": Canonical.P,
     },
-    schema=_gwas_schema,
+    schema=_GWAS_SCHEMA,
 )
 
 
-def load_gwas_catalog(
-    filepath: Union[str, Path],
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-) -> pd.DataFrame:
+def load_gwas_catalog(filepath: Union[str, Path]) -> pd.DataFrame:
     """Load GWAS Catalog summary statistics format.
 
     See the module docstring for the shared GWAS loader arguments and return value.
     """
-    return _load_tabular(
-        filepath, _GWAS_CATALOG_SPEC, pos_col=pos_col, p_col=p_col, rs_col=rs_col
-    )
+    return _load_tabular(filepath, _GWAS_CATALOG_SPEC)
 
 
 # Filename substrings that identify a GWAS format.
@@ -265,10 +213,6 @@ def _detect_format(filepath: Path) -> str:
 def load_gwas(
     filepath: Union[str, Path],
     format: Optional[str] = None,
-    pos_col: Optional[str] = None,
-    p_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-    **kwargs,
 ) -> pd.DataFrame:
     """Load GWAS results with automatic format detection.
 
@@ -276,10 +220,6 @@ def load_gwas(
         filepath: Path to GWAS results file.
         format: File format. If None, auto-detects from extension.
             Options: "plink", "regenie", "bolt", "gemma", "saige", "catalog".
-        pos_col: Deprecated output column name for position.
-        p_col: Deprecated output column name for p-value.
-        rs_col: Deprecated output column name for SNP ID.
-        **kwargs: Additional arguments passed to format-specific loader.
 
     Returns:
         DataFrame in the canonical column vocabulary: chr, pos, p_value, rs.
@@ -302,6 +242,4 @@ def load_gwas(
             f"Unknown format '{format}'. Options: {list(_GWAS_LOADERS.keys())}"
         )
 
-    return _GWAS_LOADERS[format](
-        filepath, pos_col=pos_col, p_col=p_col, rs_col=rs_col, **kwargs
-    )
+    return _GWAS_LOADERS[format](filepath)
