@@ -10,6 +10,7 @@ three copies.
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, TypeVar
 
+import numpy as np
 import pandas as pd
 
 from .._plotter_utils import (
@@ -276,7 +277,12 @@ def render_manhattan_panel(
         backend, ax, spec.suggestive_threshold, color=SUGGESTIVE_LINE_COLOR
     )
     backend.set_xlim(ax, *spec.layout.x_limits)
-    y_max = padded_ymax(df["neglog10p"].max())
+    line_levels = [
+        -np.log10(threshold)
+        for threshold in (spec.significance_threshold, spec.suggestive_threshold)
+        if threshold is not None
+    ]
+    y_max = padded_ymax(max([df["neglog10p"].max(), *line_levels]))
     if spec.invert_y:
         backend.set_ylim(ax, y_max, 0)
     else:
