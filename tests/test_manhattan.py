@@ -3,10 +3,12 @@
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from pylocuszoom import GenomeWideConfig
 from pylocuszoom.exceptions import ValidationError
-from pylocuszoom.manhattan import prepare_categorical_data
+from pylocuszoom.manhattan import prepare_categorical_data, prepare_genomewide_frames
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
 
@@ -613,3 +615,60 @@ class TestChromosomeLayoutOrder:
         prepared = prepare_genomewide_frames([df], config, species=None)
 
         assert prepared[0].layout.tick_labels == ["2", "1"]
+
+
+_snp_rows = st.lists(
+    st.tuples(
+        st.sampled_from(["1", "2", "10", "X", "chr3"]),
+        st.integers(min_value=1, max_value=5_000_000),
+        st.floats(min_value=1e-300, max_value=1.0),
+    ),
+    min_size=1,
+    max_size=40,
+)
+
+
+class TestGenomeLayoutProperties:
+    """Invariants of the shared genome axis over any set of frames."""
+
+    @staticmethod
+    def _prepare(frames_rows):
+        frames = [
+            pd.DataFrame(rows, columns=["chr", "pos", "p_value"])
+            for rows in frames_rows
+        ]
+        return prepare_genomewide_frames(frames, GenomeWideConfig(), species="canine")
+
+    @staticmethod
+    def _points(prepared):
+        return pd.concat(
+            p.frame[[p.group_col, "pos", p.x_col]].set_axis(["chr", "pos", "x"], axis=1)
+            for p in prepared
+        )
+
+    @given(st.lists(_snp_rows, min_size=1, max_size=3))
+    def test_every_point_lies_strictly_inside_the_x_limits(self, frames_rows):
+        """A single SNP, or SNPs all at one position, still get an axis with width."""
+        prepared = self._prepare(frames_rows)
+        low, high = prepared[0].layout.x_limits
+
+        x = self._points(prepared)["x"]
+        assert low < x.min()
+        assert x.max() < high
+
+    @given(st.lists(_snp_rows, min_size=1, max_size=3))
+    def test_chromosomes_occupy_disjoint_spans_in_layout_order(self, frames_rows):
+        prepared = self._prepare(frames_rows)
+        points = self._points(prepared)
+        spans = points.groupby("chr")["x"].agg(["min", "max"])
+
+        present = [c for c in prepared[0].layout.order if c in spans.index]
+        assert set(present) == set(spans.index)
+        for left, right in zip(present, present[1:]):
+            assert spans.loc[left, "max"] < spans.loc[right, "min"]
+
+    @given(st.lists(_snp_rows, min_size=2, max_size=3))
+    def test_one_locus_lands_at_one_x_in_every_frame(self, frames_rows):
+        points = self._points(self._prepare(frames_rows))
+
+        assert (points.groupby(["chr", "pos"])["x"].nunique() == 1).all()

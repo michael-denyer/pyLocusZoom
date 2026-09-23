@@ -167,7 +167,9 @@ class GenomeLayout:
 
         x_min = pooled["_cumulative_pos"].min()
         x_max = pooled["_cumulative_pos"].max()
-        padding = (x_max - x_min) * 0.01
+        span = x_max - x_min
+        # Points all at one x would otherwise get a zero-width axis.
+        padding = span * 0.01 if span else max(gap / 2, 1)
         return cls(
             order=full_order,
             offsets=offsets,
