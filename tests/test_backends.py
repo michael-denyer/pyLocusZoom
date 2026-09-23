@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import pytest
 
-from pylocuszoom.backends import BUILTIN_BACKENDS
+from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LD_HEATMAP_COLORS
 from tests.figure_probes import PROBES
 
@@ -475,6 +475,41 @@ class TestHeatmapMethods:
         array_data = mappable.get_array()
         # Check that upper triangle is masked
         assert np.ma.is_masked(array_data)
+
+
+class TestHeatmapCellBoundaries:
+    """Native heatmap cells use the same coordinate boundaries as SNP outlines."""
+
+    @pytest.mark.parametrize("backend_name", ["matplotlib", "bokeh"])
+    @pytest.mark.parametrize(
+        "coordinates, boundaries",
+        [
+            ([100, 200, 1000], [(50, 150), (150, 600), (600, 1400)]),
+            ([0, 1, 2], [(-0.5, 0.5), (0.5, 1.5), (1.5, 2.5)]),
+            ([100], [(99.5, 100.5)]),
+        ],
+    )
+    def test_native_cell_boundaries(self, backend_name, coordinates, boundaries):
+        backend = get_backend(backend_name)
+        fig, axes = backend.create_figure([1], (5, 4))
+        count = len(coordinates)
+        result = backend.add_heatmap(
+            axes[0], np.eye(count), coordinates, coordinates, ["white", "red"]
+        )
+        if backend_name == "matplotlib":
+            if axes[0].images:
+                xmin, xmax, _, _ = result.get_extent()
+                edges = np.linspace(xmin, xmax, count + 1)
+            else:
+                edges = result.get_coordinates()[0, :, 0]
+            actual = list(zip(edges[:-1], edges[1:]))
+        else:
+            data = axes[0].renderers[0].data_source.data
+            actual = [
+                (x - w / 2, x + w / 2)
+                for x, w in zip(data["x"][:count], data["w"][:count])
+            ]
+        np.testing.assert_allclose(actual, boundaries)
 
 
 class TestCustomBackendCompatibility:
