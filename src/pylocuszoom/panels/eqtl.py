@@ -97,7 +97,7 @@ class EqtlPanel:
                             edgecolor="black",
                             linewidth=0.5,
                             zorder=2,
-                            hover_data=hover_builder.build_dataframe(subset),
+                            hover_data=hover_builder.build(subset),
                         )
                 backend.add_legend(
                     ax,
@@ -116,7 +116,7 @@ class EqtlPanel:
                     edgecolor="black",
                     linewidth=0.5,
                     zorder=2,
-                    hover_data=hover_builder.build_dataframe(data),
+                    hover_data=hover_builder.build(data),
                 )
                 backend.add_legend(
                     ax,

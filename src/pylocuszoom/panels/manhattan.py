@@ -252,7 +252,7 @@ def render_manhattan_panel(
         if group_data.empty:
             continue
         hover_data = (
-            HoverDataBuilder(spec.hover).build_dataframe(group_data)
+            HoverDataBuilder(spec.hover).build(group_data)
             if spec.hover is not None
             else None
         )

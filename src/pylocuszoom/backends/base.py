@@ -19,6 +19,7 @@ import pandas as pd
 
 if TYPE_CHECKING:
     from .composition import LegendEntry
+    from .hover import HoverData
 
 
 @runtime_checkable
@@ -149,7 +150,7 @@ class PlotBackend(Protocol):
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-        hover_data: Optional[pd.DataFrame] = None,
+        hover_data: "Optional[HoverData]" = None,
         alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.
@@ -164,7 +165,8 @@ class PlotBackend(Protocol):
             edgecolor: Marker edge color.
             linewidth: Marker edge width.
             zorder: Drawing order.
-            hover_data: DataFrame with columns for hover tooltips.
+            hover_data: Tooltip columns with the role of each, which decides
+                its number format, or None for no tooltip.
             alpha: Marker opacity in (0, 1], or None for the backend's
                 default, opaque.
         """

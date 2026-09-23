@@ -137,7 +137,7 @@ def _draw_association_points(
                 edgecolor="black",
                 linewidth=0.5,
                 zorder=2,
-                hover_data=hover_builder.build_dataframe(bin_data),
+                hover_data=hover_builder.build(bin_data),
             )
     else:
         backend.scatter(
@@ -149,7 +149,7 @@ def _draw_association_points(
             edgecolor="black",
             linewidth=0.5,
             zorder=2,
-            hover_data=hover_builder.build_dataframe(df),
+            hover_data=hover_builder.build(df),
         )
 
     if panel.lead_index is not None:
@@ -164,5 +164,5 @@ def _draw_association_points(
             edgecolor="black",
             linewidth=1.5,
             zorder=10,
-            hover_data=hover_builder.build_dataframe(lead_snp),
+            hover_data=hover_builder.build(lead_snp),
         )

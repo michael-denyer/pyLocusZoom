@@ -20,7 +20,7 @@ from ._coerce import (
     pixels,
 )
 from .composition import LegendEntry, mb_tick_positions
-from .hover import plotly_hovertemplate
+from .hover import HoverData, plotly_hovertemplate
 from .plotly_layout import (
     _Panel,
     _SecondaryAxis,
@@ -160,7 +160,7 @@ class PlotlyBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-        hover_data: Optional[pd.DataFrame] = None,
+        hover_data: Optional[HoverData] = None,
         alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given panel."""
@@ -173,7 +173,7 @@ class PlotlyBackend:
 
         # Build hover template
         if hover_data is not None:
-            customdata = hover_data.values
+            customdata = hover_data.frame.values
             hovertemplate = plotly_hovertemplate(hover_data)
         else:
             customdata = None

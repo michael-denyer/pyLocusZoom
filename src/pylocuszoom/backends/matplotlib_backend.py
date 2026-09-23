@@ -15,6 +15,7 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 from ..colors import FOOTER_COLOR
 from . import register_backend
 from .composition import LegendEntry, cell_edges
+from .hover import HoverData
 
 # Side and bottom margins, as fractions of the figure. No caller has ever
 # varied them, so they are this backend's own layout policy rather than part
@@ -104,7 +105,7 @@ class MatplotlibBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-        hover_data: Optional[pd.DataFrame] = None,
+        hover_data: Optional[HoverData] = None,
         alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given axes.

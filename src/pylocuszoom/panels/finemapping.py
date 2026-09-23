@@ -101,7 +101,7 @@ class FinemappingPanel:
                     edgecolor="black",
                     linewidth=linewidth,
                     zorder=zorder,
-                    hover_data=hover_builder.build_dataframe(subset),
+                    hover_data=hover_builder.build(subset),
                 )
             if self.credible_sets:
                 backend.add_legend(

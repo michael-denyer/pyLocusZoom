@@ -25,6 +25,9 @@ Vocabulary:
   them. A matplotlib twin axis or colorbar is not a panel.
 - ``Box``: an axis-aligned rectangle drawn in data coordinates with
   ``add_rectangle``. A ``RegionHighlight`` spans the panel's full height.
+- Hover fields: ``(label, format)`` pairs in tooltip order, the format one of
+  ``HOVER_FORMATS``' values or ``"plain"``. Emphasis such as plotly's bold is
+  not a format.
 """
 
 import json
@@ -40,6 +43,16 @@ BOKEH_MARKER_NAMES = {
 INTERACTIVE_BACKENDS = ("plotly", "bokeh")
 
 LEGEND_VERTICAL = {"bottom": "lower", "top": "upper"}
+
+# Each library's number-format spec, in the shared hover vocabulary.
+HOVER_FORMATS = {
+    ".2e": "scientific",
+    "0.2e": "scientific",
+    ".3f": "3dp",
+    "0.3f": "3dp",
+    ",.0f": "grouped",
+    "0,0": "grouped",
+}
 
 
 class Box(NamedTuple):
@@ -285,6 +298,30 @@ class PlotlyProbe:
             for value in row
         }
 
+    def hover_fields(self, fig, panel=0):
+        """The distinct tooltip layouts of one panel's traces."""
+        import re
+
+        xref = self._xref(fig, panel)
+        layouts = set()
+        for trace in fig.data:
+            template = getattr(trace, "hovertemplate", None)
+            if not template or (trace.xaxis or "x") != xref:
+                continue
+            lines = template.replace("<extra></extra>", "").split("<br>")
+            layouts.add(
+                tuple(
+                    (label, HOVER_FORMATS.get(spec, "plain"))
+                    for line in lines
+                    if line
+                    for label, spec in re.findall(
+                        r"^(?:(.*?): )?%\{customdata\[\d+\](?::([^}]*))?\}$",
+                        re.sub(r"</?b>", "", line),
+                    )
+                )
+            )
+        return layouts
+
     def standalone_html(self, fig):
         """A complete HTML document carrying the figure and its library."""
         return fig.to_html(include_plotlyjs=True, full_html=True)
@@ -488,6 +525,27 @@ class BokehProbe:
                     for field in fields & set(data):
                         values.update(str(v) for v in data[field])
         return values
+
+    def hover_fields(self, fig, panel=0):
+        """The distinct tooltip layouts of one panel's hover tools."""
+        import re
+
+        from bokeh.models import HoverTool
+
+        return {
+            tuple(
+                (
+                    label,
+                    HOVER_FORMATS.get(
+                        re.fullmatch(r"@\{[^}]*\}(?:\{(.*)\})?", spec).group(1),
+                        "plain",
+                    ),
+                )
+                for label, spec in tool.tooltips
+            )
+            for tool in self.panels(fig)[panel].tools
+            if isinstance(tool, HoverTool)
+        }
 
     def standalone_html(self, fig):
         """A complete HTML document carrying the figure and its library."""

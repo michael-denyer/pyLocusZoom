@@ -6,7 +6,13 @@ import pytest
 from bokeh.models import Div, Plot
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
+from pylocuszoom.backends.hover import HoverData, HoverRole
 from pylocuszoom.stats_plotter import StatsPlotter
+
+
+def _plain(frame):
+    """Hover data whose every column is shown unformatted."""
+    return HoverData(frame, (HoverRole.PLAIN,) * len(frame.columns))
 
 
 class TestAddPanelLabelWithDataRange1d:
@@ -89,7 +95,7 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="#BEBEBE", hover_data=_plain(hover_data))
 
         # The scatter coordinates must still be [1, 2, 3], not overwritten
         source = ax.renderers[-1].data_source
@@ -110,7 +116,7 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        backend.scatter(ax, x, y, colors="red", hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="red", hover_data=_plain(hover_data))
 
         # The color data must still be the scatter colors, not overwritten
         source = ax.renderers[-1].data_source
@@ -131,7 +137,7 @@ class TestScatterHoverColumnCollision:
             }
         )
 
-        backend.scatter(ax, x, y, colors="red", sizes=60, hover_data=hover_data)
+        backend.scatter(ax, x, y, colors="red", sizes=60, hover_data=_plain(hover_data))
 
         source = ax.renderers[-1].data_source
         expected_size = max(6, 60**0.5)

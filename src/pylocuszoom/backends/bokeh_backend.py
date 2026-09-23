@@ -42,7 +42,7 @@ from ._coerce import (
     split_pixels,
 )
 from .composition import LegendEntry, cell_edges
-from .hover import bokeh_tooltips
+from .hover import HoverData, bokeh_tooltips
 
 # Style mappings (matplotlib -> Bokeh)
 _MARKER_MAP = {
@@ -178,7 +178,7 @@ class BokehBackend:
         edgecolor: str = "black",
         linewidth: float = 0.5,
         zorder: int = 2,
-        hover_data: Optional[pd.DataFrame] = None,
+        hover_data: Optional[HoverData] = None,
         alpha: Optional[float] = None,
     ) -> None:
         """Create a scatter plot on the given figure."""
@@ -192,8 +192,8 @@ class BokehBackend:
         # with internal keys (x, y, color, size)
         tooltips = []
         if hover_data is not None:
-            for col in hover_data.columns:
-                data[f"{_HOVER_KEY_PREFIX}{col}"] = hover_data[col].values
+            for col in hover_data.frame.columns:
+                data[f"{_HOVER_KEY_PREFIX}{col}"] = hover_data.frame[col].values
             tooltips = bokeh_tooltips(hover_data, key_prefix=_HOVER_KEY_PREFIX)
 
         source = ColumnDataSource(data)

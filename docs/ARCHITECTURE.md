@@ -450,6 +450,8 @@ Two pieces of shared drawing knowledge sit above the seam rather than in each
 adapter. `composition.heatmap_highlight_rects(snp_idx, x_coords, y_coords)`
 returns the outline rectangles marking a SNP, in the same data coordinates the
 heatmap was drawn in, and the panel draws them through `add_rectangle`, so no
-adapter derives cell geometry. `hover.plotly_hovertemplate`
-and `hover.bokeh_tooltips` build the tooltip spec from a hover DataFrame, so the
-column-name-to-number-format heuristic has one owner.
+adapter derives cell geometry. `HoverDataBuilder` hands `scatter` a
+`HoverData`, the display-named columns plus the `HoverRole` of each (SNP id,
+position, p-value, r² or plain), and `hover.plotly_hovertemplate` and
+`hover.bokeh_tooltips` format each column by its role, so both backends show
+the same fields in the same formats and no format is guessed from a name.
