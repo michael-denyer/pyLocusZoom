@@ -85,7 +85,12 @@ def test_association_panel_label_and_ld_legend():
 
 def test_finemapping_panel_from_frame_filters_sorts_and_renders():
     fm = pd.DataFrame(
-        {"pos": [1_900_000, 500, 1_100_000], "pip": [0.2, 0.9, 0.8], "cs": [1, 1, 1]}
+        {
+            "chr": 1,
+            "pos": [1_900_000, 500, 1_100_000],
+            "pip": [0.2, 0.9, 0.8],
+            "cs": [1, 1, 1],
+        }
     )
 
     panel = FinemappingPanel.from_frame(fm, REGION, cs_col="cs")
@@ -98,7 +103,7 @@ def test_finemapping_panel_from_frame_filters_sorts_and_renders():
 
 
 def test_eqtl_panel_renders_threshold_line():
-    eqtl = pd.DataFrame({"pos": [1_200_000, 5], "p_value": [1e-6, 1e-3]})
+    eqtl = pd.DataFrame({"chr": 1, "pos": [1_200_000, 5], "p_value": [1e-6, 1e-3]})
     panel = EqtlPanel.from_frame(eqtl, REGION, gene=None, threshold=1e-5)
 
     assert list(panel.data["pos"]) == [1_200_000]

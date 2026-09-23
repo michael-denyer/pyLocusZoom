@@ -13,6 +13,7 @@ from .config import GenomeWideConfig, GenomeWideStyle, resolve_deprecated_column
 from .exceptions import ValidationError
 from .schemas import Canonical, validate_gwas_df
 from .species import Species, resolve_species
+from .utils import normalize_chrom, normalize_chrom_series
 
 ALL_PVALUES_INVALID = (
     "All rows have invalid p-values in column '{p_col}' "
@@ -262,19 +263,20 @@ def prepare_genomewide_frames(
             chrom_col=resolved.chrom_col,
         )
         roles = {
-            Canonical.CHROM: resolved.chrom_col,
-            Canonical.POS: resolved.pos_col,
-            Canonical.P: resolved.p_col,
+            Canonical.CHROM: normalize_chrom_series(df[resolved.chrom_col]),
+            Canonical.POS: df[resolved.pos_col],
+            Canonical.P: df[resolved.p_col],
         }
         if rs_col is not None:
-            roles[Canonical.RS] = rs_col
-        normalized.append(
-            pd.DataFrame({role: df[source] for role, source in roles.items()})
-        )
+            roles[Canonical.RS] = df[rs_col]
+        normalized.append(pd.DataFrame(roles))
+    custom_order = config.custom_chrom_order
     return prepare_manhattan_frames(
         normalized,
         species=species,
-        custom_order=config.custom_chrom_order,
+        custom_order=None
+        if custom_order is None
+        else [normalize_chrom(chrom) for chrom in custom_order],
         gap=style.chrom_gap,
         palette=style.palette,
     )

@@ -312,6 +312,7 @@ def sample_eqtl_no_effect_df():
     """Sample eQTL DataFrame without effect sizes."""
     return pd.DataFrame(
         {
+            "chr": 1,
             "pos": [1_200_000, 1_400_000, 1_600_000],
             "p_value": [1e-8, 1e-6, 1e-4],
             "gene": ["GENE_A", "GENE_A", "GENE_A"],

@@ -181,7 +181,7 @@ def sample_recomb_df():
 
 @pytest.fixture
 def regional_gwas_df():
-    """100-SNP single-chromosome region in the rs/chr/ps/p_wald schema."""
+    """100-SNP single-chromosome region in the rs/chr/pos/p_value schema."""
     rng = np.random.default_rng(42)
     n_snps = 100
     positions = np.sort(rng.integers(1000000, 2000000, n_snps))
@@ -198,10 +198,11 @@ def regional_gwas_df():
 
 @pytest.fixture
 def tiny_regional_gwas_df():
-    """Three-SNP region in the rs/ps/p_wald schema, no chr column."""
+    """Three-SNP region on chromosome 1 in the rs/chr/pos/p_value schema."""
     return pd.DataFrame(
         {
             "rs": ["rs1", "rs2", "rs3"],
+            "chr": [1, 1, 1],
             "pos": [1100000, 1500000, 1900000],
             "p_value": [1e-8, 1e-5, 1e-3],
         }
@@ -210,9 +211,10 @@ def tiny_regional_gwas_df():
 
 @pytest.fixture
 def sample_eqtl_df():
-    """eQTL associations with signed effect sizes for one gene."""
+    """eQTL associations on chromosome 1 with signed effects for one gene."""
     return pd.DataFrame(
         {
+            "chr": [1, 1, 1, 1],
             "pos": [1200000, 1400000, 1600000, 1800000],
             "p_value": [1e-8, 1e-6, 1e-4, 1e-5],
             "effect_size": [0.5, -0.3, 0.8, -0.2],
@@ -223,9 +225,10 @@ def sample_eqtl_df():
 
 @pytest.fixture
 def sample_finemapping_df():
-    """Fine-mapping PIPs spanning two credible sets plus non-CS variants."""
+    """Chromosome 1 PIPs spanning two credible sets plus non-CS variants."""
     return pd.DataFrame(
         {
+            "chr": [1, 1, 1, 1, 1],
             "pos": [1200000, 1300000, 1400000, 1500000, 1600000],
             "pip": [0.85, 0.10, 0.03, 0.45, 0.30],
             "cs": [1, 1, 0, 2, 2],
@@ -235,10 +238,11 @@ def sample_finemapping_df():
 
 @pytest.fixture
 def small_regional_gwas_df():
-    """Five-SNP region in the rs/ps/p_wald schema, no chr column."""
+    """Five-SNP region on chromosome 1 in the rs/chr/pos/p_value schema."""
     return pd.DataFrame(
         {
             "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+            "chr": [1, 1, 1, 1, 1],
             "pos": [1100000, 1300000, 1500000, 1700000, 1900000],
             "p_value": [1e-8, 1e-6, 1e-5, 1e-4, 0.01],
         }

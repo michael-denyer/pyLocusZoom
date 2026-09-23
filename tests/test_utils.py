@@ -23,7 +23,9 @@ class TestFilterByRegion:
 
     def test_basic_position_filtering(self):
         """Filter returns only rows within position bounds."""
-        df = pd.DataFrame({"pos": [1000, 2000, 3000, 4000], "value": [1, 2, 3, 4]})
+        df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000, 3000, 4000], "value": [1, 2, 3, 4]}
+        )
         result = filter_by_region(df, region=(1, 1500, 3500), pos_col="pos")
 
         assert len(result) == 2
@@ -31,7 +33,9 @@ class TestFilterByRegion:
 
     def test_inclusive_bounds(self):
         """Position bounds are inclusive (>= start, <= end)."""
-        df = pd.DataFrame({"pos": [1000, 2000, 3000, 4000], "value": [1, 2, 3, 4]})
+        df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000, 3000, 4000], "value": [1, 2, 3, 4]}
+        )
         result = filter_by_region(df, region=(1, 2000, 3000), pos_col="pos")
 
         # Both boundary values should be included
@@ -40,15 +44,20 @@ class TestFilterByRegion:
 
     # Chromosome column handling
 
-    def test_no_chromosome_column_filters_by_position_only(self):
-        """When chrom_col not in DataFrame, filter by position only."""
+    def test_missing_chromosome_column_raises(self):
+        """A frame without the named chromosome column is an input error."""
         df = pd.DataFrame({"pos": [1000, 2000, 3000], "value": [1, 2, 3]})
-        # No 'chrom' column exists
-        result = filter_by_region(df, region=(1, 1500, 2500), pos_col="pos")
 
-        # Should still filter by position
-        assert len(result) == 1
-        assert result["pos"].iloc[0] == 2000
+        with pytest.raises(ValidationError, match="'chr'.*chrom_col=None"):
+            filter_by_region(df, region=(1, 1500, 2500), pos_col="pos")
+
+    def test_chrom_col_none_filters_by_position_only(self):
+        """chrom_col=None is the explicit opt-in to position-only selection."""
+        df = pd.DataFrame({"pos": [1000, 2000, 3000], "chr": [1, 2, 3]})
+
+        result = filter_by_region(df, region=(1, 1500, 2500), chrom_col=None)
+
+        assert result["pos"].tolist() == [2000]
 
     def test_chromosome_filtering_with_column_present(self):
         """When chrom_col exists, filter by both chromosome and position."""
@@ -106,12 +115,12 @@ class TestFilterByRegion:
 
     def test_empty_result_region_outside_data_range(self):
         """Region outside data range returns empty DataFrame (not error)."""
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "value": [1, 2, 3]})
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000, 3000], "value": [1, 2, 3]})
         result = filter_by_region(df, region=(1, 5000, 6000), pos_col="pos")
 
         assert len(result) == 0
         assert isinstance(result, pd.DataFrame)
-        assert list(result.columns) == ["pos", "value"]
+        assert list(result.columns) == ["chr", "pos", "value"]
 
     def test_empty_result_wrong_chromosome(self):
         """Wrong chromosome returns empty DataFrame."""
@@ -125,7 +134,7 @@ class TestFilterByRegion:
 
     def test_returns_copy_not_view(self):
         """Modifying result does not affect original DataFrame."""
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "value": [1, 2, 3]})
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000, 3000], "value": [1, 2, 3]})
         result = filter_by_region(df, region=(1, 500, 2500), pos_col="pos")
 
         # Modify the result
@@ -252,6 +261,12 @@ class TestNormalizeChrom:
         assert normalize_chrom("chr1") == "1"
         assert normalize_chrom("chrX") == "X"
 
+    def test_prefix_is_stripped_in_any_case_and_only_as_a_prefix(self):
+        """``Chr1`` is chromosome 1; a later "chr" belongs to the name."""
+        assert normalize_chrom("Chr1") == "1"
+        assert normalize_chrom("CHRX") == "X"
+        assert normalize_chrom("chrUn_chr5") == "Un_chr5"
+
 
 class TestNormalizeChromSeries:
     """Tests for the frame-level normalize_chrom_series."""
@@ -273,6 +288,12 @@ class TestNormalizeChromSeries:
     def test_empty_series_stays_empty(self):
         """An empty column normalises without raising."""
         assert normalize_chrom_series(pd.Series([], dtype=object)).empty
+
+    def test_prefix_is_stripped_in_any_case_and_only_as_a_prefix(self):
+        """The column form follows the scalar form's prefix rule."""
+        result = normalize_chrom_series(pd.Series(["Chr1", "CHRX", "chrUn_chr5"]))
+
+        assert result.tolist() == ["1", "X", "Un_chr5"]
 
     def test_float_column_reads_as_integer_names(self):
         """pandas reads a chromosome column holding a NaN as float: 1.0 is "1"."""

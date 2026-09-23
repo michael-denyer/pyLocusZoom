@@ -123,6 +123,9 @@ class ColumnConfig(_Config):
     frame needs no config at all.
 
     Attributes:
+        chrom_col: Column name for chromosome. A frame without it raises;
+            None selects the region by position only, for a frame already
+            scoped to the region's chromosome.
         pos_col: Column name for genomic position.
         p_col: Column name for p-value.
         rs_col: Column name for SNP identifier.
@@ -130,6 +133,9 @@ class ColumnConfig(_Config):
 
     model_config = ConfigDict(frozen=True)
 
+    chrom_col: Optional[str] = Field(
+        default=Canonical.CHROM, description="Chromosome column name"
+    )
     pos_col: str = Field(default=Canonical.POS, description="Position column name")
     p_col: str = Field(default=Canonical.P, description="P-value column name")
     rs_col: str = Field(default=Canonical.RS, description="SNP ID column name")

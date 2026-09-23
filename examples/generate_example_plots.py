@@ -98,6 +98,7 @@ ld_values = generate_ld_values(positions, peak_center)
 
 gwas_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": positions,
         "p_value": p_values,
         "rs": [f"rs{i}" for i in range(n_snps)],
@@ -237,6 +238,7 @@ recomb_ld_values = generate_ld_values(recomb_positions, recomb_peak_center)
 
 recomb_gwas_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": recomb_positions,
         "p_value": recomb_p_values,
         "rs": [f"rs{i}" for i in range(n_snps)],
@@ -433,6 +435,7 @@ print("   Saved: examples/matplotlib/stacked_plot.png")
 print("4. eQTL overlay plot...")
 eqtl_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": [
             1_410_000,  # Upstream of SLC25A
             1_435_000,
@@ -572,6 +575,7 @@ for i in range(n_snps):
 
 finemapping_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": finemapping_positions,
         "pip": pip_values,
         "cs": cs_assignments,
@@ -1320,6 +1324,7 @@ heatmap_gwas_positions = np.sort(
 )
 heatmap_gwas_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": heatmap_gwas_positions,
         "p_value": 10 ** np.random.uniform(-10, -1, n_snps_heatmap),
         "rs": heatmap_snp_ids,

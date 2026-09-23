@@ -12,6 +12,7 @@ def test_regional_labels_select_one_lead_and_distant_rows_before_ranking():
 
     frame = pd.DataFrame(
         {
+            "chr": 1,
             "position": [1500000, 1500000, 1500100, 1550000, 1800000],
             "p": [1e-10, 1e-20, 1e-19, 1e-18, 1e-17],
             "variant": ["same_position", "lead", "nearby", "boundary", "distant"],

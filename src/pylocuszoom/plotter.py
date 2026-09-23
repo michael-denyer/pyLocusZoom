@@ -80,6 +80,7 @@ class _AssociationInput:
         selected = filter_by_region(
             frame,
             region=(region.chrom, region.start, region.end),
+            chrom_col=columns.chrom_col,
             pos_col=columns.pos_col,
         )
         data = prepare_pvalue_data(selected, columns.p_col).reset_index(drop=True)

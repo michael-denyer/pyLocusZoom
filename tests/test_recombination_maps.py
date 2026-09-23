@@ -409,7 +409,12 @@ class TestDownloadCanineRecombHeaderDetection:
         )
         plotter = LocusZoomPlotter(species="canine", log_level=None)
         gwas = pd.DataFrame(
-            {"pos": [1_000_000, 1_050_000], "p_value": [0.5, 1e-6], "rs": ["a", "b"]}
+            {
+                "chr": 1,
+                "pos": [1_000_000, 1_050_000],
+                "p_value": [0.5, 1e-6],
+                "rs": ["a", "b"],
+            }
         )
 
         with pytest.warns(UserWarning, match="Unrecognised first token"):

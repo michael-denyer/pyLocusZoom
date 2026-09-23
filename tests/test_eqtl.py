@@ -146,7 +146,7 @@ class TestFilterEqtlByRegion:
         assert all(result["chr"] == 1)
 
     def test_no_chr_column_filters_position_only(self):
-        """Works without chromosome column when chrom_col is empty string."""
+        """chrom_col=None filters a frame without a chromosome by position."""
         df = pd.DataFrame(
             {
                 "pos": [1000000, 1500000, 2000000],
@@ -154,7 +154,7 @@ class TestFilterEqtlByRegion:
             }
         )
         result = filter_eqtl_by_region(
-            df, chrom=1, start=1200000, end=1800000, chrom_col=""
+            df, chrom=1, start=1200000, end=1800000, chrom_col=None
         )
         assert len(result) == 1
 
@@ -301,6 +301,7 @@ class TestPrepareEqtlForPlotting:
         """Filters by region when all region params provided."""
         df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1000000, 1500000, 2000000],
                 "p_value": [1e-6, 0.01, 1e-8],
             }

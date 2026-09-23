@@ -80,7 +80,8 @@ def filter_eqtl_by_region(
         start: Start position.
         end: End position.
         pos_col: Column name for position.
-        chrom_col: Column name for chromosome (if present).
+        chrom_col: Column name for chromosome, or None to filter by position
+            only.
 
     Returns:
         Filtered DataFrame containing only eQTLs in the region.
@@ -88,7 +89,7 @@ def filter_eqtl_by_region(
     filtered = filter_by_region(
         df,
         region=(chrom, start, end),
-        chrom_col=chrom_col or "",
+        chrom_col=chrom_col,
         pos_col=pos_col,
     )
     logger.debug(

@@ -363,6 +363,7 @@ class TestNaNPvalues:
         """Render an empty association panel rather than raising."""
         gwas_df = pd.DataFrame(
             {
+                "chr": 1,
                 "rs": ["rs1", "rs2", "rs3"],
                 "pos": [1100000, 1500000, 1900000],
                 "p_value": [np.nan, np.nan, np.nan],

@@ -94,6 +94,7 @@ class TestBackendEQTLFinemapping:
         """Sample eQTL DataFrame without effect sizes."""
         return pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1200000, 1400000, 1600000],
                 "p_value": [1e-6, 1e-4, 0.01],
                 "gene": ["GENE1", "GENE1", "GENE1"],
@@ -229,6 +230,7 @@ class TestBackendEQTLFinemapping:
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
         eqtl_df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1200000, 1400000, 1600000],
                 "p_value": [1e-6, 0.0, 0.01],
             }

@@ -83,6 +83,7 @@ from pylocuszoom import LDConfig, LocusZoomPlotter
 
 # Sample GWAS data
 gwas_df = pd.DataFrame({
+    "chr": [1] * 5,
     "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
     "p_value": [0.05, 1e-4, 1e-8, 1e-6, 0.01],
     "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
@@ -180,6 +181,7 @@ Add expression QTL data as a separate panel below GWAS results.
 
 ```python
 eqtl_df = pd.DataFrame({
+    "chr": [1] * 3,
     "pos": [1000500, 1001200, 1002000],
     "p_value": [1e-6, 1e-4, 0.01],
     "gene": ["BRCA1", "BRCA1", "BRCA1"],
@@ -213,6 +215,7 @@ Visualize SuSiE or other fine-mapping results with credible set coloring.
 
 ```python
 finemapping_df = pd.DataFrame({
+    "chr": [1] * 4,
     "pos": [1000500, 1001200, 1002000, 1003500],
     "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
     "cs": [1, 1, 0, 2],               # Credible set (0 = not in CS)
@@ -916,6 +919,7 @@ fig = plotter.plot(
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `chrom_col` | str or None | `"chr"` | Chromosome column name in gwas_df. A frame without it raises; `None` selects the region by position only, for a frame already scoped to the region's chromosome. |
 | `pos_col` | str | `"pos"` | Position column name in gwas_df. |
 | `p_col` | str | `"p_value"` | P-value column name in gwas_df. |
 | `rs_col` | str | `"rs"` | SNP ID column name in gwas_df. |

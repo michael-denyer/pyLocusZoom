@@ -70,11 +70,12 @@ reused across calls; each call resolves its effective options before rendering.
 
 ### `ColumnConfig` — GWAS DataFrame column names
 
-| Field     | Type  | Default   | Description           |
-| --------- | ----- | --------- | --------------------- |
-| `pos_col` | `str` | `"pos"`     | Position column name  |
-| `p_col`   | `str` | `"p_value"` | P-value column name   |
-| `rs_col`  | `str` | `"rs"`    | SNP identifier column |
+| Field       | Type          | Default     | Description           |
+| ----------- | ------------- | ----------- | --------------------- |
+| `chrom_col` | `str \| None` | `"chr"`     | Chromosome column name; must exist unless `None`, which selects by position only |
+| `pos_col`   | `str`         | `"pos"`     | Position column name  |
+| `p_col`     | `str`         | `"p_value"` | P-value column name   |
+| `rs_col`    | `str`         | `"rs"`      | SNP identifier column |
 
 ### `DisplayConfig` — visual options
 
@@ -144,6 +145,7 @@ Because configuration is passed at call time, "required" here means
 | Setting                  | Required?                              | Notes                                                      |
 | ------------------------ | -------------------------------------- | ---------------------------------------------------------- |
 | `chrom`, `start`, `end`  | Required                               | Validation error if missing or if `start >= end`.          |
+| `chrom_col`              | Optional                               | Defaults to `"chr"`, which the frame must carry; `None` selects by position only. |
 | `pos_col`, `p_col`, `rs_col` | Optional                           | Default to the canonical `"pos"`, `"p_value"`, `"rs"`.     |
 | `lead_pos`               | Required *if* `ld_reference_file` set  | Otherwise optional.                                        |
 | `ld_reference_file`      | Optional                               | Mutually exclusive with `ld_col`.                          |
@@ -160,6 +162,7 @@ Defaults defined in source (see
 [`config.py`](../src/pylocuszoom/config.py)):
 
 ```text
+chrom_col          = "chr"
 pos_col            = "pos"
 p_col              = "p_value"
 rs_col             = "rs"

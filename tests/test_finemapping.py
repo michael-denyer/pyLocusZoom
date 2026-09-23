@@ -28,6 +28,7 @@ def finemapping_df():
     """Create sample fine-mapping DataFrame."""
     return pd.DataFrame(
         {
+            "chr": 1,
             "pos": [1000, 2000, 3000, 4000, 5000],
             "pip": [0.95, 0.02, 0.8, 0.1, 0.01],
             "cs": [1, 0, 2, 2, 0],
@@ -182,7 +183,7 @@ class TestDrawFinemapping:
     def test_pip_line_carries_the_input_values(self, rendering_axes):
         """PIP values are rendered as a single line on the axes."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
         FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
@@ -196,6 +197,7 @@ class TestDrawFinemapping:
         backend, ax = rendering_axes
         df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1000, 2000, 3000, 4000],
                 "pip": [0.1, 0.5, 0.2, 0.05],
                 "cs": [1, 1, 2, 0],
@@ -214,7 +216,7 @@ class TestDrawFinemapping:
     def test_pip_line_renders_without_a_credible_set_column(self, rendering_axes):
         """PIP line renders even when no credible-set column is provided."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
         FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
@@ -223,7 +225,9 @@ class TestDrawFinemapping:
     def test_only_points_above_the_pip_threshold_scatter(self, rendering_axes):
         """The panel scatters the variants that clear PIP_SCATTER_THRESHOLD."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.005, 0.5, 0.002]})
+        df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000, 3000], "pip": [0.005, 0.5, 0.002]}
+        )
 
         FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
@@ -262,8 +266,12 @@ class TestPlotterDelegation:
         """
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
-        gwas_df = pd.DataFrame({"pos": [1000, 2000], "p_value": [0.01, 0.001]})
-        fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
+        gwas_df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000], "p_value": [0.01, 0.001]}
+        )
+        fm_df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]}
+        )
 
         fig = plotter.plot_stacked(
             [gwas_df],
@@ -295,6 +303,7 @@ class TestFinemappingManyCredibleSets:
 
         finemapping_df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": positions,
                 "pip": [0.8 if i % 5 == 0 else 0.1 for i in range(n_variants)],
                 "cs": credible_sets,

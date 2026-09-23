@@ -102,6 +102,7 @@ fig = plotter.plot(
     start=1000000,
     end=2000000,
     columns=ColumnConfig(
+        chrom_col="chr",                # Column name for chromosome (None: position only)
         pos_col="pos",                  # Column name for position
         p_col="p_value",                # Column name for p-value
         rs_col="rs",                    # Column name for SNP ID
@@ -296,6 +297,7 @@ Add expression QTL data as a separate panel. `plot()` takes the same
 from pylocuszoom import LocusZoomPlotter, PanelInputs
 
 eqtl_df = pd.DataFrame({
+    "chr": [1] * 3,
     "pos": [1000500, 1001200, 1002000],
     "p_value": [1e-6, 1e-4, 0.01],
     "gene": ["BRCA1", "BRCA1", "BRCA1"],
@@ -323,6 +325,7 @@ Visualize SuSiE or other fine-mapping results with credible set coloring:
 from pylocuszoom import LocusZoomPlotter, PanelInputs
 
 finemapping_df = pd.DataFrame({
+    "chr": [1] * 4,
     "pos": [1000500, 1001200, 1002000, 1003500],
     "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
     "cs": [1, 1, 0, 2],               # Credible set assignment (0 = not in CS)

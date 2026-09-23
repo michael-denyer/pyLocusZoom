@@ -539,7 +539,12 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
 
 def test_regional_heatmap_sorts_coordinates_and_matrix_together():
     frame = pd.DataFrame(
-        {"pos": [100, 200, 1000], "p_value": [0.1, 0.01, 0.001], "rs": ["a", "b", "c"]}
+        {
+            "chr": 1,
+            "pos": [100, 200, 1000],
+            "p_value": [0.1, 0.01, 0.001],
+            "rs": ["a", "b", "c"],
+        }
     )
     matrix = pd.DataFrame([[0.9, 0.1, 0.2], [0.1, 0.8, 0.3], [0.2, 0.3, 0.7]])
     fig = LocusZoomPlotter(species=None, backend="bokeh", log_level=None).plot(
@@ -564,7 +569,9 @@ def test_regional_heatmap_sorts_coordinates_and_matrix_together():
 
 
 def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
-    frame = pd.DataFrame({"pos": [150, 150], "p_value": [0.1, 0.01], "rs": ["a", "b"]})
+    frame = pd.DataFrame(
+        {"chr": 1, "pos": [150, 150], "p_value": [0.1, 0.01], "rs": ["a", "b"]}
+    )
     with pytest.raises(ValueError, match="distinct genomic positions"):
         LocusZoomPlotter(species=None, log_level=None).plot(
             frame,
@@ -581,6 +588,7 @@ def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
 def test_heatmap_highlights_selected_variant_at_duplicate_source_position():
     frame = pd.DataFrame(
         {
+            "chr": 1,
             "pos": [150, 150, 250],
             "p_value": [0.1, 1e-8, 0.001],
             "rs": ["weak", "strong", "other"],
@@ -609,6 +617,7 @@ def test_regional_colorbar_preserves_genomic_display_alignment(
 ):
     frame = pd.DataFrame(
         {
+            "chr": 1,
             "pos": [1_100_000, 1_200_000, 1_900_000],
             "p_value": [0.1, 0.01, 0.001],
             "rs": ["a", "b", "c"],
@@ -657,6 +666,7 @@ class TestPlotEdgeCases:
         """
         df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1100000, 1500000, 1900000],
                 "p_value": [1e-8, 1e-5, 1e-3],
             }
