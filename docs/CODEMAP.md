@@ -199,9 +199,8 @@ Data transformation between validated input and backend-ready primitives.
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3c | assign_gene_positions | Overlap-free gene row layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3c | compute_arrow_geometry | Strand-arrow tip positions and dimensions | [gene_track.py](../src/pylocuszoom/gene_track.py) |
-| 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | get_recombination_rate_for_region | Region-filtered recomb rate, downloading and lifting managed maps; every reason there is none is a typed `PyLocusZoomError` | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
-| 3d | recomb_for_region, RecombResult | The one place the skip-the-overlay decision is made, reported as a value | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_recombination_maps, RecombSource | Species-generic download, canonical member streaming and publication; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3e | prepare_genomewide_frames | Per-input column projection before genome-wide layout and composition | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
@@ -307,6 +306,7 @@ PyLocusZoomError
 │   ├── PheWASValidationError
 │   └── ForestValidationError
 ├── OptionalDependencyMissing (also ImportError)
+├── RecombinationMapNotFound (also FileNotFoundError)
 ├── PlinkError (also RuntimeError)
 │   └── EmptyLDOutputError
 └── DataDownloadError (also RuntimeError)
@@ -559,11 +559,8 @@ two tiers, core and toolbox, tabulated under
 |------|---------|
 | `download_canine_recombination_maps` | Download canine recombination rate maps from Campbell et al. 2016. |
 | `ensure_recomb_maps` | Ensure recombination maps are available, downloading if needed. |
-| `get_recombination_rate_for_region` | Get recombination rate data for a genomic region. |
+| `get_recombination_rate_for_region` | Get recombination rate data for a genomic region, or raise why there is none. |
 | `load_recombination_map` | Load recombination map for a specific chromosome. |
-| `recomb_for_region` | Get a region's recombination rates, or a `RecombStatus` saying why there are none. |
-| `RecombResult` | The outcome of one region's recombination query: status, frame, detail. |
-| `RecombStatus` | Why a region does or does not have recombination rates to draw. |
 
 ### Liftover
 
@@ -639,6 +636,7 @@ two tiers, core and toolbox, tabulated under
 | `PheWASValidationError` | Raised when PheWAS DataFrame validation fails. |
 | `PlinkError` | Raised when PLINK subprocess fails. |
 | `PyLocusZoomError` | Base exception for all pyLocusZoom errors. |
+| `RecombinationMapNotFound` | Raised when there is no recombination map for a species or chromosome. |
 | `ReferenceAPIError` | Raised when a reference-annotation API is unreachable or errors. |
 | `UCSCAPIError` | Raised when the UCSC REST API is unreachable or returns an error. |
 | `ValidationError` | Raised when input validation fails. Inherits ValueError for backward compat. |

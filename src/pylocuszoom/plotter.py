@@ -11,7 +11,7 @@ Supports multiple backends:
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, List, Optional, Union
+from typing import Any, Callable, List, Optional, TypeVar, Union
 
 import pandas as pd
 
@@ -36,7 +36,7 @@ from .config import (
     RegionConfig,
     StackedPlotConfig,
 )
-from .exceptions import ReferenceAPIError, ValidationError
+from .exceptions import PyLocusZoomError, ReferenceAPIError, ValidationError
 from .ld import find_plink
 from .logging import enable_logging, logger
 from .panels import (
@@ -48,12 +48,33 @@ from .panels import (
     RegionalPanel,
     hover_for_association,
 )
-from .recombination import RecombResult, RecombStatus, recomb_for_region
+from .recombination import get_recombination_rate_for_region
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import Canonical, gwas_plot_spec
 from .species import Species, resolve_species
 from .utils import DataFrameLike, filter_by_region, to_pandas
 from .validation import check, resolve_column
+
+T = TypeVar("T")
+
+
+def _optional_layer(
+    what: str, build: Callable[[], T], *skip: type[PyLocusZoomError]
+) -> Optional[T]:
+    """Return ``build()``, or warn once and return None if the layer is unavailable.
+
+    The one skip policy for the optional regional layers: the gene track, the
+    recombination overlay and LD colouring. Library code raises a typed
+    ``PyLocusZoomError`` saying why a layer is unavailable; this turns the
+    ones listed in ``skip`` (every ``PyLocusZoomError`` by default) into one
+    ``UserWarning`` pointing at the caller's ``plot()`` or ``plot_stacked()``
+    line, and the figure is drawn without the layer.
+    """
+    try:
+        return build()
+    except skip or PyLocusZoomError as e:
+        warnings.warn(f"{what} skipped; {e}", UserWarning, stacklevel=4)
+        return None
 
 
 @dataclass(frozen=True)
@@ -191,15 +212,15 @@ class LocusZoomPlotter:
         start: int,
         end: int,
         lifter: Optional[CoordinateLifter] = None,
-    ) -> RecombResult:
-        """Get a region's recombination rates, or the reason there are none.
+    ) -> pd.DataFrame:
+        """Get a region's recombination rates, or raise why there are none.
 
-        Caches per region, build and lifter. The caller renders the outcome;
-        this does not warn, so a region asked for twice is reported once.
+        Caches frames per region, build and lifter. A failure is not cached,
+        so the next plot of the region retries a download that failed.
         """
         cache_key = (chrom, start, end, self.genome_build, lifter)
         if cache_key not in self._recomb_cache:
-            self._recomb_cache[cache_key] = recomb_for_region(
+            self._recomb_cache[cache_key] = get_recombination_rate_for_region(
                 chrom=chrom,
                 start=start,
                 end=end,
@@ -499,26 +520,22 @@ class LocusZoomPlotter:
                 region.start,
                 region.end,
             )
-            try:
-                annotations = get_genes_for_build(
+            annotations = _optional_layer(
+                f"Gene track for chr{region.chrom}:{region.start}-{region.end}",
+                lambda: get_genes_for_build(
                     source_for(self.species, self.genome_build),
                     region.chrom,
                     region.start,
                     region.end,
-                )
-            except ReferenceAPIError as e:
-                warnings.warn(
-                    f"Gene track skipped for chr{region.chrom}:{region.start}-"
-                    f"{region.end}; the gene source failed: {e}",
-                    stacklevel=3,
-                )
-            else:
-                if annotations.genes.empty:
-                    logger.debug("No genes found in region")
-                else:
-                    genes_df = annotations.genes
-                    if exons_df is None:
-                        exons_df = annotations.exons
+                ),
+                ReferenceAPIError,
+            )
+            if annotations is not None and annotations.genes.empty:
+                logger.debug("No genes found in region")
+            elif annotations is not None:
+                genes_df = annotations.genes
+                if exons_df is None:
+                    exons_df = annotations.exons
 
         finemap = (
             FinemappingPanel.from_frame(
@@ -548,16 +565,12 @@ class LocusZoomPlotter:
         )
 
         if display.show_recombination and recomb_df is None:
-            recomb = self._get_recomb_for_region(
-                region.chrom, region.start, region.end, recomb_lifter
+            recomb_df = _optional_layer(
+                "Recombination overlay",
+                lambda: self._get_recomb_for_region(
+                    region.chrom, region.start, region.end, recomb_lifter
+                ),
             )
-            if recomb.status is RecombStatus.OK:
-                recomb_df = recomb.frame
-            else:
-                warnings.warn(
-                    f"Recombination overlay skipped; {recomb.detail}",
-                    stacklevel=3,
-                )
 
         association: List[AssociationPanel] = []
         for index, request in enumerate(association_inputs):

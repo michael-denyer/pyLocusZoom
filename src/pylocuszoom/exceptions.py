@@ -49,6 +49,13 @@ class DataDownloadError(PyLocusZoomError, RuntimeError):
     """Raised when data download operations fail."""
 
 
+class RecombinationMapNotFound(PyLocusZoomError, FileNotFoundError):
+    """Raised when there is no recombination map for a species or chromosome.
+
+    Inherits FileNotFoundError, which ``load_recombination_map`` raised before.
+    """
+
+
 class ReferenceAPIError(DataDownloadError):
     """Raised when a reference-annotation API is unreachable or errors.
 

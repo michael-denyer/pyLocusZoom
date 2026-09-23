@@ -1,4 +1,4 @@
-"""Recombination maps: loading, region lookup, liftover and overlay status."""
+"""Recombination maps: loading, region lookup, liftover and why a lookup fails."""
 
 import io
 from pathlib import Path
@@ -8,13 +8,16 @@ import pytest
 
 from pylocuszoom._liftover import InMemoryLifter
 from pylocuszoom.colors import RECOMB_COLOR
-from pylocuszoom.exceptions import DataDownloadError
+from pylocuszoom.exceptions import (
+    DataDownloadError,
+    PyLocusZoomError,
+    RecombinationMapNotFound,
+    ValidationError,
+)
 from pylocuszoom.recombination import (
-    RecombStatus,
     get_default_data_dir,
     get_recombination_rate_for_region,
     load_recombination_map,
-    recomb_for_region,
 )
 from tests.conftest import write_canine_map_set
 
@@ -157,79 +160,57 @@ class TestGetRecombinationRateForRegion:
         assert list(result.columns) == ["pos", "rate"]
 
 
-class TestRecombForRegion:
-    """One status per way the overlay can be unavailable, and no warnings."""
+class TestRegionLookupFailures:
+    """Every reason there is no frame is a typed error, and none of them warns."""
 
     @staticmethod
     def _failing_download(exc):
         return patch(
-            "pylocuszoom.recombination.download_recombination_maps",
+            "pylocuszoom.recombination.download_file",
             Mock(side_effect=exc),
         )
 
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_a_download_failure_is_a_status_with_the_cause_in_it(
-        self, mock_get_dir, tmp_path
-    ):
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-
-        with self._failing_download(DataDownloadError("Network error")):
-            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
-
-        assert result.status is RecombStatus.DOWNLOAD_FAILED
-        assert "Network error" in result.detail
-        assert result.frame is None
-
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_an_os_error_is_also_a_download_failure(self, mock_get_dir, tmp_path):
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-
-        with self._failing_download(OSError("Disk full")):
-            result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
-
-        assert result.status is RecombStatus.DOWNLOAD_FAILED
-        assert "Disk full" in result.detail
-
-    def test_a_species_with_no_built_in_maps_says_so_instead_of_going_quiet(self):
-        """This case used to reach the user as a debug log and nothing else."""
-        result = recomb_for_region(1, 1_000_000, 2_000_000, species="human")
-
-        assert result.status is RecombStatus.NO_MAPS_FOR_SPECIES
-        assert "human" in result.detail
-
-    def test_a_chromosome_the_map_set_does_not_cover_is_its_own_status(self, tmp_path):
-        with patch(
-            "pylocuszoom.recombination.get_default_data_dir", return_value=tmp_path
+    def test_a_download_failure_carries_its_cause(self, cache_home):
+        with (
+            self._failing_download(DataDownloadError("Network error")),
+            pytest.raises(DataDownloadError, match="Network error"),
         ):
-            result = recomb_for_region(
+            get_recombination_rate_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+    def test_an_unwritable_cache_is_a_download_error_not_an_os_error(
+        self, tmp_path, monkeypatch
+    ):
+        blocker = tmp_path / "not_a_directory"
+        blocker.write_text("")
+        monkeypatch.setenv("XDG_CACHE_HOME", str(blocker / "cache"))
+
+        with (
+            self._failing_download(AssertionError("must not download")),
+            pytest.raises(DataDownloadError, match="Could not write"),
+        ):
+            get_recombination_rate_for_region(1, 1_000_000, 2_000_000, species="canine")
+
+    def test_a_species_with_no_built_in_maps_says_so(self):
+        with pytest.raises(RecombinationMapNotFound, match="'human'"):
+            get_recombination_rate_for_region(1, 1_000_000, 2_000_000, species="human")
+
+    def test_a_chromosome_the_map_set_does_not_cover_is_its_own_error(self, tmp_path):
+        with pytest.raises(RecombinationMapNotFound, match="chr41"):
+            get_recombination_rate_for_region(
                 41, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path)
             )
 
-        assert result.status is RecombStatus.NO_MAP_FOR_CHROMOSOME
+    def test_a_missing_map_is_still_a_file_not_found_error(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            load_recombination_map(1, data_dir=str(tmp_path))
 
-    def test_a_region_that_resolves_carries_its_frame(self, tmp_path):
-        (tmp_path / "chr1_recomb.tsv").write_text(
-            "chr\tpos\trate\tcM\n1\t1500000\t0.5\t0.1\n"
-        )
-
-        with patch(
-            "pylocuszoom.recombination.get_default_data_dir", return_value=tmp_path
+    def test_no_failure_warns(self, cache_home, recwarn):
+        """The caller renders one skip policy; this layer only raises."""
+        with (
+            self._failing_download(DataDownloadError("Network error")),
+            pytest.raises(PyLocusZoomError),
         ):
-            result = recomb_for_region(
-                1, 1_000_000, 2_000_000, species="canine", data_dir=str(tmp_path)
-            )
-
-        assert result.status is RecombStatus.OK
-        assert result.detail == ""
-        assert list(result.frame["pos"]) == [1500000]
-
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_no_outcome_warns(self, mock_get_dir, tmp_path, recwarn):
-        """The caller renders one policy; this layer only reports."""
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-
-        with self._failing_download(DataDownloadError("Network error")):
-            recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
+            get_recombination_rate_for_region(1, 1_000_000, 2_000_000, species="canine")
 
         assert list(recwarn) == []
 
@@ -246,9 +227,10 @@ def test_custom_maps_are_read_only_and_need_no_complete_bundle(
 
     monkeypatch.setattr("pylocuszoom.recombination.download_file", unexpected_download)
     before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
-    result = recomb_for_region(1, 100, 200, species=species, data_dir=str(tmp_path))
-    assert result.status is RecombStatus.OK
-    assert result.frame["rate"].tolist() == [42]
+    frame = get_recombination_rate_for_region(
+        1, 100, 200, species=species, data_dir=str(tmp_path)
+    )
+    assert frame["rate"].tolist() == [42]
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
 
 
@@ -258,31 +240,24 @@ def test_custom_maps_are_already_in_the_requested_build(tmp_path, monkeypatch):
     def unexpected_liftover(*args, **kwargs):
         raise AssertionError("custom map coordinates must not be reinterpreted")
 
-    monkeypatch.setattr(
-        "pylocuszoom.recombination.ensure_recomb_maps", lambda **kwargs: tmp_path
-    )
     monkeypatch.setattr("pylocuszoom.recombination.chain_lifter", unexpected_liftover)
-    result = recomb_for_region(
+    frame = get_recombination_rate_for_region(
         1, 100, 200, data_dir=str(tmp_path), genome_build="canfam4"
     )
-    assert result.frame["pos"].tolist() == [150]
+    assert frame["pos"].tolist() == [150]
 
 
-def test_managed_maps_do_not_silently_use_an_unsupported_build(tmp_path, monkeypatch):
-    write_canine_map_set(tmp_path, "chr\tpos\trate\tcM\n1\t150\t1\t0.1\n")
-    monkeypatch.setattr(
-        "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+def test_managed_maps_do_not_silently_use_an_unsupported_build(cache_home):
+    write_canine_map_set(
+        cache_home / "recombination_maps", "chr\tpos\trate\tcM\n1\t150\t1\t0.1\n"
     )
-    result = recomb_for_region(1, 100, 200, genome_build="unknown-build")
-    assert result.status.value == "build_unavailable"
-    assert result.frame is None
-    assert "unknown-build" in result.detail
+    with pytest.raises(ValidationError, match="unknown-build"):
+        get_recombination_rate_for_region(1, 100, 200, genome_build="unknown-build")
 
 
-def test_managed_maps_use_their_known_liftover_chain(tmp_path, monkeypatch):
-    write_canine_map_set(tmp_path, "chr\tpos\trate\tcM\n1\t150\t1\t0.1\n")
-    monkeypatch.setattr(
-        "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+def test_managed_maps_use_their_known_liftover_chain(cache_home, monkeypatch):
+    write_canine_map_set(
+        cache_home / "recombination_maps", "chr\tpos\trate\tcM\n1\t150\t1\t0.1\n"
     )
 
     def registered_chain(source, target):
@@ -290,13 +265,12 @@ def test_managed_maps_use_their_known_liftover_chain(tmp_path, monkeypatch):
         return InMemoryLifter({("chr1", 149): 249})
 
     monkeypatch.setattr("pylocuszoom.recombination.chain_lifter", registered_chain)
-    result = recomb_for_region(1, 200, 300, genome_build="canfam4")
-    assert result.status is RecombStatus.OK
-    assert result.frame["pos"].tolist() == [250]
+    frame = get_recombination_rate_for_region(1, 200, 300, genome_build="canfam4")
+    assert frame["pos"].tolist() == [250]
 
 
 class TestLiftoverChainFailures:
-    """A chain that cannot be fetched or read skips the overlay like a map does."""
+    """A chain that cannot be fetched or read fails the lookup like a map does."""
 
     CHAIN = "chain 1000 chr1 5000 + 0 1000 chr1 5000 + 100 1100 1\n1000\n\n"
 
@@ -309,18 +283,16 @@ class TestLiftoverChainFailures:
         )
         return cache_home / "liftover"
 
-    def test_a_chain_download_failure_is_a_download_failure(
-        self, chain_dir, monkeypatch
-    ):
+    def test_a_chain_download_failure_is_a_download_error(self, chain_dir, monkeypatch):
         monkeypatch.setattr(
             "pylocuszoom._liftover.download_file",
             Mock(side_effect=DataDownloadError("simulated chain 404")),
         )
 
-        result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
-
-        assert result.status is RecombStatus.DOWNLOAD_FAILED
-        assert "simulated chain 404" in result.detail
+        with pytest.raises(DataDownloadError, match="simulated chain 404"):
+            get_recombination_rate_for_region(
+                1, 1, 5000, species="canine", genome_build="canfam4"
+            )
 
     def test_a_corrupt_cached_chain_is_downloaded_again(self, chain_dir, monkeypatch):
         import gzip
@@ -334,13 +306,14 @@ class TestLiftoverChainFailures:
         fetch = Mock(side_effect=download)
         monkeypatch.setattr("pylocuszoom._liftover.download_file", fetch)
 
-        result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
+        frame = get_recombination_rate_for_region(
+            1, 1, 5000, species="canine", genome_build="canfam4"
+        )
 
         assert fetch.call_count == 1
-        assert result.status is RecombStatus.OK
-        assert result.frame["pos"].tolist() == [250]
+        assert frame["pos"].tolist() == [250]
 
-    def test_a_chain_that_stays_unreadable_is_a_download_failure(
+    def test_a_chain_that_stays_unreadable_is_a_download_error(
         self, chain_dir, monkeypatch
     ):
         def download(url, dest, desc=None):
@@ -348,29 +321,28 @@ class TestLiftoverChainFailures:
 
         monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
 
-        result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
+        with pytest.raises(DataDownloadError, match="unreadable"):
+            get_recombination_rate_for_region(
+                1, 1, 5000, species="canine", genome_build="canfam4"
+            )
 
-        assert result.status is RecombStatus.DOWNLOAD_FAILED
-        assert "unreadable" in result.detail
 
-
-def test_a_lift_that_drops_the_whole_map_is_not_ok(tmp_path, recwarn):
-    """An empty overlay after liftover must say why, not report OK."""
+def test_a_lift_that_drops_the_whole_map_says_why(tmp_path, recwarn):
+    """An empty overlay after liftover must say why, not return an empty frame."""
     (tmp_path / "chr1_recomb.tsv").write_text(
         "chr\tpos\trate\tcM\n1\t150\t42\t0.1\n1\t180\t40\t0.2\n"
     )
 
-    result = recomb_for_region(
-        1,
-        100,
-        200,
-        species="canine",
-        data_dir=str(tmp_path),
-        lifter=InMemoryLifter({("chr2", 0): 0}),
-    )
+    with pytest.raises(ValidationError, match="chr1 is unknown to the liftover chain"):
+        get_recombination_rate_for_region(
+            1,
+            100,
+            200,
+            species="canine",
+            data_dir=str(tmp_path),
+            lifter=InMemoryLifter({("chr2", 0): 0}),
+        )
 
-    assert result.status is not RecombStatus.OK
-    assert "chr1" in result.detail
     assert list(recwarn) == []
 
 

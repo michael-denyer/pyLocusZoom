@@ -198,12 +198,18 @@ stages:
    `ensembl.py` for everything else. Each source answers
    with genes and exons from one request, so an automatic gene track carries
    exon structure. Recombination rates come from
-   `recombination.recomb_for_region`, which handles download of bundled canine
-   maps and CanFam3.1 → CanFam4 liftover through pyliftover. It never warns:
-   it returns a `RecombResult` whose `RecombStatus` says whether there is a
-   frame and, if not, why. The plotter turns any status other than `OK` into
-   one `UserWarning` pointing at the caller's own line, so every reason the
-   overlay is missing reaches the user the same way.
+   `recombination.get_recombination_rate_for_region`, which handles download
+   of bundled canine maps and CanFam3.1 → CanFam4 liftover through the chain
+   the `GenomeBuild` registers. Neither lookup warns. Each raises a typed
+   `PyLocusZoomError` saying why there is nothing to draw (`ReferenceAPIError`
+   for genes; `DataDownloadError`, `RecombinationMapNotFound`,
+   `OptionalDependencyMissing` or `ValidationError` for recombination), as
+   LD enrichment does. The plotter's one `_optional_layer` helper turns those
+   into one `UserWarning` pointing at the caller's own line and draws the
+   figure without the layer, so every reason a layer is missing reaches the
+   user the same way. Before 5.0 recombination reported a status enum instead;
+   it was a second error taxonomy kept in sync by hand beside the exception
+   hierarchy, and a chain failure that escaped it crashed `plot()`.
 6. **Regional composition and backend dispatch.** `plot()` and
    `plot_stacked()` take the region plus four frozen config values
    (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`), so each

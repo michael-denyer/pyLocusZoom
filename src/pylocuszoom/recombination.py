@@ -14,7 +14,6 @@ import tarfile
 import tempfile
 import uuid
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
@@ -22,7 +21,7 @@ import pandas as pd
 
 from ._http import download_file
 from ._liftover import CoordinateLifter, chain_lifter, describe_drops, liftover_region
-from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
+from .exceptions import DataDownloadError, RecombinationMapNotFound, ValidationError
 from .genome_build import GENOME_BUILDS, assembly_token, resolve_build
 from .logging import logger
 from .species import Species, resolve_species
@@ -266,23 +265,29 @@ def download_recombination_maps(source: RecombSource, output_path: Path) -> Path
         ``output_path``.
 
     Raises:
-        DataDownloadError: If the download fails, or the archive is corrupt,
-            incomplete, or not a recombination map set.
+        DataDownloadError: If the download fails, the archive is corrupt,
+            incomplete, or not a recombination map set, or the maps cannot be
+            written.
     """
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Downloading {source.species} recombination maps...")
     logger.debug(f"Source: {source.url}")
 
-    with tempfile.TemporaryDirectory(dir=output_path.parent) as tmpdir:
-        tmp = Path(tmpdir)
-        archive = tmp / "maps.tar.gz"
-        download_file(source.url, archive, desc="Recombination maps")
-        logger.debug(f"Downloaded {archive.stat().st_size / 1024:.1f} KB")
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=output_path.parent) as tmpdir:
+            tmp = Path(tmpdir)
+            archive = tmp / "maps.tar.gz"
+            download_file(source.url, archive, desc="Recombination maps")
+            logger.debug(f"Downloaded {archive.stat().st_size / 1024:.1f} KB")
 
-        staging = tmp / "_staging"
-        staging.mkdir()
-        _stage_archive(archive, source, staging)
-        _publish_map_generation(staging, output_path, source)
+            staging = tmp / "_staging"
+            staging.mkdir()
+            _stage_archive(archive, source, staging)
+            _publish_map_generation(staging, output_path, source)
+    except OSError as e:
+        raise DataDownloadError(
+            f"Could not write recombination maps to {output_path}: {e}"
+        ) from e
 
     logger.info(f"Recombination maps saved to: {output_path}")
     return output_path
@@ -345,7 +350,7 @@ def load_recombination_map(
         DataFrame with columns: pos, rate, cM.
 
     Raises:
-        FileNotFoundError: If map file not found.
+        RecombinationMapNotFound: If the map file is not there.
         ValidationError: If the species is not one this package knows.
     """
     record = resolve_species(species)
@@ -361,7 +366,9 @@ def load_recombination_map(
             else f"There are no built-in recombination maps for {key!r}; "
             f"pass data_dir pointing at your own chr{{N}}_recomb.tsv files."
         )
-        raise FileNotFoundError(f"Recombination map not found: {map_file}\n{remedy}")
+        raise RecombinationMapNotFound(
+            f"Recombination map not found: {map_file}\n{remedy}"
+        )
 
     df = pd.read_csv(map_file, sep="\t")
 
@@ -390,7 +397,11 @@ def get_recombination_rate_for_region(
     genome_build: Optional[str] = None,
     lifter: Optional[CoordinateLifter] = None,
 ) -> pd.DataFrame:
-    """Get recombination rate data for a genomic region.
+    """Get recombination rate data for a genomic region, or raise why there is none.
+
+    The one lookup behind the recombination overlay. Every reason there is
+    no frame is a ``PyLocusZoomError`` subclass, so a caller that would rather
+    draw without the overlay catches that one base class; the plotter does.
 
     Args:
         chrom: Chromosome number.
@@ -398,16 +409,29 @@ def get_recombination_rate_for_region(
         end: End position (bp).
         species: Species name, alias or record, or None for a caller
             supplying its own maps.
-        data_dir: Caller maps, already in the target build. None uses managed maps.
+        data_dir: Read-only caller maps, already in the target build. None
+            uses the managed maps, downloading them on first use.
         genome_build: Target genome build (e.g., "canfam4"). Managed maps
-            use a registered liftover chain when conversion is needed.
+            use the chain their build registers when conversion is needed.
             Caller maps are already in this build.
         lifter: Lift the loaded maps, managed or caller, through this lifter
             instead. The maps must be in the lifter's source build; the
-            registered chain and ``genome_build`` are then not consulted.
+            registered chain is then not consulted, and ``genome_build``
+            only supplies the UCSC chromosome names.
 
     Returns:
         DataFrame with pos and rate columns for the region.
+
+    Raises:
+        RecombinationMapNotFound: If the species has no built-in maps and no
+            ``data_dir`` was given, or there is no map for the chromosome.
+        DataDownloadError: If the managed maps or the liftover chain cannot
+            be downloaded, read or written.
+        OptionalDependencyMissing: If liftover needs pyliftover and it is
+            not installed.
+        ValidationError: If the species is unknown, no chain reaches
+            ``genome_build``, or the lift maps none of the chromosome's
+            positions.
 
     Note:
         Built-in canine recombination maps are in CanFam3.1 coordinates.
@@ -415,11 +439,14 @@ def get_recombination_rate_for_region(
         This requires pyliftover: pip install pyliftover
     """
     record = resolve_species(species)
-    source = (
-        RECOMB_SOURCES.get(record.key)
-        if record and data_dir is None and lifter is None
-        else None
-    )
+    map_dir = ensure_recomb_maps(species=record, data_dir=data_dir)
+    if map_dir is None:
+        raise RecombinationMapNotFound(
+            f"There are no built-in recombination maps for "
+            f"{record.key if record else None!r}; pass data_dir pointing at "
+            "your own chr{N}_recomb.tsv files."
+        )
+    source = RECOMB_SOURCES[record.key] if data_dir is None and lifter is None else None
     target = resolve_build(genome_build)
     lift_build = target
     if (
@@ -435,7 +462,7 @@ def get_recombination_rate_for_region(
                 "Supply data_dir with maps in the requested build."
             )
         lifter, lift_build = chain_lifter(native, target), native
-    df = load_recombination_map(chrom, species=record, data_dir=data_dir)
+    df = load_recombination_map(chrom, species=record, data_dir=map_dir)
     if lifter is not None:
         logger.debug(f"Lifting over recombination map for chr{chrom}")
         lift = liftover_region(
@@ -478,9 +505,7 @@ def ensure_recomb_maps(
     Raises:
         ValidationError: If the species is not one this package knows.
         DataDownloadError: If the species has maps and they could not be
-            fetched. Callers that would rather degrade than fail should use
-            ``recomb_for_region``, which reports this as a status.
-        OSError: If the maps could not be written.
+            fetched or written.
     """
     record = resolve_species(species)
     if data_dir is not None:
@@ -497,108 +522,3 @@ def ensure_recomb_maps(
         return output_path
 
     return download_recombination_maps(source, output_path)
-
-
-class RecombStatus(Enum):
-    """Why a region does or does not have recombination rates to draw."""
-
-    OK = "ok"
-    NO_MAPS_FOR_SPECIES = "no_maps_for_species"
-    NO_MAP_FOR_CHROMOSOME = "no_map_for_chromosome"
-    DOWNLOAD_FAILED = "download_failed"
-    LIFTOVER_UNAVAILABLE = "liftover_unavailable"
-    BUILD_UNAVAILABLE = "build_unavailable"
-
-
-@dataclass(frozen=True)
-class RecombResult:
-    """The outcome of asking for one region's recombination rates.
-
-    Attributes:
-        status: Why there is or is not a frame.
-        frame: The region's ``pos`` and ``rate``, set only when status is OK.
-        detail: One sentence naming the cause, for the caller to render. Empty
-            when status is OK.
-    """
-
-    status: RecombStatus
-    frame: Optional[pd.DataFrame] = None
-    detail: str = ""
-
-
-def recomb_for_region(
-    chrom: int,
-    start: int,
-    end: int,
-    *,
-    species: str | Species | None = "canine",
-    data_dir: Optional[str] = None,
-    genome_build: Optional[str] = None,
-    lifter: Optional[CoordinateLifter] = None,
-) -> RecombResult:
-    """Get a region's recombination rates, or say why there are none.
-
-    The one place the "skip the overlay" decision is made. Three layers used
-    to make it independently, so whether the user heard about it depended on
-    which one fired: a download failure warned, an unsupported species was
-    silent, and a missing map file only reached the log. This reports every
-    outcome the same way and warns about none of them, leaving the caller to
-    render one policy.
-
-    Args:
-        chrom: Chromosome number.
-        start: Start position (bp).
-        end: End position (bp).
-        species: Species name, alias or record.
-        data_dir: Read-only caller maps in the requested build. None uses the
-            managed built-in cache and permits downloads.
-        genome_build: Target build. Managed maps use their registered chain,
-            or report BUILD_UNAVAILABLE when no conversion is available.
-        lifter: Lift the maps through this lifter instead of the registered
-            chain; see ``get_recombination_rate_for_region``.
-
-    Returns:
-        A RecombResult carrying the frame, or the status and the reason.
-
-    Raises:
-        ValidationError: If the species is not one this package knows.
-    """
-    record = resolve_species(species)
-    try:
-        map_dir = ensure_recomb_maps(species=record, data_dir=data_dir)
-    except (DataDownloadError, OSError) as e:
-        return RecombResult(
-            RecombStatus.DOWNLOAD_FAILED,
-            detail=f"could not download recombination maps: {e}",
-        )
-
-    if map_dir is None:
-        name = record.key if record else species
-        return RecombResult(
-            RecombStatus.NO_MAPS_FOR_SPECIES,
-            detail=f"there are no built-in recombination maps for {name!r}",
-        )
-
-    try:
-        frame = get_recombination_rate_for_region(
-            chrom=chrom,
-            start=start,
-            end=end,
-            species=record,
-            data_dir=data_dir,
-            genome_build=genome_build,
-            lifter=lifter,
-        )
-    except FileNotFoundError as e:
-        return RecombResult(RecombStatus.NO_MAP_FOR_CHROMOSOME, detail=str(e))
-    except DataDownloadError as e:
-        return RecombResult(
-            RecombStatus.DOWNLOAD_FAILED,
-            detail=f"could not get the liftover chain: {e}",
-        )
-    except OptionalDependencyMissing as e:
-        return RecombResult(RecombStatus.LIFTOVER_UNAVAILABLE, detail=str(e))
-    except ValidationError as e:
-        return RecombResult(RecombStatus.BUILD_UNAVAILABLE, detail=str(e))
-
-    return RecombResult(RecombStatus.OK, frame=frame)

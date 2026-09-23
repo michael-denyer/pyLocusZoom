@@ -11,13 +11,12 @@ import pytest
 from pylocuszoom.exceptions import DataDownloadError, ValidationError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
-    RecombStatus,
     _publish_map_generation,
     _stage_archive,
     download_canine_recombination_maps,
     ensure_recomb_header,
     ensure_recomb_maps,
-    recomb_for_region,
+    get_recombination_rate_for_region,
 )
 from tests.conftest import write_canine_map_set
 
@@ -302,7 +301,7 @@ class TestEnsureRecombMaps:
     def test_ensure_recomb_maps_propagates_a_download_error(
         self, mock_get_dir, tmp_path
     ):
-        """The data layer raises; recomb_for_region is what degrades."""
+        """The data layer raises; the plotter is what degrades."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download = Mock(side_effect=DataDownloadError("Network error"))
 
@@ -310,21 +309,22 @@ class TestEnsureRecombMaps:
             with pytest.raises(DataDownloadError, match="Network error"):
                 ensure_recomb_maps(species="canine")
 
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_propagates_an_io_error(self, mock_get_dir, tmp_path):
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download = Mock(side_effect=OSError("Disk full"))
+    def test_ensure_recomb_maps_reports_an_unwritable_cache_as_a_download_error(
+        self, tmp_path, monkeypatch
+    ):
+        blocker = tmp_path / "not_a_directory"
+        blocker.write_text("")
+        monkeypatch.setenv("XDG_CACHE_HOME", str(blocker / "cache"))
 
-        with self._patched_download(mock_download):
-            with pytest.raises(OSError, match="Disk full"):
-                ensure_recomb_maps(species="canine")
+        with pytest.raises(DataDownloadError, match="Could not write"):
+            ensure_recomb_maps(species="canine")
 
 
 class TestEnsureRecombMapsCorruptArchive:
-    """A corrupt archive surfaces as a status, not a crash, through the plotter."""
+    """A corrupt archive is a typed download error, not a crash."""
 
     @patch("pylocuszoom.recombination.download_file")
-    def test_a_corrupt_archive_is_a_download_failure(
+    def test_a_corrupt_archive_is_a_download_error(
         self, mock_download, tmp_path, monkeypatch
     ):
         monkeypatch.setattr(
@@ -336,9 +336,8 @@ class TestEnsureRecombMapsCorruptArchive:
 
         mock_download.side_effect = write_garbage
 
-        result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
-
-        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        with pytest.raises(DataDownloadError, match="not a valid tar.gz"):
+            get_recombination_rate_for_region(1, 1_000_000, 2_000_000, species="canine")
 
 
 class TestArchiveWithoutMaps:

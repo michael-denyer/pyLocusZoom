@@ -29,11 +29,7 @@ from pylocuszoom.exceptions import (
     ValidationError,
 )
 from pylocuszoom.genome_build import GENOME_BUILDS, GenomeBuild
-from pylocuszoom.recombination import (
-    RecombResult,
-    RecombStatus,
-    get_recombination_rate_for_region,
-)
+from pylocuszoom.recombination import get_recombination_rate_for_region
 
 # chr1 [0, 1000) -> chr1 [100, 1100); chr1 [1000, 2000) -> chr5 [0, 1000).
 # 1-based chr1:1000 is 0-based 999, the last base of the first block.
@@ -436,30 +432,37 @@ class TestPlotAcrossBuilds:
         assert top.get_xlim() == (10_500, 14_500)
 
     def test_recombination_uses_the_same_lifter_when_asked(
-        self, plotter, source_gwas_df, monkeypatch
+        self, plotter, source_gwas_df, tmp_path
     ):
-        seen = []
+        """lift_recombination sends the plotter's maps through the caller's chain."""
+        maps = tmp_path / "maps"
+        maps.mkdir()
+        (maps / "chr1_recomb.tsv").write_text(
+            "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n1\t2000\t0.7\t0.2\n"
+        )
+        lifting = LocusZoomPlotter(
+            species="canine",
+            genome_build="canfam4",
+            recomb_data_dir=str(maps),
+            log_level=None,
+        )
 
-        def fake_recomb(**kwargs):
-            seen.append(kwargs["lifter"])
-            return RecombResult(RecombStatus.NO_MAPS_FOR_SPECIES, detail="none")
+        def overlay_positions(lift_recombination):
+            fig = lifting.plot(
+                source_gwas_df,
+                chrom=1,
+                start=500,
+                end=3_500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(snp_labels=False),
+                liftover=LiftoverConfig(
+                    lifter=self.LIFTER, lift_recombination=lift_recombination
+                ),
+            )
+            return [x for ax in fig.axes[1:] for x in ax.get_lines()[0].get_xdata()]
 
-        monkeypatch.setattr("pylocuszoom.plotter.recomb_for_region", fake_recomb)
-        for lift_recombination in (False, True):
-            with pytest.warns(UserWarning, match="Recombination overlay skipped"):
-                plotter.plot(
-                    source_gwas_df,
-                    chrom=1,
-                    start=500,
-                    end=3_500,
-                    columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-                    display=DisplayConfig(snp_labels=False),
-                    liftover=LiftoverConfig(
-                        lifter=self.LIFTER, lift_recombination=lift_recombination
-                    ),
-                )
-
-        assert seen == [None, self.LIFTER]
+        assert overlay_positions(False) == []
+        assert overlay_positions(True) == [11_000, 12_000]
 
 
 class TestRecombinationLifter:

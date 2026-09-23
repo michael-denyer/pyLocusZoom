@@ -133,7 +133,9 @@ class TestAutoGenes:
             patch("pylocuszoom.reference_genes.cache_root", return_value=tmp_path),
             patch("pylocuszoom._http.time.sleep"),
             patch("pylocuszoom._http.requests.get", return_value=unavailable),
-            pytest.warns(UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"),
+            pytest.warns(
+                UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"
+            ) as caught,
         ):
             fig = plotter.plot(
                 small_regional_gwas_df,
@@ -143,6 +145,7 @@ class TestAutoGenes:
                 display=DisplayConfig(show_recombination=False),
             )
 
+        assert [w.filename for w in caught] == [__file__]
         assert fig is not None
 
     def test_plot_stacked_auto_genes_overrides_constructor(
