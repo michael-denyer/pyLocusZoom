@@ -5,14 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Fixed
-
-- Regional LD heatmaps validate matrix dimensions against SNP ids before annotation downloads or PLINK execution. Standalone and regional heatmaps share the same matrix checks.
-- PheWAS plots order numeric string p-values numerically and accept mixed numeric/string columns without a sorting error. Shared p-value intake returns the parsed numeric column without modifying the caller's frame.
-- Unreadable recombination maps raise `DataDownloadError`, allowing regional plots to warn once and continue. Invalid caller-supplied liftover chains raise `ValidationError`; unusable managed chain caches raise `DataDownloadError`.
-- Plotly figure titles now honor `GenomeWideStyle.title_fontweight`, including the default bold weight.
+## [5.0.0] - 2026-09-23
 
 ### Breaking
 
@@ -91,6 +84,10 @@ The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.m
 
 ### Fixed
 
+- Regional LD heatmaps validate matrix dimensions against SNP ids before annotation downloads or PLINK execution. Standalone and regional heatmaps share the same matrix checks.
+- PheWAS plots order numeric string p-values numerically and accept mixed numeric/string columns without a sorting error. Shared p-value intake returns the parsed numeric column without modifying the caller's frame.
+- Unreadable recombination maps raise `DataDownloadError`, allowing regional plots to warn once and continue. Invalid caller-supplied liftover chains raise `ValidationError`; unusable managed chain caches raise `DataDownloadError`.
+- Plotly figure titles now honor `GenomeWideStyle.title_fontweight`, including the default bold weight.
 - **Gene tracks for the canine and feline X chromosome come from UCSC's chrX.** Canine chromosome 39 was requested from UCSC as `chr39`, which the canFam assemblies do not have, so the gene track was empty. PLINK's numeric X codes (canine 39 and 41, feline 19 and 21) and `XY` are now asked for as `chrX`; the rows keep the caller's chromosome name.
 - **A read-only cache no longer stops the gene track.** Building the gene cache path created the directory, so `auto_genes=True` raised `PermissionError` on an unwritable cache even with `use_cache=False`. The directory is created only when an entry is written, and a failed write is logged and skipped.
 - **Duplicate variant ids in PLINK output no longer crash `plot()`.** pandas raised `ValueError` from the LD lookup; the plot now draws without LD colouring and warns.
