@@ -546,9 +546,9 @@ class GenomeWideStyle(_Config):
             None draws them opaque.
         title_fontsize: Size of the figure title that ``title`` sets on a
             multi-panel figure (Manhattan-QQ, stacked, Miami).
-        panel_title_fontsize: Size of the title drawn on each panel: the
-            "Manhattan Plot" and QQ lambda titles, and the ``title`` of a
-            single-panel ``plot_manhattan`` or ``plot_qq``.
+        panel_title_fontsize: Size of the title drawn on each panel: the QQ
+            lambda titles, and the ``title`` of a single-panel
+            ``plot_manhattan`` or ``plot_qq``.
         axis_label_fontsize: Size of the x and y axis labels.
         tick_label_fontsize: Size of the tick labels on both axes.
         tick_step: Label every ``tick_step``-th chromosome (or category) that
