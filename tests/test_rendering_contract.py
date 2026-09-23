@@ -393,26 +393,15 @@ def test_coloc_panel_owns_its_policy():
     from pylocuszoom.panels.coloc import ColocPanel
 
     backend = RecordingBackend()
-    merged = pd.DataFrame(
-        {
-            "neglog10_gwas": [8.0, 3.0],
-            "neglog10_eqtl": [6.0, 2.0],
-            "color": ["#FF0000", "#0000FF"],
-            "rs": ["rs1", "rs2"],
-        }
-    )
-
-    panel = ColocPanel(
-        merged=merged,
-        config=ColocConfig(
-            gwas_threshold=5e-8,
-            eqtl_threshold=1e-5,
-            show_correlation=True,
-            color_by_effect=False,
-            h4_posterior=0.92,
-            figsize=(8.0, 8.0),
+    positions = [100, 200, 300]
+    panel = ColocPanel.from_frames(
+        pd.DataFrame(
+            {"pos": positions, "p_gwas": [1e-8, 1e-3, 0.2], "rs": ["a", "b", "c"]}
         ),
-        lead_idx=0,
+        pd.DataFrame({"pos": positions, "p_eqtl": [1e-6, 1e-2, 0.5]}),
+        ColocConfig(lead_snp="a", h4_posterior=0.92),
+        gwas_threshold=5e-8,
+        eqtl_threshold=1e-5,
         title="Contract Coloc",
     )
     render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
@@ -426,5 +415,8 @@ def test_coloc_panel_owns_its_policy():
     assert names.count("axvline") == 1
     assert "set_xlabel" in names and "set_ylabel" in names
     assert "set_title" in names
-    # Correlation and H4 posterior are both annotations.
-    assert names.count("add_text") >= 2
+    # The lead's id, the correlation and the H4 posterior are annotations.
+    texts = [args[3] for name, args, _ in backend.calls if name == "add_text"]
+    assert texts[0] == "a"
+    assert texts[1].startswith("r = ")
+    assert texts[2] == "H4 PP = 0.920"

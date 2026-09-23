@@ -6,9 +6,6 @@ with points colored by LD to the lead SNP.
 
 from typing import Any, Optional, Tuple
 
-import pandas as pd
-
-from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
     DEFAULT_EQTL_THRESHOLD,
@@ -18,147 +15,10 @@ from ._plotter_utils import (
     resolve_threshold,
 )
 from .backends import BackendType, get_backend
-from .colors import (
-    EFFECT_CONGRUENT_COLOR,
-    EFFECT_INCONGRUENT_COLOR,
-    LD_NA_COLOR,
-    get_ld_color,
-)
 from .config import ColocConfig
-from .exceptions import ValidationError
 from .panels.coloc import ColocPanel
-from .schemas import Canonical, coloc_plot_spec
+from .schemas import Canonical
 from .utils import DataFrameLike, to_pandas
-from .validation import check, resolve_column
-
-
-def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
-    """Get color based on effect direction agreement.
-
-    Args:
-        gwas_effect: GWAS effect size (beta coefficient).
-        eqtl_effect: eQTL effect size (beta coefficient).
-
-    Returns:
-        Hex color code: green for same direction, red for opposite.
-    """
-    if pd.isna(gwas_effect) or pd.isna(eqtl_effect):
-        return LD_NA_COLOR
-    same_direction = (gwas_effect > 0) == (eqtl_effect > 0)
-    return EFFECT_CONGRUENT_COLOR if same_direction else EFFECT_INCONGRUENT_COLOR
-
-
-def _project_coloc_input(
-    df: pd.DataFrame,
-    *,
-    name: str,
-    pos_col: str,
-    p_col: str,
-    effect_col: Optional[str] = None,
-    rs_col: Optional[str] = None,
-    ld_col: Optional[str] = None,
-) -> pd.DataFrame:
-    """Select roles from their declared source before any merge can rename them."""
-    roles = {"pos": pos_col, f"p_{name}": p_col}
-    for role, source, field, default in (
-        (f"{name}_effect", effect_col, f"{name}_effect_col", None),
-        ("ld", ld_col, "ld_col", None),
-        ("rs", rs_col, "rs_col", Canonical.RS),
-    ):
-        resolved = resolve_column(
-            df,
-            source,
-            parameter=field,
-            optional_default=default,
-            frame=f"the {name.upper()} data",
-        )
-        if resolved is not None:
-            roles[role] = resolved
-    projected = pd.DataFrame({role: df[source] for role, source in roles.items()})
-    return prepare_pvalue_data(
-        projected, f"p_{name}", "coloc", out_col=f"neglog10_{name}"
-    )
-
-
-def _merge_and_transform(
-    gwas_df: pd.DataFrame,
-    eqtl_df: pd.DataFrame,
-    config: ColocConfig,
-) -> pd.DataFrame:
-    """Project source-owned roles, then merge and colour the accepted rows."""
-    gwas_effect, eqtl_effect = (
-        (config.gwas_effect_col, config.eqtl_effect_col)
-        if config.color_by_effect
-        else (None, None)
-    )
-    gwas = _project_coloc_input(
-        gwas_df,
-        name="gwas",
-        pos_col=config.pos_col,
-        p_col=config.gwas_p_col,
-        effect_col=gwas_effect,
-        rs_col=config.rs_col,
-        ld_col=config.ld_col,
-    )
-    eqtl = _project_coloc_input(
-        eqtl_df,
-        name="eqtl",
-        pos_col=config.pos_col,
-        p_col=config.eqtl_p_col,
-        effect_col=eqtl_effect,
-    )
-    merged = pd.merge(gwas, eqtl, on="pos", how="inner")
-    if merged.empty:
-        raise ValidationError(
-            "No overlapping positions between GWAS and eQTL DataFrames"
-        )
-    if config.color_by_effect:
-        merged["color"] = merged.apply(
-            lambda row: _get_effect_agreement_color(
-                row["gwas_effect"], row["eqtl_effect"]
-            ),
-            axis=1,
-        )
-    elif "ld" in merged:
-        merged["color"] = merged["ld"].apply(get_ld_color)
-    else:
-        merged["color"] = LD_NA_COLOR
-    return merged
-
-
-def _resolve_lead_idx(merged: pd.DataFrame, config: ColocConfig) -> Optional[Any]:
-    """Find the row to draw as the lead variant.
-
-    A named ``lead_snp`` wins. Otherwise a lead is auto-selected by highest
-    combined signal, but only when LD colouring is in play: without it there
-    is no gradient for the lead to anchor.
-
-    Args:
-        merged: Output of ``_merge_and_transform``.
-        config: Validated plot configuration.
-
-    Returns:
-        Index label of the lead row, or None to draw no lead marker.
-
-    Raises:
-        ValidationError: If ``lead_snp`` is named but the merged frame has no SNP
-            ID column or no row matching it.
-    """
-    if config.lead_snp is not None:
-        if "rs" not in merged:
-            raise ValidationError(
-                f"lead_snp '{config.lead_snp}' specified but rs_col not found"
-            )
-        matches = merged[merged["rs"] == config.lead_snp]
-        if len(matches) == 0:
-            raise ValidationError(
-                f"lead_snp '{config.lead_snp}' not found in merged data"
-            )
-        return matches.index[0]
-    if "ld" in merged:
-        combined = merged["neglog10_gwas"] + merged["neglog10_eqtl"]
-        return combined.idxmax()
-    return None
 
 
 class ColocPlotter:
@@ -282,22 +142,12 @@ class ColocPlotter:
             h4_posterior=h4_posterior,
             figsize=figsize,
         )
-        check(
+        panel = ColocPanel.from_frames(
             gwas_df,
-            coloc_plot_spec("GWAS DataFrame", config.pos_col, config.gwas_p_col),
-        )
-        check(
             eqtl_df,
-            coloc_plot_spec("eQTL DataFrame", config.pos_col, config.eqtl_p_col),
-        )
-
-        merged = _merge_and_transform(gwas_df, eqtl_df, config)
-        lead_idx = _resolve_lead_idx(merged, config)
-
-        panel = ColocPanel(
-            merged=merged,
-            config=config,
-            lead_idx=lead_idx,
+            config,
+            gwas_threshold=config.gwas_threshold,
+            eqtl_threshold=config.eqtl_threshold,
             title=title,
         )
         return render_figure(

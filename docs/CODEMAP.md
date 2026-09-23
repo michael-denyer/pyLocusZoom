@@ -223,7 +223,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |
-| 3i | ColocPanel | The colocalization scatter, built by the plotter and drawing itself | [panels/coloc.py](../src/pylocuszoom/panels/coloc.py) |
+| 3i | ColocPanel | The colocalization scatter: `from_frames` validates and merges the two frames and resolves the lead, its label, the legend and the correlation, and `draw` reads only those fields | [panels/coloc.py](../src/pylocuszoom/panels/coloc.py) |
 | 3i | LDHeatmapPanel | The standalone heatmap, built by the plotter and drawing itself | [panels/ld_heatmap.py](../src/pylocuszoom/panels/ld_heatmap.py) |
 | 3i | FigurePlan, render_figure | The one figure model every family builds, and the only code above the backends that creates a figure or finalizes its layout | [_figure.py](../src/pylocuszoom/_figure.py) |
 | 3i | PhewasPanel, ForestPanel | The PheWAS and forest panels, built through `from_frame`, each drawing itself | [panels/stats.py](../src/pylocuszoom/panels/stats.py) |

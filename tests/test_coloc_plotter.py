@@ -547,8 +547,8 @@ class TestEffectDirectionColoring:
 
     def test_effect_congruent_color(self):
         """Test same direction effects get green color."""
-        from pylocuszoom.coloc_plotter import _get_effect_agreement_color
         from pylocuszoom.colors import EFFECT_CONGRUENT_COLOR
+        from pylocuszoom.panels.coloc import _get_effect_agreement_color
 
         # Both positive
         assert _get_effect_agreement_color(0.5, 0.4) == EFFECT_CONGRUENT_COLOR
@@ -557,8 +557,8 @@ class TestEffectDirectionColoring:
 
     def test_effect_incongruent_color(self):
         """Test opposite direction effects get red color."""
-        from pylocuszoom.coloc_plotter import _get_effect_agreement_color
         from pylocuszoom.colors import EFFECT_INCONGRUENT_COLOR
+        from pylocuszoom.panels.coloc import _get_effect_agreement_color
 
         # Positive GWAS, negative eQTL
         assert _get_effect_agreement_color(0.5, -0.2) == EFFECT_INCONGRUENT_COLOR
@@ -590,8 +590,8 @@ class TestEffectDirectionColoring:
 
     def test_effect_nan_handled(self):
         """Test NaN effects get grey color."""
-        from pylocuszoom.coloc_plotter import _get_effect_agreement_color
         from pylocuszoom.colors import LD_NA_COLOR
+        from pylocuszoom.panels.coloc import _get_effect_agreement_color
 
         # NaN GWAS effect
         assert _get_effect_agreement_color(np.nan, 0.4) == LD_NA_COLOR
