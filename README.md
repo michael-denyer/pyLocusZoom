@@ -258,6 +258,11 @@ stays consistent while the backend protocol handles drawing primitives.
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#custom-backends-in-20) for the
 > three changes required.
 
+5.0 breaks the protocol again: it drops the members and parameters no caller
+used, folds the colour bar into `add_heatmap`, and hands `scatter` hover columns
+with their roles. [docs/MIGRATING-5.0.md](docs/MIGRATING-5.0.md#custom-backends)
+lists each signature change.
+
 `SupportsSNPLabels` (matplotlib-style repositioned labels) is the one optional
 capability, negotiated with a `@runtime_checkable` protocol: a custom backend
 opts in by implementing `add_snp_labels` and out by omitting it. A backend

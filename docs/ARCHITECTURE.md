@@ -397,7 +397,10 @@ shipping ~50 MB of maps in the wheel.
 ### Custom backends in 2.0
 
 2.0 completes the rendering seam, which breaks the 1.x extension contract. A
-custom backend needs three changes.
+custom backend needs three changes. 5.0 trims the protocol again
+([ADR-0011](adr/0011-protocol-diet-and-one-panel-body.md)); the signatures
+below are the 5.0 ones, and [MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends)
+lists each change from 4.x.
 
 **1. One neutral `add_legend`.** The five semantic legend methods
 (`add_ld_legend`, `add_effect_legend`, `add_eqtl_legend`,
