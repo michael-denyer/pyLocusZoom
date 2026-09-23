@@ -1528,7 +1528,7 @@ from pylocuszoom import liftover_region
 
 lift = liftover_region(
     region_df, chrom=12, lifter=LiftOver("canFam3ToCanFam4.over.chain.gz"),
-    lead_pos=33_500_000, species=plotter.species,
+    lead_pos=33_500_000, build=plotter.genome_build,
 )
 lift.n_lifted, lift.n_unmapped, lift.n_multimapped, lift.n_cross_chrom
 ```

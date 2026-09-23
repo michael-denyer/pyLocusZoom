@@ -338,7 +338,7 @@ class LocusZoomPlotter:
             lifter=lifter,
             pos_col=pos_col,
             lead_pos=ld.lead_pos,
-            species=self.species,
+            build=self.genome_build,
         )
         where = f"chr{region.chrom}:{region.start}-{region.end}"
         if lift.lifted_df.empty:

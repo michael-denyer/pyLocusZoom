@@ -23,9 +23,10 @@ import pandas as pd
 from ._http import download_file
 from ._liftover import CoordinateLifter, liftover_positions
 from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
+from .genome_build import GENOME_BUILDS, assembly_token, resolve_build
 from .logging import logger
 from .species import Species, resolve_species
-from .utils import _platform_cache_base, assembly_token, filter_by_region
+from .utils import _platform_cache_base, filter_by_region
 
 CANINE_MAP_FILENAMES = frozenset(f"chr{chrom}_recomb.tsv" for chrom in range(1, 39))
 
@@ -34,8 +35,9 @@ CANINE_RECOMB_URL = (
     "https://github.com/cflerin/dog_recombination/raw/master/dog_genetic_maps.tar.gz"
 )
 
-# Liftover chain files
-CANFAM3_TO_CANFAM4_CHAIN_URL = "https://hgdownload.soe.ucsc.edu/gbdb/canFam3/liftOver/canFam3ToCanFam4.over.chain.gz"
+CANFAM3_TO_CANFAM4_CHAIN_URL = GENOME_BUILDS["canfam3"].chain_url(
+    GENOME_BUILDS["canfam4"]
+)
 
 
 @dataclass(frozen=True)
@@ -59,9 +61,9 @@ class RecombSource:
             silent chr_recomb.tsv.
         filenames: The complete map set. A directory holding exactly these is
             a cache hit; anything else is downloaded again.
-        native_build: Build the published maps are in.
-        liftover_chains: Target build token -> chain URL, for the builds the
-            maps can be lifted to. Other non-native builds are unavailable.
+        native_build: Key of the GenomeBuild the published maps are in. Its
+            ``liftover_chains`` name the builds the maps can be lifted to;
+            other non-native builds are unavailable.
     """
 
     species: str
@@ -70,7 +72,6 @@ class RecombSource:
     chrom_pattern: str
     filenames: frozenset[str]
     native_build: str
-    liftover_chains: dict[str, str]
 
 
 CANINE_SOURCE = RecombSource(
@@ -80,7 +81,6 @@ CANINE_SOURCE = RecombSource(
     chrom_pattern=r"chr(\d+|X|Y|MT)(?:_|$)",
     filenames=CANINE_MAP_FILENAMES,
     native_build="canfam3",
-    liftover_chains={"canfam4": CANFAM3_TO_CANFAM4_CHAIN_URL},
 )
 
 # A species absent from here has no built-in maps and supplies its own.
@@ -515,12 +515,15 @@ def get_recombination_rate_for_region(
         if record and data_dir is None and lifter is None
         else None
     )
+    native = GENOME_BUILDS[source.native_build] if source is not None else None
+    target = resolve_build(genome_build)
     target_build = assembly_token(genome_build) if genome_build else ""
+    chain_url = native.chain_url(target) if native and target else None
     if (
         source is not None
         and target_build
         and target_build != source.native_build
-        and target_build not in source.liftover_chains
+        and chain_url is None
     ):
         raise ValidationError(
             f"Built-in {source.species} maps use {source.native_build}; "
@@ -528,7 +531,7 @@ def get_recombination_rate_for_region(
             "Supply data_dir with maps in the requested build."
         )
     df = loaded = load_recombination_map(chrom, species=record, data_dir=data_dir)
-    if source is not None and target_build in source.liftover_chains:
+    if chain_url is not None:
         logger.debug(f"Lifting over recombination map for chr{chrom} to {target_build}")
         df = liftover_recombination_map(
             df,
@@ -537,7 +540,7 @@ def get_recombination_rate_for_region(
             chrom=chrom,
         )
     elif lifter is not None:
-        df = liftover_positions(df, lifter, chrom, species=record)
+        df = liftover_positions(df, lifter, chrom, build=target)
     if df.empty and not loaded.empty:
         raise ValidationError(
             f"Liftover mapped none of the {len(loaded)} positions in the "

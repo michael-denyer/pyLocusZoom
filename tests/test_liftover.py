@@ -18,7 +18,6 @@ from pylocuszoom import (
     LiftoverConfig,
     LocusZoomPlotter,
     liftover_region,
-    resolve_species,
 )
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
 from pylocuszoom.recombination import (
@@ -192,7 +191,7 @@ class TestLiftoverRegion:
             df,
             chrom=chrom,
             lifter=LiftOver(str(path)),
-            species=resolve_species("canine"),
+            build="canfam3",
         )
 
         assert result.lifted_df["pos"].tolist() == [1100]
@@ -202,13 +201,11 @@ class TestLiftoverRegion:
         lifter = InMemoryLifter({("chrX", 99): 1099})
         df = pd.DataFrame({"pos": [100], "p_value": [1e-9]})
 
-        result = liftover_region(
-            df, chrom=chrom, lifter=lifter, species=resolve_species("feline")
-        )
+        result = liftover_region(df, chrom=chrom, lifter=lifter, build="felCat9")
 
         assert result.lifted_df["pos"].tolist() == [1100]
 
-    def test_numeric_x_code_is_not_aliased_without_species(self):
+    def test_numeric_x_code_is_not_aliased_without_a_build(self):
         lifter = InMemoryLifter({("chrX", 99): 1099, ("chr39", 0): 0})
         df = pd.DataFrame({"pos": [100], "p_value": [1e-9]})
 

@@ -19,9 +19,9 @@ from typing import List, Optional, Protocol, Tuple, Union, runtime_checkable
 
 import pandas as pd
 
+from .genome_build import GenomeBuild, resolve_build, ucsc_chrom
 from .logging import logger
 from .schemas import Canonical
-from .species import Species
 
 
 @runtime_checkable
@@ -80,23 +80,6 @@ def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
     return LiftOver(str(chain_path))
 
 
-def chain_chrom(chrom: Union[int, str], species: Optional[Species] = None) -> str:
-    """Return the UCSC chain name for a chromosome code.
-
-    Adds the ``chr`` prefix and applies the species' ``chain_chrom_aliases``,
-    so canine PLINK code 39 is queried as ``chrX``.
-
-    Args:
-        chrom: Chromosome as the frame spells it (12, "12", "chr12", "X", 39).
-        species: Species record whose aliases apply, or None for none.
-    """
-    name = str(chrom)
-    if name.lower().startswith("chr"):
-        name = name[3:]
-    aliases = dict(species.chain_chrom_aliases) if species is not None else {}
-    return f"chr{aliases.get(name, name)}"
-
-
 class _Outcome(Enum):
     LIFTED = "lifted"
     UNMAPPED = "unmapped"
@@ -122,7 +105,7 @@ def liftover_positions(
     recomb_df: pd.DataFrame,
     lifter: CoordinateLifter,
     chrom: Optional[int] = None,
-    species: Optional[Species] = None,
+    build: Union[str, GenomeBuild, None] = None,
 ) -> pd.DataFrame:
     """Liftover every position in ``recomb_df`` through ``lifter``.
 
@@ -140,8 +123,9 @@ def liftover_positions(
     else:
         raise ValueError("Either 'chr' column or chrom parameter required")
 
+    record = resolve_build(build)
     new_positions = [
-        _lift_one(lifter, chain_chrom(chr_val, species), pos)[1]
+        _lift_one(lifter, ucsc_chrom(chr_val, record), pos)[1]
         for chr_val, pos in zip(chroms, recomb_df["pos"])
     ]
     keep = [new_pos is not None for new_pos in new_positions]
@@ -209,7 +193,7 @@ def liftover_region(
     lifter: CoordinateLifter,
     pos_col: str = Canonical.POS,
     lead_pos: Optional[int] = None,
-    species: Optional[Species] = None,
+    build: Union[str, GenomeBuild, None] = None,
 ) -> RegionLiftResult:
     """Lift one region's SNP positions to another genome build.
 
@@ -219,14 +203,15 @@ def liftover_region(
 
     Args:
         region_df: GWAS rows for one chromosome, in the source build.
-        chrom: Chromosome of the region, bare or ``chr``-prefixed; see
-            :func:`chain_chrom` for how species codes such as canine 39 are
-            named in the chain.
+        chrom: Chromosome of the region, bare or ``chr``-prefixed. The chain
+            is queried with the UCSC name, so ``build``'s renames apply.
         lifter: Coordinate lifter exposing ``convert_coordinate``, such as
             ``pyliftover.LiftOver``.
         pos_col: 1-based position column to lift.
         lead_pos: 1-based lead-SNP position to lift alongside the region.
-        species: Species whose chromosome aliases apply.
+        build: Build whose UCSC chromosome renames apply, such as canine
+            PLINK code 39 queried as ``chrX``; a name or a record. None, or a
+            build the package does not know, applies none.
 
     Returns:
         RegionLiftResult with the lifted rows and the drop counts.
@@ -238,7 +223,7 @@ def liftover_region(
         ... )
         >>> lift.n_lifted, lift.n_dropped
     """
-    name = chain_chrom(chrom, species)
+    name = ucsc_chrom(chrom, resolve_build(build))
     if len(region_df) and lifter.convert_coordinate(name, 0) is None:
         warnings.warn(
             f"{name} is unknown to the liftover chain, so no SNP in this region "

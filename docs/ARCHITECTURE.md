@@ -193,8 +193,9 @@ stages:
    depending on the plotter).
 5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py`, or
    fetched through `reference_genes.py`, which routes the plotter's
-   `genome_build` to whichever source can serve it: `ucsc.py` for CanFam3.1,
-   CanFam4 and FelCat9, `ensembl.py` for everything else. Each source answers
+   `genome_build` to whichever source can serve it: `ucsc.py` for a
+   `GenomeBuild` naming a `ucsc_genome` (CanFam3.1, CanFam4 and FelCat9),
+   `ensembl.py` for everything else. Each source answers
    with genes and exons from one request, so an automatic gene track carries
    exon structure. Recombination rates come from
    `recombination.recomb_for_region`, which handles download of bundled canine
@@ -335,6 +336,7 @@ pyLocusZoom/
 │   ├── _ld_plotting.py        # LD intake and merge for the regional plot
 │   ├── recombination.py       # Recomb map loading + CanFam4 liftover
 │   ├── _liftover.py           # CoordinateLifter protocol + region liftover
+│   ├── genome_build.py        # GenomeBuild records: synonyms, UCSC genome, chains
 │   ├── gene_track.py          # Gene region filter, row layout, strand-arrow geometry
 │   ├── ensembl.py             # Ensembl REST client with caching
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired

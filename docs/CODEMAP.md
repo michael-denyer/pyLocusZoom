@@ -192,6 +192,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | find_plink | Locate PLINK executable | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | Species, resolve_species | The one record a species resolves to, and the boundary parser every entry point calls | [species.py](../src/pylocuszoom/species.py) |
+| 3a | GenomeBuild, resolve_build | The one record a genome build resolves to: assembly name, synonyms, UCSC gene genome, liftover chains, UCSC chromosome renames | [genome_build.py](../src/pylocuszoom/genome_build.py) |
 | 3b | colors.py | The one owner of the palette: LD, eQTL, credible-set, PheWAS, gene-track, recombination, QQ and heatmap colours. No module outside `backends/` holds a hex literal, and `test_colors.py` fails if one appears | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_ld_color | Map R² → hex colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
@@ -668,6 +669,7 @@ two tiers, core and toolbox, tabulated under
 | LD / PLINK | [ld.py](../src/pylocuszoom/ld.py) |
 | Gene track layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | Species records | [species.py](../src/pylocuszoom/species.py) |
+| Genome-build records | [genome_build.py](../src/pylocuszoom/genome_build.py) |
 | Recombination maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | Gene reference routing | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
 | Gene source value type | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |

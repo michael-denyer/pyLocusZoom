@@ -30,9 +30,10 @@ from ._gene_source import (
 )
 from ._http import request_json
 from .exceptions import EnsemblAPIError, ValidationError
+from .genome_build import assembly_token
 from .logging import logger
 from .species import Species, ensembl_species_name
-from .utils import assembly_token, normalize_chrom
+from .utils import normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000

@@ -87,6 +87,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | Recombination map loading, region lookup, liftover and overlay status | `tests/test_recombination.py` |
 | Fetching, unpacking and publishing the managed map set | `tests/test_recombination_maps.py` |
 | Coordinate liftover | `tests/test_liftover.py` |
+| Genome-build records and name folding | `tests/test_genome_build.py` |
 | Exception hierarchy | `tests/test_exceptions.py` |
 | Logging switches and sinks | `tests/test_logging.py` |
 | Loaders | `tests/test_loaders.py` (dispatch, format detection, file paths), one `tests/test_loaders_<family>.py` per loader family |
