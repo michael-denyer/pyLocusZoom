@@ -695,3 +695,44 @@ class TestPlotManhattanQQOptions:
                 isinstance(model, Div) and model.text == "footer text"
                 for model in fig.select({"type": Div})
             )
+
+
+class TestQQAxisLimits:
+    """Each QQ axis spans its own data, so one strong hit does not squash the x-axis."""
+
+    @pytest.fixture
+    def strong_hit_df(self):
+        rng = np.random.default_rng(3)
+        n = 20_000
+        p = rng.uniform(size=n)
+        p[0] = 1e-23
+        return pd.DataFrame(
+            {
+                "chr": np.repeat([1, 2], n // 2),
+                "pos": np.tile(np.arange(1, n // 2 + 1) * 1_000, 2),
+                "p_value": p,
+            }
+        )
+
+    @staticmethod
+    def _assert_limits(ax, n):
+        expected_max = -np.log10(1 / (n + 1))
+        assert ax.get_xlim()[1] == pytest.approx(expected_max * 1.05, rel=0.01)
+        assert ax.get_ylim()[1] == pytest.approx(23 * 1.05, rel=0.01)
+
+    def test_plot_qq(self, strong_hit_df):
+        fig = ManhattanPlotter(species="human").plot_qq(strong_hit_df)
+
+        self._assert_limits(fig.get_axes()[0], len(strong_hit_df))
+
+    def test_plot_manhattan_qq(self, strong_hit_df):
+        fig = ManhattanPlotter(species="human").plot_manhattan_qq(strong_hit_df)
+
+        self._assert_limits(fig.get_axes()[1], len(strong_hit_df))
+
+    def test_diagonal_stops_at_the_x_limit(self, strong_hit_df):
+        fig = ManhattanPlotter(species="human").plot_qq(strong_hit_df)
+
+        ax = fig.get_axes()[0]
+        (diagonal,) = ax.get_lines()
+        assert max(diagonal.get_xdata()) <= ax.get_xlim()[1]
