@@ -1,8 +1,9 @@
 """PheWAS and forest panels, each of which draws itself."""
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 from .._plotter_utils import add_significance_line
@@ -39,36 +40,41 @@ def _phewas_groups(
     return df, {UNCATEGORISED: UNCATEGORISED_COLOR}
 
 
-def _effect_subsets(
-    data: pd.DataFrame, effect_col: Optional[str]
-) -> List[Tuple[pd.Series, str]]:
-    """Split one PheWAS group into the marker shapes it is drawn with.
+def _effect_markers(data: pd.DataFrame, effect_col: Optional[str]) -> pd.Series:
+    """Give each PheWAS row the marker its effect direction is drawn with.
 
     Args:
-        data: Rows of one category.
-        effect_col: Column holding effect direction, or None to draw one shape.
+        data: Validated PheWAS results.
+        effect_col: Column holding effect direction, or None to draw circles.
 
     Returns:
-        One (row mask, marker) pair per shape.
+        ``"^"`` for a non-negative effect, ``"v"`` for a negative one, and
+        ``"o"`` for a missing effect or when there is no effect column.
     """
-    if effect_col is not None:
-        effects = data[effect_col]
-        return [(effects.isna(), "o"), (effects >= 0, "^"), (effects < 0, "v")]
-    return [(pd.Series(True, index=data.index), "o")]
+    if effect_col is None:
+        return pd.Series("o", index=data.index)
+    effects = data[effect_col]
+    return pd.Series(
+        np.select([effects >= 0, effects < 0], ["^", "v"], default="o"),
+        index=data.index,
+    )
+
+
+# Draw order of the effect markers within a category.
+_MARKER_ORDER = ("o", "^", "v")
 
 
 @dataclass(frozen=True)
 class PhewasPanel:
     """Prepared PheWAS panel.
 
-    ``data`` is in drawing order and carries ``_group`` and ``y_pos``;
-    ``palette`` gives one colour per group.
+    ``data`` is in drawing order and carries ``_group``, ``_marker`` and
+    ``y_pos``; ``palette`` gives one colour per group.
     """
 
     data: pd.DataFrame
     palette: dict[str, str]
     phenotype_col: str
-    effect_col: Optional[str]
     variant_id: str
     significance_threshold: Optional[float]
 
@@ -86,12 +92,12 @@ class PhewasPanel:
     ) -> "PhewasPanel":
         """Group a validated, p-value-prepared PheWAS frame for drawing."""
         data, palette = _phewas_groups(df, category_col, p_col)
+        data["_marker"] = _effect_markers(data, effect_col)
         data["y_pos"] = range(len(data))
         return cls(
             data=data,
             palette=palette,
             phenotype_col=phenotype_col,
-            effect_col=effect_col,
             variant_id=variant_id,
             significance_threshold=significance_threshold,
         )
@@ -100,8 +106,8 @@ class PhewasPanel:
         """Draw one scatter per category, the significance line, and the axes."""
         df = self.data
         for group, group_data in df.groupby("_group", sort=False):
-            for mask, marker in _effect_subsets(group_data, self.effect_col):
-                subset = group_data[mask]
+            for marker in _MARKER_ORDER:
+                subset = group_data[group_data["_marker"] == marker]
                 if subset.empty:
                     continue
                 backend.scatter(
