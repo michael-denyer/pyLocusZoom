@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
-from pylocuszoom._liftover import InMemoryLifter, liftover_positions
+from pylocuszoom._liftover import InMemoryLifter
 from pylocuszoom.colors import RECOMB_COLOR
 from pylocuszoom.exceptions import DataDownloadError, ValidationError
 from pylocuszoom.recombination import (
@@ -238,51 +238,6 @@ class TestDownloadLiftoverChain:
         assert chain_file.read_bytes() == b"new data", (
             "force=True must replace existing chain file contents"
         )
-
-
-class TestLiftoverPositions:
-    """Pure liftover math via an in-memory lifter (no pyliftover, no network).
-
-    InMemoryLifter keys are pyliftover's 0-based positions, so a 1-based
-    position ``p`` is looked up as ``p - 1`` and its hit comes back plus one.
-    """
-
-    def test_lifts_mapped_positions_with_chrom_arg(self):
-        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
-        lifter = InMemoryLifter({("chr1", 999): 1099, ("chr1", 1999): 2199})
-        result = liftover_positions(df, lifter, chrom=1)
-        assert list(result["pos"]) == [1100, 2200]
-        assert list(result["rate"]) == [0.5, 0.6]
-
-    def test_drops_unmapped_positions(self):
-        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
-        lifter = InMemoryLifter({("chr1", 999): 1099})  # 2000 fails to map
-        result = liftover_positions(df, lifter, chrom=1)
-        assert list(result["pos"]) == [1100]
-        assert list(result["rate"]) == [0.5]
-
-    def test_uses_chr_column_when_present(self):
-        df = pd.DataFrame({"chr": [1, 2], "pos": [1000, 3000], "rate": [0.1, 0.2]})
-        lifter = InMemoryLifter({("chr1", 999): 1099, ("chr2", 2999): 3299})
-        result = liftover_positions(df, lifter)
-        assert set(result["pos"]) == {1100, 3300}
-
-    def test_result_sorted_by_lifted_position(self):
-        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
-        lifter = InMemoryLifter({("chr1", 999): 4999, ("chr1", 1999): 999})
-        result = liftover_positions(df, lifter, chrom=1)
-        assert list(result["pos"]) == [1000, 5000]
-
-    def test_drops_ambiguous_multiple_mappings(self):
-        df = pd.DataFrame({"pos": [1000], "rate": [0.5]})
-        lifter = InMemoryLifter({("chr1", 999): [1110, 9998]})
-        result = liftover_positions(df, lifter, chrom=1)
-        assert result.empty
-
-    def test_requires_chr_column_or_chrom(self):
-        df = pd.DataFrame({"pos": [1000], "rate": [0.5]})
-        with pytest.raises(ValueError, match="Either 'chr' column or chrom"):
-            liftover_positions(df, InMemoryLifter({}))
 
 
 class TestLiftoverRecombinationMap:

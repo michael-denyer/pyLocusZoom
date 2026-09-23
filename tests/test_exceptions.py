@@ -1,99 +1,72 @@
-"""Tests for exception hierarchy."""
+"""Tests for the exception hierarchy and where the specialised errors are raised."""
 
+import pandas as pd
 import pytest
 
+import pylocuszoom
 from pylocuszoom.exceptions import (
     DataDownloadError,
     EmptyLDOutputError,
+    EnsemblAPIError,
     EQTLValidationError,
     FinemappingValidationError,
+    ForestValidationError,
     LoaderValidationError,
+    OptionalDependencyMissing,
+    PheWASValidationError,
     PlinkError,
     PyLocusZoomError,
     ReferenceAPIError,
+    UCSCAPIError,
     ValidationError,
 )
+
+HIERARCHY = [
+    (PyLocusZoomError, (Exception,)),
+    (ValidationError, (PyLocusZoomError, ValueError)),
+    (EQTLValidationError, (ValidationError, PyLocusZoomError, ValueError)),
+    (FinemappingValidationError, (ValidationError, PyLocusZoomError, ValueError)),
+    (LoaderValidationError, (ValidationError, PyLocusZoomError, ValueError)),
+    (PheWASValidationError, (ValidationError, PyLocusZoomError, ValueError)),
+    (ForestValidationError, (ValidationError, PyLocusZoomError, ValueError)),
+    (PlinkError, (PyLocusZoomError, RuntimeError)),
+    (EmptyLDOutputError, (PlinkError, PyLocusZoomError, RuntimeError)),
+    (OptionalDependencyMissing, (PyLocusZoomError, ImportError)),
+    (DataDownloadError, (PyLocusZoomError, RuntimeError)),
+    (ReferenceAPIError, (DataDownloadError, PyLocusZoomError, RuntimeError)),
+    (EnsemblAPIError, (ReferenceAPIError, DataDownloadError, PyLocusZoomError)),
+    (UCSCAPIError, (ReferenceAPIError, DataDownloadError, PyLocusZoomError)),
+]
+"""Each exception and every class a caller may catch it as."""
+
+EXCEPTIONS = [cls for cls, _ in HIERARCHY]
 
 
 class TestExceptionHierarchy:
     """Test that all exceptions have correct inheritance."""
 
-    def test_pylocuszoom_error_is_base_exception(self):
-        """PyLocusZoomError inherits from Exception."""
-        assert issubclass(PyLocusZoomError, Exception)
-
-    def test_validation_error_inherits_from_base_and_value_error(self):
-        """ValidationError inherits from both PyLocusZoomError and ValueError."""
-        assert issubclass(ValidationError, PyLocusZoomError)
-        assert issubclass(ValidationError, ValueError)
-
-    def test_eqtl_validation_error_inherits_from_validation_error(self):
-        """EQTLValidationError inherits from ValidationError."""
-        assert issubclass(EQTLValidationError, ValidationError)
-        assert issubclass(EQTLValidationError, PyLocusZoomError)
-        assert issubclass(EQTLValidationError, ValueError)
-
-    def test_finemapping_validation_error_inherits_from_validation_error(self):
-        """FinemappingValidationError inherits from ValidationError."""
-        assert issubclass(FinemappingValidationError, ValidationError)
-        assert issubclass(FinemappingValidationError, PyLocusZoomError)
-        assert issubclass(FinemappingValidationError, ValueError)
-
-    def test_loader_validation_error_inherits_from_validation_error(self):
-        """LoaderValidationError inherits from ValidationError."""
-        assert issubclass(LoaderValidationError, ValidationError)
-        assert issubclass(LoaderValidationError, PyLocusZoomError)
-        assert issubclass(LoaderValidationError, ValueError)
+    @pytest.mark.parametrize(
+        ("cls", "bases"), HIERARCHY, ids=[cls.__name__ for cls in EXCEPTIONS]
+    )
+    def test_exception_is_catchable_as_each_base(self, cls, bases):
+        for base in bases:
+            with pytest.raises(base):
+                raise cls("test")
 
     def test_reference_api_error_is_a_download_error(self):
         """A service failure is a download failure, not an input validation one."""
-        assert issubclass(ReferenceAPIError, DataDownloadError)
         assert not issubclass(ReferenceAPIError, ValidationError)
         assert not issubclass(ReferenceAPIError, ValueError)
 
-    def test_data_download_error_inherits_from_base_and_runtime_error(self):
-        """DataDownloadError inherits from both PyLocusZoomError and RuntimeError."""
-        assert issubclass(DataDownloadError, PyLocusZoomError)
-        assert issubclass(DataDownloadError, RuntimeError)
+    @pytest.mark.parametrize("cls", EXCEPTIONS, ids=lambda cls: cls.__name__)
+    def test_exception_message_preserved(self, cls):
+        """The message a raise site passes is what str() shows."""
+        assert str(cls("Column 'pos' is missing")) == "Column 'pos' is missing"
 
-    def test_empty_ld_output_error_is_a_plink_error(self):
-        """Empty LD output remains catchable as a general PLINK failure."""
-        assert issubclass(EmptyLDOutputError, PlinkError)
-        assert issubclass(EmptyLDOutputError, RuntimeError)
-
-
-class TestExceptionInstantiation:
-    """Test that all exceptions can be instantiated with messages."""
-
-    def test_pylocuszoom_error_with_message(self):
-        """PyLocusZoomError can be instantiated with message."""
-        err = PyLocusZoomError("test message")
-        assert str(err) == "test message"
-
-    def test_validation_error_with_message(self):
-        """ValidationError can be instantiated with message."""
-        err = ValidationError("validation failed")
-        assert str(err) == "validation failed"
-
-    def test_eqtl_validation_error_with_message(self):
-        """EQTLValidationError can be instantiated with message."""
-        err = EQTLValidationError("eQTL validation failed")
-        assert str(err) == "eQTL validation failed"
-
-    def test_finemapping_validation_error_with_message(self):
-        """FinemappingValidationError can be instantiated with message."""
-        err = FinemappingValidationError("finemapping validation failed")
-        assert str(err) == "finemapping validation failed"
-
-    def test_loader_validation_error_with_message(self):
-        """LoaderValidationError can be instantiated with message."""
-        err = LoaderValidationError("loader validation failed")
-        assert str(err) == "loader validation failed"
-
-    def test_data_download_error_with_message(self):
-        """DataDownloadError can be instantiated with message."""
-        err = DataDownloadError("download failed")
-        assert str(err) == "download failed"
+    @pytest.mark.parametrize("cls", EXCEPTIONS, ids=lambda cls: cls.__name__)
+    def test_exceptions_importable_from_package(self, cls):
+        """Every exception is importable from the top-level package."""
+        assert getattr(pylocuszoom, cls.__name__) is cls
 
 
 class TestExceptionChaining:
@@ -102,60 +75,28 @@ class TestExceptionChaining:
     def test_raise_from_preserves_cause(self):
         """Exception chaining with 'raise X from Y' preserves __cause__."""
         original = ValueError("original error")
-        try:
+        with pytest.raises(ValidationError) as exc_info:
             try:
                 raise original
             except ValueError as e:
                 raise ValidationError("wrapped error") from e
-        except ValidationError as err:
-            assert err.__cause__ is original
-            assert str(err.__cause__) == "original error"
 
-    def test_eqtl_error_wraps_validation_error(self):
-        """EQTLValidationError can wrap ValidationError."""
-        original = ValidationError("original validation error")
-        try:
-            try:
-                raise original
-            except ValidationError as e:
-                raise EQTLValidationError("eQTL error") from e
-        except EQTLValidationError as err:
-            assert err.__cause__ is original
+        assert exc_info.value.__cause__ is original
 
 
-class TestCatchingExceptions:
-    """Test that exceptions can be caught at various levels."""
+class TestSpecializedExceptionsInUse:
+    """The PheWAS and forest validators raise their own subclasses."""
 
-    def test_catch_validation_error_as_value_error(self):
-        """ValidationError can be caught as ValueError for backward compat."""
-        with pytest.raises(ValueError):
-            raise ValidationError("test")
+    def test_phewas_validation_raises_phewas_error(self):
+        """validate_phewas_df raises PheWASValidationError, not generic ValidationError."""
+        from pylocuszoom.schemas import validate_phewas_df
 
-    def test_catch_eqtl_error_as_validation_error(self):
-        """EQTLValidationError can be caught as ValidationError."""
-        with pytest.raises(ValidationError):
-            raise EQTLValidationError("test")
+        with pytest.raises(PheWASValidationError):
+            validate_phewas_df(pd.DataFrame({"wrong_col": [1]}))
 
-    def test_catch_eqtl_error_as_value_error(self):
-        """EQTLValidationError can be caught as ValueError."""
-        with pytest.raises(ValueError):
-            raise EQTLValidationError("test")
+    def test_forest_validation_raises_forest_error(self):
+        """validate_forest_df raises ForestValidationError, not generic ValidationError."""
+        from pylocuszoom.schemas import validate_forest_df
 
-    def test_catch_eqtl_error_as_base(self):
-        """EQTLValidationError can be caught as PyLocusZoomError."""
-        with pytest.raises(PyLocusZoomError):
-            raise EQTLValidationError("test")
-
-    def test_catch_all_library_errors_as_base(self):
-        """All library exceptions can be caught as PyLocusZoomError."""
-        exceptions = [
-            ValidationError("v"),
-            EQTLValidationError("e"),
-            FinemappingValidationError("f"),
-            LoaderValidationError("l"),
-            ReferenceAPIError("r"),
-            DataDownloadError("d"),
-        ]
-        for exc in exceptions:
-            with pytest.raises(PyLocusZoomError):
-                raise exc
+        with pytest.raises(ForestValidationError):
+            validate_forest_df(pd.DataFrame({"wrong_col": [1]}))

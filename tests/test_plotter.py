@@ -455,53 +455,6 @@ class TestPlotStackedEdgeCases:
                 panels=PanelInputs(eqtl_df=bad_eqtl_df),
             )
 
-    def test_plot_stacked_validates_list_lengths(
-        self, canine_plotter, tiny_regional_gwas_df
-    ):
-        """Bug: plot_stacked() should error when list lengths don't match.
-
-        Currently uses zip() which silently truncates the longer list.
-        If user provides 3 GWAS DataFrames but only 2 lead_positions,
-        the third GWAS is plotted without a lead SNP - confusing behavior.
-        """
-        gwas_dfs = [
-            tiny_regional_gwas_df,
-            tiny_regional_gwas_df.copy(),
-            tiny_regional_gwas_df.copy(),
-        ]
-        lead_positions = [1500000, 1500000]  # Only 2, but 3 gwas_dfs
-
-        # Should raise ValueError about mismatched lengths
-        # Currently silently truncates - third GWAS has no lead SNP
-        with pytest.raises(ValueError, match="lead_positions"):
-            canine_plotter.plot_stacked(
-                gwas_dfs,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                lead_positions=lead_positions,
-                display=DisplayConfig(show_recombination=False),
-            )
-
-    def test_plot_stacked_validates_panel_labels_length(
-        self, canine_plotter, tiny_regional_gwas_df
-    ):
-        """Bug: panel_labels length should match gwas_dfs length."""
-        gwas_dfs = [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()]
-        panel_labels = ["Only One"]  # Should have 2 labels
-
-        # Should raise ValueError about mismatched lengths
-        # Currently silently ignores - second panel has no label
-        with pytest.raises(ValueError, match="panel_labels"):
-            canine_plotter.plot_stacked(
-                gwas_dfs,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                panel_labels=panel_labels,
-                display=DisplayConfig(show_recombination=False),
-            )
-
 
 class TestPlotterDelegation:
     """Tests for plotter delegation to specialized classes."""
@@ -742,61 +695,29 @@ class TestNaNPvalues:
 
 
 class TestStackedPlotMismatchedLengths:
-    """Test mismatched list lengths in stacked plots raise ValidationError."""
+    """A per-panel list whose length differs from gwas_dfs raises ValueError."""
 
-    def test_stacked_mismatched_lead_positions_raises(
-        self, regional_plotter, tiny_regional_gwas_df
+    @pytest.mark.parametrize(
+        ("option", "value"),
+        [
+            ("lead_positions", [1500000, 1500000]),
+            ("panel_labels", ["A", "B"]),
+            ("ld_reference_files", ["/path/to/file1", "/path/to/file2"]),
+        ],
+    )
+    def test_stacked_list_of_the_wrong_length_raises(
+        self, regional_plotter, tiny_regional_gwas_df, option, value
     ):
-        """Mismatched lead_positions length raises ValueError."""
-        gwas_dfs = [
-            tiny_regional_gwas_df,
-            tiny_regional_gwas_df.copy(),
-            tiny_regional_gwas_df.copy(),
-        ]
-        lead_positions = [1500000, 1500000]  # Only 2, but 3 gwas_dfs
+        gwas_dfs = [tiny_regional_gwas_df] * 3
 
-        with pytest.raises(ValueError, match="lead_positions"):
+        with pytest.raises(ValueError, match=option):
             regional_plotter.plot_stacked(
                 gwas_dfs,
                 chrom=1,
                 start=1000000,
                 end=2000000,
-                lead_positions=lead_positions,
                 display=DisplayConfig(show_recombination=False),
-            )
-
-    def test_stacked_mismatched_panel_labels_raises(
-        self, regional_plotter, tiny_regional_gwas_df
-    ):
-        """Mismatched panel_labels length raises ValueError."""
-        gwas_dfs = [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()]
-        panel_labels = ["Only One"]  # Should have 2 labels
-
-        with pytest.raises(ValueError, match="panel_labels"):
-            regional_plotter.plot_stacked(
-                gwas_dfs,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                panel_labels=panel_labels,
-                display=DisplayConfig(show_recombination=False),
-            )
-
-    def test_stacked_mismatched_ld_reference_files_raises(
-        self, regional_plotter, tiny_regional_gwas_df
-    ):
-        """Mismatched ld_reference_files length raises ValueError."""
-        gwas_dfs = [tiny_regional_gwas_df, tiny_regional_gwas_df.copy()]
-        ld_reference_files = ["/path/to/file1"]  # Only 1, but 2 gwas_dfs
-
-        with pytest.raises(ValueError, match="ld_reference_files"):
-            regional_plotter.plot_stacked(
-                gwas_dfs,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                ld_reference_files=ld_reference_files,
-                display=DisplayConfig(show_recombination=False),
+                **{option: value},
             )
 
 

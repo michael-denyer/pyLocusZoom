@@ -1,24 +1,11 @@
-"""Tests for logging utilities and exception hierarchy."""
+"""Tests for logging utilities."""
 
 import io
 import subprocess
 import sys
 
-import pandas as pd
 import pytest
 from loguru import logger as _loguru_logger
-
-from pylocuszoom.exceptions import (
-    DataDownloadError,
-    EQTLValidationError,
-    FinemappingValidationError,
-    ForestValidationError,
-    LoaderValidationError,
-    PheWASValidationError,
-    PlinkError,
-    PyLocusZoomError,
-    ValidationError,
-)
 
 
 @pytest.fixture(autouse=True)
@@ -279,128 +266,6 @@ class TestModuleLevelFunctions:
         _emit("error", "critical failure")
 
         assert "critical failure" in capsys.readouterr().err
-
-
-# =============================================================================
-# Exception hierarchy tests
-# =============================================================================
-
-
-class TestExceptionHierarchy:
-    """Tests for the pyLocusZoom exception class hierarchy."""
-
-    def test_all_exceptions_inherit_from_pylocuszoom_error(self):
-        """Every custom exception inherits from PyLocusZoomError."""
-        exception_classes = [
-            ValidationError,
-            EQTLValidationError,
-            FinemappingValidationError,
-            LoaderValidationError,
-            PheWASValidationError,
-            ForestValidationError,
-            PlinkError,
-            DataDownloadError,
-        ]
-        for cls in exception_classes:
-            assert issubclass(cls, PyLocusZoomError), (
-                f"{cls.__name__} should inherit from PyLocusZoomError"
-            )
-
-    def test_validation_errors_catchable_as_valueerror(self):
-        """All ValidationError subclasses can be caught with except ValueError."""
-        validation_classes = [
-            ValidationError,
-            EQTLValidationError,
-            FinemappingValidationError,
-            LoaderValidationError,
-            PheWASValidationError,
-            ForestValidationError,
-        ]
-        for cls in validation_classes:
-            with pytest.raises(ValueError):
-                raise cls("test error")
-
-    def test_plink_error_catchable_as_runtime_error(self):
-        """PlinkError can be caught with except RuntimeError."""
-        with pytest.raises(RuntimeError):
-            raise PlinkError("plink failed")
-
-    def test_data_download_error_catchable_as_runtime_error(self):
-        """DataDownloadError can be caught with except RuntimeError."""
-        with pytest.raises(RuntimeError):
-            raise DataDownloadError("download failed")
-
-    def test_phewas_validation_error_is_validation_error(self):
-        """PheWASValidationError is a subclass of ValidationError."""
-        assert issubclass(PheWASValidationError, ValidationError)
-
-    def test_forest_validation_error_is_validation_error(self):
-        """ForestValidationError is a subclass of ValidationError."""
-        assert issubclass(ForestValidationError, ValidationError)
-
-    def test_catch_all_with_pylocuszoom_error(self):
-        """All library exceptions are catchable with except PyLocusZoomError."""
-        for cls in [
-            ValidationError,
-            PheWASValidationError,
-            ForestValidationError,
-            PlinkError,
-            DataDownloadError,
-        ]:
-            with pytest.raises(PyLocusZoomError):
-                raise cls("test")
-
-    def test_exception_message_preserved(self):
-        """Exception message is accessible via str()."""
-        msg = "Column 'pos' is missing"
-        err = LoaderValidationError(msg)
-        assert str(err) == msg
-
-    def test_exceptions_importable_from_package(self):
-        """All exceptions are importable from the top-level package."""
-        import pylocuszoom
-
-        assert hasattr(pylocuszoom, "PyLocusZoomError")
-        assert hasattr(pylocuszoom, "PheWASValidationError")
-        assert hasattr(pylocuszoom, "ForestValidationError")
-        assert hasattr(pylocuszoom, "PlinkError")
-        assert hasattr(pylocuszoom, "DataDownloadError")
-
-
-class TestSpecializedExceptionsInUse:
-    """Tests that phewas.py and forest.py raise specialized exceptions."""
-
-    def test_phewas_validation_raises_phewas_error(self):
-        """validate_phewas_df raises PheWASValidationError, not generic ValidationError."""
-        from pylocuszoom.schemas import validate_phewas_df
-
-        df = pd.DataFrame({"wrong_col": [1]})
-        with pytest.raises(PheWASValidationError):
-            validate_phewas_df(df)
-
-    def test_phewas_error_also_caught_as_validation_error(self):
-        """PheWAS error is still catchable as ValidationError (backward compat)."""
-        from pylocuszoom.schemas import validate_phewas_df
-
-        df = pd.DataFrame({"wrong_col": [1]})
-        with pytest.raises(ValidationError):
-            validate_phewas_df(df)
-
-    def test_forest_validation_raises_forest_error(self):
-        """validate_forest_df raises ForestValidationError, not generic ValidationError."""
-        from pylocuszoom.schemas import validate_forest_df
-
-        df = pd.DataFrame({"wrong_col": [1]})
-        with pytest.raises(ForestValidationError):
-            validate_forest_df(df)
-
-    def test_forest_error_also_caught_as_validation_error(self):
-        """Forest error is still catchable as ValidationError (backward compat)."""
-        from pylocuszoom.schemas import validate_forest_df
-
-        df = pd.DataFrame({"wrong_col": [1]})
-        with pytest.raises(ValidationError):
-            validate_forest_df(df)
 
 
 class TestImportSideEffects:
