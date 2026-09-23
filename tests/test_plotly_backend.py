@@ -1,6 +1,7 @@
 """Tests for the Plotly backend's subplot addressing and titles."""
 
 import pandas as pd
+import pytest
 
 from pylocuszoom.backends.composition import mb_tick_positions
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
@@ -286,3 +287,17 @@ class TestPlotlyMegabaseTicksFollowTheAxisRange:
         backend.format_xaxis_mb(panels[0])
 
         assert fig.layout.xaxis.tickvals is None
+
+
+@pytest.mark.parametrize(
+    "weight, expected", [("bold", "<b>Study</b>"), ("normal", "Study")]
+)
+def test_figure_title_honors_font_weight(weight, expected):
+    from pylocuszoom import GenomeWideStyle
+
+    frame = pd.DataFrame({"chr": [1, 1], "pos": [100, 200], "p_value": [0.1, 0.01]})
+    fig = ManhattanPlotter(species="human", backend="plotly").plot_manhattan_qq(
+        frame, title="Study", style=GenomeWideStyle(title_fontweight=weight)
+    )
+
+    assert fig.layout.title.text == expected
