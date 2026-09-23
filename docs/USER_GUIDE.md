@@ -951,6 +951,10 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `tick_step` | int | 1 | Label every n-th chromosome or category that carries data, starting with the first. At least 1. |
 | `tick_rotation` | int | None | Chromosome or category tick label rotation in degrees. |
 | `chrom_gap` | int | 1,000,000 | Base pairs between one chromosome's last position and the next chromosome's first. |
+| `line_style` | str | `"--"` | Linestyle of the significance and suggestive lines and the QQ diagonal: `"-"`, `"--"`, `":"` or `"-."`. |
+| `line_width` | float | 1.0 | Width of the same lines. |
+| `title_fontweight` | str | `"bold"` | Weight of the figure title and panel titles: `"bold"` or `"normal"`. |
+| `point_edge_width` | float | None | Outline width of Manhattan and QQ points; `0` draws no outline. `None` keeps 0.1 on Manhattan points and 0.02 on QQ points. |
 
 All three backends apply every field. Corner panel labels and Miami SNP
 annotations keep their own sizes.

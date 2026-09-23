@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `GenomeWideStyle` takes `line_style` and `line_width` for the significance
+  and suggestive lines and the QQ diagonal, `title_fontweight` for the figure
+  and panel titles, and `point_edge_width` for the Manhattan and QQ point
+  outlines. The defaults draw what the methods draw today.
+- `PlotBackend.set_title` and `PlotBackend.set_suptitle` take `fontweight`.
+  It is passed only when the style sets `title_fontweight="normal"`, so
+  backends registered with `@register_backend` draw unstyled figures as before.
+
+### Fixed
+
+- The Manhattan y-axis now reaches the significance and suggestive lines when
+  every point sits below them. The lines were drawn outside the axes and hidden.
+
 ## [4.1.0] - 2026-09-22
 
 ### Added
