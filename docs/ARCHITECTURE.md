@@ -324,11 +324,11 @@ pyLocusZoom/
 │   ├── ld_heatmap_plotter.py  # Pairwise LD heatmap plotter
 │   ├── coloc_plotter.py       # Colocalization plotter
 │   ├── _data.py               # Shared p-value intake and transformation policy
-│   ├── _plotter_utils.py      # Shared internals (compatibility transform, sig lines)
+│   ├── _plotter_utils.py      # Threshold defaults, UNSET and resolve_threshold
 │   ├── _figure.py             # FigurePlan and render_figure, the one figure model
 │   ├── panels/                # One module per panel type: the value, its constructor, its draw
-│   │   ├── __init__.py        # The five regional panels and the RegionalPanel union
-│   │   ├── _shared.py         # Policy more than one regional panel draws with
+│   │   ├── __init__.py        # The regional panels, RegionalPanel, optional_panels
+│   │   ├── _shared.py         # Drawing constants and add_significance_line, shared by panels
 │   │   ├── association.py     # The association scatter, with LD and lead-SNP styling
 │   │   ├── finemapping.py     # PIP line and credible-set points
 │   │   ├── eqtl.py            # Regional eQTL markers
@@ -343,16 +343,16 @@ pyLocusZoom/
 │   ├── backends/              # Pluggable rendering backends
 │   │   ├── __init__.py        # Backend registry (@register_backend, get_backend)
 │   │   ├── base.py            # PlotBackend protocol + optional capability protocols
-│   │   ├── composition.py     # Legend and recombination-overlay composition above the seam
+│   │   ├── composition.py     # Legend, recombination-overlay and LD-heatmap composition above the seam
 │   │   ├── _coerce.py         # Coercions out of matplotlib's vocabulary, shared by plotly and bokeh
 │   │   ├── matplotlib_backend.py
 │   │   ├── plotly_backend.py
 │   │   ├── plotly_layout.py   # Plotly subplot geometry: _Panel, _SecondaryAxis, pure helpers
 │   │   ├── bokeh_backend.py
-│   │   └── hover.py           # Hover tooltip helpers for interactive backends
+│   │   └── hover.py           # Hover columns with their roles, and each backend's tooltip spec
 │   ├── colors.py              # LD bins, eQTL, credible-set, PheWAS palettes
 │   ├── ld.py                  # PLINK wrapper for R² calculation
-│   ├── _ld_plotting.py        # LD intake and merge for the regional plot
+│   ├── _ld_enrichment.py      # LD intake and merge for the regional plot
 │   ├── recombination.py       # Recomb map loading + CanFam4 liftover
 │   ├── _liftover.py           # The one chain loader, region and window liftover
 │   ├── genome_build.py        # GenomeBuild records: synonyms, UCSC genome, chains

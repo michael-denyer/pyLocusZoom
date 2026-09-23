@@ -6,13 +6,13 @@ from typing import Any, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from .._plotter_utils import add_significance_line
 from ..backends.base import PlotBackend
 from ..colors import (
     FOREST_MARKER_COLOR,
     UNCATEGORISED_COLOR,
     get_phewas_category_palette,
 )
+from ._shared import add_significance_line
 
 UNCATEGORISED = "Uncategorised"
 

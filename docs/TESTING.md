@@ -83,7 +83,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | Notebook and HTML export of the interactive backends | `tests/test_notebook_backends.py` |
 | Rendering call sequence through `RecordingBackend` | `tests/test_rendering_contract.py` |
 | PLINK command construction, output parsing, process execution | `tests/test_ld.py`, `tests/test_ld_parsing.py`, `tests/test_ld_process.py` |
-| Whether a plot reaches for PLINK | `tests/test_ld_plotting.py` |
+| Whether a plot reaches for PLINK | `tests/test_ld_enrichment.py` |
 | Recombination map loading, region lookup, liftover and overlay status | `tests/test_recombination.py` |
 | Fetching, unpacking and publishing the managed map set | `tests/test_recombination_maps.py` |
 | Coordinate liftover | `tests/test_liftover.py` |
@@ -102,8 +102,8 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 Tests assert on public behaviour. These private names are the deliberate exceptions, each because the behaviour has no public handle or because the ADRs make the seam part of the design. A new private import or patch target outside this list needs a reason in review, and ideally a public handle instead.
 
 - **Plan layer** ([ADR 0001](adr/0001-deepen-rendering-seam.md), [ADR 0007](adr/0007-one-figure-plan.md)): `pylocuszoom._figure` (`FigurePlan`, `render_figure`, `RegionHighlight`), the panel specs in `pylocuszoom.panels.*` (including `MiamiRequest`, `AssociationPanel` in `test_regional_plan.py`), and the `RecordingBackend` in `test_rendering_contract.py`.
-- **Deep internal modules with their own unit tests**: `_gene_cache`, `_gene_source`, `_http`, `_data`, `_liftover`, `_ld_plotting`, `_plotter_utils`, `backends._coerce`, `plotly_layout`.
-- **I/O boundaries patched where they are looked up**: `pylocuszoom._http.requests.get` and `_http.time.sleep` (HTTP), `subprocess.run` through `fake_plink` (PLINK), `pylocuszoom.ld.find_plink`, `pylocuszoom._ld_plotting.calculate_ld`, the `pylocuszoom.recombination` download and directory functions, and `pylocuszoom._liftover.download_file` (chain downloads). A test that reads or fills the managed cache takes the `cache_home` fixture, which points `XDG_CACHE_HOME` at the test's directory.
+- **Deep internal modules with their own unit tests**: `_gene_cache`, `_gene_source`, `_http`, `_data`, `_liftover`, `_ld_enrichment`, `_plotter_utils`, `panels._shared` (`add_significance_line`, in `tests/test_plotter_utils.py`), `backends._coerce`, `plotly_layout`.
+- **I/O boundaries patched where they are looked up**: `pylocuszoom._http.requests.get` and `_http.time.sleep` (HTTP), `subprocess.run` through `fake_plink` (PLINK), `pylocuszoom.ld.find_plink`, `pylocuszoom._ld_enrichment.calculate_ld`, the `pylocuszoom.recombination` download and directory functions, and `pylocuszoom._liftover.download_file` (chain downloads). A test that reads or fills the managed cache takes the `cache_home` fixture, which points `XDG_CACHE_HOME` at the test's directory.
 - **Pure private helpers pinned for their edge cases**: `recombination._stage_archive` and `_publish_map_generation` (archive safety), `ld._resolve_plink` and `_add_species_flags`, `loaders.gwas._detect_format`, `colors._find_eqtl_bin`, `panels.coloc._get_effect_agreement_color`, `bokeh_backend._create_color_palette`, `utils._platform_cache_base`.
 - **Registry and logger state**: `backends._BACKENDS` (registering a test backend), and loguru's `logger.enable`/`logger.disable("pylocuszoom")` and `logger._core.handlers` (switching the package's records on for `conftest.warning_records`, and checking that import leaves the handlers alone).
 

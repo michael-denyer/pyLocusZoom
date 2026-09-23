@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from .._plotter_utils import add_significance_line
 from ..backends.base import PlotBackend
 from ..backends.composition import LegendEntry, eqtl_legend_entries
 from ..backends.hover import HoverConfig, HoverDataBuilder
@@ -13,7 +12,7 @@ from ..colors import EQTL_MARKER_COLOR, get_eqtl_color
 from ..config import RegionConfig
 from ..eqtl import prepare_eqtl_for_plotting
 from ..schemas import Canonical
-from ._shared import REGIONAL_LINE_ALPHA
+from ._shared import REGIONAL_LINE_ALPHA, add_significance_line
 
 
 @dataclass(frozen=True)

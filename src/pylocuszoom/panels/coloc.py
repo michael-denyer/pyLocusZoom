@@ -7,7 +7,6 @@ import pandas as pd
 from scipy import stats
 
 from .._data import prepare_pvalue_data
-from .._plotter_utils import add_significance_line
 from ..backends.base import PlotBackend
 from ..backends.composition import (
     LD_LEGEND_TITLE,
@@ -25,6 +24,7 @@ from ..config import ColocConfig
 from ..exceptions import ValidationError
 from ..schemas import Canonical, coloc_plot_spec
 from ..validation import check, resolve_column
+from ._shared import add_significance_line
 
 
 def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:

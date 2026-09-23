@@ -13,18 +13,18 @@ from typing import Any, List, Optional, Sequence, TypeVar
 import numpy as np
 import pandas as pd
 
-from .._plotter_utils import (
+from ..backends.base import PlotBackend
+from ..backends.hover import HoverConfig, HoverDataBuilder
+from ..config import GenomeWideStyle
+from ..exceptions import ValidationError
+from ..manhattan import PreparedManhattan
+from ._shared import (
     MANHATTAN_EDGE_WIDTH,
     MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
     SUGGESTIVE_LINE_COLOR,
     add_significance_line,
 )
-from ..backends.base import PlotBackend
-from ..backends.hover import HoverConfig, HoverDataBuilder
-from ..config import GenomeWideStyle
-from ..exceptions import ValidationError
-from ..manhattan import PreparedManhattan
 
 T = TypeVar("T")
 

@@ -14,7 +14,6 @@ import pandas as pd
 from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
-    MANHATTAN_CATEGORICAL_POINT_SIZE,
     UNSET,
     ThresholdArg,
     resolve_threshold,
@@ -23,6 +22,7 @@ from .backends import BackendType, get_backend
 from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
+from .panels._shared import MANHATTAN_CATEGORICAL_POINT_SIZE
 from .panels.manhattan import ManhattanPanelSpec, stacked_manhattan_specs
 from .panels.qq import QQPanelSpec, qq_title
 from .qq import prepare_qq_data

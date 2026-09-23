@@ -71,7 +71,7 @@ def test_ld_lead_comes_from_selected_chromosome():
         leads.append(kwargs["lead_snp"])
         return pd.DataFrame({"SNP": ["wanted"], "R2": [1.0]})
 
-    with patch("pylocuszoom._ld_plotting.calculate_ld", side_effect=calculate):
+    with patch("pylocuszoom._ld_enrichment.calculate_ld", side_effect=calculate):
         LocusZoomPlotter(species=None).plot(
             frame,
             chrom=1,
@@ -133,7 +133,7 @@ def test_duplicate_positions_use_one_strongest_lead_row(lead_positions):
         observed_leads.append(kwargs["lead_snp"])
         return pd.DataFrame({"SNP": ["weak", "strong"], "R2": [0.2, 1.0]})
 
-    with patch("pylocuszoom._ld_plotting.calculate_ld", side_effect=calculate):
+    with patch("pylocuszoom._ld_enrichment.calculate_ld", side_effect=calculate):
         fig = LocusZoomPlotter(species=None, backend="plotly").plot_stacked(
             [frame],
             chrom=1,

@@ -1,4 +1,4 @@
-"""Tests for the LD enrichment policy in _ld_plotting.py.
+"""Tests for the LD enrichment policy in _ld_enrichment.py.
 
 Every branch here decides whether to reach for PLINK at all. The branches that
 decline return the caller's frame untouched, so none of these tests needs a
@@ -8,7 +8,7 @@ PLINK binary or a subprocess.
 import pandas as pd
 import pytest
 
-from pylocuszoom._ld_plotting import enrich_with_ld
+from pylocuszoom._ld_enrichment import enrich_with_ld
 from pylocuszoom.exceptions import EmptyLDOutputError
 
 ARGS = {
@@ -72,7 +72,7 @@ class TestEnrichWithLDLookup:
         self, monkeypatch, tiny_regional_gwas_df
     ):
         """Each variant gains the R2 that PLINK reported for its ID."""
-        import pylocuszoom._ld_plotting as module
+        import pylocuszoom._ld_enrichment as module
 
         monkeypatch.setattr(
             module,
@@ -100,7 +100,7 @@ class TestEnrichWithLDLookup:
         )
         original = frame.copy(deep=True)
         monkeypatch.setattr(
-            "pylocuszoom._ld_plotting.calculate_ld",
+            "pylocuszoom._ld_enrichment.calculate_ld",
             lambda **kwargs: pd.DataFrame({"SNP": ["a", "b"], "R2": [0.5, 1.0]}),
         )
         result, ld_col = enrich_with_ld(
@@ -115,7 +115,7 @@ class TestEnrichWithLDLookup:
         self, monkeypatch, tiny_regional_gwas_df
     ):
         """The plotter decides to skip; this layer only raises."""
-        import pylocuszoom._ld_plotting as module
+        import pylocuszoom._ld_enrichment as module
 
         def raise_empty(**kwargs):
             raise EmptyLDOutputError("no pairs in window")
@@ -147,7 +147,7 @@ def test_a_malformed_optional_panel_raises_before_plink_runs(
 
     calls = []
     monkeypatch.setattr(
-        "pylocuszoom._ld_plotting.calculate_ld", lambda **kwargs: calls.append(kwargs)
+        "pylocuszoom._ld_enrichment.calculate_ld", lambda **kwargs: calls.append(kwargs)
     )
 
     with pytest.raises(FinemappingValidationError, match="credible"):

@@ -7,7 +7,6 @@ import pandas as pd
 
 from .._data import prepare_pvalue_data
 from .._label_data import select_label_candidates
-from .._plotter_utils import add_significance_line
 from ..backends.base import (
     PlotBackend,
     SupportsSNPLabels,
@@ -30,7 +29,7 @@ from ..logging import logger
 from ..schemas import Canonical, gwas_plot_spec
 from ..utils import filter_by_region
 from ..validation import check, resolve_column
-from ._shared import REGIONAL_LINE_ALPHA
+from ._shared import REGIONAL_LINE_ALPHA, add_significance_line
 
 
 @dataclass(frozen=True)

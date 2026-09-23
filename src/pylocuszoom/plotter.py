@@ -16,7 +16,7 @@ from typing import Any, Callable, List, Optional, TypeVar, Union
 import pandas as pd
 
 from ._figure import FigurePlan, render_figure
-from ._ld_plotting import enrich_with_ld
+from ._ld_enrichment import enrich_with_ld
 from ._liftover import CoordinateLifter, lift_window
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,

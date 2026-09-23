@@ -213,7 +213,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3h | ucsc_source, fetch_track_frames | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
 | 3h | gene cache | Atomic gene/exon archive cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
 | 3j | _AssociationInput | Region-selected data and resolved per-panel options | [plotter.py](../src/pylocuszoom/plotter.py) |
-| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_plotting.py](../src/pylocuszoom/_ld_plotting.py) |
+| 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_enrichment.py](../src/pylocuszoom/_ld_enrichment.py) |
 | 3j | prepare_pvalue_data | Shared p-value intake: filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
 | 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
@@ -221,6 +221,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
 | 3j | load_chain, chain_lifter, liftover_region, lift_window | The one chain loader (cached; registered chains come from `GenomeBuild.liftover_chains`) and the one lift path, shared by `plot()`, `plot_stacked()` and the recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
+| 3j | add_significance_line | The one dashed threshold line every panel draws, plus the Manhattan and QQ drawing constants | [panels/_shared.py](../src/pylocuszoom/panels/_shared.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |
 | 3i | ColocPanel | The colocalization scatter: `from_frames` validates and merges the two frames and resolves the lead, its label, the legend and the correlation, and `draw` reads only those fields | [panels/coloc.py](../src/pylocuszoom/panels/coloc.py) |
