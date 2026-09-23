@@ -490,14 +490,10 @@ class PlotlyBackend:
         fontsize: int = 14,
         fontweight: Literal["bold", "normal"] = "bold",
     ) -> None:
-        """Set overall figure title (super title).
-
-        Plotly draws the layout title at normal weight, so ``fontweight`` has
-        nothing to change here.
-        """
+        """Set the figure title, using bold markup when requested."""
         fig.update_layout(
             title=dict(
-                text=title,
+                text=f"<b>{title}</b>" if fontweight == "bold" else title,
                 font=dict(size=fontsize),
                 x=0.5,
                 xanchor="center",
