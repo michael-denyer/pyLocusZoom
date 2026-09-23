@@ -146,6 +146,28 @@ class TestREGENIELoader:
         assert df["p_value"].iloc[0] == pytest.approx(0.01, rel=0.01)
         assert df["p_value"].iloc[2] == pytest.approx(1e-8, rel=0.01)
 
+    @staticmethod
+    def _log10p_file(tmp_path, values):
+        header = "CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ N TEST BETA SE CHISQ LOG10P"
+        rows = [
+            f"1 {1000 + i} rs{i} A G 0.3 1000 ADD 0.5 0.2 6.25 {value}"
+            for i, value in enumerate(values)
+        ]
+        filepath = tmp_path / "log10p.regenie"
+        filepath.write_text("\n".join([header, *rows]) + "\n")
+        return filepath
+
+    def test_log10p_beyond_float_range_loads_at_the_plot_floor(self, tmp_path):
+        """LOG10P exists for p below the float range; 350.5 must not become 0."""
+        df = load_regenie(self._log10p_file(tmp_path, ["350.5", "2.0"]))
+
+        assert df["p_value"].tolist() == pytest.approx([1e-300, 0.01])
+
+    def test_integer_log10p_column_loads(self, tmp_path):
+        df = load_regenie(self._log10p_file(tmp_path, ["7", "2"]))
+
+        assert df["p_value"].tolist() == pytest.approx([1e-7, 0.01])
+
 
 class TestSAIGELoader:
     """Tests for SAIGE file loader."""
