@@ -945,7 +945,7 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `point_size` | float | None | Marker area in matplotlib `s` units for Manhattan and QQ points. |
 | `point_alpha` | float | None | Marker opacity in (0, 1]. `None` draws opaque points. |
 | `title_fontsize` | int | 14 | The figure title that `title=` sets on Manhattan-QQ, stacked and Miami figures. |
-| `panel_title_fontsize` | int | None | Each panel's title: "Manhattan Plot", the QQ λ title, and the `title` of a single `plot_manhattan` or `plot_qq`. |
+| `panel_title_fontsize` | int | None | Each panel's title: the QQ λ title, and the `title` of a single `plot_manhattan` or `plot_qq`. |
 | `axis_label_fontsize` | int | None | X and y axis labels. |
 | `tick_label_fontsize` | int | None | Tick labels on both axes. |
 | `tick_step` | int | 1 | Label every n-th chromosome or category that carries data, starting with the first. At least 1. |

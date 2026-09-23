@@ -304,8 +304,8 @@ class TestFonts:
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
 
         assert fig._suptitle.get_fontsize() == 30
+        assert fig.get_axes()[1].title.get_fontsize() == 26
         for ax in fig.get_axes():
-            assert ax.title.get_fontsize() == 26
             assert ax.xaxis.label.get_fontsize() == 20
             assert ax.yaxis.label.get_fontsize() == 20
             assert {t.get_fontsize() for t in ax.get_xticklabels()} == {18}
@@ -449,13 +449,13 @@ class TestTitleWeight:
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study")
 
         assert fig._suptitle.get_fontweight() == "bold"
-        assert {ax.title.get_fontweight() for ax in fig.get_axes()} == {"bold"}
+        assert fig.get_axes()[1].title.get_fontweight() == "bold"
 
     def test_normal_weight_on_suptitle_and_panel_titles(self, plotter, four_chrom_df):
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
 
         assert fig._suptitle.get_fontweight() == "normal"
-        assert {ax.title.get_fontweight() for ax in fig.get_axes()} == {"normal"}
+        assert fig.get_axes()[1].title.get_fontweight() == "normal"
 
     def test_normal_weight_on_stacked_title(self, plotter, four_chrom_df):
         fig = plotter.plot_manhattan_stacked(
@@ -478,7 +478,9 @@ class TestTitleWeight:
 
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
 
-        assert {p.title.text_font_style for p in _bokeh_plots(fig)} == {"normal"}
+        titled = [p.title for p in _bokeh_plots(fig) if p.title.text]
+        assert titled
+        assert {t.text_font_style for t in titled} == {"normal"}
 
 
 class TestChromosomeAxis:
