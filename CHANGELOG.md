@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.md)): a column you name must exist, and every input error is a `pylocuszoom.ValidationError`. Each entry below ends with the change to make. `scripts/migrate_to_config_models.py` rewrites the `PanelInputs` fields mechanically.
+
+- **A config model's rejected value raises `pylocuszoom.ValidationError`, not pydantic's `ValidationError`.** Every model (`ColumnConfig`, `LDConfig`, `GenomeWideStyle`, ...) and every region passed to a plot method raised pydantic's class, which shares the name but not the `PyLocusZoomError` hierarchy. The message now names each failing field. Assigning to a frozen model raises the same way. Migration: catch `pylocuszoom.ValidationError` (or `ValueError`, which both subclass).
+- **Every other input error raises `ValidationError` too.** Empty `plot_stacked`, `plot_manhattan_stacked` and `plot_manhattan_qq_stacked` lists, all-invalid Manhattan and QQ p-values, a missing categorical or QQ column, a Manhattan call with neither species nor `custom_chrom_order`, colocalization without overlapping positions or with an unknown `lead_snp`, a non-square LD matrix or unknown heatmap `lead_snp`/`highlight_snps`, `get_backend` with an unknown name, `load_gwas` with an unknown format, and `add_snp_labels` without `neglog10p` raised a bare `ValueError`. It still subclasses `ValueError`, so no change is needed unless you caught the exact type. `to_pandas`, and so every plot method, raised `TypeError` for an object that is neither a pandas nor a Spark frame. Migration: catch `ValidationError` instead of `TypeError`.
+- **A regional frame without a chromosome column raises.** `plot()` and `plot_stacked()` fell back to selecting by position alone whenever the frame lacked `chr`, so a whole-genome frame whose chromosome column had another name plotted rows from every chromosome at the requested positions. `ColumnConfig` gains `chrom_col` (default `"chr"`). Migration: name the column, `ColumnConfig(chrom_col="chrom")`, or for a frame that holds only the region's chromosome, `ColumnConfig(chrom_col=None)`.
+- **eQTL and fine-mapping frames without a chromosome column raise.** They took the same position-only fallback. Migration: add `chr`, or pass `EqtlInput(..., chrom_col=None)` / `FinemappingInput(..., chrom_col=None)`. `load_susie` output has no chromosome column, so it needs one of the two.
+- **`PanelInputs` nests one model per optional panel.** The thirteen flat fields accepted an eQTL gene or credible-set column with no frame. `eqtl_df`, `eqtl_gene` and `eqtl_threshold` become `eqtl=EqtlInput(data=, gene=, threshold=)`; `finemapping_df` and `finemapping_cs_col` become `finemapping=FinemappingInput(data=, cs_col=)`; `ld_heatmap_df`, `ld_heatmap_snp_ids`, `ld_heatmap_height` and `ld_heatmap_metric` become `ld_heatmap=LDHeatmapInput(matrix=, snp_ids=, height=, metric=)`. `EqtlInput.threshold` must be in (0, 1], `LDHeatmapInput.height` must be positive, and an object that is not a pandas or Spark frame is rejected. Migration: `uv run --with libcst python scripts/migrate_to_config_models.py PATH...`.
+
+  ```python
+  # before
+  panels = PanelInputs(eqtl_df=eqtl_df, eqtl_gene="BRCA1", finemapping_df=fm_df)
+
+  # after
+  from pylocuszoom import EqtlInput, FinemappingInput, PanelInputs
+  panels = PanelInputs(
+      eqtl=EqtlInput(data=eqtl_df, gene="BRCA1"),
+      finemapping=FinemappingInput(data=fm_df),
+  )
+  ```
+
+- **A named column the frame lacks raises instead of switching the feature off.** `LDConfig(ld_col=...)` drew every point grey; a non-default `ColumnConfig(rs_col=...)` drew no labels; `plot_phewas(effect_col=...)` and a non-default `category_col` drew one shape and one colour; `plot_forest(weight_col=...)` drew equal markers; a non-default `FinemappingInput(cs_col=...)` drew no credible sets. Each now raises, naming the parameter and the column. The canonical `rs`, `cs` and `category` defaults may still be absent. Migration: correct the column name, or leave the option unset.
+- **Reference LD without SNP ids raises.** `ld_reference_file` with no `rs_col` column logged a warning and drew uncoloured points, while the LD heatmap raised for the same frame. Migration: add the SNP id column or name it with `ColumnConfig(rs_col=...)`.
+- **Every stacked panel that computes LD from a fileset needs a lead.** `plot()` required `ld.lead_pos` with `ld_reference_file`, but `plot_stacked(ld_reference_files=[...])` with no lead auto-detected one. The rule now holds per panel, and a per-panel fileset beside a broadcast `ld_col` raises as `LDConfig` does. Migration: pass `lead_positions=[...]` or `ld=LDConfig(lead_pos=...)`.
+- **`exons_df` is validated.** An exon frame without `chr`, `start`, `end` or `gene_name` raised a bare `KeyError` from the gene track. It now raises `ValidationError` naming `exons_df` and the column.
+- **The LD heatmap metric is `"r2"` or `"dprime"`.** Any other string, `"R2"` included, labelled the colour bar D′. `LDHeatmapInput.metric` and `plot_ld_heatmap(metric=...)` now reject it. Migration: pass `"r2"`.
+- **`plot_manhattan_qq_stacked` checks `panel_labels`.** It drew one label for two frames where `plot_manhattan_stacked` raised. Both now raise `ValidationError` on a length mismatch.
+- **Frames in the pre-4.0 `ps`/`p_wald` names are no longer read as `pos`/`p_value`.** The 4.x `DeprecationWarning` fallback is removed with `config.resolve_deprecated_columns`, `schemas.DEPRECATED_COLUMN_ALIASES` and `schemas.DEPRECATED_ALIAS_REMOVED_IN`. Migration: `ColumnConfig(pos_col="ps", p_col="p_wald")` or `GenomeWideConfig(...)`, or rename the columns.
+- **The GWAS loaders lose `pos_col`, `p_col` and `rs_col`.** Deprecated in 4.0; the loaders emit `chr`, `pos`, `p_value` and `rs`. `load_gwas(**kwargs)` is removed too: no format loader accepted an extra argument, so every one raised `TypeError`. Migration: `load_plink_assoc(path).rename(columns={"pos": "position"})`.
+- **The `validate_*_df` wrappers are removed.** `validate_gwas_df`, `validate_genes_df`, `validate_phewas_df`, `validate_forest_df`, `validate_eqtl_df` and `validate_finemapping_df` leave the toolbox tier of `pylocuszoom`, and `schemas.validate_coloc_df`, `schemas.Family`, `schemas.Tier` and `schemas.spec` are gone. Each wrapper was one `validation.check` call. Migration: the plot methods run the same checks; to run one yourself, `validation.check(df, schemas.gwas_plot_spec(pos_col=..., p_col=...))` and the other `schemas.*_plot_spec` builders and `*_LOAD` constants.
+- **`manhattan.prepare_manhattan_frames` takes canonical frames.** Its `chrom_col`, `pos_col` and `p_col` parameters, which no caller varied, and its second column check are removed. Migration: call `prepare_genomewide_frames(dfs, GenomeWideConfig(...), species=...)`, which validates and projects the columns first.
+
+### Changed
+
+- **Each family's p-value policy is stated in one table.** `_data.P_VALUE_POLICY` says, per family, whether an exact zero is valid and whether an invalid p-value drops its row or raises: regional and genome-wide plots keep zero and drop; QQ and the regional eQTL panel drop zero; PheWAS, colocalization and the loaders reject. Outcomes are unchanged, except that the eQTL panel now drops non-numeric p-values instead of rejecting the frame, as the regional panel above it does. The drop warning names the domain, `[0, 1]` or `(0, 1]`, that the family uses.
+- **Genome-wide chromosomes are normalised once.** A `chr`-prefixed or float chromosome column laid out lexicographically (`chr1, chr10, chr2`; `1.0, 10.0, 2.0`) after the species order. Chromosome names now go through `normalize_chrom_series` with the other columns, so they lay out in species order and the ticks read `1`, `2`, `10`. `custom_chrom_order` is normalised the same way.
+- **`normalize_chrom` strips only a leading `chr`, in any case.** `Chr1` stayed `Chr1`, and `chrUn_chr5` lost both prefixes.
+- **Colocalization needs an `rs` column only when you name one.** `plot_coloc` required `rs` in both frames by default although it reads SNP ids only from the GWAS frame, for `lead_snp`.
+
+### Added
+
+- `EqtlInput`, `FinemappingInput` and `LDHeatmapInput`, exported from `pylocuszoom`. Every frame field of `PanelInputs` and the three models accepts a PySpark DataFrame, as the README promised.
+- `ColumnConfig.chrom_col`, and `chrom_col` on `prepare_eqtl_for_plotting` and `prepare_finemapping_for_plotting`.
+
 ### Fixed
 
 - **`download_canine_recombination_maps(output_dir=...)` no longer deletes the caller's directory.** Publishing the map set replaced the whole directory, so any other file in it, including a custom chrX map beside a complete set, was deleted. The directory must now be new, empty or hold only a previous canine map set. Anything else raises `ValidationError` before a download starts, and the directory is left untouched. The managed cache is unchanged.
