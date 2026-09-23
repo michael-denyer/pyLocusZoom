@@ -7,6 +7,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     List,
+    Literal,
     Optional,
     Protocol,
     Tuple,
@@ -507,23 +508,37 @@ class PlotBackend(Protocol):
         """
         ...
 
-    def set_title(self, ax: Any, title: str, fontsize: int = 14) -> None:
+    def set_title(
+        self,
+        ax: Any,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set panel title.
 
         Args:
             ax: Axes or panel.
             title: Title text.
             fontsize: Font size.
+            fontweight: Font weight.
         """
         ...
 
-    def set_suptitle(self, fig: Any, title: str, fontsize: int = 14) -> None:
+    def set_suptitle(
+        self,
+        fig: Any,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set overall figure title (super title).
 
         Args:
             fig: Figure object.
             title: Title text.
             fontsize: Font size.
+            fontweight: Font weight.
         """
         ...
 

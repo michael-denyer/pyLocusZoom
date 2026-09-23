@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from .._figure import title_weight
 from .._plotter_utils import (
     POINT_EDGE_COLOR,
     QQ_CI_ALPHA,
@@ -92,8 +93,8 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         x=pd.Series([0, max_val]),
         y=pd.Series([0, max_val]),
         color=SIGNIFICANCE_LINE_COLOR,
-        linestyle="--",
-        linewidth=1,
+        linestyle=style.line_style,
+        linewidth=style.line_width,
         zorder=2,
     )
     backend.scatter(
@@ -104,7 +105,7 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         sizes=styled(style.point_size, QQ_POINT_SIZE),
         marker="o",
         edgecolor=POINT_EDGE_COLOR,
-        linewidth=QQ_EDGE_WIDTH,
+        linewidth=styled(style.point_edge_width, QQ_EDGE_WIDTH),
         zorder=3,
         **scatter_alpha(style),
     )
@@ -120,4 +121,5 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         ax,
         spec.title,
         fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
+        **title_weight(style.title_fontweight),
     )

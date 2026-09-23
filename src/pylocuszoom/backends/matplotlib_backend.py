@@ -3,7 +3,7 @@
 Default backend providing static publication-quality plots.
 """
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -342,18 +342,30 @@ class MatplotlibBackend:
         """Set the tick label size on both axes."""
         ax.tick_params(axis="both", labelsize=fontsize)
 
-    def set_title(self, ax: Axes, title: str, fontsize: int = 14) -> None:
+    def set_title(
+        self,
+        ax: Axes,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set panel title."""
         ax.set_title(
             title,
             fontsize=fontsize,
-            fontweight="bold",
+            fontweight=fontweight,
             fontfamily="sans-serif",
         )
 
-    def set_suptitle(self, fig: Figure, title: str, fontsize: int = 14) -> None:
+    def set_suptitle(
+        self,
+        fig: Figure,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set overall figure title (super title)."""
-        fig.suptitle(title, fontsize=fontsize, fontweight="bold")
+        fig.suptitle(title, fontsize=fontsize, fontweight=fontweight)
 
     def set_footer(self, fig: Figure, text: str, fontsize: int = 10) -> None:
         """Raise the panels by one text line and write the footer beneath."""

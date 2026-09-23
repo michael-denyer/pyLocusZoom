@@ -9,7 +9,7 @@ only code above ``backends/`` that creates a figure or finalizes its layout.
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Protocol, Sequence, Tuple
+from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, Tuple
 
 from .backends.base import PlotBackend
 
@@ -18,6 +18,16 @@ class Panel(Protocol):
     """A prepared panel that draws itself onto one backend axis."""
 
     def draw(self, backend: PlotBackend, ax: Any) -> None: ...
+
+
+def title_weight(fontweight: Literal["bold", "normal"]) -> Dict[str, str]:
+    """Return the ``fontweight`` keyword for a title, or none when it is bold.
+
+    Left out rather than passed as "bold", so a backend registered before
+    ``set_title`` and ``set_suptitle`` took ``fontweight`` still draws an
+    unstyled figure.
+    """
+    return {} if fontweight == "bold" else {"fontweight": fontweight}
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,7 @@ class FigurePlan:
             drawn, for figures that title their top panel rather than the
             figure.
         title_fontsize: Size of ``suptitle`` and ``first_panel_title``.
+        title_fontweight: Weight of ``suptitle`` and ``first_panel_title``.
         top: Fraction of the figure height the panels extend to.
         hspace: Vertical space between panels as a fraction of panel height.
     """
@@ -67,6 +78,7 @@ class FigurePlan:
     footer: Optional[str] = None
     first_panel_title: Optional[str] = None
     title_fontsize: int = 14
+    title_fontweight: Literal["bold", "normal"] = "bold"
     top: float = 0.95
     hspace: float = 0.08
 
@@ -110,10 +122,13 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
         backend.add_region_highlight(
             axes, span.start, span.end, color=span.color, alpha=span.alpha
         )
+    weight = title_weight(plan.title_fontweight)
     if plan.first_panel_title:
-        backend.set_title(axes[0], plan.first_panel_title, fontsize=plan.title_fontsize)
+        backend.set_title(
+            axes[0], plan.first_panel_title, fontsize=plan.title_fontsize, **weight
+        )
     if plan.suptitle:
-        backend.set_suptitle(fig, plan.suptitle, fontsize=plan.title_fontsize)
+        backend.set_suptitle(fig, plan.suptitle, fontsize=plan.title_fontsize, **weight)
     backend.finalize_layout(fig, top=plan.top, hspace=plan.hspace)
     # After the layout, so the backend can grow the bottom margin it just set.
     if plan.footer:

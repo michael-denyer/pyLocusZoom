@@ -550,6 +550,71 @@ class TestYlimClamp:
             assert manhattan_ax.get_ylim()[1] >= 1.0
 
 
+class TestYlimCoversThresholdLines:
+    """The y-limit reaches the threshold lines when every point sits below them."""
+
+    THRESHOLD = 5e-8
+
+    @staticmethod
+    def _weak_df():
+        return pd.DataFrame(
+            {
+                "chr": np.repeat([1, 2, 3], 10),
+                "pos": np.tile(np.arange(1, 11) * 1_000_000, 3),
+                "p_value": np.linspace(1e-5, 1.0, 30),
+            }
+        )
+
+    def test_plot_manhattan_shows_significance_line(self, manhattan_plotter):
+        fig = manhattan_plotter.plot_manhattan(
+            self._weak_df(), significance_threshold=self.THRESHOLD
+        )
+
+        assert fig.get_axes()[0].get_ylim()[1] > -np.log10(self.THRESHOLD)
+
+    def test_plot_manhattan_qq_shows_suggestive_only_line(self, manhattan_plotter):
+        fig = manhattan_plotter.plot_manhattan_qq(
+            self._weak_df(), significance_threshold=None, suggestive_threshold=1e-6
+        )
+
+        assert fig.get_axes()[0].get_ylim()[1] > 6
+
+    def test_plot_manhattan_stacked_shows_significance_line(self, manhattan_plotter):
+        fig = manhattan_plotter.plot_manhattan_stacked(
+            [self._weak_df(), self._weak_df()], significance_threshold=self.THRESHOLD
+        )
+
+        for ax in fig.get_axes():
+            assert ax.get_ylim()[1] > -np.log10(self.THRESHOLD)
+
+    def test_plot_manhattan_categorical_shows_significance_line(
+        self, manhattan_plotter
+    ):
+        df = pd.DataFrame({"cat": ["a", "b", "c"], "p_value": [0.1, 0.01, 1e-4]})
+
+        fig = manhattan_plotter.plot_manhattan(
+            df, category_col="cat", significance_threshold=self.THRESHOLD
+        )
+
+        assert fig.get_axes()[0].get_ylim()[1] > -np.log10(self.THRESHOLD)
+
+    def test_miami_bottom_panel_stays_inverted(self):
+        from pylocuszoom import MiamiPlotter
+
+        fig = MiamiPlotter(species="human").plot_miami(
+            self._weak_df(),
+            self._weak_df(),
+            top_threshold=self.THRESHOLD,
+            bottom_threshold=self.THRESHOLD,
+        )
+
+        top, bottom = fig.get_axes()
+        line = -np.log10(self.THRESHOLD)
+        assert top.get_ylim()[1] > line
+        assert bottom.get_ylim()[0] > line
+        assert bottom.get_ylim()[1] == 0
+
+
 class TestPlotManhattanQQOptions:
     """Suggestive line, caller-supplied lambda and footer on plot_manhattan_qq."""
 

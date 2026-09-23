@@ -65,8 +65,10 @@ def add_significance_line(
     axis: Literal["x", "y"] = "y",
     color: str = SIGNIFICANCE_LINE_COLOR,
     alpha: float = 1.0,
+    linestyle: str = "--",
+    linewidth: float = 1,
 ) -> None:
-    """Draw the dashed significance line at ``-log10(threshold)``.
+    """Draw the significance line at ``-log10(threshold)``.
 
     Args:
         backend: Plot backend instance.
@@ -76,11 +78,15 @@ def add_significance_line(
             line, ``"x"`` a vertical one.
         color: Line colour.
         alpha: Opacity of the line.
+        linestyle: Matplotlib linestyle of the line.
+        linewidth: Width of the line.
     """
     if threshold is None:
         return
     value = -np.log10(threshold)
-    style = dict(color=color, linestyle="--", linewidth=1, alpha=alpha, zorder=1)
+    style = dict(
+        color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=1
+    )
     if axis == "x":
         backend.axvline(ax, x=value, **style)
     else:

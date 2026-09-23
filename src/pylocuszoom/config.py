@@ -20,7 +20,17 @@ Example:
 
 import os
 import warnings
-from typing import Annotated, Any, ClassVar, List, Optional, Tuple, TypeVar, Union
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import matplotlib.colors as mcolors
 import pandas as pd
@@ -424,6 +434,17 @@ class GenomeWideStyle(BaseModel):
             degrees. None keeps the method's rotation.
         chrom_gap: Gap in base pairs between one chromosome's last position
             and the next chromosome's first on a genomic axis.
+        line_style: Matplotlib linestyle of the significance and suggestive
+            lines and the QQ diagonal: ``"-"``, ``"--"``, ``":"`` or ``"-."``.
+        line_width: Width of the same lines.
+        title_fontweight: Weight of the figure title and the panel titles,
+            ``"bold"`` or ``"normal"``.
+        point_edge_width: Outline width of the Manhattan and QQ points; 0
+            draws no outline. None keeps the method's width.
+        y_headroom: Space left above the highest Manhattan point or threshold
+            line, as a fraction of its height.
+        manhattan_qq_width_ratio: Width of the Manhattan panel relative to the
+            QQ panel in a Manhattan-QQ figure.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -453,6 +474,24 @@ class GenomeWideStyle(BaseModel):
     )
     chrom_gap: int = Field(
         default=CHROMOSOME_GAP, ge=0, description="Gap between chromosomes (bp)"
+    )
+    line_style: Literal["-", "--", ":", "-."] = Field(
+        default="--", description="Threshold line and QQ diagonal style"
+    )
+    line_width: float = Field(
+        default=1.0, gt=0, description="Threshold line and QQ diagonal width"
+    )
+    title_fontweight: Literal["bold", "normal"] = Field(
+        default="bold", description="Figure and panel title weight"
+    )
+    point_edge_width: Optional[float] = Field(
+        default=None, ge=0, description="Marker outline width"
+    )
+    y_headroom: float = Field(
+        default=0.1, ge=0, description="Manhattan space above the top point or line"
+    )
+    manhattan_qq_width_ratio: float = Field(
+        default=2.5, gt=0, description="Manhattan panel width over QQ panel width"
     )
 
     @field_validator("palette", mode="before")
