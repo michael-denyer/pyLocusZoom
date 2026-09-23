@@ -11,6 +11,8 @@ import warnings
 
 import pandas as pd
 import pytest
+from hypothesis import assume, given
+from hypothesis import strategies as st
 from pyliftover import LiftOver
 
 from pylocuszoom import (
@@ -22,7 +24,7 @@ from pylocuszoom import (
     LocusZoomPlotter,
     liftover_region,
 )
-from pylocuszoom._liftover import InMemoryLifter, chain_lifter
+from pylocuszoom._liftover import InMemoryLifter, chain_lifter, lift_window
 from pylocuszoom.exceptions import (
     DataDownloadError,
     OptionalDependencyMissing,
@@ -502,3 +504,78 @@ def test_unwritable_chain_cache_is_a_download_error(cache_home):
 
     with pytest.raises(DataDownloadError, match="liftover"):
         chain_lifter(GENOME_BUILDS["canfam3"], GENOME_BUILDS["canfam4"])
+
+
+@st.composite
+def _lift_cases(draw, identity=False):
+    """A region, one to three frames around it, and a lifter for their SNPs."""
+    start = draw(st.integers(min_value=1, max_value=1_000_000))
+    end = start + draw(st.integers(min_value=1, max_value=1_000_000))
+    frames, leads, mapping = [], [], {("chr1", -1): 0}
+    for _ in range(draw(st.integers(min_value=1, max_value=3))):
+        positions = draw(
+            st.lists(
+                st.integers(min_value=max(1, start - 1_000), max_value=end + 1_000),
+                min_size=1,
+                max_size=20,
+            )
+        )
+        for pos in positions:
+            target = (
+                pos
+                if identity
+                else draw(st.none() | st.integers(min_value=1, max_value=5_000_000))
+            )
+            if target is not None:
+                mapping[("chr1", pos - 1)] = target - 1
+        frames.append(pd.DataFrame({"chr": 1, "pos": positions, "p_value": 0.5}))
+        leads.append(draw(st.none() | st.sampled_from(positions)))
+    return start, end, frames, leads, InMemoryLifter(mapping)
+
+
+def _lift(start, end, frames, leads, lifter):
+    return lift_window(
+        frames,
+        chrom=1,
+        start=start,
+        end=end,
+        chrom_col="chr",
+        pos_col="pos",
+        lead_positions=leads,
+        lifter=lifter,
+        build=None,
+    )
+
+
+class TestLiftWindowProperties:
+    """Invariants of the window every regional liftover goes through."""
+
+    @given(_lift_cases())
+    def test_window_holds_every_lifted_snp_and_lead(self, case):
+        try:
+            window = _lift(*case)
+        except ValidationError:
+            return  # A frame with no lifted SNP in the region; pinned elsewhere.
+
+        start, end, _, leads, _ = case
+        assert 1 <= window.start < window.end
+        for frame in window.frames:
+            assert window.start <= frame["pos"].min()
+            assert frame["pos"].max() <= window.end
+        for source_lead, lead in zip(leads, window.lead_positions):
+            # A lead outside the region is accepted with or without liftover
+            # and may lift anywhere, so only an in-region lead is bounded.
+            if lead is not None and start <= source_lead <= end:
+                assert window.start <= lead <= window.end
+
+    @given(_lift_cases(identity=True))
+    def test_an_identity_lift_keeps_the_requested_window(self, case):
+        start, end, frames, _, _ = case
+        assume(all(frame["pos"].between(start, end).any() for frame in frames))
+
+        window = _lift(*case)
+
+        assert (window.start, window.end) == (start, end)
+        for before, after in zip(frames, window.frames):
+            in_region = before[before["pos"].between(start, end)]
+            assert after["pos"].tolist() == in_region["pos"].tolist()

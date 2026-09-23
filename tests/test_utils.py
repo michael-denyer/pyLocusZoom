@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.utils import (
@@ -358,3 +360,77 @@ class TestPlatformCacheBase:
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
 
         assert _platform_cache_base() == tmp_path / ".cache" / "pylocuszoom"
+
+
+_chrom_names = st.sampled_from(["1", "2", "10", "X", "MT", "A1"])
+
+
+@st.composite
+def _chrom_spellings(draw, name):
+    """One spelling of ``name`` a user's frame or argument might carry."""
+    spellings = [name, f"chr{name}", f"Chr{name}", f"CHR{name}"]
+    if name.isdigit():
+        spellings.append(int(name))
+    return draw(st.sampled_from(spellings))
+
+
+class TestChromNormalizationProperties:
+    """A chromosome compares equal however it is spelled."""
+
+    @given(st.lists(_chrom_names.flatmap(_chrom_spellings), min_size=1))
+    def test_series_agrees_with_scalar(self, chroms):
+        expected = [normalize_chrom(c) for c in chroms]
+
+        assert normalize_chrom_series(pd.Series(chroms)).tolist() == expected
+
+    @given(
+        st.lists(st.integers(min_value=1, max_value=40) | st.none(), min_size=1).filter(
+            lambda xs: any(x is not None for x in xs)
+        )
+    )
+    def test_integral_float_column_agrees_with_ints(self, chroms):
+        """pandas reads an integer column with a gap as float."""
+        column = pd.Series(chroms, dtype="float64")
+
+        result = normalize_chrom_series(column)
+
+        for chrom, normalized in zip(chroms, result):
+            if chrom is not None:
+                assert normalized == normalize_chrom(chrom)
+
+    @given(_chrom_names.flatmap(_chrom_spellings))
+    def test_normalizing_twice_changes_nothing(self, chrom):
+        once = normalize_chrom(chrom)
+
+        assert normalize_chrom(once) == once
+
+
+class TestFilterByRegionProperties:
+    """Region selection keeps exactly the rows inside the region."""
+
+    @given(
+        _chrom_names,
+        st.lists(
+            st.tuples(_chrom_names, st.integers(min_value=1, max_value=10_000)),
+            min_size=1,
+        ),
+        st.integers(min_value=1, max_value=10_000),
+        st.integers(min_value=0, max_value=10_000),
+        st.data(),
+    )
+    def test_keeps_exactly_the_rows_in_the_region(
+        self, target, rows, start, width, data
+    ):
+        end = start + width
+        df = pd.DataFrame(
+            {
+                "chr": [data.draw(_chrom_spellings(name)) for name, _ in rows],
+                "pos": [pos for _, pos in rows],
+            }
+        )
+        query = data.draw(_chrom_spellings(target))
+
+        kept = filter_by_region(df, region=(query, start, end))
+
+        inside = [name == target and start <= pos <= end for name, pos in rows]
+        assert kept.index.tolist() == [i for i, hit in enumerate(inside) if hit]

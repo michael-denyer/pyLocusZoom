@@ -5,8 +5,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from hypothesis import given
+from hypothesis import strategies as st
 
-from pylocuszoom._http import download_file
+from pylocuszoom._http import _with_retries, download_file
 from pylocuszoom.exceptions import DataDownloadError
 
 
@@ -175,3 +177,66 @@ class TestRequestJson:
 
         assert payload == {"answer": 42}
         assert [call.args[0] for call in sleep.call_args_list] == [1.0, 2.0]
+
+
+def _http_error(status):
+    response = MagicMock(status_code=status)
+    return requests.HTTPError(str(status), response=response)
+
+
+_retryable_errors = st.sampled_from(
+    [requests.ConnectionError("reset"), requests.Timeout("slow")]
+) | st.sampled_from([429, 503]).map(_http_error)
+_fatal_errors = st.sampled_from([400, 401, 403, 404, 500, 502]).map(_http_error)
+
+
+class TestRetryProperties:
+    """The one retry loop behind every JSON GET and download."""
+
+    @staticmethod
+    def _run(outcomes, max_retries, retry_delay=1.0):
+        """Run the loop over a script of errors then success; return attempts, sleeps."""
+        script = iter(outcomes)
+        attempts = []
+
+        def attempt():
+            attempts.append(1)
+            outcome = next(script, "ok")
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        with patch("pylocuszoom._http.time.sleep") as sleep:
+            try:
+                result = _with_retries(
+                    attempt,
+                    what="GET",
+                    max_retries=max_retries,
+                    retry_delay=retry_delay,
+                )
+            except requests.RequestException as e:
+                result = e
+        return result, len(attempts), [call.args[0] for call in sleep.call_args_list]
+
+    @given(st.lists(_retryable_errors, max_size=6), st.integers(1, 6))
+    def test_retryable_errors_retry_up_to_the_limit(self, errors, max_retries):
+        result, attempts, sleeps = self._run(errors, max_retries)
+
+        assert attempts == min(len(errors) + 1, max_retries)
+        if len(errors) < max_retries:
+            assert result == "ok"
+        else:
+            assert result is errors[max_retries - 1]
+        assert sleeps == [2.0**k for k in range(attempts - 1)]
+
+    @given(st.lists(_retryable_errors, max_size=4), _fatal_errors, st.integers(1, 6))
+    def test_a_fatal_error_is_raised_without_another_attempt(
+        self, retryable, fatal, max_retries
+    ):
+        result, attempts, _ = self._run([*retryable, fatal], max_retries)
+
+        if len(retryable) < max_retries:
+            assert result is fatal
+            assert attempts == len(retryable) + 1
+        else:
+            assert attempts == max_retries
