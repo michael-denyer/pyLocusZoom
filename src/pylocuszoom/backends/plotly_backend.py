@@ -451,31 +451,23 @@ class PlotlyBackend:
         fontsize: int = 14,
         fontweight: Literal["bold", "normal"] = "bold",
     ) -> None:
-        """Set subplot title using annotation.
+        """Title a panel with an annotation just above its own plotting area.
 
-        For grid layouts, this adds an annotation above the subplot.
-        For single-column layouts, sets the global figure title for the first panel.
+        The layout title is the figure's, which ``set_suptitle`` writes, so a
+        panel title never uses it, whatever the panel's position.
         """
-        if ax.n_cols == 1 and ax.row == 1:
-            # Single-column layout: use global figure title
-            ax.fig.update_layout(title=dict(text=title, font=dict(size=fontsize)))
-        else:
-            # Grid layout: add annotation above the subplot
-            # Use subplot's axis domain for positioning
-            xref = f"{ax.ref('x')} domain"
-            yref = f"{ax.ref('y')} domain"
-
-            ax.fig.add_annotation(
-                text=f"<b>{title}</b>" if fontweight == "bold" else title,
-                xref=xref,
-                yref=yref,
-                x=0.5,
-                y=1.05,
-                showarrow=False,
-                font=dict(size=fontsize),
-                xanchor="center",
-                yanchor="bottom",
-            )
+        ax.fig.add_annotation(
+            text=f"<b>{title}</b>" if fontweight == "bold" else title,
+            xref=f"{ax.ref('x')} domain",
+            yref=f"{ax.ref('y')} domain",
+            x=0.5,
+            y=1.0,
+            yshift=4,
+            showarrow=False,
+            font=dict(size=fontsize),
+            xanchor="center",
+            yanchor="bottom",
+        )
 
     def set_suptitle(
         self,

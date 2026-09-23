@@ -125,6 +125,19 @@ def panel_top(panel: _Panel) -> float:
     return yaxis.domain[1] if yaxis and yaxis.domain else 0.99
 
 
+def panel_right(panel: _Panel) -> float:
+    """Just inside the right edge of a subplot's domain, in paper coordinates.
+
+    Args:
+        panel: The subplot.
+
+    Returns:
+        The x-coordinate in paper coordinates.
+    """
+    xaxis = getattr(panel.fig.layout, panel.axis("xaxis"), None)
+    return (xaxis.domain[1] if xaxis and xaxis.domain else 1.0) - 0.01
+
+
 def configure_legend(panel: _Panel, legend_key: str, title: str) -> None:
     """Anchor one of a figure's legends in a panel's upper-right corner.
 
@@ -137,7 +150,7 @@ def configure_legend(panel: _Panel, legend_key: str, title: str) -> None:
         **{
             legend_key: dict(
                 title=dict(text=title),
-                x=0.99,
+                x=panel_right(panel),
                 y=panel_top(panel),
                 xanchor="right",
                 yanchor="top",
