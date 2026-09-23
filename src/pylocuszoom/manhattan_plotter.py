@@ -367,8 +367,6 @@ class ManhattanPlotter:
                         significance_threshold=significance_threshold,
                         suggestive_threshold=suggestive_threshold,
                         x_label="Chromosome",
-                        title="Manhattan Plot",
-                        title_fontsize=12,
                         style=style,
                     ),
                     QQPanelSpec(
@@ -377,7 +375,7 @@ class ManhattanPlotter:
                         title=qq_title(
                             qq.lambda_gc if lambda_gc is None else lambda_gc,
                             show_lambda=show_lambda,
-                            compact=False,
+                            compact=True,
                         ),
                         title_fontsize=12,
                         style=style,

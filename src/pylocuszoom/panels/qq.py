@@ -19,21 +19,22 @@ from ..config import GenomeWideStyle
 from .manhattan import scatter_alpha, styled
 
 
-def qq_title(lambda_gc: float, *, show_lambda: bool, compact: bool) -> str:
+def qq_title(lambda_gc: float, *, show_lambda: bool, compact: bool) -> Optional[str]:
     """Return the title a QQ panel carries when the caller names none.
 
     Args:
         lambda_gc: Genomic inflation factor from ``prepare_qq_data``.
         show_lambda: Whether to name the inflation factor.
-        compact: Whether the panel is one of a stack, which has room for a
-            shorter title.
+        compact: Whether the panel sits beside a Manhattan panel, where the
+            axes already say it is a QQ plot and only the inflation factor
+            is worth a title.
 
     Returns:
-        The title.
+        The title, or None for none.
     """
     if show_lambda:
         return f"λ = {lambda_gc:.3f}" if compact else f"QQ Plot (λ = {lambda_gc:.3f})"
-    return "QQ" if compact else "QQ Plot"
+    return None if compact else "QQ Plot"
 
 
 @dataclass(frozen=True)
@@ -43,7 +44,7 @@ class QQPanelSpec:
     Attributes:
         qq_df: Frame from ``prepare_qq_data``.
         show_confidence_band: Whether to shade the 95% band.
-        title: Panel title.
+        title: Panel title, or None for none.
         title_fontsize: Panel title size.
         label_fontsize: Axis label size.
         x_label: X axis label, or None for none.
@@ -54,7 +55,7 @@ class QQPanelSpec:
 
     qq_df: pd.DataFrame
     show_confidence_band: bool
-    title: str
+    title: Optional[str]
     title_fontsize: int
     label_fontsize: int = 12
     x_label: Optional[str] = r"Expected $-\log_{10}(p)$"
@@ -117,9 +118,10 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
     if spec.x_label is not None:
         backend.set_xlabel(ax, spec.x_label, fontsize=label_fontsize)
     backend.set_ylabel(ax, spec.y_label, fontsize=label_fontsize)
-    backend.set_title(
-        ax,
-        spec.title,
-        fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
-        **title_weight(style.title_fontweight),
-    )
+    if spec.title:
+        backend.set_title(
+            ax,
+            spec.title,
+            fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
+            **title_weight(style.title_fontweight),
+        )

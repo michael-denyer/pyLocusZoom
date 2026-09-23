@@ -222,32 +222,14 @@ class TestPlotlySetTitleOverwriting:
             f"QQ title not found in annotations: {annotation_texts}"
         )
 
-    def test_plot_manhattan_qq_has_distinct_titles(self, manhattan_rs_gwas_df):
-        """plot_manhattan_qq should show both Manhattan and QQ titles."""
+    def test_plot_manhattan_qq_titles_only_the_qq_panel(self, manhattan_rs_gwas_df):
+        """plot_manhattan_qq titles the QQ panel with lambda and leaves Manhattan bare."""
         plotter = ManhattanPlotter(species="canine", backend="plotly")
         fig = plotter.plot_manhattan_qq(manhattan_rs_gwas_df)
 
-        # Convert to JSON to inspect all text elements
-        import json
-
-        fig_json = json.loads(fig.to_json())
-
-        # Look for title text in annotations
-        all_text = []
-
-        # Check annotations (grid layouts use annotations for titles)
-        for ann in fig_json.get("layout", {}).get("annotations", []):
-            if "text" in ann:
-                all_text.append(ann["text"])
-
-        # We should see both plot types in annotations
-        text_combined = " ".join(all_text).lower()
-
-        has_manhattan = "manhattan" in text_combined
-        has_qq = "qq" in text_combined or "λ" in text_combined
-
-        assert has_manhattan, f"Manhattan title not found in annotations: {all_text}"
-        assert has_qq, f"QQ title not found in annotations: {all_text}"
+        texts = [a.text for a in fig.layout.annotations]
+        assert len(texts) == 1
+        assert texts[0].startswith("<b>λ = ")
 
 
 class TestPlotlyMegabaseTicksFollowTheAxisRange:

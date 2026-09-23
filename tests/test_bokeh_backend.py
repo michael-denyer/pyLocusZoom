@@ -374,6 +374,7 @@ class TestSetSuptitle:
         )
 
         assert "Cohort A" in _plot_titles(fig)
+        assert any(t.startswith("λ = ") for t in _plot_titles(fig))
 
     def test_suptitle_lands_on_single_column(self):
         backend = BokehBackend()

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Manhattan-QQ figures drop the redundant panel titles.** `plot_manhattan_qq` no longer titles its Manhattan panel "Manhattan Plot", and its QQ panel reads `λ = 1.009` instead of `QQ Plot (λ = 1.009)`, as the stacked figure already did. With `show_lambda=False` the QQ panels of both figures are untitled rather than "QQ Plot" or "QQ". A standalone `plot_qq` keeps its "QQ Plot (λ = …)" title.
+
 ## [4.2.0] - 2026-09-23
 
 ### Added

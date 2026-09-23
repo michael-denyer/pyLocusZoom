@@ -629,7 +629,7 @@ class TestPlotManhattanQQOptions:
 
         manhattan_ax, qq_ax = fig.get_axes()
         assert self._hline_levels(manhattan_ax) == [round(-np.log10(5e-8), 6)]
-        assert qq_ax.get_title().startswith("QQ Plot (λ = ")
+        assert qq_ax.get_title().startswith("λ = ")
         assert fig.texts == []
 
     def test_suggestive_line_is_drawn_below_the_genomewide_line(
@@ -646,7 +646,23 @@ class TestPlotManhattanQQOptions:
     ):
         fig = manhattan_plotter.plot_manhattan_qq(manhattan_gwas_df, lambda_gc=1.2345)
 
-        assert fig.get_axes()[1].get_title() == "QQ Plot (λ = 1.234)"
+        assert fig.get_axes()[1].get_title() == "λ = 1.234"
+
+    def test_without_lambda_neither_panel_is_titled(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        fig = manhattan_plotter.plot_manhattan_qq(manhattan_gwas_df, show_lambda=False)
+
+        assert [ax.get_title() for ax in fig.get_axes()] == ["", ""]
+
+    def test_stacked_qq_panels_are_untitled_without_lambda(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        fig = manhattan_plotter.plot_manhattan_qq_stacked(
+            [manhattan_gwas_df, manhattan_gwas_df], show_lambda=False
+        )
+
+        assert [ax.get_title() for ax in fig.get_axes()[1::2]] == ["", ""]
 
     def test_footer_is_written_under_the_panels(
         self, manhattan_plotter, manhattan_gwas_df

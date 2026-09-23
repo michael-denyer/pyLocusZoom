@@ -57,8 +57,8 @@ class TestManhattanPlotter:
         fig = canine_manhattan_plotter.plot_manhattan_qq(manhattan_chrom_df)
 
         manhattan_ax, qq_ax = fig.get_axes()
-        assert manhattan_ax.get_title() == "Manhattan Plot"
-        assert qq_ax.get_title().startswith("QQ Plot")
+        assert manhattan_ax.get_title() == ""
+        assert qq_ax.get_title().startswith("λ = ")
 
     def test_plot_manhattan_stacked_draws_one_panel_per_frame(
         self, canine_manhattan_plotter, manhattan_chrom_df
