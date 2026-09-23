@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from bokeh.models import Plot
+from bokeh.models import Div, Plot
 
 from pylocuszoom.backends.bokeh_backend import BokehBackend, _create_color_palette
 from pylocuszoom.colors import LD_HEATMAP_COLORS
@@ -360,28 +360,38 @@ class TestBokehSetYticksIgnoresLabels:
 def _plot_titles(node):
     if isinstance(node, Plot):
         return [node.title.text]
-    return [t for child in node.children for t in _plot_titles(child)]
+    children = getattr(node, "children", [])
+    return [t for child in children for t in _plot_titles(child)]
 
 
 class TestSetSuptitle:
-    """set_suptitle must reach a figure whether the layout is a column or a grid."""
+    """set_suptitle adds its own row above the panels and leaves panel titles."""
 
-    def test_suptitle_lands_on_manhattan_qq_grid(self, manhattan_gwas_df):
+    def test_manhattan_qq_keeps_panel_title_beside_suptitle(self, manhattan_gwas_df):
         from pylocuszoom import ManhattanPlotter
 
         fig = ManhattanPlotter(species="human", backend="bokeh").plot_manhattan_qq(
             manhattan_gwas_df, title="Cohort A"
         )
 
-        assert "Cohort A" in _plot_titles(fig)
+        assert "Manhattan Plot" in _plot_titles(fig)
+        assert "Cohort A" not in _plot_titles(fig)
+        assert isinstance(fig.children[0], Div)
+        assert fig.children[0].text == "Cohort A"
 
-    def test_suptitle_lands_on_single_column(self):
+    def test_suptitle_is_first_row_of_single_column(self):
         backend = BokehBackend()
-        fig, _ = backend.create_figure(height_ratios=[1, 1], figsize=(8, 6))
+        fig, axes = backend.create_figure(height_ratios=[1, 1], figsize=(8, 6))
+        backend.set_title(axes[0], "Panel")
 
-        backend.set_suptitle(fig, "Cohort B")
+        backend.set_suptitle(fig, "Cohort <B>", fontsize=18, fontweight="normal")
 
-        assert "Cohort B" in _plot_titles(fig)
+        title = fig.children[0]
+        assert isinstance(title, Div)
+        assert title.text == "Cohort &lt;B&gt;"
+        assert title.styles["font-size"] == "18pt"
+        assert title.styles["font-weight"] == "normal"
+        assert _plot_titles(fig) == ["Panel", ""]
 
 
 class TestCreateTwinAxisKeepsExtraRanges:

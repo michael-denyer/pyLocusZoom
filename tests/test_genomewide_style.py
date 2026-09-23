@@ -179,7 +179,8 @@ def _bokeh_plots(layout):
 
     if isinstance(layout, Plot):
         return [layout]
-    return [plot for child in layout.children for plot in _bokeh_plots(child)]
+    children = getattr(layout, "children", [])
+    return [plot for child in children for plot in _bokeh_plots(child)]
 
 
 def _bokeh_scatter_glyphs(plot):
@@ -344,10 +345,11 @@ class TestFonts:
 
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
 
+        assert fig.children[0].text == "Study"
+        assert fig.children[0].styles["font-size"] == "30pt"
         plots = _bokeh_plots(fig)
-        assert plots[0].title.text == "Study"
-        assert plots[0].title.text_font_size == "30pt"
-        assert plots[1].title.text_font_size == "26pt"
+        assert plots[0].title.text == "Manhattan Plot"
+        assert [p.title.text_font_size for p in plots] == ["26pt", "26pt"]
         for plot in plots:
             for axis in plot.xaxis + plot.yaxis:
                 assert axis.axis_label_text_font_size == "20pt"
@@ -478,6 +480,7 @@ class TestTitleWeight:
 
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
 
+        assert fig.children[0].styles["font-weight"] == "normal"
         assert {p.title.text_font_style for p in _bokeh_plots(fig)} == {"normal"}
 
 
