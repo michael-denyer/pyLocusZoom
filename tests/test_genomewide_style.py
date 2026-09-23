@@ -10,7 +10,9 @@ from matplotlib.collections import PathCollection
 from pydantic import ValidationError as PydanticValidationError
 
 from pylocuszoom import GenomeWideStyle, ManhattanPlotter, MiamiPlotter
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.manhattan import CHROMOSOME_GAP
+from tests.figure_probes import PROBES
 
 DEFAULT_PALETTE = list(cc.b_glasbey_bw_minc_20_maxl_70)
 
@@ -262,35 +264,15 @@ class TestPoints:
         }
         assert sizes == {75.0}
 
-    def test_point_alpha_sets_matplotlib_alpha(self, plotter, four_chrom_df):
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_point_alpha_sets_every_marker_alpha(self, backend_name, four_chrom_df):
+        plotter = ManhattanPlotter(species="human", backend=backend_name)
+
         fig = plotter.plot_manhattan_qq(
             four_chrom_df, style=GenomeWideStyle(point_alpha=0.4)
         )
 
-        alphas = {
-            c.get_alpha() for ax in fig.get_axes() for c in _manhattan_collections(ax)
-        }
-        assert alphas == {0.4}
-
-    def test_point_alpha_sets_plotly_opacity(self, four_chrom_df):
-        plotter = ManhattanPlotter(species="human", backend="plotly")
-
-        fig = plotter.plot_manhattan(
-            four_chrom_df, style=GenomeWideStyle(point_alpha=0.4)
-        )
-
-        assert {trace.marker.opacity for trace in fig.data} == {0.4}
-
-    def test_point_alpha_sets_bokeh_glyph_alpha(self, four_chrom_df):
-        plotter = ManhattanPlotter(species="human", backend="bokeh")
-
-        fig = plotter.plot_manhattan(
-            four_chrom_df, style=GenomeWideStyle(point_alpha=0.4)
-        )
-
-        glyphs = [g for p in _bokeh_plots(fig) for g in _bokeh_scatter_glyphs(p)]
-        assert glyphs
-        assert {(g.fill_alpha, g.line_alpha) for g in glyphs} == {(0.4, 0.4)}
+        assert PROBES[backend_name].point_alphas(fig) == {0.4}
 
 
 class TestFonts:
@@ -301,16 +283,18 @@ class TestFonts:
         tick_label_fontsize=18,
     )
 
-    def test_manhattan_qq_matplotlib_fonts(self, plotter, four_chrom_df):
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_manhattan_qq_fonts(self, backend_name, four_chrom_df):
+        plotter = ManhattanPlotter(species="human", backend=backend_name)
+
         fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
 
-        assert fig._suptitle.get_fontsize() == 30
-        for ax in fig.get_axes():
-            assert ax.title.get_fontsize() == 26
-            assert ax.xaxis.label.get_fontsize() == 20
-            assert ax.yaxis.label.get_fontsize() == 20
-            assert {t.get_fontsize() for t in ax.get_xticklabels()} == {18}
-            assert {t.get_fontsize() for t in ax.get_yticklabels()} == {18}
+        assert PROBES[backend_name].font_sizes(fig) == {
+            "title": 30,
+            "panel_title": {26},
+            "axis_label": {20},
+            "tick_label": {18},
+        }
 
     def test_single_plot_title_is_a_panel_title(self, plotter, four_chrom_df):
         fig = plotter.plot_qq(
@@ -327,33 +311,6 @@ class TestFonts:
         )
 
         assert fig.get_axes()[0].title.get_fontsize() == 22
-
-    def test_plotly_fonts(self, four_chrom_df):
-        plotter = ManhattanPlotter(species="human", backend="plotly")
-
-        fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
-
-        layout = fig.layout
-        assert layout.title.font.size == 30
-        assert {a.font.size for a in layout.annotations} == {26}
-        for axis in (layout.xaxis, layout.yaxis, layout.xaxis2, layout.yaxis2):
-            assert axis.title.font.size == 20
-            assert axis.tickfont.size == 18
-
-    def test_bokeh_fonts(self, four_chrom_df):
-        plotter = ManhattanPlotter(species="human", backend="bokeh")
-
-        fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
-
-        assert fig.children[0].text == "Study"
-        assert fig.children[0].styles["font-size"] == "30pt"
-        plots = _bokeh_plots(fig)
-        assert plots[0].title.text == "Manhattan Plot"
-        assert [p.title.text_font_size for p in plots] == ["26pt", "26pt"]
-        for plot in plots:
-            for axis in plot.xaxis + plot.yaxis:
-                assert axis.axis_label_text_font_size == "20pt"
-                assert axis.major_label_text_font_size == "18pt"
 
 
 class TestLines:

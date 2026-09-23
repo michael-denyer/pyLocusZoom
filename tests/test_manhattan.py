@@ -508,10 +508,10 @@ class TestPrepareCategoricalDataIntegerCategories:
 
 
 class TestCategoricalManhattanNaNHandling:
-    """Medium: Categorical Manhattan prep raises TypeError on NaN categories.
+    """Categorical Manhattan prep orders NaN and mixed-type categories.
 
-    Bug: prepare_categorical_data uses sorted() on category values directly.
-    If category column contains NaN or mixed types, sorted() raises TypeError.
+    It once sorted the raw category values, and sorted() raises TypeError on
+    NaN or on str mixed with int.
     """
 
     def test_categorical_manhattan_handles_nan_categories(self):
@@ -523,11 +523,6 @@ class TestCategoricalManhattanNaNHandling:
             }
         )
 
-        # Bug: sorted(result[category_col].unique()) fails with:
-        # TypeError: '<' not supported between instances of 'str' and 'float'
-        # because np.nan is float and other values are str
-
-        # This should not raise
         try:
             result = prepare_categorical_data(
                 df, category_col="phenotype", p_col="p_value"
@@ -548,13 +543,12 @@ class TestCategoricalManhattanNaNHandling:
             }
         )
 
-        # Bug: sorted() fails on mixed types
-        try:
-            prepare_categorical_data(df, category_col="category", p_col="p_value")
-        except TypeError as e:
-            pytest.fail(
-                f"prepare_categorical_data raised TypeError on mixed types: {e}"
-            )
+        result = prepare_categorical_data(
+            df, category_col="category", p_col="p_value"
+        ).frame
+
+        assert len(result) == 5
+        assert sorted(result["_cat_idx"]) == [0, 1, 2, 3, 4]
 
 
 class TestChromosomeLayoutOrder:

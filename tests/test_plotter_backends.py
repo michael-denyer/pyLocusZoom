@@ -9,16 +9,8 @@ from pylocuszoom import DisplayConfig, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 from tests.strategies import gwas_dataframes
-
-PANEL_COUNTS = {
-    "matplotlib": lambda fig: len(fig.get_axes()),
-    "plotly": lambda fig: sum(
-        key.startswith("yaxis") for key in fig.layout.to_plotly_json()
-    ),
-    "bokeh": lambda fig: len(fig.children),
-}
-"""How many stacked panels a figure carries, in each backend's own terms."""
 
 
 class TestBackendIntegration:
@@ -37,28 +29,6 @@ class TestBackendIntegration:
         )
 
         assert isinstance(fig, FIGURE_TYPES["matplotlib"])
-
-    def test_plotly_backend_creates_figure(self, tiny_regional_gwas_df):
-        """plot() with backend='plotly' produces a plotly Figure.
-
-        This also implicitly confirms plot() routes through the backend
-        protocol: if plot() bypassed the backend and called matplotlib
-        directly, the returned object would be a matplotlib Figure and
-        this isinstance check would fail.
-        """
-        import plotly.graph_objects as go
-
-        plotter = LocusZoomPlotter(species="canine", backend="plotly")
-
-        fig = plotter.plot(
-            tiny_regional_gwas_df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            display=DisplayConfig(show_recombination=False),
-        )
-
-        assert isinstance(fig, go.Figure)
 
     def test_matplotlib_plot_renders_expected_artists(self, tiny_regional_gwas_df):
         """plot() renders scatter points, a significance line, and axis labels.
@@ -170,7 +140,7 @@ class TestBackendEQTLFinemapping:
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend])
-        assert PANEL_COUNTS[backend](fig) == expected_panels
+        assert PROBES[backend].panel_count(fig) == expected_panels
 
     def test_plot_accepts_eqtl_and_finemapping_panels(
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
@@ -297,3 +267,5 @@ class TestPlotterProperties:
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend])
+        drawn = set(PROBES[backend].marker_x(fig))
+        assert drawn == set(df["pos"].astype(float))

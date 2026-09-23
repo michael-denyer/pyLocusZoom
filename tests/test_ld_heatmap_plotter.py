@@ -9,6 +9,7 @@ from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.ld_heatmap_plotter import LDHeatmapPlotter
 from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 
 LEAD_OUTLINE = LEAD_SNP_HIGHLIGHT_COLOR.lower()
 SECONDARY_OUTLINE = SECONDARY_HIGHLIGHT_COLOR.lower()
@@ -347,46 +348,17 @@ class TestLDHeatmapEdgeCases:
 class TestLDHeatmapHighlighting:
     """Tests for SNP highlighting functionality."""
 
-    def test_lead_snp_highlighting_matplotlib(self, sample_ld_matrix):
-        """Test that lead SNP highlighting adds patches in matplotlib."""
-        plotter = LDHeatmapPlotter(backend="matplotlib")
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_lead_snp_row_and_column_are_outlined(self, backend_name, sample_ld_matrix):
+        """Outline the lead SNP's row and column, in the lead colour, per cell."""
+        plotter = LDHeatmapPlotter(backend=backend_name)
         fig = plotter.plot_ld_heatmap(sample_ld_matrix, lead_snp="rs3")
 
-        axes = fig.get_axes()
-        main_ax = axes[0]
-
-        # Should have rectangle patches for highlighting
-        patches = [p for p in main_ax.patches if hasattr(p, "get_edgecolor")]
-        assert len(patches) > 0, "Lead SNP highlighting should add patches"
-
-    def test_lead_snp_highlighting_plotly(self, sample_ld_matrix):
-        """Test that lead SNP highlighting works in plotly."""
-        plotter = LDHeatmapPlotter(backend="plotly")
-        fig = plotter.plot_ld_heatmap(sample_ld_matrix, lead_snp="rs3")
-
-        # Plotly should have shapes for highlighting
-        assert fig is not None
-        # Shapes are added for highlighting
-        shapes = fig.layout.shapes
-        assert shapes is not None and len(shapes) > 0
-
-    def test_lead_snp_highlighting_bokeh(self, sample_ld_matrix):
-        """Assert bokeh outlines the lead SNP's row and column in the lead colour."""
-        from bokeh.models import GlyphRenderer, Rect
-
-        plotter = LDHeatmapPlotter(backend="bokeh")
-        fig = plotter.plot_ld_heatmap(sample_ld_matrix, lead_snp="rs3")
-
-        outlines = [
-            renderer.data_source.data
-            for child in fig.children
-            for renderer in child.renderers
-            if isinstance(renderer, GlyphRenderer)
-            and isinstance(renderer.glyph, Rect)
-            and renderer.glyph.line_color == LEAD_SNP_HIGHLIGHT_COLOR
-        ]
-        centres = sorted((data["x"][0], data["y"][0]) for data in outlines)
-
+        centres = sorted(
+            box.centre
+            for box in PROBES[backend_name].boxes(fig)
+            if box.edgecolor == LEAD_OUTLINE
+        )
         assert centres == [(0.0, 2.0), (1.0, 2.0), (2.0, 2.0), (2.0, 3.0), (2.0, 4.0)]
 
     def test_multiple_highlights_matplotlib(self, sample_ld_matrix):

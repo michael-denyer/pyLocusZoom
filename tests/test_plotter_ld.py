@@ -1,14 +1,16 @@
 """Tests for LD calculation and the LD heatmap panel in regional plots."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 
 
 def _drawn_positions(ax):
@@ -364,14 +366,13 @@ class TestLDHeatmapIntegration:
             (999750.0, 500.0)
         }
 
-    # Backend-specific tests
-
-    def test_ld_heatmap_matplotlib_backend(
-        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_ld_heatmap_adds_a_panel_under_the_association_plot(
+        self, backend_name, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """Verify matplotlib figure has correct panel count and axes."""
+        """Every backend stacks the heatmap as a second panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend=backend_name, log_level=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -382,53 +383,8 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        # Should have at least 2 main axes (association + heatmap)
-        # Plus possible colorbar axis
-        assert len(fig.axes) >= 2
-        assert isinstance(fig, plt.Figure)
-
-    def test_ld_heatmap_plotly_backend(
-        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
-    ):
-        """Verify plotly figure has heatmap trace at correct row."""
-        import plotly.graph_objects as go
-
-        ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
-
-        fig = plotter.plot(
-            ld_heatmap_gwas_df,
-            chrom=1,
-            start=999000,
-            end=1003000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
-        )
-
-        assert isinstance(fig, go.Figure)
-        # Check that figure has data traces
-        assert len(fig.data) > 0
-
-    def test_ld_heatmap_bokeh_backend(self, ld_heatmap_gwas_df, sample_ld_heatmap_data):
-        """Verify bokeh layout contains heatmap."""
-        from bokeh.models.layouts import Column
-
-        ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
-
-        fig = plotter.plot(
-            ld_heatmap_gwas_df,
-            chrom=1,
-            start=999000,
-            end=1003000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
-        )
-
-        # Bokeh returns Column layout
-        assert isinstance(fig, Column)
-        # Should have multiple children (panels)
-        assert len(fig.children) >= 2
+        assert isinstance(fig, FIGURE_TYPES[backend_name])
+        assert PROBES[backend_name].panel_count(fig) == 2
 
     # Edge case tests
 
@@ -519,15 +475,6 @@ class TestLDHeatmapIntegration:
             )
 
 
-def _glyph_values(renderer, prop):
-    """Per-item values of a Bokeh glyph property, whether column or literal."""
-    spec = getattr(renderer.glyph, prop)
-    data = renderer.data_source.data
-    if isinstance(spec, str):
-        return list(data[spec])
-    return [spec] * len(data[renderer.glyph.x])
-
-
 class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
     START = 999000
     END = 1003000
@@ -577,49 +524,152 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
                 f"outline spans {x0}-{x1}, outside the region {self.START}-{self.END}"
             )
 
-    def test_matplotlib_outline_uses_genomic_coordinates(
-        self, heatmap_gwas_df, heatmap_ld_matrix
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_outline_uses_genomic_coordinates_on_the_heatmap_panel(
+        self, backend_name, heatmap_gwas_df, heatmap_ld_matrix
     ):
-        fig = self._plot("matplotlib", heatmap_gwas_df, heatmap_ld_matrix)
+        fig = self._plot(backend_name, heatmap_gwas_df, heatmap_ld_matrix)
 
-        heatmap_ax = fig.axes[1]
-        spans = [
-            (p.get_x(), p.get_x() + p.get_width())
-            for p in heatmap_ax.patches
-            if not p.get_fill()
+        outlines = [
+            b for b in PROBES[backend_name].boxes(fig, 1) if b.facecolor is None
         ]
 
-        self._assert_inside_region(spans)
+        self._assert_inside_region([(b.x0, b.x1) for b in outlines])
 
-    def test_plotly_outline_uses_genomic_coordinates_on_its_own_panel(
-        self, heatmap_gwas_df, heatmap_ld_matrix
+
+def test_regional_heatmap_sorts_coordinates_and_matrix_together():
+    frame = pd.DataFrame(
+        {"pos": [100, 200, 1000], "p_value": [0.1, 0.01, 0.001], "rs": ["a", "b", "c"]}
+    )
+    matrix = pd.DataFrame([[0.9, 0.1, 0.2], [0.1, 0.8, 0.3], [0.2, 0.3, 0.7]])
+    fig = LocusZoomPlotter(species=None, backend="bokeh", log_level=None).plot(
+        frame,
+        chrom=1,
+        start=1,
+        end=1500,
+        display=DisplayConfig(show_recombination=False, snp_labels=False),
+        panels=PanelInputs(ld_heatmap_df=matrix, ld_heatmap_snp_ids=["c", "a", "b"]),
+    )
+    cells = fig.children[-1].renderers[0].data_source.data
+    bounds = [(x - w / 2, x + w / 2) for x, w in zip(cells["x"], cells["w"])]
+    assert bounds == [
+        (50, 150),
+        (50, 150),
+        (150, 600),
+        (50, 150),
+        (150, 600),
+        (600, 1400),
+    ]
+    assert cells["value"] == [0.8, 0.3, 0.7, 0.1, 0.2, 0.9]
+
+
+def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
+    frame = pd.DataFrame({"pos": [150, 150], "p_value": [0.1, 0.01], "rs": ["a", "b"]})
+    with pytest.raises(ValueError, match="distinct genomic positions"):
+        LocusZoomPlotter(species=None, log_level=None).plot(
+            frame,
+            chrom=1,
+            start=100,
+            end=200,
+            display=DisplayConfig(show_recombination=False, snp_labels=False),
+            panels=PanelInputs(
+                ld_heatmap_df=pd.DataFrame(np.eye(2)), ld_heatmap_snp_ids=["a", "b"]
+            ),
+        )
+
+
+def test_heatmap_highlights_selected_variant_at_duplicate_source_position():
+    frame = pd.DataFrame(
+        {
+            "pos": [150, 150, 250],
+            "p_value": [0.1, 1e-8, 0.001],
+            "rs": ["weak", "strong", "other"],
+        }
+    )
+    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        frame,
+        chrom=1,
+        start=100,
+        end=300,
+        display=DisplayConfig(show_recombination=False, snp_labels=False),
+        panels=PanelInputs(
+            ld_heatmap_df=pd.DataFrame(np.eye(2)),
+            ld_heatmap_snp_ids=["other", "strong"],
+        ),
+    )
+    outlines = fig.axes[1].patches
+    assert [patch.get_xy() for patch in outlines] == [(100, -0.5), (100, 0.5)]
+    assert [patch.get_width() for patch in outlines] == [100, 100]
+
+
+@pytest.mark.parametrize("with_genes", [False, True])
+@pytest.mark.parametrize("with_recombination", [False, True])
+def test_regional_colorbar_preserves_genomic_display_alignment(
+    sample_genes_df, sample_recomb_df, with_genes, with_recombination
+):
+    frame = pd.DataFrame(
+        {
+            "pos": [1_100_000, 1_200_000, 1_900_000],
+            "p_value": [0.1, 0.01, 0.001],
+            "rs": ["a", "b", "c"],
+        }
+    )
+    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        frame,
+        chrom=1,
+        start=1_000_000,
+        end=2_000_000,
+        display=DisplayConfig(show_recombination=with_recombination, snp_labels=False),
+        panels=PanelInputs(
+            ld_heatmap_df=pd.DataFrame(np.eye(3)),
+            ld_heatmap_snp_ids=["a", "b", "c"],
+            genes_df=sample_genes_df if with_genes else None,
+            recomb_df=sample_recomb_df if with_recombination else None,
+        ),
+    )
+    fig.canvas.draw()
+    association = fig.axes[0]
+    for panel in association.get_shared_x_axes().get_siblings(association):
+        np.testing.assert_allclose(
+            panel.transData.transform([[1_100_000, 0], [1_900_000, 0]])[:, 0],
+            association.transData.transform([[1_100_000, 0], [1_900_000, 0]])[:, 0],
+        )
+    colorbar = next(axis for axis in fig.axes if axis.get_ylabel() == "R²")
+    assert colorbar.get_position().x0 > association.get_position().x1
+    assert colorbar.get_tightbbox(fig.canvas.get_renderer()).x1 <= fig.bbox.x1
+
+
+class TestPlotEdgeCases:
+    """Tests for plot() edge cases and error handling."""
+
+    @pytest.fixture
+    def mock_plink_plotter(self):
+        """Create plotter instance."""
+        return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
+
+    def test_plot_skips_ld_when_rs_col_missing(
+        self, mock_plink_plotter, warning_records
     ):
-        fig = self._plot("plotly", heatmap_gwas_df, heatmap_ld_matrix)
+        """LD needs SNP IDs, so a frame without rs_col plots uncoloured.
 
-        heatmap = next(trace for trace in fig.data if trace.type == "heatmap")
-        outlines = [s for s in fig.layout.shapes if s.type == "rect"]
+        The alternative, a KeyError from deep inside the LD merge, tells the
+        caller nothing about which column is missing.
+        """
+        df = pd.DataFrame(
+            {
+                "pos": [1100000, 1500000, 1900000],
+                "p_value": [1e-8, 1e-5, 1e-3],
+            }
+        )
 
-        self._assert_inside_region([(s.x0, s.x1) for s in outlines])
-        for shape in outlines:
-            assert shape.xref == heatmap.xaxis
-            assert shape.yref == heatmap.yaxis
+        fig = mock_plink_plotter.plot(
+            df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
+        )
 
-    def test_bokeh_outline_uses_genomic_coordinates(
-        self, heatmap_gwas_df, heatmap_ld_matrix
-    ):
-        from bokeh.models import Rect
-
-        layout = self._plot("bokeh", heatmap_gwas_df, heatmap_ld_matrix)
-
-        heatmap_figure = layout.children[1]
-        spans = []
-        for renderer in heatmap_figure.renderers:
-            if not isinstance(renderer.glyph, Rect):
-                continue
-            if "value" in renderer.data_source.data:
-                continue
-            xs = _glyph_values(renderer, "x")
-            widths = _glyph_values(renderer, "width")
-            spans.extend((x - w / 2, x + w / 2) for x, w in zip(xs, widths))
-
-        self._assert_inside_region(spans)
+        assert fig.get_axes()[0].get_legend() is None
+        assert any("rs" in message for message in warning_records)

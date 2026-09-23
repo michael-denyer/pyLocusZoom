@@ -13,29 +13,31 @@ from pylocuszoom.recombination import RecombResult, RecombStatus
 class TestLocusZoomPlotterRecombination:
     """Tests for recombination data handling."""
 
-    def test_caches_recombination_data(self):
-        """Should cache recombination data for repeated calls."""
-        plotter = LocusZoomPlotter(species=None)  # No auto-download
+    def test_caches_recombination_data(self, canine_plotter, tmp_path):
+        """A region plotted twice reads its maps once."""
+        region = dict(
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(snp_labels=False),
+        )
+        gwas_df = pd.DataFrame({"pos": [1100000, 1900000], "p_value": [1e-8, 1e-3]})
 
-        recomb_df = pd.DataFrame(
-            {
-                "pos": [1000000, 1500000, 2000000],
-                "rate": [0.5, 1.0, 0.5],
-            }
+        def recomb_rates(fig):
+            (line,) = fig.axes[1].get_lines()
+            return list(line.get_ydata())
+
+        first = recomb_rates(canine_plotter.plot(gwas_df, **region))
+        (tmp_path / "recombination_maps" / "chr1_recomb.tsv").write_text(
+            "chr\tpos\trate\tcM\n1\t1500000\t9.0\t1.0\n"
+        )
+        again = recomb_rates(canine_plotter.plot(gwas_df, **region))
+        fresh = LocusZoomPlotter(
+            species="canine", recomb_data_dir=canine_plotter.recomb_data_dir
         )
 
-        # First call - no cache
-        assert plotter._recomb_cache == {}
-
-        # Manually add to cache (key includes genome_build and lifter)
-        plotter._recomb_cache[(1, 1000000, 2000000, plotter.genome_build, None)] = (
-            RecombResult(RecombStatus.OK, frame=recomb_df)
-        )
-
-        # Should return cached data
-        result = plotter._get_recomb_for_region(1, 1000000, 2000000)
-        assert result.status is RecombStatus.OK
-        assert len(result.frame) == 3
+        assert first == again == [1.0]
+        assert recomb_rates(fresh.plot(gwas_df, **region)) == [9.0]
 
     def test_recombination_overlay_does_not_distort_primary_ylim(self):
         """Primary y-axis limits should be unchanged when recombination is enabled.
@@ -128,7 +130,7 @@ class TestRecombinationDownloadErrors:
                     end=2000000,
                     display=DisplayConfig(show_recombination=True),
                 )
-            assert fig is not None
+        assert [ax.get_ylabel() for ax in fig.axes] == [r"$-\log_{10}$ P"]
 
     def test_a_skipped_overlay_warns_once(
         self, debug_canine_plotter, tiny_regional_gwas_df
@@ -182,25 +184,33 @@ class TestRecombinationOptionalDependency:
         ):
             yield
 
-    def test_missing_optional_dependency_is_reported_as_a_status(self, plotter):
+    def test_missing_optional_dependency_skips_the_overlay_with_a_warning(
+        self, plotter, tiny_regional_gwas_df
+    ):
         from pylocuszoom.exceptions import OptionalDependencyMissing
 
-        with patch(
-            "pylocuszoom.recombination.get_recombination_rate_for_region",
-            side_effect=OptionalDependencyMissing("no liftover here"),
+        with (
+            patch(
+                "pylocuszoom.recombination.get_recombination_rate_for_region",
+                side_effect=OptionalDependencyMissing("no liftover here"),
+            ),
+            pytest.warns(UserWarning, match="no liftover here"),
         ):
-            result = plotter._get_recomb_for_region(1, 1_000_000, 2_000_000)
+            fig = plotter.plot(
+                tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000
+            )
 
-        assert result.status is RecombStatus.LIFTOVER_UNAVAILABLE
-        assert "no liftover here" in result.detail
+        assert [ax.get_ylabel() for ax in fig.axes] == [r"$-\log_{10}$ P"]
 
-    def test_other_import_error_propagates(self, plotter):
+    def test_other_import_error_propagates(self, plotter, tiny_regional_gwas_df):
         with patch(
             "pylocuszoom.recombination.get_recombination_rate_for_region",
             side_effect=ImportError("pyliftover mentioned but unrelated"),
         ):
-            with pytest.raises(ImportError):
-                plotter._get_recomb_for_region(1, 1_000_000, 2_000_000)
+            with pytest.raises(ImportError, match="mentioned but unrelated"):
+                plotter.plot(
+                    tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000
+                )
 
 
 def test_a_failed_chain_download_warns_and_still_plots(

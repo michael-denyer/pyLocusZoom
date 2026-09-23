@@ -10,6 +10,10 @@ Tests cover:
 import pytest
 from pydantic import ValidationError
 
+from pylocuszoom import DisplayConfig
+from pylocuszoom.plotter import LocusZoomPlotter
+from tests.figure_probes import PROBES
+
 
 class TestRegionConfig:
     """Tests for RegionConfig validation and immutability."""
@@ -613,3 +617,121 @@ class TestColocConfig:
         assert config.eqtl_threshold == 1e-3
         assert config.show_correlation is False
         assert config.figsize == (10.0, 10.0)
+
+
+class TestRegionalOptionSurface:
+    """The regional options are declared once, on the config models."""
+
+    @staticmethod
+    def _label_counts(fig):
+        """The number of SNP labels drawn on each panel that carries any."""
+        counts = [
+            sum(1 for text in ax.texts if text.get_text())
+            for ax in PROBES["matplotlib"].panels(fig)
+        ]
+        return [count for count in counts if count]
+
+    @pytest.fixture
+    def quiet(self):
+        return DisplayConfig(show_recombination=False)
+
+    def test_threshold_omitted_inherits_the_plotter(self, small_regional_gwas_df):
+        plotter = LocusZoomPlotter(
+            species="canine", genomewide_threshold=1e-5, log_level=None
+        )
+        fig = plotter.plot(
+            small_regional_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+        )
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([5.0])
+
+    def test_threshold_none_draws_no_line(self, canine_plotter, small_regional_gwas_df):
+        fig = canine_plotter.plot_stacked(
+            [small_regional_gwas_df, small_regional_gwas_df],
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            significance_threshold=None,
+        )
+        assert PROBES["matplotlib"].panel_count(fig) == 2
+        assert PROBES["matplotlib"].hline_levels(fig) == []
+
+    def test_threshold_overrides_for_one_call(
+        self, canine_plotter, small_regional_gwas_df
+    ):
+        fig = canine_plotter.plot(
+            small_regional_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            significance_threshold=1e-6,
+        )
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([6.0])
+        assert canine_plotter.genomewide_threshold == 5e-8
+
+    def test_label_top_n_takes_the_method_default(
+        self, canine_plotter, small_regional_gwas_df, quiet
+    ):
+        single = self._label_counts(
+            canine_plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=quiet,
+            )
+        )
+        stacked = self._label_counts(
+            canine_plotter.plot_stacked(
+                [small_regional_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=quiet,
+            )
+        )
+        assert (single, stacked) == ([5], [3])
+
+    def test_label_top_n_set_wins_on_both_methods(
+        self, canine_plotter, small_regional_gwas_df
+    ):
+        display = DisplayConfig(show_recombination=False, label_top_n=2)
+        single = self._label_counts(
+            canine_plotter.plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=display,
+            )
+        )
+        stacked = self._label_counts(
+            canine_plotter.plot_stacked(
+                [small_regional_gwas_df],
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=display,
+            )
+        )
+        assert (single, stacked) == ([2], [2])
+
+    def test_config_models_are_exported(self):
+        import pylocuszoom
+
+        for name in ("ColumnConfig", "DisplayConfig", "LDConfig", "PanelInputs"):
+            assert name in pylocuszoom.__all__
+            assert getattr(pylocuszoom, name) is getattr(
+                __import__("pylocuszoom.config", fromlist=[name]), name
+            )
+
+    def test_from_kwargs_is_gone(self):
+        from pylocuszoom.config import PlotConfig, StackedPlotConfig
+
+        assert not hasattr(PlotConfig, "from_kwargs")
+        assert not hasattr(StackedPlotConfig, "from_kwargs")

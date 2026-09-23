@@ -68,6 +68,36 @@ class TestLiftoverPositions:
 
         assert result["pos"].tolist() == [600]
 
+    def test_drops_unmapped_positions(self):
+        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
+        lifter = InMemoryLifter({("chr1", 999): 1099})  # 2000 fails to map
+
+        result = liftover_positions(df, lifter, chrom=1)
+
+        assert list(result["pos"]) == [1100]
+        assert list(result["rate"]) == [0.5]
+
+    def test_uses_chr_column_when_present(self):
+        df = pd.DataFrame({"chr": [1, 2], "pos": [1000, 3000], "rate": [0.1, 0.2]})
+        lifter = InMemoryLifter({("chr1", 999): 1099, ("chr2", 2999): 3299})
+
+        result = liftover_positions(df, lifter)
+
+        assert set(result["pos"]) == {1100, 3300}
+
+    def test_result_sorted_by_lifted_position(self):
+        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
+        lifter = InMemoryLifter({("chr1", 999): 4999, ("chr1", 1999): 999})
+
+        result = liftover_positions(df, lifter, chrom=1)
+
+        assert list(result["pos"]) == [1000, 5000]
+
+    def test_requires_chr_column_or_chrom(self):
+        df = pd.DataFrame({"pos": [1000], "rate": [0.5]})
+        with pytest.raises(ValueError, match="Either 'chr' column or chrom"):
+            liftover_positions(df, InMemoryLifter({}))
+
 
 class TestLiftoverRegion:
     """The public region liftover behind regional plots across builds."""

@@ -5,8 +5,9 @@ import sys
 import numpy as np
 import pytest
 
-from pylocuszoom.backends import BUILTIN_BACKENDS
+from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LD_HEATMAP_COLORS
+from tests.figure_probes import PROBES
 
 
 class TestRegisterBackend:
@@ -70,22 +71,6 @@ class TestGetBackend:
         # Should list available backends
         assert "matplotlib" in error_msg
 
-    def test_get_backend_plotly_works_when_installed(self):
-        """get_backend('plotly') returns PlotlyBackend when plotly is available."""
-        from pylocuszoom.backends import get_backend
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
-
-        backend = get_backend("plotly")
-        assert isinstance(backend, PlotlyBackend)
-
-    def test_get_backend_bokeh_works_when_installed(self):
-        """get_backend('bokeh') returns BokehBackend when bokeh is available."""
-        from pylocuszoom.backends import get_backend
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
-
-        backend = get_backend("bokeh")
-        assert isinstance(backend, BokehBackend)
-
 
 class TestBackendImportErrors:
     """Tests for ImportError behavior when optional backends unavailable."""
@@ -112,29 +97,17 @@ class TestBackendImportErrors:
 class TestBackendCapabilities:
     """Tests that registered backends have expected capability properties."""
 
-    def test_matplotlib_has_capabilities(self):
-        """MatplotlibBackend supports SNP labels, not hover."""
+    @pytest.mark.parametrize(
+        ("backend_name", "labels", "hover"),
+        [("matplotlib", True, False), ("plotly", False, True), ("bokeh", False, True)],
+    )
+    def test_backend_declares_its_capabilities(self, backend_name, labels, hover):
+        """Only matplotlib labels SNPs; only the interactive backends hover."""
         from pylocuszoom.backends import SupportsSNPLabels, get_backend
 
-        backend = get_backend("matplotlib")
-        assert isinstance(backend, SupportsSNPLabels)
-        assert backend.supports_hover is False
-
-    def test_plotly_has_capabilities(self):
-        """PlotlyBackend supports hover, not SNP labels."""
-        from pylocuszoom.backends import SupportsSNPLabels, get_backend
-
-        backend = get_backend("plotly")
-        assert not isinstance(backend, SupportsSNPLabels)
-        assert backend.supports_hover is True
-
-    def test_bokeh_has_capabilities(self):
-        """BokehBackend supports hover, not SNP labels."""
-        from pylocuszoom.backends import SupportsSNPLabels, get_backend
-
-        backend = get_backend("bokeh")
-        assert not isinstance(backend, SupportsSNPLabels)
-        assert backend.supports_hover is True
+        backend = get_backend(backend_name)
+        assert isinstance(backend, SupportsSNPLabels) is labels
+        assert backend.supports_hover is hover
 
 
 class TestBackendRegistration:
@@ -167,40 +140,47 @@ class TestBackendRegistration:
 class TestSetXticks:
     """Tests for x-axis tick setting across backends."""
 
-    def test_matplotlib_set_xticks(self):
-        """Matplotlib backend should set x-axis ticks."""
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_set_xticks_places_positions_and_labels(self, backend_name):
+        """set_xticks puts each label at its position."""
+        from pylocuszoom.backends import get_backend
 
-        backend = MatplotlibBackend()
+        backend = get_backend(backend_name)
         fig, axes = backend.create_figure([1.0], (6, 4))
         backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
-        # Verify ticks were set
-        ticks = list(axes[0].get_xticks())
-        assert 0 in ticks
-        assert 1 in ticks
-        assert 2 in ticks
 
-    def test_plotly_set_xticks(self):
-        """Plotly backend should set x-axis ticks."""
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
+        assert PROBES[backend_name].xticks(fig) == ([0, 1, 2], ["A", "B", "C"])
 
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure([1.0], (6, 4))
-        backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
-        # Verify via layout
-        xaxis = fig.layout.xaxis
-        assert xaxis.tickvals == (0, 1, 2)
-        assert xaxis.ticktext == ("A", "B", "C")
 
-    def test_bokeh_set_xticks(self):
-        """Bokeh backend should set x-axis ticks."""
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
+class TestReferenceLines:
+    """axhline draws on the panel it is given, whatever that panel holds."""
 
-        backend = BokehBackend()
-        fig, axes = backend.create_figure([1.0], (6, 4))
-        backend.set_xticks(axes[0], [0, 1, 2], ["A", "B", "C"])
-        # Access ticks via the ticker's ticks property
-        assert list(axes[0].xaxis.ticker.ticks) == [0, 1, 2]
+    @pytest.mark.parametrize(
+        "backend_name",
+        [
+            "matplotlib",
+            pytest.param(
+                "plotly",
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    reason=(
+                        "plotly's add_hline(row=, col=) adds no shape to a subplot "
+                        "with no trace, so the line is silently dropped"
+                    ),
+                ),
+            ),
+            "bokeh",
+        ],
+    )
+    def test_axhline_on_an_empty_panel_draws_the_line(self, backend_name):
+        from pylocuszoom.backends import get_backend
+
+        backend = get_backend(backend_name)
+        fig, axes = backend.create_figure([1.0, 1.0], (6, 4))
+
+        backend.axhline(axes[1], y=5.0)
+
+        assert PROBES[backend_name].hline_levels(fig, panel=1) == [5.0]
 
 
 class TestConvertLatexToUnicode:
@@ -377,8 +357,8 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        assert trace is not None
         assert isinstance(trace, go.Heatmap)
+        assert trace is fig.data[-1], "the figure's own trace, so add_colorbar sticks"
 
     def test_plotly_add_colorbar_enables_the_trace_scale(self, ld_matrix_array):
         """Plotly's colorbar is the trace's own scale, off until asked for."""
@@ -432,8 +412,9 @@ class TestHeatmapMethods:
             y_coords=list(range(5)),
             cmap_colors=LD_HEATMAP_COLORS,
         )
-        assert mapper is not None
         assert isinstance(mapper, LinearColorMapper)
+        (renderer,) = axes[0].renderers
+        assert renderer.glyph.fill_color.transform is mapper
 
     def test_bokeh_add_colorbar_adds_to_layout(self, ld_matrix_array):
         """Bokeh add_colorbar should add ColorBar to figure."""
@@ -496,6 +477,41 @@ class TestHeatmapMethods:
         assert np.ma.is_masked(array_data)
 
 
+class TestHeatmapCellBoundaries:
+    """Native heatmap cells use the same coordinate boundaries as SNP outlines."""
+
+    @pytest.mark.parametrize("backend_name", ["matplotlib", "bokeh"])
+    @pytest.mark.parametrize(
+        "coordinates, boundaries",
+        [
+            ([100, 200, 1000], [(50, 150), (150, 600), (600, 1400)]),
+            ([0, 1, 2], [(-0.5, 0.5), (0.5, 1.5), (1.5, 2.5)]),
+            ([100], [(99.5, 100.5)]),
+        ],
+    )
+    def test_native_cell_boundaries(self, backend_name, coordinates, boundaries):
+        backend = get_backend(backend_name)
+        fig, axes = backend.create_figure([1], (5, 4))
+        count = len(coordinates)
+        result = backend.add_heatmap(
+            axes[0], np.eye(count), coordinates, coordinates, ["white", "red"]
+        )
+        if backend_name == "matplotlib":
+            if axes[0].images:
+                xmin, xmax, _, _ = result.get_extent()
+                edges = np.linspace(xmin, xmax, count + 1)
+            else:
+                edges = result.get_coordinates()[0, :, 0]
+            actual = list(zip(edges[:-1], edges[1:]))
+        else:
+            data = axes[0].renderers[0].data_source.data
+            actual = [
+                (x - w / 2, x + w / 2)
+                for x, w in zip(data["x"][:count], data["w"][:count])
+            ]
+        np.testing.assert_allclose(actual, boundaries)
+
+
 class TestCustomBackendCompatibility:
     """Tests for custom backend forward compatibility."""
 
@@ -525,75 +541,30 @@ class TestLegendPlacement:
             LegendEntry("0.8 - 1.0", "#0000FF"),
         ]
 
-    def test_matplotlib_honours_loc(self):
-        """Matplotlib places the legend at the requested location."""
-        from matplotlib.legend import Legend
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_honours_loc(self, backend_name):
+        """The legend is anchored in the corner the matplotlib loc names."""
+        from pylocuszoom.backends import get_backend
 
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
-
-        backend = MatplotlibBackend()
+        backend = get_backend(backend_name)
         fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="lower left")
-        legend = axes[0].get_legend()
-        assert legend._get_loc() == Legend.codes["lower left"]
 
-    def test_matplotlib_honours_edgecolor(self):
-        """Matplotlib draws the swatch edge in the requested colour."""
-        from matplotlib.colors import to_hex
+        assert PROBES[backend_name].legend_corner(fig) == "lower left"
 
-        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_honours_edgecolor(self, backend_name):
+        """A swatch edge takes its entry's edgecolor, black when it has none."""
+        from pylocuszoom.backends import get_backend
 
-        backend = MatplotlibBackend()
+        backend = get_backend(backend_name)
         fig, axes = backend.create_figure([1.0], (6, 4))
         backend.add_legend(axes[0], self._entries(), loc="upper right")
-        marker_handle = axes[0].get_legend().legend_handles[0]
-        assert to_hex(marker_handle.get_markeredgecolor()) == "#00ff00"
 
-    def test_plotly_honours_loc(self):
-        """Plotly anchors the legend per the matplotlib loc vocabulary."""
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
-
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure([1.0], (6, 4))
-        backend.add_legend(axes[0], self._entries(), loc="lower left")
-        legend = fig.layout.legend
-        assert legend.xanchor == "left"
-        assert legend.yanchor == "bottom"
-
-    def test_plotly_honours_edgecolor(self):
-        """Plotly draws the swatch edge in the requested colour."""
-        from pylocuszoom.backends.plotly_backend import PlotlyBackend
-
-        backend = PlotlyBackend()
-        fig, axes = backend.create_figure([1.0], (6, 4))
-        backend.add_legend(axes[0], self._entries(), loc="upper right")
-        legend_traces = [t for t in fig.data if t.name == "Lead SNP"]
-        assert legend_traces[0].marker.line.color == "#00FF00"
-
-    def test_bokeh_honours_loc(self):
-        """Bokeh maps the matplotlib loc vocabulary to its own locations."""
-        from bokeh.models import Legend
-
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
-
-        backend = BokehBackend()
-        fig, axes = backend.create_figure([1.0], (6, 4))
-        backend.add_legend(axes[0], self._entries(), loc="lower left")
-        legends = axes[0].select(Legend)
-        assert list(legends)[0].location == "bottom_left"
-
-    def test_bokeh_honours_edgecolor(self):
-        """Bokeh draws the swatch edge in the requested colour."""
-        from bokeh.models import Legend
-
-        from pylocuszoom.backends.bokeh_backend import BokehBackend
-
-        backend = BokehBackend()
-        fig, axes = backend.create_figure([1.0], (6, 4))
-        backend.add_legend(axes[0], self._entries(), loc="upper right")
-        legend = list(axes[0].select(Legend))[0]
-        lead_item = legend.items[0]
-        assert lead_item.renderers[0].glyph.line_color == "#00FF00"
+        assert PROBES[backend_name].legend_edgecolors(fig) == {
+            "Lead SNP": "#00ff00",
+            "0.8 - 1.0": "#000000",
+        }
 
     def test_unknown_loc_falls_back_without_raising(self):
         """An unmapped loc degrades to the default corner, it does not raise."""

@@ -8,11 +8,12 @@ from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
 
 class TestPlotlyGridSubplotAxisAddressing:
-    """Critical: Plotly grid subplots are misaddressed.
+    """Plotly grid subplots are addressed by row and column.
 
-    Bug: axis helpers use row-only axis names and several helpers hard-code col=1,
-    so in create_figure_grid the QQ column doesn't receive axis limits/labels and
-    Manhattan can be overwritten by QQ settings; lines/shapes land only in column 1.
+    Axis helpers once used row-only axis names and several hard-coded col=1,
+    so in create_figure_grid the QQ column received no axis limits or labels,
+    QQ settings overwrote the Manhattan ones, and lines and shapes landed only
+    in column 1.
     """
 
     def test_plotly_axis_name_accounts_for_column(self):
@@ -24,9 +25,6 @@ class TestPlotlyGridSubplotAxisAddressing:
         # - (row=1, col=1) should use xaxis/yaxis (subplot index 1)
         # - (row=1, col=2) should use xaxis2/yaxis2 (subplot index 2)
 
-        # Current bug: _axis_name only considers row, not column
-        # For row=1 it always returns "xaxis"/"yaxis" regardless of column
-
         manhattan_ax = axes[0]  # (fig, row=1, col=1)
         qq_ax = axes[1]  # (fig, row=1, col=2)
 
@@ -35,7 +33,7 @@ class TestPlotlyGridSubplotAxisAddressing:
         backend.set_ylabel(qq_ax, "QQ Y")
 
         # Verify they are different axes - check layout has both yaxis and yaxis2
-        # If bug exists, both labels go to yaxis and yaxis2 is never set
+        # A row-only axis name would send both labels to yaxis
         layout = fig.layout
 
         # Check that we have distinct y-axis configurations
@@ -48,81 +46,67 @@ class TestPlotlyGridSubplotAxisAddressing:
 
         assert yaxis2_title is not None, (
             "yaxis2 should have a title set for column 2, but it's None. "
-            "Bug: _axis_name doesn't account for column."
+            "_axis_name ignores the column."
         )
         assert yaxis_title != yaxis2_title, (
             f"yaxis and yaxis2 have same title '{yaxis_title}'. "
-            "Bug: both columns writing to same axis."
+            "Both columns write to the same axis."
         )
 
-    def test_plotly_axhline_targets_correct_column(self):
-        """axhline should pass correct col parameter (verified by code inspection).
+    @staticmethod
+    def _qq_column_with_a_trace(backend):
+        """A 1x2 grid whose column-2 panel holds a point.
 
-        Note: Plotly's add_hline doesn't immediately add to fig.layout.shapes;
-        it creates an internal shape that's rendered later. We verify the fix
-        by checking that the code now passes col instead of hard-coded col=1.
+        Plotly drops a row/col-addressed hline or vline on a subplot with no
+        trace, so the column needs data before a line can land on it.
         """
-        backend = PlotlyBackend()
         fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
+        backend.scatter(axes[1], pd.Series([1.0]), pd.Series([1.0]), colors="red")
+        return fig, axes[1]
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
+    def test_plotly_axhline_targets_correct_column(self):
+        """axhline spans column 2's x domain at a y in column 2's data units."""
+        backend = PlotlyBackend()
+        fig, qq_ax = self._qq_column_with_a_trace(backend)
 
-        # Add horizontal line to QQ plot (column 2)
-        # This should not raise an error
         backend.axhline(qq_ax, y=5.0, color="red")
 
-        # The fix is verified by the fact that the method now correctly
-        # extracts col from the ax tuple and passes it to add_hline.
-        # We can't easily verify Plotly's internal shape storage,
-        # but we can verify the integration test works.
-        assert True  # Method completed without error
+        assert [(s.type, s.xref, s.yref, s.y0) for s in fig.layout.shapes] == [
+            ("line", "x2 domain", "y2", 5.0)
+        ]
 
     def test_plotly_add_rectangle_targets_correct_column(self):
         """add_rectangle should add shape to the correct column."""
         backend = PlotlyBackend()
         fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
+        backend.add_rectangle(axes[1], xy=(0, 0), width=1, height=1)
 
-        # Add rectangle to QQ plot (column 2)
-        backend.add_rectangle(qq_ax, xy=(0, 0), width=1, height=1)
-
-        # Bug: add_rectangle hard-codes col=1
-        shapes = fig.layout.shapes
-        assert shapes is not None and len(shapes) > 0, "No shapes added"
+        assert [(s.type, s.xref, s.yref) for s in fig.layout.shapes] == [
+            ("rect", "x2", "y2")
+        ]
 
     def test_plotly_add_polygon_targets_correct_column(self):
         """add_polygon should add shape to the correct column."""
         backend = PlotlyBackend()
         fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
+        backend.add_polygon(axes[1], points=[[0, 0], [1, 0], [0.5, 1]])
 
-        # Add polygon to QQ plot (column 2)
-        backend.add_polygon(qq_ax, points=[[0, 0], [1, 0], [0.5, 1]])
-
-        # Bug: add_polygon hard-codes col=1
-        shapes = fig.layout.shapes
-        assert shapes is not None and len(shapes) > 0, "No shapes added"
+        assert [(s.type, s.xref, s.yref) for s in fig.layout.shapes] == [
+            ("path", "x2", "y2")
+        ]
 
     def test_plotly_axvline_targets_correct_column(self):
-        """axvline should pass correct col parameter (verified by code inspection).
-
-        Note: Plotly's add_vline doesn't immediately add to fig.layout.shapes;
-        it creates an internal shape that's rendered later.
-        """
+        """axvline spans column 2's y domain at an x in column 2's data units."""
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
+        fig, qq_ax = self._qq_column_with_a_trace(backend)
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
-
-        # Add vertical line to QQ plot (column 2)
-        # This should not raise an error
         backend.axvline(qq_ax, x=5.0, color="red")
 
-        # The fix is verified by the fact that the method now correctly
-        # extracts col from the ax tuple and passes it to add_vline.
-        assert True  # Method completed without error
+        assert [(s.type, s.xref, s.yref, s.x0) for s in fig.layout.shapes] == [
+            ("line", "x2", "y2 domain", 5.0)
+        ]
 
     def test_plotly_set_xlim_targets_correct_column(self):
         """set_xlim should set limits on the correct column's x-axis."""
@@ -136,7 +120,6 @@ class TestPlotlyGridSubplotAxisAddressing:
         backend.set_xlim(manhattan_ax, 0, 1000)
         backend.set_xlim(qq_ax, 0, 10)
 
-        # Bug: set_xlim uses _axis_name which only considers row
         # Both columns should have different x-axis ranges
         layout = fig.layout
 
@@ -149,7 +132,7 @@ class TestPlotlyGridSubplotAxisAddressing:
             "xaxis2 range should be set for column 2, but it's None"
         )
         assert xaxis_range != xaxis2_range, (
-            "xaxis and xaxis2 have same range. Bug: both columns using same axis."
+            "xaxis and xaxis2 have same range: both columns use the same axis."
         )
 
     def test_plot_manhattan_qq_distinct_axes(self, manhattan_rs_gwas_df):
@@ -222,10 +205,11 @@ class TestPlotlyGridSubplotAxisAddressing:
 
 
 class TestPlotlySetTitleOverwriting:
-    """Low: Plotly set_title only updates the overall figure title for row 1.
+    """Plotly set_title titles each grid subplot, not only the figure.
 
-    Bug: In plot_manhattan_qq the Manhattan title is overwritten by the QQ title,
-    and in stacked mode only the first row gets a QQ title.
+    It once updated only the figure title, so in plot_manhattan_qq the QQ title
+    replaced the Manhattan one and in stacked mode only the first row got a QQ
+    title.
     """
 
     def test_plotly_set_title_per_subplot(self):

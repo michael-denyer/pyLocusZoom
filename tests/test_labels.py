@@ -441,8 +441,9 @@ class TestDeferredAdjustment:
         """adjust_snp_labels handles empty text list gracefully."""
         fig, ax = plt.subplots()
 
-        # Should not raise
         adjust_snp_labels(ax, [])
+
+        assert list(ax.texts) == []
 
     def test_adjust_snp_labels_handles_single_label(self, labelled_gwas_df):
         """adjust_snp_labels handles single label (skips adjustText)."""

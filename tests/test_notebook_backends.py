@@ -15,7 +15,7 @@ from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.composition import lower_triangle
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
-from pylocuszoom.colors import LD_HEATMAP_COLORS
+from pylocuszoom.colors import LD_BINS, LD_HEATMAP_COLORS, LEAD_SNP_COLOR
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
 from tests.figure_probes import INTERACTIVE_BACKENDS, PROBES
@@ -243,7 +243,11 @@ class TestBackendConsistency:
             end=2_000_000,
             display=DisplayConfig(show_recombination=False),
         )
+        probe = PROBES[backend_name]
         assert isinstance(fig, FIGURE_TYPES[backend_name])
+        assert probe.panel_count(fig) == 1
+        assert len(probe.marker_x(fig)) == len(regional_gwas_df) + 1  # + lead
+        assert probe.hline_levels(fig) == pytest.approx([-np.log10(5e-8)])
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
     def test_backend_rejects_empty_dataframe(self, backend_name):
@@ -264,8 +268,9 @@ class TestBackendConsistency:
             )
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
-    def test_backend_handles_lead_position(self, backend_name, regional_gwas_df):
-        """Each backend renders a figure when lead_pos is given."""
+    def test_backend_marks_the_lead_position(self, backend_name, regional_gwas_df):
+        """Each backend draws the lead marker at the lead_pos it is given."""
+        lead = int(regional_gwas_df["pos"].iloc[50])
         plotter = LocusZoomPlotter(
             species="canine", backend=backend_name, log_level=None
         )
@@ -275,13 +280,15 @@ class TestBackendConsistency:
             start=1_000_000,
             end=2_000_000,
             display=DisplayConfig(show_recombination=False),
-            ld=LDConfig(lead_pos=1_500_000),
+            ld=LDConfig(lead_pos=lead),
         )
-        assert isinstance(fig, FIGURE_TYPES[backend_name])
+        assert PROBES[backend_name].marker_x(fig, color=LEAD_SNP_COLOR) == [lead]
 
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
-    def test_backend_handles_precomputed_ld(self, backend_name, regional_gwas_df):
-        """Each backend renders a figure from a precomputed LD column."""
+    def test_backend_colours_by_a_precomputed_ld_column(
+        self, backend_name, regional_gwas_df
+    ):
+        """Each backend keys the points by LD bin when given an LD column."""
         df = regional_gwas_df.assign(
             R2=np.random.default_rng(0).uniform(0, 1, len(regional_gwas_df))
         )
@@ -296,7 +303,8 @@ class TestBackendConsistency:
             display=DisplayConfig(show_recombination=False),
             ld=LDConfig(ld_col="R2"),
         )
-        assert isinstance(fig, FIGURE_TYPES[backend_name])
+        legend = PROBES[backend_name].legend_edgecolors(fig)
+        assert {ld_bin.label for ld_bin in LD_BINS} <= set(legend)
 
 
 @pytest.fixture
@@ -397,13 +405,34 @@ class TestOptionalPanelMarkers:
 class TestGeneTrackMbFormatting:
     """Tests for Mb formatting on gene track axis in interactive backends."""
 
-    def test_plotly_gene_track_has_mb_formatting(
-        self, regional_gwas_df, sample_genes_df
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_gene_track_has_mb_formatting(
+        self, backend_name, regional_gwas_df, sample_genes_df
     ):
-        """Plotly gene track axis should have Mb formatting (not raw bp).
+        """The gene track's x-axis labels megabases, not raw bp.
 
         Regression test: gene track axis showed raw bp ticks while label said "Mb".
         """
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        fig = plotter.plot(
+            regional_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(genes_df=sample_genes_df),
+        )
+
+        probe = PROBES[backend_name]
+        assert probe.panel_count(fig) == 2
+        assert probe.x_axis_in_mb(fig, panel=1)
+
+    def test_plotly_gene_track_ticks_start_at_the_region(
+        self, regional_gwas_df, sample_genes_df
+    ):
+        """Plotly writes fixed Mb ticks, so they must start at the region start."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
             regional_gwas_df,
@@ -414,46 +443,8 @@ class TestGeneTrackMbFormatting:
             panels=PanelInputs(genes_df=sample_genes_df),
         )
 
-        # With gene track, row 2 is the gene track axis, so xaxis2 is its x-axis.
-        gene_track_xaxis = fig.layout.xaxis2
-        assert gene_track_xaxis.ticksuffix == " Mb", (
-            f"Gene track axis ticksuffix is {gene_track_xaxis.ticksuffix!r}, "
-            "expected ' Mb'"
-        )
-        assert gene_track_xaxis.ticktext, "Gene track axis has no Mb tick labels"
-        assert gene_track_xaxis.ticktext[0] == "1.00", (
-            f"Gene track ticks start at {gene_track_xaxis.ticktext[0]!r}, "
-            "expected '1.00' for a region starting at 1 Mb"
-        )
-
-    def test_bokeh_gene_track_has_mb_formatting(
-        self, regional_gwas_df, sample_genes_df
-    ):
-        """Bokeh gene track axis should have Mb formatting (not raw bp).
-
-        Regression test: gene track axis showed raw bp ticks while label said "Mb".
-        """
-        from bokeh.models import CustomJSTickFormatter
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(genes_df=sample_genes_df),
-        )
-
-        # Bokeh layout contains multiple figures - find the gene track figure
-        # The gene track is typically the second figure (index 1)
-        gene_track_fig = fig.children[1] if len(fig.children) > 1 else fig.children[0]
-
-        # Check that the x-axis has CustomJSTickFormatter for Mb formatting
-        assert isinstance(gene_track_fig.xaxis.formatter, CustomJSTickFormatter), (
-            f"Gene track x-axis formatter is {type(gene_track_fig.xaxis.formatter)}, "
-            "expected CustomJSTickFormatter for Mb formatting"
-        )
+        _, labels = PROBES["plotly"].xticks(fig, panel=1)
+        assert labels[0] == "1.00"
 
 
 class TestPlotlySecondaryAxisNaming:

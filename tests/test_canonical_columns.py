@@ -161,7 +161,14 @@ class TestDeprecatedFrameColumns:
 
         with warnings.catch_warnings():
             warnings.simplefilter("error", DeprecationWarning)
-            plotter.plot(both, chrom=1, start=1_000_000, end=2_000_000)
+            fig = plotter.plot(both, chrom=1, start=1_000_000, end=2_000_000)
+
+        heights = {
+            round(float(y), 6)
+            for collection in fig.axes[0].collections
+            for _, y in collection.get_offsets()
+        }
+        assert heights == {9.0}, "every point is plotted from p_value, not p_wald"
 
     def test_a_caller_named_column_gets_no_fallback(self, legacy_gwas_df):
         """Only the canonical names have aliases, so an explicit name is honoured."""

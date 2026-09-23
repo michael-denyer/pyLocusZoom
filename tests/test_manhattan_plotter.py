@@ -5,10 +5,9 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import GenomeWideConfig
-from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
-from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 
 
 class TestManhattanPlotter:
@@ -73,30 +72,6 @@ class TestManhattanPlotter:
         assert [tick.get_text() for tick in bottom.get_xticklabels()] == ["1", "2", "3"]
 
 
-class TestManhattanPlotterBackends:
-    """Tests for ManhattanPlotter backend support."""
-
-    @pytest.fixture
-    def manhattan_chrom_df(self):
-        """Create sample GWAS data."""
-        return pd.DataFrame(
-            {
-                "chr": [1, 1, 2],
-                "pos": [1000, 2000, 1000],
-                "p_value": [0.01, 0.001, 0.0001],
-            }
-        )
-
-    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
-    def test_returns_the_backends_figure_type(self, backend, manhattan_chrom_df):
-        """Each backend returns its own figure type."""
-        plotter = ManhattanPlotter(species="canine", backend=backend)
-
-        fig = plotter.plot_manhattan(manhattan_chrom_df)
-
-        assert isinstance(fig, FIGURE_TYPES[backend])
-
-
 class TestCategoricalManhattanRendersIntegerCategories:
     """Test categorical Manhattan with integer category columns."""
 
@@ -111,7 +86,6 @@ class TestCategoricalManhattanRendersIntegerCategories:
         )
         plotter = ManhattanPlotter(species="human")
         fig = plotter.plot_manhattan(df, category_col="cat")
-        assert fig is not None
 
         ax = fig.axes[0]
         total_points = sum(len(coll.get_offsets()) for coll in ax.collections)
@@ -131,32 +105,25 @@ class TestConstructorThresholdIsTheDefault:
             }
         )
 
-    @staticmethod
-    def _dashed_y(fig):
-        return [
-            line.get_ydata()[0]
-            for ax in fig.axes
-            for line in ax.get_lines()
-            if line.get_linestyle() == "--"
-        ]
-
     def test_plot_manhattan_uses_the_constructor_threshold(self):
         fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(self._gwas())
 
-        assert self._dashed_y(fig) == pytest.approx([3.0])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([3.0])
 
     def test_plot_manhattan_stacked_uses_the_constructor_threshold(self):
         plotter = ManhattanPlotter(genomewide_threshold=1e-3)
         fig = plotter.plot_manhattan_stacked([self._gwas(), self._gwas()])
 
-        assert self._dashed_y(fig) == pytest.approx([3.0, 3.0])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([3.0, 3.0])
 
     def test_plot_manhattan_qq_uses_the_constructor_threshold(self):
         fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan_qq(
             self._gwas()
         )
 
-        assert any(y == pytest.approx(3.0) for y in self._dashed_y(fig))
+        assert any(
+            y == pytest.approx(3.0) for y in PROBES["matplotlib"].hline_levels(fig)
+        )
 
     def test_categorical_manhattan_uses_the_constructor_threshold(self):
         df = self._gwas().assign(category=["a", "a", "b", "b"])
@@ -164,26 +131,28 @@ class TestConstructorThresholdIsTheDefault:
             df, category_col="category"
         )
 
-        assert self._dashed_y(fig) == pytest.approx([3.0])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([3.0])
 
     def test_explicit_argument_beats_the_constructor(self):
         fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(
             self._gwas(), significance_threshold=1e-6
         )
 
-        assert self._dashed_y(fig) == pytest.approx([6.0])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([6.0])
 
     def test_explicit_none_still_draws_no_line(self):
         fig = ManhattanPlotter(genomewide_threshold=1e-3).plot_manhattan(
             self._gwas(), significance_threshold=None
         )
 
-        assert self._dashed_y(fig) == []
+        assert PROBES["matplotlib"].hline_levels(fig) == []
 
     def test_default_construction_keeps_the_5e_8_line(self):
         fig = ManhattanPlotter().plot_manhattan(self._gwas())
 
-        assert self._dashed_y(fig) == pytest.approx([-np.log10(5e-8)])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx(
+            [-np.log10(5e-8)]
+        )
 
 
 class TestManhattanSingleChromosome:
