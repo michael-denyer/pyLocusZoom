@@ -164,22 +164,30 @@ stages:
 2. **Validation and intake.** Every public plot method opens by collecting the
    frames it was given through `utils.to_pandas()`, so a PySpark DataFrame is
    accepted anywhere a pandas one is and nothing below the entry point sees
-   anything but pandas. The frame is then validated against expected columns.
-   `schemas.spec(family, tier)` names the contract and `validation.check` runs
-   it, strictly at `Tier.LOAD` for a frame a loader just parsed and
-   permissively at `Tier.PLOT` for one the caller assembled.
-   `schemas.Canonical` names the columns both halves of the package agree on
-   (`chr`, `pos`, `p_value`, `rs`): every loader emits them and every column
-   model defaults to them, so loader output plots without renaming. A frame
-   carrying the pre-4.0 `ps` or `p_wald` spelling is accepted through
-   `config.resolve_deprecated_columns` with a `DeprecationWarning` until 5.0.0.
-   P-value-bearing plot paths
-   then share `_data.prepare_pvalue_data()` for null/range filtering and finite
-   `-log10` transformation.
+   anything but pandas; the frame fields of the config models collect theirs
+   the same way when the model is built. The frame is then validated against
+   expected columns. `schemas.py` holds each contract as a `ColumnSpec` value,
+   or a builder over the caller's column names, and `validation.check` runs
+   it: strictly for a frame a loader just parsed, permissively for one the
+   caller assembled. `schemas.Canonical` names the columns both halves of the
+   package agree on (`chr`, `pos`, `p_value`, `rs`): every loader emits them
+   and every column model defaults to them, so loader output plots without
+   renaming. This boundary is strict
+   ([ADR-0010](adr/0010-strict-intake-boundary.md)). A column the caller
+   names must exist; only the canonical `rs`, `cs` and `category` defaults
+   are optional, through `validation.resolve_column`. The chromosome is a
+   column role like the others: a frame without `chrom_col` raises unless the
+   caller passes `chrom_col=None` for position-only selection. Every input
+   error, including a config model's, raises `pylocuszoom.ValidationError`.
+   P-value-bearing plot paths then share `_data.prepare_pvalue_data()`, which
+   drops or rejects null, non-numeric and out-of-range p-values as the
+   family's row of `_data.P_VALUE_POLICY` says, and takes a finite `-log10`.
 3. **Region filtering and LD.** Rows are filtered to `[start, end]` on the
-   requested chromosome. If `ld_reference_file` is supplied, `ld.py` shells
-   out to PLINK via a wrapper to compute R² against the lead variant; if
-   `ld_col` is already present in the DataFrame, PLINK is skipped.
+   requested chromosome, compared through `utils.normalize_chrom_series`.
+   If `ld_reference_file` is supplied, `ld.py` shells out to PLINK via a
+   wrapper to compute R² against the lead variant, which needs the `rs_col`
+   column; a named `ld_col` must be a column of the frame, and PLINK is
+   skipped.
 4. **Color assignment.** `colors.py` maps each SNP to an LD bin color (or an
    eQTL effect-size color, credible-set color, or PheWAS category color
    depending on the plotter).
@@ -220,7 +228,7 @@ stages:
    the shared `GenomeLayout`; the rest rides on each `ManhattanPanelSpec`
    and `QQPanelSpec`, whose renderers let a set field override the panel's
    own default. The method hands its frames to
-   `manhattan.prepare_genomewide_frames`, which runs `validate_gwas_df`
+   `manhattan.prepare_genomewide_frames`, which checks `gwas_plot_spec`
    against those names before any frame is laid out, so the genome-wide
    families guard the boundary the way `plot()` does. `ManhattanPlotter`
    builds `ManhattanPanelSpec` and `QQPanelSpec` values through
@@ -266,7 +274,7 @@ stages:
 | `ManhattanPanelSpec`, `render_manhattan_panel` | Internal module | `src/pylocuszoom/panels/manhattan.py` | The one Manhattan-panel policy. A frozen spec names what the standard, categorical and mirrored Miami panels vary on; `render_manhattan_panel` draws any of them onto a backend axis, and `manhattan_spec`, `categorical_spec` and `stacked_manhattan_specs` build the specs the plotters put on their `FigurePlan` |
 | `QQPanelSpec`, `render_qq_panel` | Internal module | `src/pylocuszoom/panels/qq.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
 | `GenomeLayout`, `CategoryLayout`, `PreparedManhattan` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_manhattan_frames` computes one layout from every frame of a figure and returns each frame paired with it as a `PreparedManhattan`, so Miami and stacked panels share offsets and ticks instead of deriving their own. `qq.PreparedQQ` is the same shape for a QQ panel: the quantile frame with its `lambda_gc` and `n_variants` |
-| `prepare_pvalue_data` | Internal function | `src/pylocuszoom/_data.py` | Shared p-value intake policy: filtering, zero-value mode, and finite `-log10` transformation. Every family routes through it, and the transformed column is `neglog10p` everywhere except colocalization, which needs two of them and names them `neglog10_gwas` and `neglog10_eqtl` |
+| `prepare_pvalue_data`, `P_VALUE_POLICY` | Internal function and table | `src/pylocuszoom/_data.py` | Shared p-value intake policy. `P_VALUE_POLICY` states per family whether zero is valid and whether an invalid p-value drops its row or raises; `prepare_pvalue_data` applies a family's row and takes the finite `-log10`, and `validation.check` applies the loader row. Every family routes through it, and the transformed column is `neglog10p` everywhere except colocalization, which needs two of them and names them `neglog10_gwas` and `neglog10_eqtl` |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
 | `BUILTIN_BACKENDS` | Constant | `src/pylocuszoom/backends/__init__.py` | The backend names shipped with the library, derived from `BackendType` so the two cannot drift; contract tests parametrize over it |
 | `get_backend(name)` | Function | `src/pylocuszoom/backends/__init__.py` | Lazy-imports and returns a backend instance by name, raising `ImportError` with install instructions when an optional backend is missing |

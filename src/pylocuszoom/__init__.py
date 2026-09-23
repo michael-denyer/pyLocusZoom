@@ -65,9 +65,12 @@ from .colors import (
 from .config import (
     ColumnConfig,
     DisplayConfig,
+    EqtlInput,
+    FinemappingInput,
     GenomeWideConfig,
     GenomeWideStyle,
     LDConfig,
+    LDHeatmapInput,
     LiftoverConfig,
     PanelInputs,
 )
@@ -82,7 +85,6 @@ from .eqtl import (
     filter_eqtl_by_region,
     get_eqtl_genes,
     prepare_eqtl_for_plotting,
-    validate_eqtl_df,
 )
 
 # Exception hierarchy
@@ -110,7 +112,6 @@ from .finemapping import (
     get_credible_sets,
     get_top_pip_variants,
     prepare_finemapping_for_plotting,
-    validate_finemapping_df,
 )
 
 # Gene track
@@ -173,13 +174,7 @@ from .recombination import (
 
 # Gene source routing over the Ensembl and UCSC clients
 from .reference_genes import clear_gene_cache, get_genes_for_build, source_for
-from .schemas import (
-    Canonical,
-    validate_forest_df,
-    validate_genes_df,
-    validate_gwas_df,
-    validate_phewas_df,
-)
+from .schemas import Canonical
 
 # One record per species, resolved once at the API boundary
 from .species import Species, resolve_species
@@ -213,6 +208,9 @@ __all__ = [
     "LDConfig",
     "LiftoverConfig",
     "PanelInputs",
+    "EqtlInput",
+    "FinemappingInput",
+    "LDHeatmapInput",
     # The column vocabulary every loader emits and every plotter defaults to
     "Canonical",
     # GWAS loaders
@@ -296,24 +294,17 @@ __all__ = [
     "RegionLiftResult",
     "liftover_region",
     # eQTL
-    "validate_eqtl_df",
     "filter_eqtl_by_gene",
     "filter_eqtl_by_region",
     "prepare_eqtl_for_plotting",
     "get_eqtl_genes",
     "calculate_colocalization_overlap",
     # Fine-mapping/SuSiE
-    "validate_finemapping_df",
     "filter_finemapping_by_region",
     "filter_by_credible_set",
     "get_credible_sets",
     "get_top_pip_variants",
     "prepare_finemapping_for_plotting",
-    # Frame validators, the same checks the plotters run at their boundary
-    "validate_gwas_df",
-    "validate_genes_df",
-    "validate_phewas_df",
-    "validate_forest_df",
     # Utils
     "to_pandas",
     # Gene annotations, from Ensembl or from UCSC for the builds it retired

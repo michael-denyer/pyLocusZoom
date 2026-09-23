@@ -6,9 +6,10 @@ import pytest
 from pylocuszoom.utils import ValidationError
 
 
-def test_validate_phewas_df_valid():
+def test_phewas_contract_valid():
     """Test validation passes for valid PheWAS DataFrame."""
-    from pylocuszoom.schemas import validate_phewas_df
+    from pylocuszoom.schemas import phewas_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -18,12 +19,13 @@ def test_validate_phewas_df_valid():
         }
     )
     # Should not raise
-    validate_phewas_df(df)
+    check(df, phewas_plot_spec())
 
 
-def test_validate_phewas_df_missing_column():
+def test_phewas_contract_missing_column():
     """Test validation fails for missing required column."""
-    from pylocuszoom.schemas import validate_phewas_df
+    from pylocuszoom.schemas import phewas_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -32,22 +34,24 @@ def test_validate_phewas_df_missing_column():
         }
     )
     with pytest.raises(ValidationError, match="p_value"):
-        validate_phewas_df(df)
+        check(df, phewas_plot_spec())
 
 
-def test_validate_phewas_df_takes_no_category_col():
+def test_phewas_contract_takes_no_category_col():
     """The category column is optional at render time, so the validator
     must not accept a name it cannot check."""
-    from pylocuszoom.schemas import validate_phewas_df
+    from pylocuszoom.schemas import phewas_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame({"phenotype": ["Height"], "p_value": [1e-10]})
     with pytest.raises(TypeError, match="category_col"):
-        validate_phewas_df(df, category_col="category")
+        check(df, phewas_plot_spec(category_col="category"))
 
 
-def test_validate_phewas_df_optional_effect():
+def test_phewas_contract_optional_effect():
     """Test validation allows optional effect_size column."""
-    from pylocuszoom.schemas import validate_phewas_df
+    from pylocuszoom.schemas import phewas_plot_spec
+    from pylocuszoom.validation import check
 
     df = pd.DataFrame(
         {
@@ -58,7 +62,7 @@ def test_validate_phewas_df_optional_effect():
         }
     )
     # Should not raise
-    validate_phewas_df(df)
+    check(df, phewas_plot_spec())
 
 
 class TestPheWASNaNCategory:

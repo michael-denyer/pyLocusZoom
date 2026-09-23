@@ -4,13 +4,15 @@ Provides triangular heatmap display of pairwise LD values (R² or D')
 with colorbar legend and SNP highlighting support.
 """
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union, get_args
 
 import numpy as np
 import pandas as pd
 
 from ._figure import FigurePlan, render_figure
 from .backends import BackendType, get_backend
+from .config import LDMetric
+from .exceptions import ValidationError
 from .panels.ld_heatmap import LDHeatmapPanel
 
 
@@ -48,7 +50,7 @@ class LDHeatmapPlotter:
         snp_ids: Optional[List[str]] = None,
         lead_snp: Optional[str] = None,
         highlight_snps: Optional[List[str]] = None,
-        metric: str = "r2",
+        metric: LDMetric = "r2",
         figsize: Tuple[float, float] = (8, 8),
         title: Optional[str] = None,
         show_colorbar: bool = True,
@@ -70,9 +72,9 @@ class LDHeatmapPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValueError: If ld_matrix is not square.
-            ValueError: If lead_snp not found in snp_ids.
-            ValueError: If any highlight_snps not found in snp_ids.
+            ValidationError: If ld_matrix is not square, lead_snp or any
+                highlight_snps is not in snp_ids, or metric is not "r2" or
+                "dprime".
 
         Example:
             >>> fig = plotter.plot_ld_heatmap(
@@ -82,6 +84,9 @@ class LDHeatmapPlotter:
             ...     metric="r2",
             ... )
         """
+        if metric not in get_args(LDMetric):
+            raise ValidationError(f"metric must be 'r2' or 'dprime', got {metric!r}")
+
         # Extract data and snp_ids from DataFrame if needed
         if isinstance(ld_matrix, pd.DataFrame):
             data = ld_matrix.values
@@ -94,11 +99,11 @@ class LDHeatmapPlotter:
 
         # Validate square matrix
         if data.ndim != 2 or data.shape[0] != data.shape[1]:
-            raise ValueError(f"ld_matrix must be square, got shape {data.shape}")
+            raise ValidationError(f"ld_matrix must be square, got shape {data.shape}")
 
         n_snps = len(snp_ids)
         if data.shape[0] != n_snps:
-            raise ValueError(
+            raise ValidationError(
                 f"snp_ids length ({n_snps}) does not match matrix dimension ({data.shape[0]})"
             )
 
@@ -106,7 +111,7 @@ class LDHeatmapPlotter:
         lead_idx = None
         if lead_snp is not None:
             if lead_snp not in snp_ids:
-                raise ValueError(f"lead_snp '{lead_snp}' not found in snp_ids")
+                raise ValidationError(f"lead_snp '{lead_snp}' not found in snp_ids")
             lead_idx = snp_ids.index(lead_snp)
 
         # Validate highlight_snps
@@ -114,7 +119,7 @@ class LDHeatmapPlotter:
         if highlight_snps:
             for snp in highlight_snps:
                 if snp not in snp_ids:
-                    raise ValueError(f"highlight_snp '{snp}' not found in snp_ids")
+                    raise ValidationError(f"highlight_snp '{snp}' not found in snp_ids")
                 highlight_indices.append(snp_ids.index(snp))
 
         panel = LDHeatmapPanel(

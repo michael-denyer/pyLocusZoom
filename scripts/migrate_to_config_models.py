@@ -3,7 +3,10 @@
 Rewrites every ``plot`` and ``plot_stacked`` call whose keywords include
 ``chrom`` so that each option is passed inside the model that declares it,
 and every Manhattan and Miami call so that the column names and chromosome
-order are passed as a ``GenomeWideConfig``. Files are edited in place and
+order are passed as a ``GenomeWideConfig``. Every ``PanelInputs`` call, the
+rewritten ones and 4.x ones alike, passes each optional panel's options as
+the 5.0 nested model (``eqtl_df=df, eqtl_gene=g`` becomes
+``eqtl=EqtlInput(data=df, gene=g)``). Files are edited in place and
 the needed names are added to an existing ``from pylocuszoom import`` or as
 a new import after the last one; run ``ruff check --fix`` and
 ``ruff format`` afterwards.
@@ -47,6 +50,31 @@ GROUPS = {
         ),
     ),
 }
+# 4.x flat PanelInputs fields, by the 5.0 field and model they move into.
+PANEL_INPUTS = {
+    "eqtl": (
+        "EqtlInput",
+        {"eqtl_df": "data", "eqtl_gene": "gene", "eqtl_threshold": "threshold"},
+    ),
+    "finemapping": (
+        "FinemappingInput",
+        {"finemapping_df": "data", "finemapping_cs_col": "cs_col"},
+    ),
+    "ld_heatmap": (
+        "LDHeatmapInput",
+        {
+            "ld_heatmap_df": "matrix",
+            "ld_heatmap_snp_ids": "snp_ids",
+            "ld_heatmap_height": "height",
+            "ld_heatmap_metric": "metric",
+        },
+    ),
+}
+_PANEL_OWNER = {
+    old: (field, new)
+    for field, (_, renames) in PANEL_INPUTS.items()
+    for old, new in renames.items()
+}
 GENOMEWIDE = ("chrom_col", "pos_col", "p_col", "custom_chrom_order")
 GENOMEWIDE_METHODS = {
     "plot_manhattan",
@@ -77,6 +105,11 @@ class Rewriter(cst.CSTTransformer):
 
     def leave_Call(self, original: cst.Call, updated: cst.Call) -> cst.Call:
         func = updated.func
+        name = func.value if isinstance(func, cst.Name) else None
+        if isinstance(func, cst.Attribute):
+            name = func.attr.value
+        if name == "PanelInputs":
+            return self._nest_panels(updated)
         if not isinstance(func, cst.Attribute):
             return updated
         method = func.attr.value
@@ -100,7 +133,29 @@ class Rewriter(cst.CSTTransformer):
         for name, (model, _) in groups.items():
             if moved[name]:
                 self.needed.add(model)
-                kept.append(_nested(name, model, moved[name]))
+                nested = _nested(name, model, moved[name])
+                if model == "PanelInputs":
+                    nested = nested.with_changes(value=self._nest_panels(nested.value))
+                kept.append(nested)
+        kept = [a.with_changes(comma=cst.MaybeSentinel.DEFAULT) for a in kept]
+        return call.with_changes(args=kept)
+
+    def _nest_panels(self, call: cst.Call) -> cst.Call:
+        """Move a PanelInputs call's flat panel fields into their nested models."""
+        kept, moved = [], {field: [] for field in PANEL_INPUTS}
+        for arg in call.args:
+            key = arg.keyword.value if arg.keyword is not None else None
+            if key in _PANEL_OWNER:
+                field, new = _PANEL_OWNER[key]
+                moved[field].append(arg.with_changes(keyword=cst.Name(new)))
+            else:
+                kept.append(arg)
+        if not any(moved.values()):
+            return call
+        for field, (model, _) in PANEL_INPUTS.items():
+            if moved[field]:
+                self.needed.add(model)
+                kept.append(_nested(field, model, moved[field]))
         kept = [a.with_changes(comma=cst.MaybeSentinel.DEFAULT) for a in kept]
         return call.with_changes(args=kept)
 

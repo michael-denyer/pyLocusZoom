@@ -63,24 +63,6 @@ class TestEnrichWithLDDeclines:
         assert result is tiny_regional_gwas_df
         assert ld_col == "R2"
 
-    def test_missing_rs_column_warns_and_returns_the_frame(
-        self, tiny_regional_gwas_df, warning_records
-    ):
-        """PLINK addresses variants by ID, so no ID column means no LD."""
-        without_ids = tiny_regional_gwas_df.drop(columns=["rs"])
-
-        result, ld_col = enrich_with_ld(
-            without_ids,
-            reference_file="/nonexistent/panel",
-            lead_index=1,
-            ld_col=None,
-            **ARGS,
-        )
-
-        assert result is without_ids
-        assert ld_col is None
-        assert any("'rs' not found" in record for record in warning_records)
-
 
 class TestEnrichWithLDLookup:
     """The success path assigns PLINK's R2 values to the selected rows."""

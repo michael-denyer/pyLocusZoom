@@ -7,10 +7,10 @@ import pandas as pd
 import pytest
 from bokeh.models import Scatter
 from matplotlib.collections import PathCollection
-from pydantic import ValidationError as PydanticValidationError
 
 from pylocuszoom import GenomeWideStyle, ManhattanPlotter, MiamiPlotter
 from pylocuszoom.backends import BUILTIN_BACKENDS
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan import CHROMOSOME_GAP
 from tests.figure_probes import PROBES
 
@@ -72,7 +72,7 @@ class TestModel:
         assert style.manhattan_qq_width_ratio == 2.5
 
     def test_is_frozen(self):
-        with pytest.raises(PydanticValidationError):
+        with pytest.raises(ValidationError):
             GenomeWideStyle().tick_step = 2
 
     @pytest.mark.parametrize(
@@ -98,7 +98,7 @@ class TestModel:
         ],
     )
     def test_rejects_invalid_values(self, field, value):
-        with pytest.raises(PydanticValidationError):
+        with pytest.raises(ValidationError):
             GenomeWideStyle(**{field: value})
 
     def test_palette_is_normalised_to_hex(self):

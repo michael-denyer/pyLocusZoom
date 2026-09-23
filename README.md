@@ -102,6 +102,7 @@ fig = plotter.plot(
     start=1000000,
     end=2000000,
     columns=ColumnConfig(
+        chrom_col="chr",                # Column name for chromosome (None: position only)
         pos_col="pos",                  # Column name for position
         p_col="p_value",                # Column name for p-value
         rs_col="rs",                    # Column name for SNP ID
@@ -293,13 +294,16 @@ Add expression QTL data as a separate panel. `plot()` takes the same
 `PanelInputs` for a single GWAS:
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PanelInputs
+from pylocuszoom import EqtlInput, LocusZoomPlotter, PanelInputs
 
-eqtl_df = pd.DataFrame({
-    "pos": [1000500, 1001200, 1002000],
-    "p_value": [1e-6, 1e-4, 0.01],
-    "gene": ["BRCA1", "BRCA1", "BRCA1"],
-})
+eqtl_df = pd.DataFrame(
+    {
+        "chr": [1] * 3,
+        "pos": [1000500, 1001200, 1002000],
+        "p_value": [1e-6, 1e-4, 0.01],
+        "gene": ["BRCA1", "BRCA1", "BRCA1"],
+    }
+)
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -308,7 +312,7 @@ fig = plotter.plot_stacked(
     chrom=1,
     start=1000000,
     end=2000000,
-    panels=PanelInputs(eqtl_df=eqtl_df, eqtl_gene="BRCA1", genes_df=genes_df),
+    panels=PanelInputs(genes_df=genes_df, eqtl=EqtlInput(data=eqtl_df, gene="BRCA1")),
 )
 ```
 
@@ -320,13 +324,16 @@ fig = plotter.plot_stacked(
 Visualize SuSiE or other fine-mapping results with credible set coloring:
 
 ```python
-from pylocuszoom import LocusZoomPlotter, PanelInputs
+from pylocuszoom import FinemappingInput, LocusZoomPlotter, PanelInputs
 
-finemapping_df = pd.DataFrame({
-    "pos": [1000500, 1001200, 1002000, 1003500],
-    "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
-    "cs": [1, 1, 0, 2],               # Credible set assignment (0 = not in CS)
-})
+finemapping_df = pd.DataFrame(
+    {
+        "chr": [1] * 4,
+        "pos": [1000500, 1001200, 1002000, 1003500],
+        "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
+        "cs": [1, 1, 0, 2],  # Credible set assignment (0 = not in CS)
+    }
+)
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -336,7 +343,8 @@ fig = plotter.plot_stacked(
     start=1000000,
     end=2000000,
     panels=PanelInputs(
-        finemapping_df=finemapping_df, finemapping_cs_col="cs", genes_df=genes_df
+        genes_df=genes_df,
+        finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
 ```
@@ -372,7 +380,7 @@ fig.savefig("ld_heatmap.png", dpi=150)
 Add an LD heatmap panel below a regional association plot:
 
 ```python
-from pylocuszoom import LDConfig, LocusZoomPlotter, PanelInputs
+from pylocuszoom import LDConfig, LDHeatmapInput, LocusZoomPlotter, PanelInputs
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -383,9 +391,7 @@ fig = plotter.plot(
     end=2000000,
     ld=LDConfig(lead_pos=1500000),
     panels=PanelInputs(
-        ld_heatmap_df=ld_matrix,     # Pairwise LD matrix
-        ld_heatmap_snp_ids=snp_ids,  # SNP IDs in matrix
-        ld_heatmap_height=0.25,      # Panel height ratio
+        ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids, height=0.25)
     ),
 )
 ```
@@ -702,15 +708,14 @@ fm_df = load_susie("susie_output.tsv")
 ### GWAS Results DataFrame
 
 These are the canonical column names: every `load_*` function emits them and every
-plotter defaults to them, so a loaded frame plots without renaming. A frame still
-carrying the pre-4.0 `ps` and `p_wald` names is accepted with a `DeprecationWarning`
-until 5.0.0. Other names are supported through `ColumnConfig`.
+plotter defaults to them, so a loaded frame plots without renaming. Other names,
+including the pre-4.0 `ps` and `p_wald`, are named through `ColumnConfig`.
 
 Required columns (names configurable through `ColumnConfig`):
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
-| `chr` | str or int | No | Chromosome. Filters a whole-genome frame to the plotted region. |
+| `chr` | str or int | Yes | Chromosome. Selects the plotted region's rows; pass `ColumnConfig(chrom_col=None)` for a frame already scoped to that chromosome. |
 | `pos` | int | Yes | Genomic position in base pairs (1-based). Must match coordinate system of genes/recombination data. |
 | `p_value` | float | Yes | Association p-value (0 < p ≤ 1). Values are -log10 transformed for plotting. |
 | `rs` | str | No | SNP identifier (e.g., "rs12345" or "chr1:12345"). Used for labeling top SNPs if `snp_labels=True`. |

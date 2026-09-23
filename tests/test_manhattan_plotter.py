@@ -229,6 +229,15 @@ class TestManhattanQQStackedValidation:
         with pytest.raises(ValueError, match="At least one GWAS DataFrame"):
             manhattan_plotter.plot_manhattan_qq_stacked([])
 
+    def test_manhattan_qq_stacked_rejects_label_mismatch(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        """It drew one label for two frames; plot_manhattan_stacked raised."""
+        with pytest.raises(ValidationError, match="panel_labels length"):
+            manhattan_plotter.plot_manhattan_qq_stacked(
+                [manhattan_gwas_df, manhattan_gwas_df], panel_labels=["A"]
+            )
+
 
 class TestEmptyManhattanInput:
     """Empty input has no axis limits to compute."""
@@ -293,54 +302,6 @@ class TestGenomeWideBoundary:
 
 
 class TestGenomewideResolvedColumns:
-    @pytest.mark.parametrize(
-        "method",
-        [
-            "plot_manhattan",
-            "plot_qq",
-            "plot_manhattan_qq",
-            "plot_manhattan_stacked",
-            "plot_manhattan_qq_stacked",
-        ],
-    )
-    def test_legacy_and_canonical_columns_have_identical_scatter(self, method):
-        canonical = pd.DataFrame(
-            {"chr": [1, 1, 2], "pos": [10, 20, 30], "p_value": [0.1, 0.01, 0.001]}
-        )
-        legacy = canonical.rename(columns={"pos": "ps", "p_value": "p_wald"})
-        plot = getattr(ManhattanPlotter(species="human"), method)
-        stack = method.endswith("stacked")
-        before = plot([canonical] if stack else canonical)
-        with pytest.warns(DeprecationWarning):
-            after = plot([legacy] if stack else legacy)
-        assert len(after.axes) == len(before.axes)
-        for before_axis, after_axis in zip(before.axes, after.axes):
-            assert len(after_axis.collections) == len(before_axis.collections)
-            for before_points, after_points in zip(
-                before_axis.collections, after_axis.collections
-            ):
-                np.testing.assert_array_equal(
-                    after_points.get_offsets(), before_points.get_offsets()
-                )
-
-    @pytest.mark.parametrize("reverse", [False, True])
-    def test_stack_resolves_each_frame_independently(self, reverse):
-        canonical = pd.DataFrame(
-            {"chr": [1, 1, 2], "pos": [10, 20, 30], "p_value": [0.1, 0.01, 0.001]}
-        )
-        legacy = canonical.rename(columns={"pos": "ps", "p_value": "p_wald"})
-        frames = [canonical, legacy][:: -1 if reverse else 1]
-        with pytest.warns(DeprecationWarning):
-            fig = ManhattanPlotter(species="human").plot_manhattan_qq_stacked(frames)
-        np.testing.assert_array_equal(
-            fig.axes[0].collections[0].get_offsets(),
-            fig.axes[2].collections[0].get_offsets(),
-        )
-        np.testing.assert_array_equal(
-            fig.axes[1].collections[-1].get_offsets(),
-            fig.axes[3].collections[-1].get_offsets(),
-        )
-
     @pytest.mark.parametrize("order", [None, ["B"]])
     @pytest.mark.parametrize("dtype", ["object", "category"])
     def test_categorical_plot_renders_every_retained_row(self, order, dtype):

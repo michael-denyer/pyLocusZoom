@@ -19,22 +19,28 @@ Example:
 """
 
 import os
-import warnings
 from typing import (
     Annotated,
     Any,
-    ClassVar,
     List,
     Literal,
     Optional,
     Tuple,
-    TypeVar,
     Union,
 )
 
 import matplotlib.colors as mcolors
 import pandas as pd
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+import pydantic
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from ._liftover import CoordinateLifter, load_chain
 from ._plotter_utils import (
@@ -42,16 +48,49 @@ from ._plotter_utils import (
     DEFAULT_EQTL_THRESHOLD,
     DEFAULT_GENOMEWIDE_THRESHOLD,
 )
-from .schemas import (
-    DEPRECATED_ALIAS_REMOVED_IN,
-    DEPRECATED_COLUMN_ALIASES,
-    Canonical,
-)
+from .exceptions import ValidationError
+from .schemas import Canonical
+from .utils import to_pandas
 
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
+LDMetric = Literal["r2", "dprime"]
 
 
-class RegionConfig(BaseModel):
+def _describe(error: pydantic.ValidationError) -> str:
+    """Name each failing field and why, without pydantic's type codes and URLs."""
+    faults = []
+    for fault in error.errors():
+        field = ".".join(str(part) for part in fault["loc"])
+        message = fault["msg"].removeprefix("Value error, ")
+        faults.append(f"{field}: {message}" if field else message)
+    return f"Invalid {error.title}: " + "; ".join(faults)
+
+
+class _Config(BaseModel):
+    """Base of every config model: a rejected value raises our ValidationError.
+
+    pydantic's own ``ValidationError`` shares the name but not the hierarchy,
+    so ``except PyLocusZoomError`` would miss it. An unknown field is an
+    error too, so a misspelt or removed option cannot be silently dropped.
+    Subclasses' ``model_config`` merges with this one.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    def __init__(self, /, **data: Any) -> None:
+        try:
+            super().__init__(**data)
+        except pydantic.ValidationError as error:
+            raise ValidationError(_describe(error)) from error
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        try:
+            super().__setattr__(name, value)
+        except pydantic.ValidationError as error:
+            raise ValidationError(_describe(error)) from error
+
+
+class RegionConfig(_Config):
     """Genomic region specification.
 
     Attributes:
@@ -84,13 +123,16 @@ class RegionConfig(BaseModel):
         return self
 
 
-class ColumnConfig(BaseModel):
+class ColumnConfig(_Config):
     """DataFrame column name mappings for GWAS data.
 
     The defaults are the canonical names every loader emits, so a loaded
     frame needs no config at all.
 
     Attributes:
+        chrom_col: Column name for chromosome. A frame without it raises;
+            None selects the region by position only, for a frame already
+            scoped to the region's chromosome.
         pos_col: Column name for genomic position.
         p_col: Column name for p-value.
         rs_col: Column name for SNP identifier.
@@ -98,12 +140,15 @@ class ColumnConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    chrom_col: Optional[str] = Field(
+        default=Canonical.CHROM, description="Chromosome column name"
+    )
     pos_col: str = Field(default=Canonical.POS, description="Position column name")
     p_col: str = Field(default=Canonical.P, description="P-value column name")
     rs_col: str = Field(default=Canonical.RS, description="SNP ID column name")
 
 
-class DisplayConfig(BaseModel):
+class DisplayConfig(_Config):
     """Display and visual options for plots.
 
     Attributes:
@@ -152,7 +197,7 @@ class DisplayConfig(BaseModel):
         )
 
 
-class LDConfig(BaseModel):
+class LDConfig(_Config):
     """Linkage disequilibrium configuration.
 
     Supports three modes:
@@ -192,7 +237,7 @@ class LDConfig(BaseModel):
         return self
 
 
-class LiftoverConfig(BaseModel):
+class LiftoverConfig(_Config):
     """Plot summary statistics from one genome build on another build's annotations.
 
     With a ``lifter`` or a ``chain_path``, ``plot()`` treats ``gwas_df``,
@@ -240,52 +285,125 @@ class LiftoverConfig(BaseModel):
         return self.lifter
 
 
-class PanelInputs(BaseModel):
-    """Caller-supplied data for the optional panels beneath the association track."""
+def _collect_frame(value: Any) -> Any:
+    """Collect a Spark frame to pandas, as every plot method does its own."""
+    if value is None or isinstance(value, pd.DataFrame):
+        return value
+    return to_pandas(value)
+
+
+# A pandas DataFrame field that also accepts a PySpark frame.
+Frame = Annotated[pd.DataFrame, BeforeValidator(_collect_frame)]
+
+
+class EqtlInput(_Config):
+    """The eQTL panel: its frame and how to filter and threshold it.
+
+    Attributes:
+        data: eQTL results with ``pos`` and ``p_value`` columns, plus
+            ``gene`` to filter on and optionally ``effect_size``.
+        gene: Gene to keep, matched exactly against the ``gene`` column.
+            None keeps every row.
+        threshold: P-value of the eQTL significance line, in (0, 1].
+        chrom_col: Chromosome column; None selects the region by position
+            only, for a frame already scoped to the region's chromosome.
+    """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    genes_df: Optional[pd.DataFrame] = Field(
-        default=None, description="Gene annotations"
+    data: Frame = Field(..., description="eQTL results")
+    gene: Optional[str] = Field(default=None, description="Gene to keep")
+    threshold: PValueThreshold = Field(
+        default=DEFAULT_EQTL_THRESHOLD, description="eQTL significance line"
     )
-    exons_df: Optional[pd.DataFrame] = Field(
-        default=None, description="Exon annotations"
+    chrom_col: Optional[str] = Field(
+        default=Canonical.CHROM, description="Chromosome column name"
     )
-    recomb_df: Optional[pd.DataFrame] = Field(
-        default=None, description="Recombination rates"
-    )
-    eqtl_df: Optional[pd.DataFrame] = Field(default=None, description="eQTL results")
-    eqtl_gene: Optional[str] = Field(default=None, description="eQTL gene filter")
-    eqtl_threshold: float = Field(
-        default=DEFAULT_EQTL_THRESHOLD, description="eQTL significance"
-    )
-    finemapping_df: Optional[pd.DataFrame] = Field(
-        default=None, description="Fine-mapping results"
-    )
-    finemapping_cs_col: Optional[str] = Field(
-        default="cs", description="Credible-set column"
-    )
-    ld_heatmap_df: Optional[pd.DataFrame] = Field(default=None, description="LD matrix")
-    ld_heatmap_snp_ids: Optional[List[str]] = Field(
-        default=None, description="LD matrix row/column SNP ids"
-    )
-    ld_heatmap_height: float = Field(
-        default=0.25,
-        description="Heatmap height as a fraction of the association panel",
-    )
-    ld_heatmap_metric: str = Field(default="r2", description="LD metric label")
-
-    @model_validator(mode="after")
-    def validate_heatmap_requires_snp_ids(self) -> "PanelInputs":
-        """Validate that an LD heatmap matrix names its rows and columns."""
-        if self.ld_heatmap_df is not None and self.ld_heatmap_snp_ids is None:
-            raise ValueError(
-                "ld_heatmap_snp_ids is required when ld_heatmap_df is provided"
-            )
-        return self
 
 
-class PlotConfig(BaseModel):
+class FinemappingInput(_Config):
+    """The fine-mapping panel: its frame and credible-set column.
+
+    Attributes:
+        data: Fine-mapping results with ``pos`` and ``pip`` columns.
+        cs_col: Credible-set column. The default ``"cs"`` may be absent,
+            which draws PIPs without credible sets; any other name must be
+            a column of ``data``. None draws no credible sets.
+        chrom_col: Chromosome column; None selects the region by position
+            only, for a frame already scoped to the region's chromosome.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    data: Frame = Field(..., description="Fine-mapping results")
+    cs_col: Optional[str] = Field(default="cs", description="Credible-set column")
+    chrom_col: Optional[str] = Field(
+        default=Canonical.CHROM, description="Chromosome column name"
+    )
+
+
+class LDHeatmapInput(_Config):
+    """The LD heatmap drawn under the association panel.
+
+    Attributes:
+        matrix: Square pairwise LD matrix.
+        snp_ids: The SNP id of each matrix row and column, matched against
+            the association frame's ``rs_col`` to place the cells.
+        height: Heatmap height as a fraction of the association panel's.
+        metric: ``"r2"`` or ``"dprime"``, the colour-bar label.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    matrix: Frame = Field(..., description="LD matrix")
+    snp_ids: List[str] = Field(..., description="Matrix row/column SNP ids")
+    height: float = Field(
+        default=0.25, gt=0, description="Height as a fraction of the association panel"
+    )
+    metric: LDMetric = Field(default="r2", description="LD metric label")
+
+
+class PanelInputs(_Config):
+    """Caller-supplied data for the optional panels beneath the association track.
+
+    Each optional panel is one model, so an option cannot be given without
+    the frame it applies to. Every frame accepts a PySpark DataFrame, which
+    is collected to pandas.
+
+    Attributes:
+        genes_df: Gene annotations with ``chr``, ``start``, ``end`` and
+            ``gene_name`` columns.
+        exons_df: Exon annotations with the same columns.
+        recomb_df: Recombination rates for the region, replacing the
+            plotter's own maps.
+        eqtl: The eQTL panel.
+        finemapping: The fine-mapping panel.
+        ld_heatmap: The LD heatmap panel.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    genes_df: Optional[Frame] = Field(default=None, description="Gene annotations")
+    exons_df: Optional[Frame] = Field(default=None, description="Exon annotations")
+    recomb_df: Optional[Frame] = Field(default=None, description="Recombination rates")
+    eqtl: Optional[EqtlInput] = Field(default=None, description="eQTL panel")
+    finemapping: Optional[FinemappingInput] = Field(
+        default=None, description="Fine-mapping panel"
+    )
+    ld_heatmap: Optional[LDHeatmapInput] = Field(
+        default=None, description="LD heatmap panel"
+    )
+
+
+def _require_lead(ld: LDConfig, where: str) -> None:
+    """Reject LD computed from a fileset with no lead to compute it against."""
+    if ld.ld_reference_file is not None and ld.lead_pos is None:
+        raise ValueError(
+            f"{where}computing LD from ld_reference_file needs a lead position"
+        )
+
+
+class PlotConfig(_Config):
     """Everything ``plot()`` was asked for, as one validated value.
 
     ``plot()`` builds one from its arguments; the cross-model rules live
@@ -307,19 +425,16 @@ class PlotConfig(BaseModel):
     ld: LDConfig = Field(default_factory=LDConfig)
     panels: PanelInputs = Field(default_factory=PanelInputs)
 
-    _lead_required_error: ClassVar[str] = (
-        "lead_pos is required when ld_reference_file is provided"
-    )
-
-    def _lead_is_set(self) -> bool:
-        """Report whether a lead position is available to compute LD against."""
-        return self.ld.lead_pos is not None
+    def panel_lds(self) -> List[LDConfig]:
+        """Return the LD options of each association panel, top to bottom."""
+        return [self.ld]
 
     @model_validator(mode="after")
     def validate_ld_requires_lead(self) -> "PlotConfig":
-        """Validate that computing LD from a fileset has a lead to compute against."""
-        if self.ld.ld_reference_file is not None and not self._lead_is_set():
-            raise ValueError(self._lead_required_error)
+        """Validate that every panel computing LD from a fileset has a lead."""
+        lds = self.panel_lds()
+        for index, ld in enumerate(lds):
+            _require_lead(ld, f"panel {index + 1}: " if len(lds) > 1 else "")
         return self
 
 
@@ -327,7 +442,8 @@ class StackedPlotConfig(PlotConfig):
     """Everything ``plot_stacked()`` was asked for, as one validated value.
 
     Extends :class:`PlotConfig` with the per-panel lists, each of which must
-    hold one entry per GWAS frame.
+    hold one entry per GWAS frame. A list entry replaces the broadcast
+    ``ld`` value for its panel.
 
     Attributes:
         n_panels: Number of association panels, one per GWAS frame.
@@ -347,29 +463,37 @@ class StackedPlotConfig(PlotConfig):
         default=None, description="PLINK filesets (one per panel)"
     )
 
-    _lead_required_error: ClassVar[str] = (
-        "lead_positions is required when ld_reference_file is provided "
-        "for broadcast (one lead position per panel)"
-    )
+    @field_validator("lead_positions", "panel_labels", "ld_reference_files")
+    @classmethod
+    def validate_one_entry_per_panel(
+        cls, value: Optional[list], info: ValidationInfo
+    ) -> Optional[list]:
+        """Validate that a per-panel list has one entry per panel."""
+        n_panels = info.data.get("n_panels")
+        if value is not None and n_panels is not None and len(value) != n_panels:
+            raise ValueError(
+                f"{info.field_name} length ({len(value)}) must match "
+                f"number of GWAS DataFrames ({n_panels})"
+            )
+        return value
 
-    def _lead_is_set(self) -> bool:
-        """A stacked figure may take one lead per panel instead of one overall."""
-        return self.ld.lead_pos is not None or self.lead_positions is not None
+    def panel_lds(self) -> List[LDConfig]:
+        """Resolve each panel's LD options from the broadcast and the lists."""
+        return [
+            LDConfig(
+                lead_pos=self.ld.lead_pos
+                if self.lead_positions is None
+                else self.lead_positions[index],
+                ld_reference_file=self.ld.ld_reference_file
+                if self.ld_reference_files is None
+                else self.ld_reference_files[index],
+                ld_col=self.ld.ld_col,
+            )
+            for index in range(self.n_panels)
+        ]
 
-    @model_validator(mode="after")
-    def validate_per_panel_lists(self) -> "StackedPlotConfig":
-        """Validate that each per-panel list has one entry per panel."""
-        for name in ("lead_positions", "panel_labels", "ld_reference_files"):
-            value = getattr(self, name)
-            if value is not None and len(value) != self.n_panels:
-                raise ValueError(
-                    f"{name} length ({len(value)}) must match "
-                    f"number of GWAS DataFrames ({self.n_panels})"
-                )
-        return self
 
-
-class GenomeWideConfig(BaseModel):
+class GenomeWideConfig(_Config):
     """Column names and chromosome order for the genome-wide plot families.
 
     Manhattan, QQ and Miami plots lay a whole-genome frame out along one
@@ -399,7 +523,7 @@ class GenomeWideConfig(BaseModel):
 PositiveFontSize = Annotated[int, Field(gt=0)]
 
 
-class GenomeWideStyle(BaseModel):
+class GenomeWideStyle(_Config):
     """Colours, points, fonts and chromosome axis of the genome-wide plots.
 
     Every Manhattan, QQ, Manhattan-QQ, stacked and Miami method takes one as
@@ -511,7 +635,7 @@ class GenomeWideStyle(BaseModel):
         return tuple(mcolors.to_hex(colour) for colour in colours)
 
 
-class ColocConfig(BaseModel):
+class ColocConfig(_Config):
     """Configuration for colocalization plot.
 
     Attributes:
@@ -571,61 +695,19 @@ class ColocConfig(BaseModel):
         return self
 
 
-Columns = TypeVar("Columns", ColumnConfig, GenomeWideConfig)
-
-
-def resolve_deprecated_columns(
-    df: pd.DataFrame,
-    columns: Columns,
-    *,
-    fields: tuple[str, ...] = ("pos_col", "p_col"),
-) -> Columns:
-    """Fall back to a frame's pre-4.0 column names, with a deprecation warning.
-
-    A GWAS frame written by a 3.x loader carries ``ps`` and ``p_wald`` where a
-    4.0 one carries the canonical ``pos`` and ``p_value``. Where the canonical
-    column is absent and the old spelling is present, the old spelling is used
-    and a ``DeprecationWarning`` names its replacement. A caller who asked for
-    a column name of their own is left alone, because only the canonical names
-    have aliases.
-
-    Args:
-        df: The frame about to be plotted.
-        columns: The column model the plot method was given.
-        fields: Column roles consumed by this input boundary.
-
-    Returns:
-        ``columns`` unchanged, or a copy naming the frame's old columns.
-    """
-    updates = {}
-    for field in fields:
-        name = getattr(columns, field)
-        alias = DEPRECATED_COLUMN_ALIASES.get(name)
-        if alias is None or name in df.columns or alias not in df.columns:
-            continue
-        warnings.warn(
-            f"Column '{alias}' is the pre-4.0 name for '{name}'. pyLocusZoom "
-            f"loaders now emit '{name}'; rename the column, or pass the name "
-            f"you want. The fallback is removed in "
-            f"{DEPRECATED_ALIAS_REMOVED_IN}.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        updates[field] = alias
-    return columns.model_copy(update=updates) if updates else columns
-
-
 __all__ = [
     "RegionConfig",
     "ColumnConfig",
     "DisplayConfig",
     "LDConfig",
     "LiftoverConfig",
+    "EqtlInput",
+    "FinemappingInput",
+    "LDHeatmapInput",
     "PanelInputs",
     "PlotConfig",
     "StackedPlotConfig",
     "GenomeWideConfig",
     "GenomeWideStyle",
     "ColocConfig",
-    "resolve_deprecated_columns",
 ]

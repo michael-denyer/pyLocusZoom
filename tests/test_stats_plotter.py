@@ -7,6 +7,7 @@ from matplotlib.collections import PathCollection
 from matplotlib.colors import to_hex
 from matplotlib.markers import MarkerStyle
 
+from pylocuszoom import ValidationError
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.colors import get_phewas_category_color
 from pylocuszoom.stats_plotter import StatsPlotter
@@ -107,15 +108,28 @@ class TestPheWASEdgeCases:
             }
         )
 
-        fig = stats_plotter.plot_phewas(
-            df,
-            variant_id="rs12345",
-            phenotype_col="phenotype",
-            p_col="p_value",
-            category_col="nonexistent",
-        )
+        fig = stats_plotter.plot_phewas(df, variant_id="rs12345")
 
         assert _markers(fig) == [("o", 3)]
+
+    @pytest.mark.parametrize(
+        ("option", "value"), [("category_col", "nonexistent"), ("effect_col", "betta")]
+    )
+    def test_phewas_rejects_a_named_column_the_frame_lacks(
+        self, stats_plotter, option, value
+    ):
+        """A misspelt option used to draw the plot without the feature."""
+        df = pd.DataFrame(
+            {
+                "phenotype": ["Height", "Weight"],
+                "p_value": [0.01, 1e-8],
+                "category": ["a", "b"],
+                "beta": [0.1, -0.2],
+            }
+        )
+
+        with pytest.raises(ValidationError, match=f"{option}='{value}'"):
+            stats_plotter.plot_phewas(df, variant_id="rs1", **{option: value})
 
     def test_phewas_with_effect_column_positive(self, stats_plotter):
         """Draw only upward triangles when every effect is positive."""
@@ -199,6 +213,21 @@ class TestPheWASEdgeCases:
 
 
 class TestForestPlotEdgeCases:
+    def test_forest_rejects_absent_weight_col(self, stats_plotter):
+        """A misspelt weight_col used to draw equal-size markers silently."""
+        df = pd.DataFrame(
+            {
+                "study": ["s1", "s2"],
+                "effect": [0.1, 0.2],
+                "ci_lower": [0.0, 0.1],
+                "ci_upper": [0.2, 0.3],
+                "w": [1, 2],
+            }
+        )
+
+        with pytest.raises(ValidationError, match="weight_col='weight'"):
+            stats_plotter.plot_forest(df, "rs1", weight_col="weight")
+
     """Tests for forest plot edge cases."""
 
     def test_forest_with_weight_column(self, stats_plotter):

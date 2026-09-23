@@ -15,7 +15,7 @@ from typing import Optional, Union
 import pandas as pd
 
 from ..exceptions import LoaderValidationError
-from ..schemas import Family, Tier, spec
+from ..schemas import EQTL_LOAD
 from ._engine import LoaderSpec, _load_tabular
 
 
@@ -49,7 +49,7 @@ _GTEX_SPEC = LoaderSpec(
     transform=_gtex_coordinates,
     clean_chrom=True,
     gene_filter="contains",
-    schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
+    schema=EQTL_LOAD,
 )
 
 
@@ -81,7 +81,7 @@ _EQTL_CATALOGUE_SPEC = LoaderSpec(
         "chromosome": "chr",
     },
     gene_filter="contains",
-    schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
+    schema=EQTL_LOAD,
 )
 
 
@@ -108,7 +108,7 @@ _MATRIXEQTL_SPEC = LoaderSpec(
         "t-stat": "t_stat",
     },
     gene_filter="exact",
-    schema=lambda out_cols: spec(Family.EQTL, Tier.LOAD),
+    schema=EQTL_LOAD,
     # MatrixEQTL carries no position; callers merge a SNP annotation to add it.
     schema_requires=("pos",),
 )

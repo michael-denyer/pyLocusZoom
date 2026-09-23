@@ -18,7 +18,7 @@ flowchart TB
 
     subgraph Layer2["⚙️ Validation"]
         VD["ColumnSpec + check()<br/><small>2a</small>"]
-        SCH["schemas: spec(family, tier)<br/><small>2b</small>"]
+        SCH["schemas: ColumnSpec contracts<br/><small>2b</small>"]
         CFG["Pydantic PlotConfig<br/><small>2c</small>"]
     end
 
@@ -163,19 +163,20 @@ Each static format is a `LoaderSpec` constant plus a thin public wrapper. `load_
 
 ## [2] Validation
 
-One validation engine, driven declaratively. `validation.py` holds the rule vocabulary, a frozen `ColumnSpec` and the `check(df, spec)` function that runs it, and knows no family. `schemas.py` holds every family contract at both tiers in one table, looked up with `spec(family, tier)`: `Tier.LOAD` is the strict contract a loader applies, `Tier.PLOT` the permissive one a plotter applies. Plot options validate via Pydantic.
+One validation engine, driven declaratively. `validation.py` holds the rule vocabulary, a frozen `ColumnSpec` and the `check(df, spec)` function that runs it, and knows no family. `schemas.py` holds every family contract as a value: a `*_LOAD` constant is the strict contract a loader applies, a `*_plot_spec` builder over the caller's column names the permissive one a plotter applies, and callers hand either to `check`. `resolve_column` owns the rule that a column the caller names must exist ([ADR-0010](adr/0010-strict-intake-boundary.md)). Plot options validate via Pydantic.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 2a | ColumnSpec | Frozen per-family validation contract (required, numeric, not-null, ranges, p-value, ordering) | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | RangeRule | One numeric-range constraint inside a `ColumnSpec` | [validation.py](../src/pylocuszoom/validation.py) |
 | 2a | check | Runs a `ColumnSpec` against a DataFrame in fixed rule order | [validation.py](../src/pylocuszoom/validation.py) |
+| 2a | resolve_column | Resolves a column the caller named, raising if the frame lacks it; only the canonical `rs`, `cs` and `category` defaults may be absent | [validation.py](../src/pylocuszoom/validation.py) |
 | 2b | Canonical | The column names every loader emits and every plotter defaults to | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | Family, Tier | The DataFrame family and the validation tier a contract is looked up by | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | spec | Returns the `ColumnSpec` for one family at one tier | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | validate_gwas_df, validate_genes_df | Plot-time GWAS and gene-annotation checks | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | validate_phewas_df, validate_forest_df, validate_coloc_df | Plot-time checks for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
+| 2b | gwas_load_spec, GENES_LOAD, EQTL_LOAD, FINEMAPPING_LOAD | The strict contracts the loaders apply | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | gwas_plot_spec, GENES_PLOT, EXONS_PLOT, eqtl_plot_spec, finemapping_plot_spec | The plot-time contracts for the regional and genome-wide frames | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | phewas_plot_spec, forest_plot_spec, coloc_plot_spec | The plot-time contracts for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | P_VALUE_POLICY | Per family: whether zero is a valid p-value, and whether an invalid one drops its row or raises | [_data.py](../src/pylocuszoom/_data.py) |
+| 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs, EqtlInput, FinemappingInput, LDHeatmapInput | The values `plot()` and `plot_stacked()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
 | 2c | PlotConfig, StackedPlotConfig | The composite `plot()` and `plot_stacked()` build from their arguments, holding the cross-model rules | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideConfig | Column names and chromosome order the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
 | 2c | GenomeWideStyle | Palette, point, font and chromosome-axis styling the Manhattan, QQ and Miami methods take | [config.py](../src/pylocuszoom/config.py) |
@@ -324,7 +325,7 @@ sequenceDiagram
         participant P as LocusZoomPlotter (1a)
     end
     box rgb(216, 67, 21) Validation
-        participant V as validation.validate_gwas_df
+        participant V as validation.check (2a)
         participant C as PlotConfig (2c)
     end
     box rgb(46, 125, 50) Core
@@ -442,11 +443,14 @@ two tiers, core and toolbox, tabulated under
 | Name | Purpose |
 |------|---------|
 | `LocusZoomPlotter` | Regional association plot generator with LD coloring and annotations. |
-| `ColumnConfig` | Position, p-value and SNP id column names of a GWAS frame. |
+| `ColumnConfig` | Chromosome, position, p-value and SNP id column names of a GWAS frame. |
 | `DisplayConfig` | SNP labels, recombination overlay, automatic gene fetching and figure size. |
 | `LDConfig` | Lead SNP and LD source: a pre-computed column or a PLINK fileset. |
 | `LiftoverConfig` | Chain or lifter for plotting source-build sumstats on another build. |
 | `PanelInputs` | Frames for the optional gene, eQTL, fine-mapping and LD-heatmap panels. |
+| `EqtlInput` | The eQTL panel's frame, gene filter, threshold and chromosome column. |
+| `FinemappingInput` | The fine-mapping panel's frame, credible-set column and chromosome column. |
+| `LDHeatmapInput` | The LD heatmap panel's matrix, SNP ids, height and metric. |
 
 ### Manhattan and QQ plots
 
@@ -502,15 +506,11 @@ two tiers, core and toolbox, tabulated under
 | `load_saige` | Load SAIGE association results. |
 | `load_susie` | Load SuSiE fine-mapping results. |
 
-### Schema validators
+### Column vocabulary
 
 | Name | Purpose |
 |------|---------|
 | `Canonical` | The column names every loader emits and every plotter defaults to: `chr`, `pos`, `p_value`, `rs`. |
-| `validate_forest_df` | Validate forest plot DataFrame has required columns and types. |
-| `validate_genes_df` | Validate a gene annotation DataFrame at the plot-time tier. |
-| `validate_gwas_df` | Validate a GWAS DataFrame at the plot-time tier, over the caller's column names. |
-| `validate_phewas_df` | Validate PheWAS DataFrame has required columns and types. |
 
 ### eQTL helpers
 
@@ -521,7 +521,6 @@ two tiers, core and toolbox, tabulated under
 | `filter_eqtl_by_region` | Filter eQTL data to a genomic region. |
 | `get_eqtl_genes` | Get list of unique genes in eQTL data. |
 | `prepare_eqtl_for_plotting` | Prepare eQTL data for plotting. |
-| `validate_eqtl_df` | Validate eQTL DataFrame has required columns. |
 
 ### Fine-mapping helpers
 
@@ -532,7 +531,6 @@ two tiers, core and toolbox, tabulated under
 | `get_credible_sets` | Get list of unique credible set IDs. |
 | `get_top_pip_variants` | Get top variants by posterior inclusion probability. |
 | `prepare_finemapping_for_plotting` | Prepare fine-mapping data for plotting. |
-| `validate_finemapping_df` | Validate fine-mapping DataFrame has required columns. |
 
 ### LD calculation
 

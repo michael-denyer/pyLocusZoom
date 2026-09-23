@@ -9,10 +9,12 @@ import pandas as pd
 
 from ._data import prepare_pvalue_data
 from ._plotter_utils import CHROMOSOME_GAP
-from .config import GenomeWideConfig, GenomeWideStyle, resolve_deprecated_columns
+from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
-from .schemas import Canonical, validate_gwas_df
+from .schemas import Canonical, gwas_plot_spec
 from .species import Species, resolve_species
+from .utils import normalize_chrom, normalize_chrom_series
+from .validation import check
 
 ALL_PVALUES_INVALID = (
     "All rows have invalid p-values in column '{p_col}' "
@@ -34,19 +36,21 @@ def get_chromosome_order(
         List of chromosome names in display order.
 
     Raises:
-        ValidationError: If the species is unknown, or is known but has no
-            built-in chromosome order.
-        ValueError: If neither species nor custom_order provided.
+        ValidationError: If neither species nor custom_order is provided, or
+            the species is unknown or has no built-in chromosome order.
     """
     if custom_order is not None:
         return custom_order
     record = resolve_species(species)
     if record is None:
-        raise ValueError("Must provide either species or custom_order")
+        raise ValidationError(
+            "No chromosome order: pass a species, or custom_chrom_order in "
+            "GenomeWideConfig"
+        )
     if not record.chromosomes:
         raise ValidationError(
             f"No built-in chromosome order for species {record.key!r}; "
-            f"pass custom_order."
+            f"pass custom_chrom_order in GenomeWideConfig."
         )
     return list(record.chromosomes)
 
@@ -234,8 +238,8 @@ def prepare_genomewide_frames(
 
     The boundary for the genome-wide families: every frame is checked for
     the chromosome, position and p-value columns the config names (and
-    ``rs_col`` when given) before any of them is laid out. A frame still
-    carrying the pre-4.0 column names is accepted with a deprecation warning.
+    ``rs_col`` when given) before any of them is laid out, and projected onto
+    the canonical columns with its chromosome names normalised.
 
     Args:
         dfs: GWAS results DataFrames, in panel order.
@@ -250,28 +254,27 @@ def prepare_genomewide_frames(
     """
     normalized = []
     for df in dfs:
-        resolved = resolve_deprecated_columns(df, config)
-        validate_gwas_df(
+        check(
             df,
-            pos_col=resolved.pos_col,
-            p_col=resolved.p_col,
-            rs_col=rs_col,
-            chrom_col=resolved.chrom_col,
+            gwas_plot_spec(
+                config.pos_col, config.p_col, rs_col, chrom_col=config.chrom_col
+            ),
         )
         roles = {
-            Canonical.CHROM: resolved.chrom_col,
-            Canonical.POS: resolved.pos_col,
-            Canonical.P: resolved.p_col,
+            Canonical.CHROM: normalize_chrom_series(df[config.chrom_col]),
+            Canonical.POS: df[config.pos_col],
+            Canonical.P: df[config.p_col],
         }
         if rs_col is not None:
-            roles[Canonical.RS] = rs_col
-        normalized.append(
-            pd.DataFrame({role: df[source] for role, source in roles.items()})
-        )
+            roles[Canonical.RS] = df[rs_col]
+        normalized.append(pd.DataFrame(roles))
+    custom_order = config.custom_chrom_order
     return prepare_manhattan_frames(
         normalized,
         species=species,
-        custom_order=config.custom_chrom_order,
+        custom_order=None
+        if custom_order is None
+        else [normalize_chrom(chrom) for chrom in custom_order],
         gap=style.chrom_gap,
         palette=style.palette,
     )
@@ -280,25 +283,21 @@ def prepare_genomewide_frames(
 def prepare_manhattan_frames(
     dfs: Sequence[pd.DataFrame],
     *,
-    chrom_col: str = Canonical.CHROM,
-    pos_col: str = Canonical.POS,
-    p_col: str = Canonical.P,
     species: str | Species | None = None,
     custom_order: list[str] | None = None,
     gap: int = CHROMOSOME_GAP,
     palette: Sequence[str] | None = None,
 ) -> list[PreparedManhattan]:
-    """Prepare several GWAS frames against one shared genome layout.
+    """Lay out canonical GWAS frames against one shared genome layout.
 
     Every returned value carries the same :class:`GenomeLayout`, so a given
     ``(chrom, pos)`` lands at the same x in all of them. Pass a one-element
-    list for a single panel.
+    list for a single panel. The frames carry the canonical ``chr``, ``pos``
+    and ``p_value`` columns with normalised chromosome names, as
+    :func:`prepare_genomewide_frames` projects them after validation.
 
     Args:
-        dfs: GWAS results DataFrames, in panel order.
-        chrom_col: Column name for chromosome.
-        pos_col: Column name for position.
-        p_col: Column name for p-value.
+        dfs: Canonical GWAS frames, in panel order.
         species: Species for chromosome ordering.
         custom_order: Custom chromosome order.
         gap: Base pairs between one chromosome's end and the next's start.
@@ -310,21 +309,18 @@ def prepare_manhattan_frames(
         ``neglog10p`` and ``_color``.
 
     Raises:
-        ValueError: If a required column is missing, or if neither species nor
-            custom_order names a chromosome order.
+        ValidationError: If no p-value in a frame survives, or if neither
+            species nor custom_order names a chromosome order.
     """
-    for df in dfs:
-        for col, name in [
-            (chrom_col, "chromosome"),
-            (pos_col, "position"),
-            (p_col, "p-value"),
-        ]:
-            if col not in df.columns:
-                raise ValueError(f"Column '{col}' not found in DataFrame (for {name})")
-
+    chrom_col, pos_col, p_col = Canonical.CHROM, Canonical.POS, Canonical.P
     order = get_chromosome_order(species, custom_order)
     filtered = [
-        prepare_pvalue_data(df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col))
+        prepare_pvalue_data(
+            df,
+            p_col,
+            "genome-wide",
+            on_empty=ALL_PVALUES_INVALID.format(p_col=p_col),
+        )
         for df in dfs
     ]
     layout = GenomeLayout.from_frames(
@@ -386,12 +382,12 @@ def prepare_categorical_data(
     """
     # Validate required columns
     if category_col not in df.columns:
-        raise ValueError(f"Column '{category_col}' not found in DataFrame")
+        raise ValidationError(f"Column '{category_col}' not found in DataFrame")
     if p_col not in df.columns:
-        raise ValueError(f"Column '{p_col}' not found in DataFrame")
+        raise ValidationError(f"Column '{p_col}' not found in DataFrame")
 
     result = prepare_pvalue_data(
-        df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
+        df, p_col, "genome-wide", on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)
     )
 
     result["_cat_str"] = (

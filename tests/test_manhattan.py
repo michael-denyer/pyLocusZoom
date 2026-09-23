@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import GenomeWideConfig
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan import prepare_categorical_data
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
@@ -70,7 +71,7 @@ class TestChromosomeOrdering:
         """Must provide either species or custom_order."""
         from pylocuszoom.manhattan import get_chromosome_order
 
-        with pytest.raises(ValueError, match="Must provide"):
+        with pytest.raises(ValidationError, match="No chromosome order"):
             get_chromosome_order()
 
     def test_dog_alias_works(self):
@@ -203,14 +204,6 @@ class TestPrepareManhattanData:
             chr2_first["_cumulative_pos"].iloc[0]
             == chr2_second["_cumulative_pos"].iloc[0]
         )
-
-    def test_validates_required_columns(self):
-        """Should raise on missing required columns."""
-        from pylocuszoom.manhattan import prepare_manhattan_frames
-
-        df = pd.DataFrame({"wrong_col": [1, 2, 3]})
-        with pytest.raises(ValueError, match="not found"):
-            prepare_manhattan_frames([df], species="human")
 
     def test_handles_integer_chromosomes(self):
         """Should handle int chromosome column."""
@@ -596,3 +589,27 @@ class TestChromosomeLayoutOrder:
             "Y",
             "MT",
         ]
+
+    def test_canine_chr_prefixed_names_lay_out_in_species_order(self):
+        """``chr10`` sits after ``chr2``, not between ``chr1`` and ``chr2``."""
+        assert self._tick_labels("canine", ["chr10", "chr2", "chr1"]) == [
+            "1",
+            "2",
+            "10",
+        ]
+
+    def test_float_chromosomes_lay_out_in_species_order(self):
+        """A float column (pandas' reading of ints beside a NaN) is not '1.0'."""
+        assert self._tick_labels("canine", [10.0, 2.0, 1.0]) == ["1", "2", "10"]
+
+    def test_custom_order_is_normalised_like_the_data(self):
+        from pylocuszoom.manhattan import prepare_genomewide_frames
+
+        df = pd.DataFrame(
+            {"chr": ["chr2", "chr1"], "pos": [1000, 1000], "p_value": [0.5, 0.01]}
+        )
+        config = GenomeWideConfig(custom_chrom_order=["chr2", "chr1"])
+
+        prepared = prepare_genomewide_frames([df], config, species=None)
+
+        assert prepared[0].layout.tick_labels == ["2", "1"]

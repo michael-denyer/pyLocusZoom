@@ -35,7 +35,6 @@ from .config import (
     PlotConfig,
     RegionConfig,
     StackedPlotConfig,
-    resolve_deprecated_columns,
 )
 from .exceptions import ReferenceAPIError, ValidationError
 from .ld import find_plink
@@ -51,9 +50,10 @@ from .panels import (
 )
 from .recombination import RecombResult, RecombStatus, recomb_for_region
 from .reference_genes import get_genes_for_build, source_for
-from .schemas import validate_genes_df, validate_gwas_df
+from .schemas import Canonical, gwas_plot_spec
 from .species import Species, resolve_species
 from .utils import DataFrameLike, filter_by_region, to_pandas
+from .validation import check, resolve_column
 
 
 @dataclass(frozen=True)
@@ -62,6 +62,7 @@ class _AssociationInput:
 
     data: pd.DataFrame
     columns: ColumnConfig
+    rs_col: Optional[str]
     ld: LDConfig
     lead_index: Optional[int]
     label: Optional[str] = None
@@ -75,14 +76,25 @@ class _AssociationInput:
         ld: LDConfig,
         label: Optional[str] = None,
     ) -> "_AssociationInput":
-        columns = resolve_deprecated_columns(frame, columns)
-        validate_gwas_df(frame, pos_col=columns.pos_col, p_col=columns.p_col)
+        check(frame, gwas_plot_spec(columns.pos_col, columns.p_col))
+        resolve_column(frame, ld.ld_col, parameter="ld_col")
+        rs_col = resolve_column(
+            frame, columns.rs_col, parameter="rs_col", optional_default=Canonical.RS
+        )
+        if ld.ld_reference_file is not None and rs_col is None:
+            raise ValidationError(
+                "ld_reference_file needs SNP ids to compute LD, and column "
+                f"'{columns.rs_col}' is not in the GWAS data. Add it, or name "
+                "the SNP id column with ColumnConfig(rs_col=...)."
+            )
         selected = filter_by_region(
             frame,
             region=(region.chrom, region.start, region.end),
+            chrom_col=columns.chrom_col,
             pos_col=columns.pos_col,
         )
-        data = prepare_pvalue_data(selected, columns.p_col).reset_index(drop=True)
+        data = prepare_pvalue_data(selected, columns.p_col, "regional")
+        data = data.reset_index(drop=True)
         candidates = (
             data if ld.lead_pos is None else data[data[columns.pos_col] == ld.lead_pos]
         )
@@ -94,7 +106,7 @@ class _AssociationInput:
                 "Lead SNP at position {} not found in region; LD coloring will be skipped",
                 ld.lead_pos,
             )
-        return cls(data, columns, ld, lead_index, label)
+        return cls(data, columns, rs_col, ld, lead_index, label)
 
 
 class LocusZoomPlotter:
@@ -254,8 +266,7 @@ class LocusZoomPlotter:
             ``plotly.graph_objects.Figure``, or ``bokeh.layouts.Column``).
 
         Raises:
-            ValueError: On an invalid region or a contradictory config
-                (raised by :class:`PlotConfig` as a ``ValidationError``), or
+            ValidationError: On an invalid region or a contradictory config,
                 a missing required GWAS column, or when no SNP in the region
                 lifts to the target build.
             pylocuszoom.exceptions.PlinkError: When PLINK itself fails
@@ -278,7 +289,6 @@ class LocusZoomPlotter:
         gwas_df = to_pandas(gwas_df)
         lifter = liftover.resolve()
         if lifter is not None:
-            columns = resolve_deprecated_columns(gwas_df, columns)
             gwas_df, start, end, ld = self._lift_region(
                 gwas_df,
                 lifter,
@@ -398,16 +408,17 @@ class LocusZoomPlotter:
         Args:
             gwas_dfs: One GWAS summary-statistics frame per panel.
             lead_positions: One lead position per panel. Auto-detected as
-                the strongest in-region p-value when omitted. Required with
-                a broadcast ``ld.ld_reference_file``.
+                the strongest in-region p-value when omitted. Every panel that
+                computes LD from a reference fileset needs a lead, from this
+                list or from ``ld.lead_pos``.
             panel_labels: One label per panel, or None for none.
             ld_reference_files: One PLINK fileset per panel, replacing the
                 broadcast ``ld.ld_reference_file``.
             significance_threshold: As on :meth:`plot`.
 
         Raises:
-            ValueError: If ``gwas_dfs`` is empty or a per-panel list has a
-                different length.
+            ValidationError: If ``gwas_dfs`` is empty, a per-panel list has a
+                different length, or a panel computes LD without a lead.
 
         Example:
             >>> fig = plotter.plot_stacked(
@@ -422,7 +433,7 @@ class LocusZoomPlotter:
         """
         gwas_dfs = [to_pandas(df) for df in gwas_dfs]
         if not gwas_dfs:
-            raise ValueError("At least one GWAS DataFrame required")
+            raise ValidationError("At least one GWAS DataFrame required")
         config = StackedPlotConfig(
             region=RegionConfig(chrom=chrom, start=start, end=end),
             columns=columns,
@@ -439,18 +450,10 @@ class LocusZoomPlotter:
                 frame,
                 config.region,
                 columns,
-                LDConfig(
-                    lead_pos=lead_positions[index]
-                    if lead_positions is not None
-                    else ld.lead_pos,
-                    ld_reference_file=ld_reference_files[index]
-                    if ld_reference_files is not None
-                    else ld.ld_reference_file,
-                    ld_col=ld.ld_col,
-                ),
+                panel_ld,
                 panel_labels[index] if panel_labels is not None else None,
             )
-            for index, frame in enumerate(gwas_dfs)
+            for index, (frame, panel_ld) in enumerate(zip(gwas_dfs, config.panel_lds()))
         ]
         return self._render_regional(
             config,
@@ -527,21 +530,26 @@ class LocusZoomPlotter:
                     genes_df = annotations.genes
                     if exons_df is None:
                         exons_df = annotations.exons
-        if genes_df is not None:
-            validate_genes_df(genes_df)
 
         finemap = (
             FinemappingPanel.from_frame(
-                inputs.finemapping_df, region, inputs.finemapping_cs_col
+                inputs.finemapping.data,
+                region,
+                inputs.finemapping.cs_col,
+                chrom_col=inputs.finemapping.chrom_col,
             )
-            if inputs.finemapping_df is not None
+            if inputs.finemapping is not None
             else None
         )
         eqtl = (
             EqtlPanel.from_frame(
-                inputs.eqtl_df, region, inputs.eqtl_gene, inputs.eqtl_threshold
+                inputs.eqtl.data,
+                region,
+                inputs.eqtl.gene,
+                inputs.eqtl.threshold,
+                chrom_col=inputs.eqtl.chrom_col,
             )
-            if inputs.eqtl_df is not None
+            if inputs.eqtl is not None
             else None
         )
         genes = (
@@ -570,15 +578,13 @@ class LocusZoomPlotter:
                 reference_file=ld.ld_reference_file,
                 lead_index=request.lead_index,
                 ld_col=ld.ld_col,
-                rs_col=columns.rs_col,
+                rs_col=request.rs_col,
                 start=region.start,
                 end=region.end,
                 plink_path=self.plink_path,
                 species=self.species,
                 context=f"panel {index + 1}",
             )
-            if ld_col is not None and ld_col not in df.columns:
-                ld_col = None
             association.append(
                 AssociationPanel(
                     data=df,
@@ -588,7 +594,7 @@ class LocusZoomPlotter:
                     display=display,
                     genomewide_threshold=threshold,
                     ld_col=ld_col,
-                    hover=hover_for_association(df, columns, ld_col),
+                    hover=hover_for_association(columns, request.rs_col, ld_col),
                     lead_index=request.lead_index,
                     recomb_df=recomb_df if index == 0 else None,
                     panel_label=request.label,
@@ -598,14 +604,14 @@ class LocusZoomPlotter:
 
         heatmap = (
             HeatmapPanel.from_matrix(
-                inputs.ld_heatmap_df,
-                inputs.ld_heatmap_snp_ids,
+                inputs.ld_heatmap.matrix,
+                inputs.ld_heatmap.snp_ids,
                 source=association[0],
                 region=region,
-                height=association_height * inputs.ld_heatmap_height,
-                metric=inputs.ld_heatmap_metric,
+                height=association_height * inputs.ld_heatmap.height,
+                metric=inputs.ld_heatmap.metric,
             )
-            if inputs.ld_heatmap_df is not None
+            if inputs.ld_heatmap is not None
             else None
         )
 

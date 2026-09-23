@@ -25,9 +25,11 @@ from .colors import (
     get_ld_color,
 )
 from .config import ColocConfig
+from .exceptions import ValidationError
 from .panels.coloc import ColocPanel
-from .schemas import Canonical, validate_coloc_df
+from .schemas import Canonical, coloc_plot_spec
 from .utils import DataFrameLike, to_pandas
+from .validation import check, resolve_column
 
 
 def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
@@ -58,18 +60,24 @@ def _project_coloc_input(
 ) -> pd.DataFrame:
     """Select roles from their declared source before any merge can rename them."""
     roles = {"pos": pos_col, f"p_{name}": p_col}
-    for role, source, field in (
-        (f"{name}_effect", effect_col, f"{name}_effect_col"),
-        ("ld", ld_col, "ld_col"),
+    for role, source, field, default in (
+        (f"{name}_effect", effect_col, f"{name}_effect_col", None),
+        ("ld", ld_col, "ld_col", None),
+        ("rs", rs_col, "rs_col", Canonical.RS),
     ):
-        if source is not None:
-            if source not in df.columns:
-                raise ValueError(f"{field} '{source}' not found in {name.upper()} data")
-            roles[role] = source
-    if rs_col is not None and rs_col in df.columns:
-        roles["rs"] = rs_col
+        resolved = resolve_column(
+            df,
+            source,
+            parameter=field,
+            optional_default=default,
+            frame=f"the {name.upper()} data",
+        )
+        if resolved is not None:
+            roles[role] = resolved
     projected = pd.DataFrame({role: df[source] for role, source in roles.items()})
-    return prepare_pvalue_data(projected, f"p_{name}", out_col=f"neglog10_{name}")
+    return prepare_pvalue_data(
+        projected, f"p_{name}", "coloc", out_col=f"neglog10_{name}"
+    )
 
 
 def _merge_and_transform(
@@ -101,7 +109,9 @@ def _merge_and_transform(
     )
     merged = pd.merge(gwas, eqtl, on="pos", how="inner")
     if merged.empty:
-        raise ValueError("No overlapping positions between GWAS and eQTL DataFrames")
+        raise ValidationError(
+            "No overlapping positions between GWAS and eQTL DataFrames"
+        )
     if config.color_by_effect:
         merged["color"] = merged.apply(
             lambda row: _get_effect_agreement_color(
@@ -131,17 +141,19 @@ def _resolve_lead_idx(merged: pd.DataFrame, config: ColocConfig) -> Optional[Any
         Index label of the lead row, or None to draw no lead marker.
 
     Raises:
-        ValueError: If ``lead_snp`` is named but the merged frame has no SNP
+        ValidationError: If ``lead_snp`` is named but the merged frame has no SNP
             ID column or no row matching it.
     """
     if config.lead_snp is not None:
         if "rs" not in merged:
-            raise ValueError(
+            raise ValidationError(
                 f"lead_snp '{config.lead_snp}' specified but rs_col not found"
             )
         matches = merged[merged["rs"] == config.lead_snp]
         if len(matches) == 0:
-            raise ValueError(f"lead_snp '{config.lead_snp}' not found in merged data")
+            raise ValidationError(
+                f"lead_snp '{config.lead_snp}' not found in merged data"
+            )
         return matches.index[0]
     if "ld" in merged:
         combined = merged["neglog10_gwas"] + merged["neglog10_eqtl"]
@@ -210,7 +222,9 @@ class ColocPlotter:
             pos_col: Column name for genomic positions (must exist in both).
             gwas_p_col: Column name for GWAS p-values.
             eqtl_p_col: Column name for eQTL p-values.
-            rs_col: Column name for SNP IDs (optional, for labeling lead SNP).
+            rs_col: Column name for SNP IDs in ``gwas_df``, for ``lead_snp``.
+                The default ``"rs"`` may be absent; any other name must be a
+                column of ``gwas_df``.
             ld_col: Column name for LD R² values in GWAS df (optional).
             lead_snp: SNP ID to highlight as lead variant. If None and ld_col
                 is provided, auto-selects SNP with highest combined -log10(p).
@@ -233,11 +247,10 @@ class ColocPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValidationError: If required columns are missing or invalid.
-            ValueError: If no overlapping positions between GWAS and eQTL.
-            ValueError: If lead_snp specified but not found in merged data.
-            ValueError: If color_by_effect=True but effect columns not provided.
-            ValueError: If h4_posterior is not in [0, 1] range.
+            ValidationError: If required columns are missing or invalid, no
+                position is in both frames, ``lead_snp`` is not found,
+                ``color_by_effect=True`` lacks its effect columns, or
+                ``h4_posterior`` is outside [0, 1].
 
         Example:
             >>> fig = plotter.plot_coloc(
@@ -269,19 +282,13 @@ class ColocPlotter:
             h4_posterior=h4_posterior,
             figsize=figsize,
         )
-        validate_coloc_df(
+        check(
             gwas_df,
-            "GWAS DataFrame",
-            config.pos_col,
-            config.gwas_p_col,
-            config.rs_col,
+            coloc_plot_spec("GWAS DataFrame", config.pos_col, config.gwas_p_col),
         )
-        validate_coloc_df(
+        check(
             eqtl_df,
-            "eQTL DataFrame",
-            config.pos_col,
-            config.eqtl_p_col,
-            config.rs_col,
+            coloc_plot_spec("eQTL DataFrame", config.pos_col, config.eqtl_p_col),
         )
 
         merged = _merge_and_transform(gwas_df, eqtl_df, config)

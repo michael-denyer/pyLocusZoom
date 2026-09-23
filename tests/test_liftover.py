@@ -285,6 +285,28 @@ class TestPlotAcrossBuilds:
         assert xs == {11_000, 12_000, 13_000}
         assert ax.get_xlim() == (10_500, 13_500)
 
+    @pytest.mark.xfail(
+        strict=True,
+        raises=ValueError,
+        reason="_lift_region still selects the source region by the default 'chr' "
+        "column; the liftover move (remediation PR 4) threads ColumnConfig.chrom_col",
+    )
+    def test_lifts_a_frame_with_a_named_chromosome_column(
+        self, plotter, source_gwas_df
+    ):
+        fig = plotter.plot(
+            source_gwas_df.rename(columns={"chr": "chrom"}),
+            chrom=1,
+            start=500,
+            end=3_500,
+            columns=ColumnConfig(chrom_col="chrom", pos_col="ps", p_col="p_wald"),
+            display=DisplayConfig(show_recombination=False, snp_labels=False),
+            liftover=LiftoverConfig(lifter=self.LIFTER),
+        )
+
+        xs = {x for coll in fig.axes[0].collections for x, _ in coll.get_offsets()}
+        assert xs == {11_000, 12_000, 13_000}
+
     def test_raises_when_nothing_lifts(self, plotter, source_gwas_df):
         with pytest.raises(ValueError, match="No SNP in chr1:500-3500 lifted"):
             plotter.plot(

@@ -12,27 +12,9 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from .exceptions import EQTLValidationError
 from .logging import logger
-from .schemas import Canonical, Family, Tier, spec
+from .schemas import Canonical, eqtl_plot_spec
 from .utils import filter_by_region, normalize_chrom, normalize_chrom_series
-from .validation import check
-
-
-def validate_eqtl_df(
-    df: pd.DataFrame,
-    pos_col: str = Canonical.POS,
-    p_col: str = Canonical.P,
-) -> None:
-    """Validate eQTL DataFrame has required columns.
-
-    Args:
-        df: eQTL DataFrame to validate.
-        pos_col: Column name for genomic position.
-        p_col: Column name for p-value.
-
-    Raises:
-        EQTLValidationError: If required columns are missing.
-    """
-    check(df, spec(Family.EQTL, Tier.PLOT, pos_col=pos_col, p_col=p_col))
+from .validation import ColumnSpec, check
 
 
 def filter_eqtl_by_gene(
@@ -80,7 +62,8 @@ def filter_eqtl_by_region(
         start: Start position.
         end: End position.
         pos_col: Column name for position.
-        chrom_col: Column name for chromosome (if present).
+        chrom_col: Column name for chromosome, or None to filter by position
+            only.
 
     Returns:
         Filtered DataFrame containing only eQTLs in the region.
@@ -88,7 +71,7 @@ def filter_eqtl_by_region(
     filtered = filter_by_region(
         df,
         region=(chrom, start, end),
-        chrom_col=chrom_col or "",
+        chrom_col=chrom_col,
         pos_col=pos_col,
     )
     logger.debug(
@@ -105,6 +88,7 @@ def prepare_eqtl_for_plotting(
     chrom: Optional[int] = None,
     start: Optional[int] = None,
     end: Optional[int] = None,
+    chrom_col: Optional[str] = Canonical.CHROM,
 ) -> pd.DataFrame:
     """Prepare eQTL data for plotting.
 
@@ -118,11 +102,13 @@ def prepare_eqtl_for_plotting(
         chrom: Optional chromosome for region filtering.
         start: Optional start position for region filtering.
         end: Optional end position for region filtering.
+        chrom_col: Chromosome column for region filtering, or None to filter
+            by position only.
 
     Returns:
         Prepared DataFrame with neglog10p column added.
     """
-    validate_eqtl_df(df, pos_col=pos_col, p_col=p_col)
+    check(df, eqtl_plot_spec(pos_col, p_col))
 
     result = df.copy()
 
@@ -132,9 +118,11 @@ def prepare_eqtl_for_plotting(
 
     # Filter by region if specified
     if chrom is not None and start is not None and end is not None:
-        result = filter_eqtl_by_region(result, chrom, start, end, pos_col=pos_col)
+        result = filter_eqtl_by_region(
+            result, chrom, start, end, pos_col=pos_col, chrom_col=chrom_col
+        )
 
-    return prepare_pvalue_data(result, p_col, allow_zero=False)
+    return prepare_pvalue_data(result, p_col, "eqtl")
 
 
 def get_eqtl_genes(df: pd.DataFrame, gene_col: str = "gene") -> List[str]:
@@ -160,7 +148,15 @@ def _overlap_coordinates(
     common_chrom: int | str | None,
 ) -> pd.DataFrame:
     """Resolve each input to coordinate and p-value roles before joining."""
-    validate_eqtl_df(df, pos_col=pos_col, p_col=p_col)
+    check(
+        df,
+        ColumnSpec(
+            name="eQTL DataFrame",
+            required=(pos_col, p_col),
+            numeric=(p_col,),
+            error_class=EQTLValidationError,
+        ),
+    )
     positions = pd.to_numeric(df[pos_col], errors="coerce")
     if (
         df[pos_col].map(lambda value: isinstance(value, (bool, np.bool_))).any()

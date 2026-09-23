@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
+from pylocuszoom import DisplayConfig, LDConfig, LDHeatmapInput, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
-from pylocuszoom.exceptions import PlinkError
+from pylocuszoom.exceptions import PlinkError, ValidationError
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
 from tests.figure_probes import PROBES
@@ -208,7 +208,9 @@ class TestLDHeatmapIntegration:
             start=999000,
             end=1003000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         # Should have at least 2 axes (association + heatmap)
@@ -227,7 +229,9 @@ class TestLDHeatmapIntegration:
             start=999000,
             end=1003000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         # Verify the heatmap panel exists and has correct x-axis range
@@ -256,8 +260,7 @@ class TestLDHeatmapIntegration:
             display=DisplayConfig(show_recombination=False),
             panels=PanelInputs(
                 genes_df=heatmap_genes_df,
-                ld_heatmap_df=ld_matrix,
-                ld_heatmap_snp_ids=snp_ids,
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids),
             ),
         )
 
@@ -278,7 +281,9 @@ class TestLDHeatmapIntegration:
             start=1000000,
             end=1001000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         (image,) = fig.get_axes()[1].collections
@@ -304,7 +309,9 @@ class TestLDHeatmapIntegration:
                 start=5000000,
                 end=6000000,
                 display=DisplayConfig(show_recombination=False),
-                panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+                panels=PanelInputs(
+                    ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+                ),
             )
 
     def test_ld_heatmap_height_parameter(
@@ -321,9 +328,7 @@ class TestLDHeatmapIntegration:
             end=1003000,
             display=DisplayConfig(show_recombination=False),
             panels=PanelInputs(
-                ld_heatmap_df=ld_matrix,
-                ld_heatmap_snp_ids=snp_ids,
-                ld_heatmap_height=0.1,
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids, height=0.1)
             ),
         )
 
@@ -334,9 +339,7 @@ class TestLDHeatmapIntegration:
             end=1003000,
             display=DisplayConfig(show_recombination=False),
             panels=PanelInputs(
-                ld_heatmap_df=ld_matrix,
-                ld_heatmap_snp_ids=snp_ids,
-                ld_heatmap_height=0.5,
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids, height=0.5)
             ),
         )
 
@@ -357,7 +360,9 @@ class TestLDHeatmapIntegration:
             end=1003000,
             display=DisplayConfig(show_recombination=False),
             ld=LDConfig(lead_pos=1000000),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         highlights = fig.get_axes()[1].patches
@@ -380,7 +385,9 @@ class TestLDHeatmapIntegration:
             start=999000,
             end=1003000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend_name])
@@ -413,7 +420,9 @@ class TestLDHeatmapIntegration:
             start=999999,
             end=1000001,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         association, heatmap = fig.get_axes()
@@ -450,7 +459,9 @@ class TestLDHeatmapIntegration:
             end=1003000,
             display=DisplayConfig(show_recombination=False),
             ld=LDConfig(lead_pos=1000100),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids)
+            ),
         )
 
         heatmap = fig.get_axes()[1]
@@ -460,19 +471,11 @@ class TestLDHeatmapIntegration:
     def test_ld_heatmap_missing_snp_ids_raises_error(
         self, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """Test that providing ld_heatmap_df without ld_heatmap_snp_ids raises error."""
+        """An LD matrix cannot be given without the SNP ids that place it."""
         ld_matrix, _ = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
 
-        with pytest.raises(ValueError, match="ld_heatmap_snp_ids is required"):
-            plotter.plot(
-                ld_heatmap_gwas_df,
-                chrom=1,
-                start=999000,
-                end=1003000,
-                display=DisplayConfig(show_recombination=False),
-                panels=PanelInputs(ld_heatmap_df=ld_matrix),
-            )
+        with pytest.raises(ValidationError, match="snp_ids"):
+            LDHeatmapInput(matrix=ld_matrix)
 
 
 class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
@@ -513,7 +516,9 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
             display=DisplayConfig(show_recombination=False),
             ld=LDConfig(lead_pos=1000000),
             panels=PanelInputs(
-                ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=list(ld_matrix.index)
+                ld_heatmap=LDHeatmapInput(
+                    matrix=ld_matrix, snp_ids=list(ld_matrix.index)
+                )
             ),
         )
 
@@ -539,7 +544,12 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
 
 def test_regional_heatmap_sorts_coordinates_and_matrix_together():
     frame = pd.DataFrame(
-        {"pos": [100, 200, 1000], "p_value": [0.1, 0.01, 0.001], "rs": ["a", "b", "c"]}
+        {
+            "chr": 1,
+            "pos": [100, 200, 1000],
+            "p_value": [0.1, 0.01, 0.001],
+            "rs": ["a", "b", "c"],
+        }
     )
     matrix = pd.DataFrame([[0.9, 0.1, 0.2], [0.1, 0.8, 0.3], [0.2, 0.3, 0.7]])
     fig = LocusZoomPlotter(species=None, backend="bokeh", log_level=None).plot(
@@ -548,7 +558,9 @@ def test_regional_heatmap_sorts_coordinates_and_matrix_together():
         start=1,
         end=1500,
         display=DisplayConfig(show_recombination=False, snp_labels=False),
-        panels=PanelInputs(ld_heatmap_df=matrix, ld_heatmap_snp_ids=["c", "a", "b"]),
+        panels=PanelInputs(
+            ld_heatmap=LDHeatmapInput(matrix=matrix, snp_ids=["c", "a", "b"])
+        ),
     )
     cells = fig.children[-1].renderers[0].data_source.data
     bounds = [(x - w / 2, x + w / 2) for x, w in zip(cells["x"], cells["w"])]
@@ -564,7 +576,9 @@ def test_regional_heatmap_sorts_coordinates_and_matrix_together():
 
 
 def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
-    frame = pd.DataFrame({"pos": [150, 150], "p_value": [0.1, 0.01], "rs": ["a", "b"]})
+    frame = pd.DataFrame(
+        {"chr": 1, "pos": [150, 150], "p_value": [0.1, 0.01], "rs": ["a", "b"]}
+    )
     with pytest.raises(ValueError, match="distinct genomic positions"):
         LocusZoomPlotter(species=None, log_level=None).plot(
             frame,
@@ -573,7 +587,9 @@ def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
             end=200,
             display=DisplayConfig(show_recombination=False, snp_labels=False),
             panels=PanelInputs(
-                ld_heatmap_df=pd.DataFrame(np.eye(2)), ld_heatmap_snp_ids=["a", "b"]
+                ld_heatmap=LDHeatmapInput(
+                    matrix=pd.DataFrame(np.eye(2)), snp_ids=["a", "b"]
+                )
             ),
         )
 
@@ -581,6 +597,7 @@ def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
 def test_heatmap_highlights_selected_variant_at_duplicate_source_position():
     frame = pd.DataFrame(
         {
+            "chr": 1,
             "pos": [150, 150, 250],
             "p_value": [0.1, 1e-8, 0.001],
             "rs": ["weak", "strong", "other"],
@@ -593,8 +610,9 @@ def test_heatmap_highlights_selected_variant_at_duplicate_source_position():
         end=300,
         display=DisplayConfig(show_recombination=False, snp_labels=False),
         panels=PanelInputs(
-            ld_heatmap_df=pd.DataFrame(np.eye(2)),
-            ld_heatmap_snp_ids=["other", "strong"],
+            ld_heatmap=LDHeatmapInput(
+                matrix=pd.DataFrame(np.eye(2)), snp_ids=["other", "strong"]
+            )
         ),
     )
     outlines = fig.axes[1].patches
@@ -609,6 +627,7 @@ def test_regional_colorbar_preserves_genomic_display_alignment(
 ):
     frame = pd.DataFrame(
         {
+            "chr": 1,
             "pos": [1_100_000, 1_200_000, 1_900_000],
             "p_value": [0.1, 0.01, 0.001],
             "rs": ["a", "b", "c"],
@@ -621,10 +640,11 @@ def test_regional_colorbar_preserves_genomic_display_alignment(
         end=2_000_000,
         display=DisplayConfig(show_recombination=with_recombination, snp_labels=False),
         panels=PanelInputs(
-            ld_heatmap_df=pd.DataFrame(np.eye(3)),
-            ld_heatmap_snp_ids=["a", "b", "c"],
             genes_df=sample_genes_df if with_genes else None,
             recomb_df=sample_recomb_df if with_recombination else None,
+            ld_heatmap=LDHeatmapInput(
+                matrix=pd.DataFrame(np.eye(3)), snp_ids=["a", "b", "c"]
+            ),
         ),
     )
     fig.canvas.draw()
@@ -647,29 +667,49 @@ class TestPlotEdgeCases:
         """Create plotter instance."""
         return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
 
-    def test_plot_skips_ld_when_rs_col_missing(
-        self, mock_plink_plotter, warning_records
-    ):
-        """LD needs SNP IDs, so a frame without rs_col plots uncoloured.
+    def test_plot_requires_rs_for_reference_ld(self, mock_plink_plotter):
+        """LD from a fileset joins on SNP ids, so a frame without them raises.
 
-        The alternative, a KeyError from deep inside the LD merge, tells the
-        caller nothing about which column is missing.
+        It used to draw every point grey with only a log line, the same
+        picture as "no LD structure".
         """
         df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1100000, 1500000, 1900000],
                 "p_value": [1e-8, 1e-5, 1e-3],
             }
         )
 
-        fig = mock_plink_plotter.plot(
-            df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            display=DisplayConfig(show_recombination=False),
-            ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
-        )
+        with pytest.raises(ValidationError, match="ld_reference_file.*'rs'"):
+            mock_plink_plotter.plot(
+                df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
+            )
 
-        assert fig.get_axes()[0].get_legend() is None
-        assert any("rs" in message for message in warning_records)
+    @pytest.mark.parametrize("method", ["plot", "plot_stacked"])
+    def test_plot_rejects_absent_ld_col(self, mock_plink_plotter, method):
+        """A misspelt ld_col used to draw every point grey without a word."""
+        df = pd.DataFrame(
+            {
+                "chr": 1,
+                "pos": [1100000, 1500000],
+                "p_value": [1e-8, 1e-5],
+                "R2": [1.0, 0.5],
+            }
+        )
+        frames = df if method == "plot" else [df]
+
+        with pytest.raises(ValidationError, match="ld_col='r2_typo'"):
+            getattr(mock_plink_plotter, method)(
+                frames,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(ld_col="r2_typo"),
+            )

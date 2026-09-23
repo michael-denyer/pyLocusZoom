@@ -7,7 +7,7 @@ import pandas as pd
 from scipy import stats
 
 from ._data import prepare_pvalue_data
-from .config import GenomeWideConfig, resolve_deprecated_columns
+from .exceptions import ValidationError
 from .schemas import Canonical
 
 
@@ -99,18 +99,15 @@ def prepare_qq_data(
         The quantile frame and its statistics.
 
     Raises:
-        ValueError: If ``p_col`` is missing or no p-value lies in ``(0, 1]``.
+        ValidationError: If ``p_col`` is missing or no p-value lies in ``(0, 1]``.
     """
-    p_col = resolve_deprecated_columns(
-        df, GenomeWideConfig(p_col=p_col), fields=("p_col",)
-    ).p_col
     if p_col not in df.columns:
-        raise ValueError(f"Column '{p_col}' not found in DataFrame")
+        raise ValidationError(f"Column '{p_col}' not found in DataFrame")
 
     prepared = prepare_pvalue_data(
         df,
         p_col,
-        allow_zero=False,
+        "qq",
         on_empty="No valid p-values found (must be > 0 and <= 1)",
     )
     p_valid = pd.to_numeric(prepared[p_col]).to_numpy()

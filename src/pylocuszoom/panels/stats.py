@@ -17,20 +17,20 @@ UNCATEGORISED = "Uncategorised"
 
 
 def _phewas_groups(
-    df: pd.DataFrame, category_col: str, p_col: str
+    df: pd.DataFrame, category_col: Optional[str], p_col: str
 ) -> Tuple[pd.DataFrame, dict[str, str]]:
     """Assign every PheWAS row a drawing group and give each group a colour.
 
     Args:
         df: Validated PheWAS results.
-        category_col: Column naming each phenotype's category, absent from the
-            frame when the caller supplied none.
+        category_col: Column naming each phenotype's category, or None when
+            the frame carries none.
         p_col: Column name for p-value.
 
     Returns:
         A sorted copy carrying ``_group``, and one hex colour per group.
     """
-    if category_col in df.columns:
+    if category_col is not None:
         df = df.sort_values([category_col, p_col]).copy()
         df["_group"] = df[category_col].fillna(UNCATEGORISED)
         return df, get_phewas_category_palette(df["_group"].unique().tolist())
@@ -51,7 +51,7 @@ def _effect_subsets(
     Returns:
         One (row mask, marker) pair per shape.
     """
-    if effect_col and effect_col in data.columns:
+    if effect_col is not None:
         effects = data[effect_col]
         return [(effects.isna(), "o"), (effects >= 0, "^"), (effects < 0, "v")]
     return [(pd.Series(True, index=data.index), "o")]
@@ -80,7 +80,7 @@ class PhewasPanel:
         variant_id: str,
         phenotype_col: str,
         p_col: str,
-        category_col: str,
+        category_col: Optional[str],
         effect_col: Optional[str],
         significance_threshold: Optional[float],
     ) -> "PhewasPanel":
@@ -162,7 +162,7 @@ class ForestPanel:
         """Lay out a validated forest frame and size its markers by weight."""
         data = df.copy()
         data["y_pos"] = range(len(data) - 1, -1, -1)
-        if weight_col and weight_col in data.columns:
+        if weight_col is not None:
             weights = data[weight_col]
             weight_range = weights.max() - weights.min()
             sizes = (

@@ -28,13 +28,17 @@ from ._shared import REGIONAL_LINE_ALPHA
 
 
 def hover_for_association(
-    data: pd.DataFrame, columns: ColumnConfig, ld_col: Optional[str]
+    columns: ColumnConfig, snp_col: Optional[str], ld_col: Optional[str]
 ) -> HoverConfig:
-    """Resolve the association hover contract against a prepared frame."""
+    """Build the association hover contract from resolved column roles.
+
+    ``snp_col`` is the SNP id column, or None when the frame carries none;
+    it is also the column the SNP labels read.
+    """
     return HoverConfig(
-        snp_col=columns.rs_col if columns.rs_col in data.columns else None,
-        pos_col=columns.pos_col if columns.pos_col in data.columns else None,
-        p_col=columns.p_col if columns.p_col in data.columns else None,
+        snp_col=snp_col,
+        pos_col=columns.pos_col,
+        p_col=columns.p_col,
         ld_col=ld_col,
     )
 
@@ -44,7 +48,8 @@ class AssociationPanel:
     """Prepared association panel and its presentation policy.
 
     ``data`` already carries ``neglog10p`` and any merged LD column.
-    ``ld_col`` is a column of ``data`` whenever it is not None.
+    ``ld_col`` and ``hover.snp_col`` are columns of ``data`` whenever they
+    are not None.
     """
 
     data: pd.DataFrame
@@ -75,9 +80,10 @@ class AssociationPanel:
             backend.set_ylim(ax, 0, y_max * 1.15)
         backend.set_xlim(ax, start, end)
 
+        snp_col = self.hover.snp_col
         if (
             self.display.snp_labels
-            and columns.rs_col in df.columns
+            and snp_col is not None
             and self.display.label_top_n > 0
             and not df.empty
             and isinstance(backend, SupportsSNPLabels)
@@ -92,7 +98,7 @@ class AssociationPanel:
                 ),
                 pos_col=columns.pos_col,
                 neglog10p_col="neglog10p",
-                rs_col=columns.rs_col,
+                rs_col=snp_col,
                 label_top_n=self.display.label_top_n,
                 adjust=True,
             )

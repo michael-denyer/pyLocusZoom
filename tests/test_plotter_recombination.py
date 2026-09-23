@@ -21,7 +21,9 @@ class TestLocusZoomPlotterRecombination:
             end=2000000,
             display=DisplayConfig(snp_labels=False),
         )
-        gwas_df = pd.DataFrame({"pos": [1100000, 1900000], "p_value": [1e-8, 1e-3]})
+        gwas_df = pd.DataFrame(
+            {"chr": 1, "pos": [1100000, 1900000], "p_value": [1e-8, 1e-3]}
+        )
 
         def recomb_rates(fig):
             (line,) = fig.axes[1].get_lines()

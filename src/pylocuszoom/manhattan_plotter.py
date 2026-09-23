@@ -20,6 +20,7 @@ from ._plotter_utils import (
 )
 from .backends import BackendType, get_backend
 from .config import GenomeWideConfig, GenomeWideStyle
+from .exceptions import ValidationError
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
 from .panels.manhattan import (
     categorical_spec,
@@ -275,13 +276,7 @@ class ManhattanPlotter:
         )
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
-            raise ValueError("At least one GWAS DataFrame required")
-
-        if panel_labels is not None and len(panel_labels) != n_gwas:
-            raise ValueError(
-                f"panel_labels length ({len(panel_labels)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
+            raise ValidationError("At least one GWAS DataFrame required")
 
         prepared = prepare_genomewide_frames(
             gwas_dfs, config, species=self.species, style=style
@@ -441,7 +436,7 @@ class ManhattanPlotter:
         )
         n_gwas = len(gwas_dfs)
         if n_gwas == 0:
-            raise ValueError("At least one GWAS DataFrame required")
+            raise ValidationError("At least one GWAS DataFrame required")
 
         manhattans = prepare_genomewide_frames(
             gwas_dfs, config, species=self.species, style=style

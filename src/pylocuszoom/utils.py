@@ -82,7 +82,7 @@ def to_pandas(
         pandas DataFrame.
 
     Raises:
-        TypeError: If df is not a supported DataFrame type.
+        ValidationError: If df is not a supported DataFrame type.
 
     Example:
         >>> # PySpark DataFrame
@@ -107,7 +107,7 @@ def to_pandas(
     if hasattr(df, "toPandas"):
         return df.toPandas()
 
-    raise TypeError(
+    raise ValidationError(
         f"Unsupported DataFrame type: {type(df).__name__}. "
         f"Expected pandas.DataFrame or pyspark.sql.DataFrame"
     )
@@ -144,8 +144,12 @@ def assembly_token(name: str) -> str:
     return ASSEMBLY_SYNONYMS.get(token, token)
 
 
+# A leading "chr" in any case; one later in the name (chrUn_chr5) is kept.
+_CHR_PREFIX = re.compile(r"^chr", re.IGNORECASE)
+
+
 def normalize_chrom(chrom: Union[int, str]) -> str:
-    """Normalize chromosome identifier by removing 'chr' prefix.
+    """Normalize chromosome identifier by removing a leading 'chr', in any case.
 
     Args:
         chrom: Chromosome as integer (1, 2, ...) or string ("chr1", "1").
@@ -160,12 +164,14 @@ def normalize_chrom(chrom: Union[int, str]) -> str:
         '1'
         >>> normalize_chrom("chrX")
         'X'
+        >>> normalize_chrom("Chr1")
+        '1'
     """
-    return str(chrom).replace("chr", "")
+    return _CHR_PREFIX.sub("", str(chrom))
 
 
 def normalize_chrom_series(chroms: pd.Series) -> pd.Series:
-    """Normalize a column of chromosome identifiers by removing the 'chr' prefix.
+    """Normalize a column of chromosome identifiers by removing a 'chr' prefix.
 
     The frame-level companion to :func:`normalize_chrom`, so a column of mixed
     integer and ``"chr1"`` spellings compares equal to a normalized scalar.
@@ -188,7 +194,7 @@ def normalize_chrom_series(chroms: pd.Series) -> pd.Series:
         integral = chroms.notna() & (chroms % 1 == 0)
         as_int = chroms.where(integral, 0).astype("int64").astype(str)
         text = text.mask(integral, as_int)
-    return text.str.replace("chr", "", regex=False)
+    return text.str.replace(_CHR_PREFIX, "", regex=True)
 
 
 def filter_by_region(
@@ -199,22 +205,22 @@ def filter_by_region(
 ) -> pd.DataFrame:
     """Filter DataFrame to genomic region with inclusive bounds.
 
-    Filters rows where position is within [start, end] (inclusive).
-    If chrom_col exists in DataFrame, also filters by chromosome.
-    Chromosome comparison normalizes types (int/str, chr prefix).
+    Filters rows where position is within [start, end] (inclusive) and the
+    chromosome matches, compared through :func:`normalize_chrom_series`.
 
     Args:
         df: DataFrame to filter.
         region: Tuple of (chrom, start, end) defining the region.
-        chrom_col: Column name for chromosome (default: "chr"). None, or a
-            name the frame does not carry, filters by position only.
+        chrom_col: Column name for chromosome (default: "chr"). None selects
+            by position only, for a frame already scoped to one chromosome.
         pos_col: Column name for position (default: "pos").
 
     Returns:
         Filtered DataFrame (copy, not view).
 
     Raises:
-        ValidationError: If pos_col is not found in DataFrame.
+        ValidationError: If pos_col, or chrom_col when not None, is not found
+            in DataFrame.
 
     Example:
         >>> filtered = filter_by_region(df, region=(1, 1000000, 2000000))
@@ -232,8 +238,13 @@ def filter_by_region(
     # Position filtering (inclusive bounds)
     mask = (df[pos_col] >= start) & (df[pos_col] <= end)
 
-    # Chromosome filtering (if column exists)
-    if chrom_col is not None and chrom_col in df.columns:
+    if chrom_col is not None:
+        if chrom_col not in df.columns:
+            raise ValidationError(
+                f"Chromosome column '{chrom_col}' not found in DataFrame. "
+                f"Available columns: {list(df.columns)}. Pass chrom_col=None "
+                "to select by position only."
+            )
         mask = mask & (normalize_chrom_series(df[chrom_col]) == normalize_chrom(chrom))
 
     return df[mask].copy()

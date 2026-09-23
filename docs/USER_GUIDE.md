@@ -83,6 +83,7 @@ from pylocuszoom import LDConfig, LocusZoomPlotter
 
 # Sample GWAS data
 gwas_df = pd.DataFrame({
+    "chr": [1] * 5,
     "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
     "p_value": [0.05, 1e-4, 1e-8, 1e-6, 0.01],
     "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
@@ -179,23 +180,24 @@ Add expression QTL data as a separate panel below GWAS results.
 ![eQTL overlay](../examples/matplotlib/eqtl_overlay.png)
 
 ```python
-eqtl_df = pd.DataFrame({
-    "pos": [1000500, 1001200, 1002000],
-    "p_value": [1e-6, 1e-4, 0.01],
-    "gene": ["BRCA1", "BRCA1", "BRCA1"],
-    "effect_size": [0.5, -0.3, 0.1],  # Optional: colors by effect direction
-})
+from pylocuszoom import EqtlInput
+
+eqtl_df = pd.DataFrame(
+    {
+        "chr": [1] * 3,
+        "pos": [1000500, 1001200, 1002000],
+        "p_value": [1e-6, 1e-4, 0.01],
+        "gene": ["BRCA1", "BRCA1", "BRCA1"],
+        "effect_size": [0.5, -0.3, 0.1],  # Optional: colors by effect direction
+    }
+)
 
 fig = plotter.plot_stacked(
     [gwas_df],
     chrom=1,
     start=1000000,
     end=2000000,
-    panels=PanelInputs(
-        eqtl_df=eqtl_df,
-        eqtl_gene="BRCA1",  # Filter to specific gene
-        genes_df=genes_df,
-    ),
+    panels=PanelInputs(genes_df=genes_df, eqtl=EqtlInput(data=eqtl_df, gene="BRCA1")),
 )
 ```
 
@@ -212,11 +214,16 @@ Visualize SuSiE or other fine-mapping results with credible set coloring.
 ![Fine-mapping plot](../examples/matplotlib/finemapping_plot.png)
 
 ```python
-finemapping_df = pd.DataFrame({
-    "pos": [1000500, 1001200, 1002000, 1003500],
-    "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
-    "cs": [1, 1, 0, 2],               # Credible set (0 = not in CS)
-})
+from pylocuszoom import FinemappingInput
+
+finemapping_df = pd.DataFrame(
+    {
+        "chr": [1] * 4,
+        "pos": [1000500, 1001200, 1002000, 1003500],
+        "pip": [0.85, 0.12, 0.02, 0.45],  # Posterior inclusion probability
+        "cs": [1, 1, 0, 2],  # Credible set (0 = not in CS)
+    }
+)
 
 fig = plotter.plot_stacked(
     [gwas_df],
@@ -224,9 +231,8 @@ fig = plotter.plot_stacked(
     start=1000000,
     end=2000000,
     panels=PanelInputs(
-        finemapping_df=finemapping_df,
-        finemapping_cs_col="cs",
         genes_df=genes_df,
+        finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
 ```
@@ -274,6 +280,8 @@ Add an LD heatmap panel below a regional association plot:
 ![Regional plot with LD heatmap](../examples/matplotlib/regional_with_ld_heatmap.png)
 
 ```python
+from pylocuszoom import LDHeatmapInput
+
 plotter = LocusZoomPlotter(species="canine")
 
 fig = plotter.plot(
@@ -283,9 +291,7 @@ fig = plotter.plot(
     end=2000000,
     ld=LDConfig(lead_pos=1500000),
     panels=PanelInputs(
-        ld_heatmap_df=ld_matrix,     # Pairwise LD matrix
-        ld_heatmap_snp_ids=snp_ids,  # SNP IDs in matrix
-        ld_heatmap_height=0.25,      # Panel height ratio
+        ld_heatmap=LDHeatmapInput(matrix=ld_matrix, snp_ids=snp_ids, height=0.25)
     ),
 )
 ```
@@ -916,6 +922,7 @@ fig = plotter.plot(
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `chrom_col` | str or None | `"chr"` | Chromosome column name in gwas_df. A frame without it raises; `None` selects the region by position only, for a frame already scoped to the region's chromosome. |
 | `pos_col` | str | `"pos"` | Position column name in gwas_df. |
 | `p_col` | str | `"p_value"` | P-value column name in gwas_df. |
 | `rs_col` | str | `"rs"` | SNP ID column name in gwas_df. |
@@ -992,17 +999,14 @@ annotations keep their own sizes.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `genes_df` | DataFrame | None | Gene annotations for track. |
-| `exons_df` | DataFrame | None | Exon annotations for gene structure. |
+| `exons_df` | DataFrame | None | Exon annotations for gene structure; needs `chr`, `start`, `end` and `gene_name`. |
 | `recomb_df` | DataFrame | None | Custom recombination rate data. |
-| `eqtl_df` | DataFrame | None | eQTL data for additional panel. |
-| `eqtl_gene` | str | None | Filter eQTL to specific gene; requires a `gene` column. |
-| `eqtl_threshold` | float | `1e-5` | eQTL significance line. |
-| `finemapping_df` | DataFrame | None | Fine-mapping results with `pos` and `pip`. |
-| `finemapping_cs_col` | str | `"cs"` | Column for credible set assignment. |
-| `ld_heatmap_df` | DataFrame | None | Pairwise LD matrix; adds heatmap panel when supplied. |
-| `ld_heatmap_snp_ids` | list | None | Required when `ld_heatmap_df` is set. Ids must match the GWAS SNP id column, and at least one must fall inside the region, or the call raises. |
-| `ld_heatmap_height` | float | `0.25` | Heatmap panel height ratio. |
-| `ld_heatmap_metric` | str | `"r2"` | `"r2"` or `"dprime"`. |
+| `eqtl` | `EqtlInput` | None | The eQTL panel: `data`, `gene` (exact match on a `gene` column), `threshold` in (0, 1] (default `1e-5`), and `chrom_col` (default `"chr"`, `None` for position only). |
+| `finemapping` | `FinemappingInput` | None | The fine-mapping panel: `data` with `pos` and `pip`, `cs_col` (default `"cs"`, which may be absent; another name must exist; `None` for no credible sets), and `chrom_col`. |
+| `ld_heatmap` | `LDHeatmapInput` | None | The LD heatmap panel: `matrix`, `snp_ids` (required; ids must match the GWAS SNP id column, and at least one must fall inside the region, or the call raises), `height` (> 0, default `0.25`) and `metric` (`"r2"` or `"dprime"`). |
+
+Every frame, including the ones inside the three panel models, also accepts a
+PySpark DataFrame.
 
 ### plot_stacked() Method
 
@@ -1071,13 +1075,8 @@ from pylocuszoom import load_gwas, load_plink_assoc, load_regenie
 # Auto-detect format from filename extension
 gwas_df = load_gwas("results.assoc.linear")
 
-# Or use specific loader with custom column names
-gwas_df = load_plink_assoc(
-    "results.assoc",
-    pos_col="position",  # Rename output column
-    p_col="pvalue",
-    rs_col="snp_id",
-)
+# Or use a specific loader; rename after loading if you want other names
+gwas_df = load_plink_assoc("results.assoc").rename(columns={"pos": "position"})
 
 # REGENIE (handles LOG10P conversion automatically)
 gwas_df = load_regenie("ukb_chr1.regenie")
@@ -1126,7 +1125,7 @@ finds significant coordinate matches; it does not perform statistical colocaliza
 | `load_polyfun()` | PolyFun | PolyFun+SuSiE output |
 
 ```python
-from pylocuszoom import load_susie, load_finemap
+from pylocuszoom import FinemappingInput, load_finemap, load_susie
 
 # SuSiE results (handles credible set standardization)
 fm_df = load_susie("susie_results.tsv")
@@ -1138,8 +1137,10 @@ fm_df = load_finemap("finemap_output.snp")
 # Use in plot
 fig = plotter.plot_stacked(
     [gwas_df],
-    chrom=1, start=1e6, end=2e6,
-    panels=PanelInputs(finemapping_df=fm_df),
+    chrom=1,
+    start=1e6,
+    end=2e6,
+    panels=PanelInputs(finemapping=FinemappingInput(data=fm_df)),
 )
 ```
 
@@ -1191,15 +1192,16 @@ fig = plotter.plot(
 | `rs` | str | For LD/labels | SNP identifier. |
 
 These are the canonical column names: every `load_*` function emits them and
-every plotter defaults to them, so a loaded frame plots without renaming. A
-frame still carrying the pre-4.0 `ps` and `p_wald` names is accepted with a
-`DeprecationWarning` until 5.0.0. Other names are supported through
+every plotter defaults to them, so a loaded frame plots without renaming.
+Other names, including the pre-4.0 `ps` and `p_wald`, are named through
 `ColumnConfig` and `GenomeWideConfig`.
 
 Regional plots select chromosome and inclusive position bounds before choosing a
-lead, scaling axes, labeling points or calculating LD. A frame without `chr` is
-assumed to contain only the requested chromosome. In stacks, shared `LDConfig`
-values apply to every panel unless a per-panel list overrides them. A lead
+lead, scaling axes, labeling points or calculating LD. A frame without the
+`chrom_col` column raises; pass `ColumnConfig(chrom_col=None)` for a frame that
+already holds only the requested chromosome. In stacks, shared `LDConfig`
+values apply to every panel unless a per-panel list overrides them, and every
+panel computing LD from a reference fileset needs a lead position. A lead
 position shared by multiple variants selects the strongest p-value at that
 position, with input order breaking ties. That selected row also defines label
 eligibility; nearby non-lead variants are excluded before ranking labels.
@@ -1679,7 +1681,7 @@ here means a major release, with a CHANGELOG entry and a migration note.
 | Group | Names |
 |-------|-------|
 | Plotters | `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, `StatsPlotter`, `LDHeatmapPlotter`, `ColocPlotter` |
-| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `GenomeWideStyle`, `LDConfig`, `LiftoverConfig`, `PanelInputs` |
+| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `GenomeWideStyle`, `LDConfig`, `LiftoverConfig`, `PanelInputs`, `EqtlInput`, `FinemappingInput`, `LDHeatmapInput` |
 | Column vocabulary | `Canonical` |
 | GWAS loaders | `load_gwas`, `load_plink_assoc`, `load_regenie`, `load_bolt_lmm`, `load_gemma`, `load_saige`, `load_gwas_catalog` |
 | eQTL loaders | `load_gtex_eqtl`, `load_eqtl_catalogue`, `load_matrixeqtl` |
@@ -1707,9 +1709,8 @@ do, and open an issue so the name can be promoted to core.
 | Gene reference routing | `get_genes_for_build`, `source_for`, `clear_gene_cache`, `get_ensembl_species_name` |
 | Recombination maps | `download_canine_recombination_maps`, `ensure_recomb_maps`, `get_recombination_rate_for_region`, `load_recombination_map`, `recomb_for_region`, `RecombResult`, `RecombStatus` |
 | Liftover | `CoordinateLifter`, `liftover_region`, `RegionLiftResult` |
-| eQTL helpers | `validate_eqtl_df`, `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
-| Fine-mapping helpers | `validate_finemapping_df`, `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |
-| Frame validators | `validate_gwas_df`, `validate_genes_df`, `validate_phewas_df`, `validate_forest_df` |
+| eQTL helpers | `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
+| Fine-mapping helpers | `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |
 | DataFrame helpers | `to_pandas` |
 
 ---

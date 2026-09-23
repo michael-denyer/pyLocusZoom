@@ -16,7 +16,10 @@ import pandas as pd
 from pylocuszoom import (
     ColocPlotter,
     DisplayConfig,
+    EqtlInput,
+    FinemappingInput,
     LDConfig,
+    LDHeatmapInput,
     LocusZoomPlotter,
     ManhattanPlotter,
     MiamiPlotter,
@@ -98,6 +101,7 @@ ld_values = generate_ld_values(positions, peak_center)
 
 gwas_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": positions,
         "p_value": p_values,
         "rs": [f"rs{i}" for i in range(n_snps)],
@@ -237,6 +241,7 @@ recomb_ld_values = generate_ld_values(recomb_positions, recomb_peak_center)
 
 recomb_gwas_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": recomb_positions,
         "p_value": recomb_p_values,
         "rs": [f"rs{i}" for i in range(n_snps)],
@@ -433,6 +438,7 @@ print("   Saved: examples/matplotlib/stacked_plot.png")
 print("4. eQTL overlay plot...")
 eqtl_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": [
             1_410_000,  # Upstream of SLC25A
             1_435_000,
@@ -501,7 +507,9 @@ fig = plotter.plot_stacked(
     display=DisplayConfig(show_recombination=False, label_top_n=1),
     ld=LDConfig(ld_col="ld_r2"),
     panels=PanelInputs(
-        eqtl_df=eqtl_df, eqtl_gene="SLC25A", genes_df=genes_df, exons_df=exons_df
+        genes_df=genes_df,
+        exons_df=exons_df,
+        eqtl=EqtlInput(data=eqtl_df, gene="SLC25A"),
     ),
 )
 fig.savefig("examples/matplotlib/eqtl_overlay.png", dpi=150, bbox_inches="tight")
@@ -572,6 +580,7 @@ for i in range(n_snps):
 
 finemapping_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": finemapping_positions,
         "pip": pip_values,
         "cs": cs_assignments,
@@ -588,10 +597,9 @@ fig = plotter.plot_stacked(
     display=DisplayConfig(show_recombination=False, label_top_n=1),
     ld=LDConfig(ld_col="ld_r2"),
     panels=PanelInputs(
-        finemapping_df=finemapping_df,
-        finemapping_cs_col="cs",
         genes_df=genes_df,
         exons_df=exons_df,
+        finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
 fig.savefig("examples/matplotlib/finemapping_plot.png", dpi=150, bbox_inches="tight")
@@ -623,7 +631,9 @@ fig = plotly_plotter.plot_stacked(
     display=DisplayConfig(show_recombination=False),
     ld=LDConfig(ld_col="ld_r2"),
     panels=PanelInputs(
-        eqtl_df=eqtl_df, eqtl_gene="SLC25A", genes_df=genes_df, exons_df=exons_df
+        genes_df=genes_df,
+        exons_df=exons_df,
+        eqtl=EqtlInput(data=eqtl_df, gene="SLC25A"),
     ),
 )
 fig.write_html("examples/plotly/eqtl_plotly.html")
@@ -640,10 +650,9 @@ fig = plotly_plotter.plot_stacked(
     display=DisplayConfig(show_recombination=False),
     ld=LDConfig(ld_col="ld_r2"),
     panels=PanelInputs(
-        finemapping_df=finemapping_df,
-        finemapping_cs_col="cs",
         genes_df=genes_df,
         exons_df=exons_df,
+        finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
 fig.write_html("examples/plotly/finemapping_plotly.html")
@@ -678,7 +687,9 @@ fig = bokeh_plotter.plot_stacked(
     display=DisplayConfig(show_recombination=False),
     ld=LDConfig(ld_col="ld_r2"),
     panels=PanelInputs(
-        eqtl_df=eqtl_df, eqtl_gene="SLC25A", genes_df=genes_df, exons_df=exons_df
+        genes_df=genes_df,
+        exons_df=exons_df,
+        eqtl=EqtlInput(data=eqtl_df, gene="SLC25A"),
     ),
 )
 output_file("examples/bokeh/eqtl_bokeh.html")
@@ -696,10 +707,9 @@ fig = bokeh_plotter.plot_stacked(
     display=DisplayConfig(show_recombination=False),
     ld=LDConfig(ld_col="ld_r2"),
     panels=PanelInputs(
-        finemapping_df=finemapping_df,
-        finemapping_cs_col="cs",
         genes_df=genes_df,
         exons_df=exons_df,
+        finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
 output_file("examples/bokeh/finemapping_bokeh.html")
@@ -1320,6 +1330,7 @@ heatmap_gwas_positions = np.sort(
 )
 heatmap_gwas_df = pd.DataFrame(
     {
+        "chr": 1,
         "pos": heatmap_gwas_positions,
         "p_value": 10 ** np.random.uniform(-10, -1, n_snps_heatmap),
         "rs": heatmap_snp_ids,
@@ -1337,7 +1348,9 @@ fig = plotter.plot(
     start=1_000_000,
     end=2_000_000,
     ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "pos"]), ld_col="ld_r2"),
-    panels=PanelInputs(ld_heatmap_df=ld_matrix_df, ld_heatmap_snp_ids=heatmap_snp_ids),
+    panels=PanelInputs(
+        ld_heatmap=LDHeatmapInput(matrix=ld_matrix_df, snp_ids=heatmap_snp_ids)
+    ),
 )
 fig.savefig(
     "examples/matplotlib/regional_with_ld_heatmap.png", dpi=150, bbox_inches="tight"
@@ -1352,7 +1365,9 @@ fig = plotly_plotter.plot(
     start=1_000_000,
     end=2_000_000,
     ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "pos"]), ld_col="ld_r2"),
-    panels=PanelInputs(ld_heatmap_df=ld_matrix_df, ld_heatmap_snp_ids=heatmap_snp_ids),
+    panels=PanelInputs(
+        ld_heatmap=LDHeatmapInput(matrix=ld_matrix_df, snp_ids=heatmap_snp_ids)
+    ),
 )
 fig.write_html("examples/plotly/regional_with_ld_heatmap_plotly.html")
 print("   Saved: examples/plotly/regional_with_ld_heatmap_plotly.html")
@@ -1365,7 +1380,9 @@ fig = bokeh_plotter.plot(
     start=1_000_000,
     end=2_000_000,
     ld=LDConfig(lead_pos=int(heatmap_gwas_df.loc[5, "pos"]), ld_col="ld_r2"),
-    panels=PanelInputs(ld_heatmap_df=ld_matrix_df, ld_heatmap_snp_ids=heatmap_snp_ids),
+    panels=PanelInputs(
+        ld_heatmap=LDHeatmapInput(matrix=ld_matrix_df, snp_ids=heatmap_snp_ids)
+    ),
 )
 output_file("examples/bokeh/regional_with_ld_heatmap_bokeh.html")
 save(fig)

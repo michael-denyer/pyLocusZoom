@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+from .exceptions import ValidationError
+
 
 def select_label_candidates(
     df: pd.DataFrame,
@@ -25,7 +27,7 @@ def select_label_candidates(
     if lead_pos is None or region_span is None or region_span <= 0:
         return df
     if not 0 <= min_label_distance <= 1:
-        raise ValueError(
+        raise ValidationError(
             f"min_label_distance must be between 0 and 1, got {min_label_distance}"
         )
     is_lead = df[pos_col].eq(lead_pos) if lead_index is None else df.index == lead_index

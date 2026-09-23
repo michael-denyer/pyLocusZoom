@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-from pylocuszoom import DisplayConfig, PanelInputs
+from pylocuszoom import DisplayConfig, FinemappingInput, PanelInputs
 from pylocuszoom.backends.hover import HoverConfig
 from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
 from pylocuszoom.config import RegionConfig
@@ -15,10 +15,11 @@ from pylocuszoom.finemapping import (
     get_credible_sets,
     get_top_pip_variants,
     prepare_finemapping_for_plotting,
-    validate_finemapping_df,
 )
 from pylocuszoom.panels.finemapping import FinemappingPanel
 from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.schemas import finemapping_plot_spec
+from pylocuszoom.validation import check
 
 DRAW_REGION = RegionConfig(chrom=1, start=1, end=1_000_000)
 
@@ -28,6 +29,7 @@ def finemapping_df():
     """Create sample fine-mapping DataFrame."""
     return pd.DataFrame(
         {
+            "chr": 1,
             "pos": [1000, 2000, 3000, 4000, 5000],
             "pip": [0.95, 0.02, 0.8, 0.1, 0.01],
             "cs": [1, 0, 2, 2, 0],
@@ -37,35 +39,35 @@ def finemapping_df():
 
 
 class TestValidateFinemappingDf:
-    """Tests for validate_finemapping_df function."""
+    """Tests for the plot-time fine-mapping contract."""
 
     def test_valid_df(self, finemapping_df):
         """Should not raise for valid DataFrame."""
-        validate_finemapping_df(finemapping_df)
+        check(finemapping_df, finemapping_plot_spec())
 
     def test_missing_pos_col(self, finemapping_df):
         """Should raise for missing position column."""
         df = finemapping_df.drop(columns=["pos"])
         with pytest.raises(FinemappingValidationError, match="Missing columns"):
-            validate_finemapping_df(df)
+            check(df, finemapping_plot_spec())
 
     def test_missing_pip_col(self, finemapping_df):
         """Should raise for missing PIP column."""
         df = finemapping_df.drop(columns=["pip"])
         with pytest.raises(FinemappingValidationError, match="Missing columns"):
-            validate_finemapping_df(df)
+            check(df, finemapping_plot_spec())
 
     def test_invalid_pip_values(self, finemapping_df):
         """Should raise for PIP values outside [0, 1]."""
         df = finemapping_df.copy()
         df.loc[0, "pip"] = 1.5
         with pytest.raises(FinemappingValidationError, match="values > 1"):
-            validate_finemapping_df(df)
+            check(df, finemapping_plot_spec())
 
     def test_custom_column_names(self):
         """Should accept custom column names."""
         df = pd.DataFrame({"position": [1000, 2000], "probability": [0.5, 0.3]})
-        validate_finemapping_df(df, pos_col="position", pip_col="probability")
+        check(df, finemapping_plot_spec(pos_col="position", pip_col="probability"))
 
 
 class TestFilterFinemappingByRegion:
@@ -182,7 +184,7 @@ class TestDrawFinemapping:
     def test_pip_line_carries_the_input_values(self, rendering_axes):
         """PIP values are rendered as a single line on the axes."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
         FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
@@ -196,6 +198,7 @@ class TestDrawFinemapping:
         backend, ax = rendering_axes
         df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1000, 2000, 3000, 4000],
                 "pip": [0.1, 0.5, 0.2, 0.05],
                 "cs": [1, 1, 2, 0],
@@ -214,16 +217,32 @@ class TestDrawFinemapping:
     def test_pip_line_renders_without_a_credible_set_column(self, rendering_axes):
         """PIP line renders even when no credible-set column is provided."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000, 3000], "pip": [0.1, 0.5, 0.2]})
 
         FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
         assert len(ax.get_lines()) >= 1
 
+    def test_default_cs_column_absent_draws_without_sets(self):
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000], "pip": [0.1, 0.5]})
+
+        panel = FinemappingPanel.from_frame(df, DRAW_REGION, "cs")
+
+        assert panel.credible_sets == []
+
+    def test_named_cs_column_absent_raises(self):
+        """A misspelt finemapping_cs_col used to drop the credible sets."""
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000], "pip": [0.1, 0.5]})
+
+        with pytest.raises(FinemappingValidationError, match="cs_col='credset'"):
+            FinemappingPanel.from_frame(df, DRAW_REGION, "credset")
+
     def test_only_points_above_the_pip_threshold_scatter(self, rendering_axes):
         """The panel scatters the variants that clear PIP_SCATTER_THRESHOLD."""
         backend, ax = rendering_axes
-        df = pd.DataFrame({"pos": [1000, 2000, 3000], "pip": [0.005, 0.5, 0.002]})
+        df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000, 3000], "pip": [0.005, 0.5, 0.002]}
+        )
 
         FinemappingPanel.from_frame(df, DRAW_REGION, None).draw(backend, ax)
 
@@ -262,8 +281,12 @@ class TestPlotterDelegation:
         """
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
 
-        gwas_df = pd.DataFrame({"pos": [1000, 2000], "p_value": [0.01, 0.001]})
-        fm_df = pd.DataFrame({"pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]})
+        gwas_df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000], "p_value": [0.01, 0.001]}
+        )
+        fm_df = pd.DataFrame(
+            {"chr": 1, "pos": [1000, 2000], "pip": [0.5, 0.3], "cs": [1, 1]}
+        )
 
         fig = plotter.plot_stacked(
             [gwas_df],
@@ -271,7 +294,7 @@ class TestPlotterDelegation:
             start=1,
             end=3000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(finemapping_df=fm_df),
+            panels=PanelInputs(finemapping=FinemappingInput(data=fm_df)),
         )
 
         pip_axes = [ax for ax in fig.get_axes() if ax.get_ylabel() == "PIP"]
@@ -295,6 +318,7 @@ class TestFinemappingManyCredibleSets:
 
         finemapping_df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": positions,
                 "pip": [0.8 if i % 5 == 0 else 0.1 for i in range(n_variants)],
                 "cs": credible_sets,
@@ -307,7 +331,9 @@ class TestFinemappingManyCredibleSets:
             start=900000,
             end=1700000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(finemapping_df=finemapping_df, finemapping_cs_col="cs"),
+            panels=PanelInputs(
+                finemapping=FinemappingInput(data=finemapping_df, cs_col="cs")
+            ),
         )
 
         pip_ax = fig.get_axes()[1]

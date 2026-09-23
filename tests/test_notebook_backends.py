@@ -10,7 +10,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
+from pylocuszoom import (
+    DisplayConfig,
+    EqtlInput,
+    FinemappingInput,
+    LDConfig,
+    PanelInputs,
+)
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.backends.bokeh_backend import BokehBackend
 from pylocuszoom.backends.composition import lower_triangle
@@ -312,6 +318,7 @@ def sample_eqtl_no_effect_df():
     """Sample eQTL DataFrame without effect sizes."""
     return pd.DataFrame(
         {
+            "chr": 1,
             "pos": [1_200_000, 1_400_000, 1_600_000],
             "p_value": [1e-8, 1e-6, 1e-4],
             "gene": ["GENE_A", "GENE_A", "GENE_A"],
@@ -326,8 +333,7 @@ def eqtl_figure(backend_name, regional_gwas_df, sample_eqtl_df, sample_genes_df)
         backend_name,
         regional_gwas_df,
         sample_genes_df,
-        eqtl_df=sample_eqtl_df,
-        eqtl_gene="GENE_A",
+        eqtl=EqtlInput(data=sample_eqtl_df, gene="GENE_A"),
     )
 
 
@@ -340,7 +346,7 @@ def finemapping_figure(
         backend_name,
         regional_gwas_df,
         sample_genes_df,
-        finemapping_df=sample_finemapping_df,
+        finemapping=FinemappingInput(data=sample_finemapping_df),
     )
 
 
@@ -379,8 +385,7 @@ class TestOptionalPanelMarkers:
             backend_name,
             regional_gwas_df,
             sample_genes_df,
-            eqtl_df=sample_eqtl_no_effect_df,
-            eqtl_gene="GENE_A",
+            eqtl=EqtlInput(data=sample_eqtl_no_effect_df, gene="GENE_A"),
         )
 
         symbols = PROBES[backend_name].marker_symbols(fig)

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
-from pylocuszoom import DisplayConfig, PanelInputs
+from pylocuszoom import DisplayConfig, PanelInputs, ValidationError
 from pylocuszoom._gene_source import GeneAnnotations
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.reference_mocks import (
@@ -13,6 +13,31 @@ from tests.reference_mocks import (
     ok_response,
     refseq_payload,
 )
+
+
+class TestSuppliedExons:
+    def test_malformed_exons_raise_naming_the_frame(
+        self, small_regional_gwas_df, sample_genes_df
+    ):
+        """An exon frame with 'chrom' for 'chr' used to raise a bare KeyError."""
+        exons = pd.DataFrame(
+            {
+                "chrom": [1],
+                "start": [1110000],
+                "end": [1120000],
+                "gene_name": ["GENE_A"],
+            }
+        )
+
+        with pytest.raises(ValidationError, match="(?s)exons_df.*'chr'"):
+            LocusZoomPlotter(species=None, log_level=None).plot(
+                small_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                panels=PanelInputs(genes_df=sample_genes_df, exons_df=exons),
+            )
 
 
 class TestAutoGenes:

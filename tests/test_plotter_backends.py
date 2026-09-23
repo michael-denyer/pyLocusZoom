@@ -5,7 +5,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom import DisplayConfig, PanelInputs
+from pylocuszoom import DisplayConfig, EqtlInput, FinemappingInput, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
@@ -94,6 +94,7 @@ class TestBackendEQTLFinemapping:
         """Sample eQTL DataFrame without effect sizes."""
         return pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1200000, 1400000, 1600000],
                 "p_value": [1e-6, 1e-4, 0.01],
                 "gene": ["GENE1", "GENE1", "GENE1"],
@@ -125,10 +126,11 @@ class TestBackendEQTLFinemapping:
 
         panels = {}
         if eqtl_fixture is not None:
-            panels["eqtl_df"] = request.getfixturevalue(eqtl_fixture)
-            panels["eqtl_gene"] = "GENE1"
+            panels["eqtl"] = EqtlInput(
+                data=request.getfixturevalue(eqtl_fixture), gene="GENE1"
+            )
         if with_finemapping:
-            panels["finemapping_df"] = sample_finemapping_df
+            panels["finemapping"] = FinemappingInput(data=sample_finemapping_df)
 
         fig = plotter.plot_stacked(
             [small_regional_gwas_df],
@@ -155,9 +157,8 @@ class TestBackendEQTLFinemapping:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
             panels=PanelInputs(
-                eqtl_df=sample_eqtl_df,
-                eqtl_gene="GENE1",
-                finemapping_df=sample_finemapping_df,
+                eqtl=EqtlInput(data=sample_eqtl_df, gene="GENE1"),
+                finemapping=FinemappingInput(data=sample_finemapping_df),
             ),
         )
 
@@ -186,7 +187,7 @@ class TestBackendEQTLFinemapping:
             start=1000000,
             end=2000000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(eqtl_df=eqtl_df, eqtl_gene="GENE1"),
+            panels=PanelInputs(eqtl=EqtlInput(data=eqtl_df, gene="GENE1")),
         )
 
         eqtl_ax = fig.get_axes()[1]
@@ -221,7 +222,9 @@ class TestBackendEQTLFinemapping:
                 start=1000000,
                 end=2000000,
                 display=DisplayConfig(show_recombination=False),
-                panels=PanelInputs(eqtl_df=eqtl_df_no_gene_col, eqtl_gene="GENE1"),
+                panels=PanelInputs(
+                    eqtl=EqtlInput(data=eqtl_df_no_gene_col, gene="GENE1")
+                ),
             )
 
     def test_eqtl_zero_pvalue_is_dropped(self, small_regional_gwas_df):
@@ -229,6 +232,7 @@ class TestBackendEQTLFinemapping:
         plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
         eqtl_df = pd.DataFrame(
             {
+                "chr": 1,
                 "pos": [1200000, 1400000, 1600000],
                 "p_value": [1e-6, 0.0, 0.01],
             }
@@ -240,7 +244,7 @@ class TestBackendEQTLFinemapping:
             start=1000000,
             end=2000000,
             display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(eqtl_df=eqtl_df),
+            panels=PanelInputs(eqtl=EqtlInput(data=eqtl_df)),
         )
 
         eqtl_ax = fig.get_axes()[1]

@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom import DisplayConfig
+from pylocuszoom import DisplayConfig, EqtlInput
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.colors import LEAD_SNP_COLOR
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
@@ -38,22 +38,25 @@ def test_eqtl_preparation_uses_the_shared_policy():
         }
     )
     result = prepare_eqtl_for_plotting(raw)
-    expected = prepare_pvalue_data(raw, "p_value")
+    expected = prepare_pvalue_data(raw, "p_value", "eqtl")
     pd.testing.assert_frame_equal(result, expected)
 
 
 @pytest.mark.parametrize(
-    ("entry_point", "allow_zero"),
+    ("entry_point", "family"),
     [
-        (lambda df: prepare_manhattan_frames([df], species="human")[0].frame, True),
-        (lambda df: prepare_categorical_data(df, "category").frame, True),
+        (
+            lambda df: prepare_manhattan_frames([df], species="human")[0].frame,
+            "genome-wide",
+        ),
+        (lambda df: prepare_categorical_data(df, "category").frame, "genome-wide"),
     ],
     ids=["manhattan", "categorical"],
 )
-def test_entry_points_keep_the_same_survivors(entry_point, allow_zero):
+def test_entry_points_keep_the_same_survivors(entry_point, family):
     """Every DataFrame-returning entry point drops the same bad rows."""
     raw = _bad_pvalue_frame()
-    expected = prepare_pvalue_data(raw, "p_value", allow_zero=allow_zero)
+    expected = prepare_pvalue_data(raw, "p_value", family)
 
     result = entry_point(raw)
 
@@ -63,7 +66,7 @@ def test_entry_points_keep_the_same_survivors(entry_point, allow_zero):
 def test_qq_excludes_exact_zero_pvalues():
     """QQ is the one entry point on the strict ``(0, 1]`` domain."""
     raw = _bad_pvalue_frame()
-    expected = prepare_pvalue_data(raw, "p_value", allow_zero=False)
+    expected = prepare_pvalue_data(raw, "p_value", "qq")
 
     result = prepare_qq_data(raw)
 
@@ -187,7 +190,7 @@ class TestPValueValidation:
             }
         )
 
-        result = prepare_pvalue_data(df.copy(), "p_value")
+        result = prepare_pvalue_data(df.copy(), "p_value", "regional")
 
         # Only valid rows (0.001, 0.5) should remain
         assert len(result) == 2
@@ -206,7 +209,7 @@ class TestPValueValidation:
             }
         )
 
-        result = prepare_pvalue_data(df.copy(), "p_value")
+        result = prepare_pvalue_data(df.copy(), "p_value", "regional")
 
         # NaN row filtered out
         assert len(result) == 2
@@ -223,7 +226,7 @@ class TestPValueValidation:
             }
         )
 
-        result = prepare_pvalue_data(df.copy(), "p_value")
+        result = prepare_pvalue_data(df.copy(), "p_value", "regional")
 
         # Clipped to 1e-300, so -log10 is 300 rather than inf
         assert len(result) == 1
@@ -239,7 +242,7 @@ class TestPValueValidation:
             }
         )
 
-        result = prepare_pvalue_data(df.copy(), "p_value")
+        result = prepare_pvalue_data(df.copy(), "p_value", "regional")
 
         assert len(result) == 3
         assert result["neglog10p"].iloc[0] == pytest.approx(3.0)
@@ -304,7 +307,7 @@ class TestPvalueTransformation:
         """Helper creates neglog10p column from p-values."""
         df = pd.DataFrame({"pval": [0.01, 0.001, 1e-8]})
 
-        result = prepare_pvalue_data(df.copy(), "pval")
+        result = prepare_pvalue_data(df.copy(), "pval", "regional")
 
         assert "neglog10p" in result.columns
         assert result["neglog10p"].iloc[0] == pytest.approx(2.0)  # -log10(0.01)
@@ -315,7 +318,7 @@ class TestPvalueTransformation:
         """Extremely small p-values are clipped to avoid -inf."""
         df = pd.DataFrame({"pval": [1e-350, 0.0]})  # Would be -inf without clipping
 
-        result = prepare_pvalue_data(df.copy(), "pval")
+        result = prepare_pvalue_data(df.copy(), "pval", "regional")
 
         # Should be clipped to 1e-300, giving ~300
         assert result["neglog10p"].iloc[0] == pytest.approx(300.0)
@@ -363,6 +366,7 @@ class TestNaNPvalues:
         """Render an empty association panel rather than raising."""
         gwas_df = pd.DataFrame(
             {
+                "chr": 1,
                 "rs": ["rs1", "rs2", "rs3"],
                 "pos": [1100000, 1500000, 1900000],
                 "p_value": [np.nan, np.nan, np.nan],
@@ -422,3 +426,126 @@ class TestRegionalPlotColumnValidation:
                 start=1000000,
                 end=2000000,
             )
+
+
+def _policy_frame(value):
+    """Two chromosome-1 rows: a good p-value and the one under test."""
+    return pd.DataFrame(
+        {
+            "chr": [1, 1],
+            "pos": [100, 200],
+            "p_value": [1e-6, value],
+            "phenotype": ["a", "b"],
+            "rs": ["rs1", "rs2"],
+        }
+    )
+
+
+def _regional_points(df):
+    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        df,
+        chrom=1,
+        start=1,
+        end=1000,
+        display=DisplayConfig(show_recombination=False, snp_labels=False),
+    )
+    return len(set(PROBES["matplotlib"].marker_x(fig)))
+
+
+def _genome_wide_points(df):
+    """Count the policy rows drawn beside a chromosome-2 row that spans the axis."""
+    from pylocuszoom import ManhattanPlotter
+
+    spanned = pd.concat([df, _policy_frame(1e-6).iloc[:1].assign(chr=2)])
+    fig = ManhattanPlotter(species="human").plot_manhattan(spanned)
+    return len(PROBES["matplotlib"].marker_x(fig)) - 1
+
+
+def _qq_points(df):
+    from pylocuszoom import ManhattanPlotter
+
+    return len(
+        PROBES["matplotlib"].marker_x(ManhattanPlotter(species="human").plot_qq(df))
+    )
+
+
+def _eqtl_points(df):
+    from pylocuszoom import PanelInputs
+
+    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        _policy_frame(1e-3),
+        chrom=1,
+        start=1,
+        end=1000,
+        display=DisplayConfig(show_recombination=False, snp_labels=False),
+        panels=PanelInputs(eqtl=EqtlInput(data=df)),
+    )
+    return len(PROBES["matplotlib"].marker_x(fig, panel=1))
+
+
+def _phewas_points(df):
+    from pylocuszoom import StatsPlotter
+
+    fig = StatsPlotter().plot_phewas(df, variant_id="rs1")
+    return sum(len(c.get_offsets()) for c in fig.axes[0].collections)
+
+
+def _coloc_points(df):
+    from pylocuszoom import ColocPlotter
+
+    frame = df.rename(columns={"p_value": "p_gwas"}).assign(p_eqtl=1e-3)
+    fig = ColocPlotter().plot_coloc(frame, frame)
+    return sum(len(c.get_offsets()) for c in fig.axes[0].collections)
+
+
+def _loaded_rows(df, tmp_path):
+    from pylocuszoom import load_gwas_catalog
+
+    path = tmp_path / "sumstats.tsv"
+    df.rename(
+        columns={"chr": "chromosome", "pos": "base_pair_location", "rs": "variant_id"}
+    ).to_csv(path, sep="\t", index=False)
+    return len(load_gwas_catalog(path))
+
+
+POLICY_ENTRY_POINTS = {
+    "regional": _regional_points,
+    "genome-wide": _genome_wide_points,
+    "qq": _qq_points,
+    "eqtl": _eqtl_points,
+    "phewas": _phewas_points,
+    "coloc": _coloc_points,
+    "loader": _loaded_rows,
+}
+
+
+class TestPValuePolicyTable:
+    """Each family drops or rejects a bad p-value exactly as its row says."""
+
+    def test_every_family_has_an_entry_point(self):
+        from pylocuszoom._data import P_VALUE_POLICY
+
+        assert set(P_VALUE_POLICY) == set(POLICY_ENTRY_POINTS)
+
+    @pytest.mark.parametrize("family", sorted(POLICY_ENTRY_POINTS))
+    @pytest.mark.parametrize(
+        "value", [np.nan, 0.0, 1.5, "NS"], ids=["nan", "zero", "above-one", "text"]
+    )
+    def test_family_follows_its_policy_row(self, family, value, tmp_path):
+        from pylocuszoom import ValidationError
+        from pylocuszoom._data import P_VALUE_POLICY
+
+        policy = P_VALUE_POLICY[family]
+        valid = value == 0.0 and policy.allow_zero
+        entry_point = POLICY_ENTRY_POINTS[family]
+        call = (
+            (lambda: entry_point(_policy_frame(value), tmp_path))
+            if family == "loader"
+            else (lambda: entry_point(_policy_frame(value)))
+        )
+
+        if policy.reject_invalid and not valid:
+            with pytest.raises(ValidationError, match="p_(value|gwas)"):
+                call()
+        else:
+            assert call() == (2 if valid else 1)

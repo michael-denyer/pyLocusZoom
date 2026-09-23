@@ -1,7 +1,5 @@
 """Each regional panel type builds itself and draws itself."""
 
-from dataclasses import replace
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -34,7 +32,7 @@ def _gwas():
 
 def _association(**overrides):
     fields = dict(
-        data=prepare_pvalue_data(_gwas(), "p_value"),
+        data=prepare_pvalue_data(_gwas(), "p_value", "regional"),
         region=REGION,
         height=4.0,
         columns=ColumnConfig(),
@@ -47,7 +45,7 @@ def _association(**overrides):
     fields.update(overrides)
     fields.setdefault(
         "hover",
-        hover_for_association(fields["data"], fields["columns"], fields["ld_col"]),
+        hover_for_association(fields["columns"], "rs", fields["ld_col"]),
     )
     return AssociationPanel(**fields)
 
@@ -72,7 +70,9 @@ def test_association_panel_draws_points_line_and_lead():
 
 
 def test_association_panel_label_and_ld_legend():
-    data = prepare_pvalue_data(_gwas(), "p_value").assign(R2=[1.0, 0.5, 0.1])
+    data = prepare_pvalue_data(_gwas(), "p_value", "regional").assign(
+        R2=[1.0, 0.5, 0.1]
+    )
     names = _names(
         _render(
             _association(data=data, ld_col="R2", panel_label="A", add_ld_legend=True)
@@ -85,7 +85,12 @@ def test_association_panel_label_and_ld_legend():
 
 def test_finemapping_panel_from_frame_filters_sorts_and_renders():
     fm = pd.DataFrame(
-        {"pos": [1_900_000, 500, 1_100_000], "pip": [0.2, 0.9, 0.8], "cs": [1, 1, 1]}
+        {
+            "chr": 1,
+            "pos": [1_900_000, 500, 1_100_000],
+            "pip": [0.2, 0.9, 0.8],
+            "cs": [1, 1, 1],
+        }
     )
 
     panel = FinemappingPanel.from_frame(fm, REGION, cs_col="cs")
@@ -98,7 +103,7 @@ def test_finemapping_panel_from_frame_filters_sorts_and_renders():
 
 
 def test_eqtl_panel_renders_threshold_line():
-    eqtl = pd.DataFrame({"pos": [1_200_000, 5], "p_value": [1e-6, 1e-3]})
+    eqtl = pd.DataFrame({"chr": 1, "pos": [1_200_000, 5], "p_value": [1e-6, 1e-3]})
     panel = EqtlPanel.from_frame(eqtl, REGION, gene=None, threshold=1e-5)
 
     assert list(panel.data["pos"]) == [1_200_000]
@@ -188,8 +193,7 @@ def test_heatmap_panel_from_matrix_raises_without_overlap():
 
 def test_heatmap_panel_from_matrix_raises_without_snp_id_column():
     ids = ["rs1", "rs2"]
-    source = _association()
-    source = replace(source, data=source.data.drop(columns=[source.columns.rs_col]))
+    source = _association(hover=hover_for_association(ColumnConfig(), None, None))
 
     with pytest.raises(ValueError, match="not in GWAS data"):
         HeatmapPanel.from_matrix(

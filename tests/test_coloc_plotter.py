@@ -360,6 +360,23 @@ class TestColocPlotterValidation:
             plotter.plot_coloc(coloc_gwas_df, eqtl_bad_p)
 
 
+class TestColocSnpIdColumn:
+    """The default rs column is optional; one the caller names is required."""
+
+    FRAME = pd.DataFrame(
+        {"pos": [100, 200], "p_gwas": [0.1, 1e-6], "p_eqtl": [0.2, 1e-5]}
+    )
+
+    def test_default_rs_column_absent_draws(self):
+        fig = ColocPlotter().plot_coloc(self.FRAME, self.FRAME)
+
+        assert sum(len(c.get_offsets()) for c in fig.axes[0].collections) == 2
+
+    def test_named_rs_column_absent_raises(self):
+        with pytest.raises(ValidationError, match="rs_col='snp'"):
+            ColocPlotter().plot_coloc(self.FRAME, self.FRAME, rs_col="snp")
+
+
 class TestColocPlotterBackends:
     """Tests for ColocPlotter with different backends."""
 
@@ -616,7 +633,10 @@ class TestEffectDirectionColoring:
         plotter = ColocPlotter()
 
         # Wrong GWAS effect column name
-        with pytest.raises(ValueError, match="gwas_effect_col.*not found"):
+        with pytest.raises(
+            ValueError,
+            match="gwas_effect_col='wrong_col' names no column of the GWAS data",
+        ):
             plotter.plot_coloc(
                 gwas_data_with_effects,
                 eqtl_data_with_effects,
@@ -725,9 +745,8 @@ class TestColocConfigIntegration:
 
     def test_invalid_config_caught(self):
         """Test invalid ColocConfig raises ValidationError."""
-        from pydantic import ValidationError
-
         from pylocuszoom.config import ColocConfig
+        from pylocuszoom.exceptions import ValidationError
 
         # color_by_effect without effect columns
         with pytest.raises(ValidationError, match="color_by_effect"):

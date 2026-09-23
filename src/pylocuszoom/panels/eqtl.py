@@ -12,6 +12,7 @@ from ..backends.hover import HoverConfig, HoverDataBuilder
 from ..colors import EQTL_MARKER_COLOR, get_eqtl_color
 from ..config import RegionConfig
 from ..eqtl import prepare_eqtl_for_plotting
+from ..schemas import Canonical
 from ._shared import REGIONAL_LINE_ALPHA
 
 
@@ -37,6 +38,8 @@ class EqtlPanel:
         region: RegionConfig,
         gene: Optional[str],
         threshold: float,
+        *,
+        chrom_col: Optional[str] = Canonical.CHROM,
     ) -> "EqtlPanel":
         """Validate, gene- and region-filter, and transform raw eQTL results.
 
@@ -45,7 +48,12 @@ class EqtlPanel:
                 is given and the frame has no ``gene`` column.
         """
         data = prepare_eqtl_for_plotting(
-            df, gene=gene, chrom=region.chrom, start=region.start, end=region.end
+            df,
+            gene=gene,
+            chrom=region.chrom,
+            start=region.start,
+            end=region.end,
+            chrom_col=chrom_col,
         )
         extra_cols = {
             col: label
@@ -59,8 +67,8 @@ class EqtlPanel:
             threshold=threshold,
             effect_col="effect_size" if "effect_size" in data.columns else None,
             hover=HoverConfig(
-                pos_col="pos" if "pos" in data.columns else None,
-                p_col="p_value" if "p_value" in data.columns else None,
+                pos_col="pos",
+                p_col="p_value",
                 extra_cols=extra_cols,
             ),
         )
