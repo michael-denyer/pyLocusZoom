@@ -9,16 +9,8 @@ from pylocuszoom import DisplayConfig, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 from tests.strategies import gwas_dataframes
-
-PANEL_COUNTS = {
-    "matplotlib": lambda fig: len(fig.get_axes()),
-    "plotly": lambda fig: sum(
-        key.startswith("yaxis") for key in fig.layout.to_plotly_json()
-    ),
-    "bokeh": lambda fig: len(fig.children),
-}
-"""How many stacked panels a figure carries, in each backend's own terms."""
 
 
 class TestBackendIntegration:
@@ -170,7 +162,7 @@ class TestBackendEQTLFinemapping:
         )
 
         assert isinstance(fig, FIGURE_TYPES[backend])
-        assert PANEL_COUNTS[backend](fig) == expected_panels
+        assert PROBES[backend].panel_count(fig) == expected_panels
 
     def test_plot_accepts_eqtl_and_finemapping_panels(
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df

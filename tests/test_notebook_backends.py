@@ -397,13 +397,34 @@ class TestOptionalPanelMarkers:
 class TestGeneTrackMbFormatting:
     """Tests for Mb formatting on gene track axis in interactive backends."""
 
-    def test_plotly_gene_track_has_mb_formatting(
-        self, regional_gwas_df, sample_genes_df
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_gene_track_has_mb_formatting(
+        self, backend_name, regional_gwas_df, sample_genes_df
     ):
-        """Plotly gene track axis should have Mb formatting (not raw bp).
+        """The gene track's x-axis labels megabases, not raw bp.
 
         Regression test: gene track axis showed raw bp ticks while label said "Mb".
         """
+        plotter = LocusZoomPlotter(
+            species="canine", backend=backend_name, log_level=None
+        )
+        fig = plotter.plot(
+            regional_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(genes_df=sample_genes_df),
+        )
+
+        probe = PROBES[backend_name]
+        assert probe.panel_count(fig) == 2
+        assert probe.x_axis_in_mb(fig, panel=1)
+
+    def test_plotly_gene_track_ticks_start_at_the_region(
+        self, regional_gwas_df, sample_genes_df
+    ):
+        """Plotly writes fixed Mb ticks, so they must start at the region start."""
         plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
         fig = plotter.plot(
             regional_gwas_df,
@@ -414,46 +435,8 @@ class TestGeneTrackMbFormatting:
             panels=PanelInputs(genes_df=sample_genes_df),
         )
 
-        # With gene track, row 2 is the gene track axis, so xaxis2 is its x-axis.
-        gene_track_xaxis = fig.layout.xaxis2
-        assert gene_track_xaxis.ticksuffix == " Mb", (
-            f"Gene track axis ticksuffix is {gene_track_xaxis.ticksuffix!r}, "
-            "expected ' Mb'"
-        )
-        assert gene_track_xaxis.ticktext, "Gene track axis has no Mb tick labels"
-        assert gene_track_xaxis.ticktext[0] == "1.00", (
-            f"Gene track ticks start at {gene_track_xaxis.ticktext[0]!r}, "
-            "expected '1.00' for a region starting at 1 Mb"
-        )
-
-    def test_bokeh_gene_track_has_mb_formatting(
-        self, regional_gwas_df, sample_genes_df
-    ):
-        """Bokeh gene track axis should have Mb formatting (not raw bp).
-
-        Regression test: gene track axis showed raw bp ticks while label said "Mb".
-        """
-        from bokeh.models import CustomJSTickFormatter
-
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
-        fig = plotter.plot(
-            regional_gwas_df,
-            chrom=1,
-            start=1_000_000,
-            end=2_000_000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(genes_df=sample_genes_df),
-        )
-
-        # Bokeh layout contains multiple figures - find the gene track figure
-        # The gene track is typically the second figure (index 1)
-        gene_track_fig = fig.children[1] if len(fig.children) > 1 else fig.children[0]
-
-        # Check that the x-axis has CustomJSTickFormatter for Mb formatting
-        assert isinstance(gene_track_fig.xaxis.formatter, CustomJSTickFormatter), (
-            f"Gene track x-axis formatter is {type(gene_track_fig.xaxis.formatter)}, "
-            "expected CustomJSTickFormatter for Mb formatting"
-        )
+        _, labels = PROBES["plotly"].xticks(fig, panel=1)
+        assert labels[0] == "1.00"
 
 
 class TestPlotlySecondaryAxisNaming:

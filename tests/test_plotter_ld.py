@@ -1,14 +1,16 @@
 """Tests for LD calculation and the LD heatmap panel in regional plots."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
 from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.exceptions import PlinkError
 from pylocuszoom.plotter import LocusZoomPlotter
+from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 
 
 def _drawn_positions(ax):
@@ -364,14 +366,13 @@ class TestLDHeatmapIntegration:
             (999750.0, 500.0)
         }
 
-    # Backend-specific tests
-
-    def test_ld_heatmap_matplotlib_backend(
-        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_ld_heatmap_adds_a_panel_under_the_association_plot(
+        self, backend_name, ld_heatmap_gwas_df, sample_ld_heatmap_data
     ):
-        """Verify matplotlib figure has correct panel count and axes."""
+        """Every backend stacks the heatmap as a second panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend=backend_name, log_level=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -382,53 +383,8 @@ class TestLDHeatmapIntegration:
             panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
         )
 
-        # Should have at least 2 main axes (association + heatmap)
-        # Plus possible colorbar axis
-        assert len(fig.axes) >= 2
-        assert isinstance(fig, plt.Figure)
-
-    def test_ld_heatmap_plotly_backend(
-        self, ld_heatmap_gwas_df, sample_ld_heatmap_data
-    ):
-        """Verify plotly figure has heatmap trace at correct row."""
-        import plotly.graph_objects as go
-
-        ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend="plotly", log_level=None)
-
-        fig = plotter.plot(
-            ld_heatmap_gwas_df,
-            chrom=1,
-            start=999000,
-            end=1003000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
-        )
-
-        assert isinstance(fig, go.Figure)
-        # Check that figure has data traces
-        assert len(fig.data) > 0
-
-    def test_ld_heatmap_bokeh_backend(self, ld_heatmap_gwas_df, sample_ld_heatmap_data):
-        """Verify bokeh layout contains heatmap."""
-        from bokeh.models.layouts import Column
-
-        ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend="bokeh", log_level=None)
-
-        fig = plotter.plot(
-            ld_heatmap_gwas_df,
-            chrom=1,
-            start=999000,
-            end=1003000,
-            display=DisplayConfig(show_recombination=False),
-            panels=PanelInputs(ld_heatmap_df=ld_matrix, ld_heatmap_snp_ids=snp_ids),
-        )
-
-        # Bokeh returns Column layout
-        assert isinstance(fig, Column)
-        # Should have multiple children (panels)
-        assert len(fig.children) >= 2
+        assert isinstance(fig, FIGURE_TYPES[backend_name])
+        assert PROBES[backend_name].panel_count(fig) == 2
 
     # Edge case tests
 
@@ -519,15 +475,6 @@ class TestLDHeatmapIntegration:
             )
 
 
-def _glyph_values(renderer, prop):
-    """Per-item values of a Bokeh glyph property, whether column or literal."""
-    spec = getattr(renderer.glyph, prop)
-    data = renderer.data_source.data
-    if isinstance(spec, str):
-        return list(data[spec])
-    return [spec] * len(data[renderer.glyph.x])
-
-
 class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
     START = 999000
     END = 1003000
@@ -577,49 +524,14 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
                 f"outline spans {x0}-{x1}, outside the region {self.START}-{self.END}"
             )
 
-    def test_matplotlib_outline_uses_genomic_coordinates(
-        self, heatmap_gwas_df, heatmap_ld_matrix
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_outline_uses_genomic_coordinates_on_the_heatmap_panel(
+        self, backend_name, heatmap_gwas_df, heatmap_ld_matrix
     ):
-        fig = self._plot("matplotlib", heatmap_gwas_df, heatmap_ld_matrix)
+        fig = self._plot(backend_name, heatmap_gwas_df, heatmap_ld_matrix)
 
-        heatmap_ax = fig.axes[1]
-        spans = [
-            (p.get_x(), p.get_x() + p.get_width())
-            for p in heatmap_ax.patches
-            if not p.get_fill()
+        outlines = [
+            b for b in PROBES[backend_name].boxes(fig, 1) if b.facecolor is None
         ]
 
-        self._assert_inside_region(spans)
-
-    def test_plotly_outline_uses_genomic_coordinates_on_its_own_panel(
-        self, heatmap_gwas_df, heatmap_ld_matrix
-    ):
-        fig = self._plot("plotly", heatmap_gwas_df, heatmap_ld_matrix)
-
-        heatmap = next(trace for trace in fig.data if trace.type == "heatmap")
-        outlines = [s for s in fig.layout.shapes if s.type == "rect"]
-
-        self._assert_inside_region([(s.x0, s.x1) for s in outlines])
-        for shape in outlines:
-            assert shape.xref == heatmap.xaxis
-            assert shape.yref == heatmap.yaxis
-
-    def test_bokeh_outline_uses_genomic_coordinates(
-        self, heatmap_gwas_df, heatmap_ld_matrix
-    ):
-        from bokeh.models import Rect
-
-        layout = self._plot("bokeh", heatmap_gwas_df, heatmap_ld_matrix)
-
-        heatmap_figure = layout.children[1]
-        spans = []
-        for renderer in heatmap_figure.renderers:
-            if not isinstance(renderer.glyph, Rect):
-                continue
-            if "value" in renderer.data_source.data:
-                continue
-            xs = _glyph_values(renderer, "x")
-            widths = _glyph_values(renderer, "width")
-            spans.extend((x - w / 2, x + w / 2) for x, w in zip(xs, widths))
-
-        self._assert_inside_region(spans)
+        self._assert_inside_region([(b.x0, b.x1) for b in outlines])

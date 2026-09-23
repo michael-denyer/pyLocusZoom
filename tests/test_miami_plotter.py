@@ -8,7 +8,7 @@ from pylocuszoom import GenomeWideConfig
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.miami_plotter import MiamiPlotter
 from tests.conftest import FIGURE_TYPES
-from tests.figure_probes import PROBES
+from tests.figure_probes import INTERACTIVE_BACKENDS, PROBES, RegionHighlight
 
 
 def _max_scatter_x(ax) -> float:
@@ -291,21 +291,16 @@ class TestMiamiPlotterHoverData:
         )
         return top_df, bottom_df
 
-    def test_plotly_hover_data(self, gwas_data_with_rs):
-        """Attach hover text to the plotly figure."""
-        plotter = MiamiPlotter(species="canine", backend="plotly")
+    @pytest.mark.parametrize("backend_name", INTERACTIVE_BACKENDS)
+    def test_hover_shows_the_rs_ids(self, backend_name, gwas_data_with_rs):
+        """Hovering a point shows its rs ID when rs_col is given."""
+        plotter = MiamiPlotter(species="canine", backend=backend_name)
         top_df, bottom_df = gwas_data_with_rs
         fig = plotter.plot_miami(top_df, bottom_df, rs_col="rs")
 
-        assert PROBES["plotly"].has_hover(fig)
-
-    def test_bokeh_hover_data(self, gwas_data_with_rs):
-        """Attach a hover tool to the bokeh figure."""
-        plotter = MiamiPlotter(species="canine", backend="bokeh")
-        top_df, bottom_df = gwas_data_with_rs
-        fig = plotter.plot_miami(top_df, bottom_df, rs_col="rs")
-
-        assert PROBES["bokeh"].has_hover(fig)
+        probe = PROBES[backend_name]
+        assert probe.has_hover(fig)
+        assert {"rs123", "rs456", "rs789"} <= probe.hover_values(fig)
 
 
 class TestMiamiSignificance:
@@ -602,9 +597,10 @@ class TestMiamiHighlight:
         assert len(top_patches) >= 2, "Top panel should have 2 highlight patches"
         assert len(bottom_patches) >= 2, "Bottom panel should have 2 highlight patches"
 
-    def test_highlight_with_custom_color(self, miami_panel_dfs):
-        """Test that custom highlight color is applied."""
-        plotter = MiamiPlotter(species="canine")
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_highlight_with_custom_color(self, backend_name, miami_panel_dfs):
+        """Shade the region on both panels in the requested colour."""
+        plotter = MiamiPlotter(species="canine", backend=backend_name)
         top_df, bottom_df = miami_panel_dfs
 
         fig = plotter.plot_miami(
@@ -615,50 +611,10 @@ class TestMiamiHighlight:
             highlight_alpha=0.5,
         )
 
-        assert fig is not None
-
-        axes = fig.get_axes()
-        top_ax = axes[0]
-
-        # Find patches and verify color
-        patches = [p for p in top_ax.patches if hasattr(p, "get_facecolor")]
-        assert len(patches) >= 1
-
-        # Get the facecolor and verify it's red-ish
-        facecolor = patches[0].get_facecolor()
-        # facecolor is RGBA tuple - red should have high R value
-        assert facecolor[0] >= 0.9, f"Expected red color, got {facecolor}"
-
-    def test_highlight_plotly_backend(self, miami_panel_dfs):
-        """Test region highlighting works with plotly backend."""
-        plotter = MiamiPlotter(species="canine", backend="plotly")
-        top_df, bottom_df = miami_panel_dfs
-
-        fig = plotter.plot_miami(
-            top_df,
-            bottom_df,
-            highlight_regions=[("1", 500, 2500)],
-        )
-
-        assert fig is not None
-        # Plotly should have shapes added for the highlights
-        assert hasattr(fig.layout, "shapes") or len(fig.layout.shapes or []) >= 0
-
-    def test_highlight_bokeh_backend(self, miami_panel_dfs):
-        """Test region highlighting works with bokeh backend."""
-        from bokeh.models.layouts import LayoutDOM
-
-        plotter = MiamiPlotter(species="canine", backend="bokeh")
-        top_df, bottom_df = miami_panel_dfs
-
-        fig = plotter.plot_miami(
-            top_df,
-            bottom_df,
-            highlight_regions=[("1", 500, 2500)],
-        )
-
-        assert fig is not None
-        assert isinstance(fig, LayoutDOM)
+        probe = PROBES[backend_name]
+        expected = [RegionHighlight(500, 2500, "#ff0000")]
+        assert probe.region_highlights(fig, 0) == expected
+        assert probe.region_highlights(fig, 1) == expected
 
 
 class TestConstructorThresholdIsTheDefault:
@@ -674,21 +630,12 @@ class TestConstructorThresholdIsTheDefault:
             }
         )
 
-    @staticmethod
-    def _dashed_y(fig):
-        return [
-            line.get_ydata()[0]
-            for ax in fig.axes
-            for line in ax.get_lines()
-            if line.get_linestyle() == "--"
-        ]
-
     def test_both_panels_use_the_constructor_threshold(self):
         plotter = MiamiPlotter(genomewide_threshold=1e-3)
         fig = plotter.plot_miami(self._gwas(), self._gwas())
 
         # The bottom panel inverts its y-axis, so both lines sit at +3.0.
-        assert self._dashed_y(fig) == pytest.approx([3.0, 3.0])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([3.0, 3.0])
 
     def test_explicit_panel_thresholds_beat_the_constructor(self):
         plotter = MiamiPlotter(genomewide_threshold=1e-3)
@@ -696,7 +643,7 @@ class TestConstructorThresholdIsTheDefault:
             self._gwas(), self._gwas(), top_threshold=1e-6, bottom_threshold=None
         )
 
-        assert self._dashed_y(fig) == pytest.approx([6.0])
+        assert PROBES["matplotlib"].hline_levels(fig) == pytest.approx([6.0])
 
 
 def test_legacy_and_canonical_miami_inputs_preserve_hover_roles():

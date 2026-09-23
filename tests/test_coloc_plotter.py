@@ -6,8 +6,10 @@ import pytest
 from matplotlib.colors import to_hex
 
 from pylocuszoom import ValidationError
+from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.coloc_plotter import ColocPlotter
 from tests.conftest import FIGURE_TYPES
+from tests.figure_probes import PROBES
 
 
 @pytest.fixture
@@ -360,25 +362,18 @@ class TestColocPlotterValidation:
 class TestColocPlotterBackends:
     """Tests for ColocPlotter with different backends."""
 
-    def test_plotly_backend(self, coloc_gwas_df, eqtl_data):
-        """Test plotly backend returns plotly Figure."""
-        import plotly.graph_objects as go
-
-        from pylocuszoom.coloc_plotter import ColocPlotter
-
-        plotter = ColocPlotter(backend="plotly")
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_backend_draws_one_panel_with_the_eqtl_line(
+        self, backend_name, coloc_gwas_df, eqtl_data
+    ):
+        """Every backend returns its own figure type, one panel, eQTL line at 5."""
+        plotter = ColocPlotter(backend=backend_name)
         fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
-        assert isinstance(fig, go.Figure)
 
-    def test_bokeh_backend(self, coloc_gwas_df, eqtl_data):
-        """Test bokeh backend returns bokeh layout."""
-        from bokeh.models.layouts import LayoutDOM
-
-        from pylocuszoom.coloc_plotter import ColocPlotter
-
-        plotter = ColocPlotter(backend="bokeh")
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data)
-        assert isinstance(fig, LayoutDOM)
+        probe = PROBES[backend_name]
+        assert isinstance(fig, FIGURE_TYPES[backend_name])
+        assert probe.panel_count(fig) == 1
+        assert probe.hline_levels(fig) == pytest.approx([5.0])
 
     def test_matplotlib_ld_legend(self, gwas_data_with_ld, eqtl_data):
         """Test matplotlib shows LD legend when ld_col provided."""
