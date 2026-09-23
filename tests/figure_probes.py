@@ -11,9 +11,9 @@ These three classes are the only place in the suite that knows the libraries'
 figure internals. A behaviour test that reaches past a probe is a test that
 will drift from its twin.
 
-Questions that only an interactive figure can answer (``has_hover``,
-``standalone_html``, ``json_payload``) are asked over ``INTERACTIVE_BACKENDS``;
-matplotlib answers ``has_hover`` with ``False`` and has no HTML export.
+Questions that only an interactive figure can answer (``marker_symbols``,
+``has_hover``, ``hover_values``, ``standalone_html``, ``json_payload``) are
+asked over ``INTERACTIVE_BACKENDS``, so ``MatplotlibProbe`` does not define them.
 
 Vocabulary:
 
@@ -38,7 +38,8 @@ BOKEH_MARKER_NAMES = {
 }
 
 INTERACTIVE_BACKENDS = ("plotly", "bokeh")
-BACKENDS = ("matplotlib", *INTERACTIVE_BACKENDS)
+
+LEGEND_VERTICAL = {"bottom": "lower", "top": "upper"}
 
 
 class Box(NamedTuple):
@@ -97,18 +98,6 @@ class MatplotlibProbe:
     def panel_count(self, fig):
         """How many stacked panels the figure carries."""
         return len(self.panels(fig))
-
-    def has_hover(self, fig):
-        """A static figure never hovers."""
-        return False
-
-    def hover_values(self, fig):
-        """A static figure shows nothing on hover."""
-        return set()
-
-    def marker_symbols(self, fig):
-        """Matplotlib keeps marker paths, not names; this question is unasked."""
-        raise NotImplementedError("matplotlib keeps marker paths, not names")
 
     def xticks(self, fig, panel=0):
         """Tick positions and labels on one panel's x-axis."""
@@ -312,8 +301,7 @@ class PlotlyProbe:
     def legend_corner(self, fig, panel=0):
         """The corner the first legend is anchored to."""
         legend = fig.layout.legend
-        vertical = {"bottom": "lower", "top": "upper"}[legend.yanchor]
-        return f"{vertical} {legend.xanchor}"
+        return f"{LEGEND_VERTICAL[legend.yanchor]} {legend.xanchor}"
 
     def legend_edgecolors(self, fig, panel=0):
         """Each legend label mapped to its swatch's edge colour."""
@@ -514,7 +502,7 @@ class BokehProbe:
     def legend_corner(self, fig, panel=0):
         """The corner the panel's legend is anchored to."""
         vertical, horizontal = self._legend(fig, panel).location.split("_")
-        return f"{ {'bottom': 'lower', 'top': 'upper'}[vertical] } {horizontal}"
+        return f"{LEGEND_VERTICAL[vertical]} {horizontal}"
 
     def legend_edgecolors(self, fig, panel=0):
         """Each legend label mapped to its swatch's edge colour."""

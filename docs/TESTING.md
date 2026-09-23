@@ -94,7 +94,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | `scripts/example_diff.sh` | `tests/test_example_diff_script.py` |
 | Suite structure: fixture schemas, documented commands | `tests/test_fixture_hygiene.py`, `tests/test_docs_contract.py` |
 
-`tests/figure_probes.py` is the one probe object per backend (`PROBES`). It translates panel count, tick labels, legend corner and swatch edges, horizontal lines, rectangles, region highlights, scatter marker positions, point alpha, font sizes, marker symbols and hover into one vocabulary, and it is the only place in the suite that knows matplotlib's, plotly's or bokeh's figure internals. `standalone_html` and `json_payload` exist only for the interactive backends. A matplotlib-only test may read the matplotlib `Figure` directly.
+`tests/figure_probes.py` is the one probe object per backend (`PROBES`). It translates panel count, tick labels, legend corner and swatch edges, horizontal lines, rectangles, region highlights, scatter marker positions, point alpha, font sizes, marker symbols and hover into one vocabulary, and it is the only place in the suite that knows matplotlib's, plotly's or bokeh's figure internals. `marker_symbols`, `has_hover`, `hover_values`, `standalone_html` and `json_payload` exist only for the interactive backends. A matplotlib-only test may read the matplotlib `Figure` directly.
 
 ### Private seams tests may touch
 
