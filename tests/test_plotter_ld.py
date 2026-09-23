@@ -137,6 +137,7 @@ class TestLocusZoomPlotterLdCalculation:
                 chrom=1,
                 start=1000000,
                 end=2000000,
+                display=DisplayConfig(show_recombination=False),
                 ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
             )
 

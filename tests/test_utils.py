@@ -274,6 +274,12 @@ class TestNormalizeChromSeries:
         """An empty column normalises without raising."""
         assert normalize_chrom_series(pd.Series([], dtype=object)).empty
 
+    def test_float_column_reads_as_integer_names(self):
+        """pandas reads a chromosome column holding a NaN as float: 1.0 is "1"."""
+        result = normalize_chrom_series(pd.Series([1.0, 22.0, float("nan")]))
+
+        assert result.tolist()[:2] == ["1", "22"]
+
 
 class TestPlatformCacheBase:
     """One cache root for recombination maps and Ensembl annotations."""

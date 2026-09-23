@@ -194,6 +194,10 @@ def liftover_recombination_map(
 
     Returns:
         DataFrame with lifted coordinates. Positions that fail to map are dropped.
+
+    Raises:
+        DataDownloadError: If the chain cannot be downloaded, or is still
+            unreadable after a cached copy that failed to parse is replaced.
     """
     try:
         from pyliftover import LiftOver
@@ -204,8 +208,19 @@ def liftover_recombination_map(
         ) from e
 
     chain_path = download_liftover_chain()
+    try:
+        lifter = LiftOver(str(chain_path))
+    except (OSError, EOFError, ValueError) as e:
+        logger.warning(f"Liftover chain {chain_path} is unreadable ({e}); refetching")
+        chain_path = download_liftover_chain(force=True)
+        try:
+            lifter = LiftOver(str(chain_path))
+        except (OSError, EOFError, ValueError) as e:
+            raise DataDownloadError(
+                f"Liftover chain {chain_path} is unreadable: {e}"
+            ) from e
     logger.debug(f"Lifting over coordinates from {from_build} to {to_build}")
-    return liftover_positions(recomb_df, LiftOver(str(chain_path)), chrom)
+    return liftover_positions(recomb_df, lifter, chrom)
 
 
 def get_default_data_dir() -> Path:
@@ -231,6 +246,15 @@ def _has_complete_maps(path: Path, source: RecombSource) -> bool:
         return False
     present = {map_path.name for map_path in path.glob("chr*_recomb.tsv")}
     return present == source.filenames
+
+
+def _holds_only_maps(path: Path, source: RecombSource) -> bool:
+    """Return whether replacing path wholesale would discard only this source's maps."""
+    if not path.exists():
+        return True
+    return path.is_dir() and all(
+        entry.is_file() and entry.name in source.filenames for entry in path.iterdir()
+    )
 
 
 def _discard_map_dir(path: Path) -> None:
@@ -374,7 +398,9 @@ def download_canine_recombination_maps(
     - cM: Cumulative genetic distance (centiMorgans)
 
     Args:
-        output_dir: Directory to save maps. Uses platform cache if None.
+        output_dir: Directory to save maps. Uses platform cache if None. It
+            must be new, empty or hold only a previous canine map set, because
+            publishing replaces the whole directory.
         force: Re-download even if files exist.
 
     Returns:
@@ -383,10 +409,17 @@ def download_canine_recombination_maps(
     Raises:
         DataDownloadError: If the download fails or the archive is corrupt,
             incomplete, or not a recombination map set.
+        ValidationError: If output_dir holds anything besides canine maps.
     """
     output_path = _resolve_map_dir(output_dir)
     if not force and _has_complete_maps(output_path, CANINE_SOURCE):
         return output_path
+    if output_dir is not None and not _holds_only_maps(output_path, CANINE_SOURCE):
+        raise ValidationError(
+            f"output_dir {output_path} holds files other than the canine "
+            "recombination maps, and publishing the map set would replace it. "
+            "Pass a new or empty directory."
+        )
     return download_recombination_maps(CANINE_SOURCE, output_path)
 
 
@@ -494,7 +527,7 @@ def get_recombination_rate_for_region(
             f"no liftover chain is available for {genome_build!r}. "
             "Supply data_dir with maps in the requested build."
         )
-    df = load_recombination_map(chrom, species=record, data_dir=data_dir)
+    df = loaded = load_recombination_map(chrom, species=record, data_dir=data_dir)
     if source is not None and target_build in source.liftover_chains:
         logger.debug(f"Lifting over recombination map for chr{chrom} to {target_build}")
         df = liftover_recombination_map(
@@ -505,6 +538,12 @@ def get_recombination_rate_for_region(
         )
     elif lifter is not None:
         df = liftover_positions(df, lifter, chrom, species=record)
+    if df.empty and not loaded.empty:
+        raise ValidationError(
+            f"Liftover mapped none of the {len(loaded)} positions in the "
+            f"chr{chrom} recombination map; the chain or lifter does not "
+            "cover this chromosome."
+        )
 
     # Filter to region
     region_df = filter_by_region(
@@ -649,6 +688,11 @@ def recomb_for_region(
         )
     except FileNotFoundError as e:
         return RecombResult(RecombStatus.NO_MAP_FOR_CHROMOSOME, detail=str(e))
+    except DataDownloadError as e:
+        return RecombResult(
+            RecombStatus.DOWNLOAD_FAILED,
+            detail=f"could not get the liftover chain: {e}",
+        )
     except OptionalDependencyMissing as e:
         return RecombResult(RecombStatus.LIFTOVER_UNAVAILABLE, detail=str(e))
     except ValidationError as e:

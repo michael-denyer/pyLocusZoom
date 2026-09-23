@@ -214,6 +214,7 @@ class TestAutoGenes:
                 chrom=1,
                 start=1000000,
                 end=2000000,
+                display=DisplayConfig(show_recombination=False),
             )
 
         assert not mock_fetch.called, "auto_genes is off, so no gene fetch is allowed"
@@ -386,11 +387,38 @@ class TestPlotEdgeCases:
             chrom=1,
             start=1000000,
             end=2000000,
+            display=DisplayConfig(show_recombination=False),
             ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
         )
 
         assert fig.get_axes()[0].get_legend() is None
         assert any("rs" in message for message in warning_records)
+
+
+class TestFloatChromosomeColumn:
+    """A float chromosome column filters like its integer twin."""
+
+    @pytest.mark.parametrize("chroms", [[1, 1, 1], [1.0, 1.0, 1.0]])
+    def test_regional_plot_draws_the_region_points(self, chroms):
+        df = pd.DataFrame(
+            {
+                "chr": chroms,
+                "pos": [1100, 1500, 1900],
+                "p_value": [1e-3, 1e-9, 1e-5],
+                "rs": ["a", "b", "c"],
+            }
+        )
+        plotter = LocusZoomPlotter(species="canine", log_level=None)
+
+        fig = plotter.plot(
+            df,
+            chrom=1,
+            start=1000,
+            end=2000,
+            display=DisplayConfig(show_recombination=False),
+        )
+
+        assert _drawn_positions(fig.get_axes()[0]) == {1100.0, 1500.0, 1900.0}
 
 
 class TestPlotStackedEdgeCases:

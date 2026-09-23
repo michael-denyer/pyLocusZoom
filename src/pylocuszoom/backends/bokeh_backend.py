@@ -24,7 +24,6 @@ from bokeh.models import (
     LegendItem,
     LinearAxis,
     LinearColorMapper,
-    Plot,
     Range1d,
     Span,
     Whisker,
@@ -464,16 +463,24 @@ class BokehBackend:
         fontsize: int = 14,
         fontweight: Literal["bold", "normal"] = "bold",
     ) -> None:
-        """Set overall figure title.
+        """Insert the title as the layout column's first row.
 
-        For Bokeh layouts, add title to the first figure in the layout.
+        It gets its own row, as the footer does, so the first panel keeps its
+        own title.
         """
-        first = fig
-        while not isinstance(first, Plot):
-            first = first.children[0]
-        first.title.text = title
-        first.title.text_font_size = f"{fontsize}pt"
-        first.title.text_font_style = fontweight
+        fig.children.insert(
+            0,
+            Div(
+                text=html.escape(title),
+                styles={
+                    "font-size": f"{fontsize}pt",
+                    "font-weight": fontweight,
+                    "text-align": "center",
+                    "width": "100%",
+                },
+                sizing_mode="stretch_width",
+            ),
+        )
 
     def set_footer(self, fig: Any, text: str, fontsize: int = 10) -> None:
         """Append the footer to the layout column as a centred line of text."""

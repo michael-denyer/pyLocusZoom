@@ -28,6 +28,7 @@ from typing import Optional, Union
 
 import pandas as pd
 
+from .._data import P_VALUE_FLOOR
 from ..logging import logger
 from ..schemas import Family, Tier, spec
 from ..validation import ColumnSpec
@@ -81,7 +82,10 @@ def _regenie_pvalue(df: pd.DataFrame, out_cols: dict[str, str]) -> pd.DataFrame:
     """Derive REGENIE p-values: prefer computed LOG10P, else rename P."""
     p_col = out_cols["p_col"]
     if "LOG10P" in df.columns:
-        df[p_col] = 10 ** (-df["LOG10P"])
+        # REGENIE writes LOG10P so that p below the float range survives. The
+        # plot clips p at P_VALUE_FLOOR anyway; clipping here keeps those rows
+        # positive instead of underflowing to 0 and failing the p > 0 check.
+        df[p_col] = (10.0 ** -df["LOG10P"].astype(float)).clip(lower=P_VALUE_FLOOR)
     elif "P" in df.columns:
         df = df.rename(columns={"P": p_col})
     return df

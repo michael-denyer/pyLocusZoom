@@ -44,7 +44,9 @@ Implementation:
 - [`_gene_cache.cache_root()`](../src/pylocuszoom/_gene_cache.py)
 
 To pre-download maps into a chosen directory, call
-`download_canine_recombination_maps(output_dir="/path/to/maps")`.
+`download_canine_recombination_maps(output_dir="/path/to/maps")`. The directory
+must be new, empty or hold only a previous map set; one holding other files
+raises `ValidationError` and is left untouched.
 Passing `recomb_data_dir` to the plotter, or `data_dir` to the map helpers,
 selects a read-only caller directory. It never downloads or replaces files there,
 and its coordinates must already use the requested build. With no directory,
