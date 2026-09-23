@@ -98,6 +98,12 @@ The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.m
 - **Plotly draws reference lines and highlights on a panel with no data.** plotly's `add_hline`, `add_vline` and `add_vrect` skip a subplot holding no trace, so `axhline`, `axvline` and `add_region_highlight` drew nothing there on plotly while matplotlib and bokeh drew them.
 - **A plotly legend stays in its own grid column.** Every legend was anchored at the right edge of the whole figure, so one on a left-hand grid panel sat over the right-hand panel. It now sits inside its panel's right edge; one-column figures are unchanged.
 
+## [4.3.1] - 2026-09-23
+
+### Fixed
+
+- **The QQ x-axis spans the expected values, not the top observed one.** Both axes were set to the larger of the two maxima, so one strong hit (observed 23 against expected 5) stretched the x-axis to 24 and squashed every point against the left edge. Each axis now follows its own data, and the diagonal runs to the x limit.
+
 ## [4.3.0] - 2026-09-23
 
 ### Changed
