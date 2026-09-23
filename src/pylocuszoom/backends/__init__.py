@@ -17,6 +17,7 @@ Error Behavior:
 
 from typing import Literal, get_args
 
+from ..exceptions import ValidationError
 from .base import Mappable, PlotBackend, SupportsSNPLabels
 
 BackendType = Literal["matplotlib", "plotly", "bokeh"]
@@ -86,7 +87,7 @@ def get_backend(name: BackendType) -> PlotBackend:
 
     Raises:
         ImportError: If plotly or bokeh is not installed.
-        ValueError: If backend name is completely unknown.
+        ValidationError: If backend name is completely unknown.
     """
     # Ensure matplotlib is always registered (it's always available)
     if "matplotlib" not in _BACKENDS:
@@ -113,7 +114,7 @@ def get_backend(name: BackendType) -> PlotBackend:
 
     if name not in _BACKENDS:
         available = list(_BACKENDS.keys())
-        raise ValueError(f"Unknown backend: {name}. Available: {available}")
+        raise ValidationError(f"Unknown backend: {name}. Available: {available}")
 
     return _BACKENDS[name]()
 

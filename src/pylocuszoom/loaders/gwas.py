@@ -29,6 +29,7 @@ from typing import Optional, Union
 import pandas as pd
 
 from .._data import P_VALUE_FLOOR
+from ..exceptions import ValidationError
 from ..logging import logger
 from ..schemas import Family, Tier, spec
 from ..validation import ColumnSpec
@@ -286,7 +287,7 @@ def load_gwas(
         DataFrame in the canonical column vocabulary: chr, pos, p_value, rs.
 
     Raises:
-        ValueError: If ``format`` names an unknown format.
+        ValidationError: If ``format`` names an unknown format.
 
     Example:
         >>> # Auto-detect format
@@ -299,7 +300,7 @@ def load_gwas(
     format = format or _detect_format(filepath)
 
     if format not in _GWAS_LOADERS:
-        raise ValueError(
+        raise ValidationError(
             f"Unknown format '{format}'. Options: {list(_GWAS_LOADERS.keys())}"
         )
 

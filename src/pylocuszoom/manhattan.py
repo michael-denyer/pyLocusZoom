@@ -36,17 +36,20 @@ def get_chromosome_order(
     Raises:
         ValidationError: If the species is unknown, or is known but has no
             built-in chromosome order.
-        ValueError: If neither species nor custom_order provided.
+        ValidationError: If neither species nor custom_order is provided.
     """
     if custom_order is not None:
         return custom_order
     record = resolve_species(species)
     if record is None:
-        raise ValueError("Must provide either species or custom_order")
+        raise ValidationError(
+            "No chromosome order: pass a species, or custom_chrom_order in "
+            "GenomeWideConfig"
+        )
     if not record.chromosomes:
         raise ValidationError(
             f"No built-in chromosome order for species {record.key!r}; "
-            f"pass custom_order."
+            f"pass custom_chrom_order in GenomeWideConfig."
         )
     return list(record.chromosomes)
 
@@ -310,8 +313,8 @@ def prepare_manhattan_frames(
         ``neglog10p`` and ``_color``.
 
     Raises:
-        ValueError: If a required column is missing, or if neither species nor
-            custom_order names a chromosome order.
+        ValidationError: If a required column is missing, or if neither species
+            nor custom_order names a chromosome order.
     """
     for df in dfs:
         for col, name in [
@@ -320,7 +323,9 @@ def prepare_manhattan_frames(
             (p_col, "p-value"),
         ]:
             if col not in df.columns:
-                raise ValueError(f"Column '{col}' not found in DataFrame (for {name})")
+                raise ValidationError(
+                    f"Column '{col}' not found in DataFrame (for {name})"
+                )
 
     order = get_chromosome_order(species, custom_order)
     filtered = [
@@ -386,9 +391,9 @@ def prepare_categorical_data(
     """
     # Validate required columns
     if category_col not in df.columns:
-        raise ValueError(f"Column '{category_col}' not found in DataFrame")
+        raise ValidationError(f"Column '{category_col}' not found in DataFrame")
     if p_col not in df.columns:
-        raise ValueError(f"Column '{p_col}' not found in DataFrame")
+        raise ValidationError(f"Column '{p_col}' not found in DataFrame")
 
     result = prepare_pvalue_data(
         df, p_col, on_empty=ALL_PVALUES_INVALID.format(p_col=p_col)

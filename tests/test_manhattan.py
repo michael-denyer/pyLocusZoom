@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import GenomeWideConfig
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan import prepare_categorical_data
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
@@ -70,7 +71,7 @@ class TestChromosomeOrdering:
         """Must provide either species or custom_order."""
         from pylocuszoom.manhattan import get_chromosome_order
 
-        with pytest.raises(ValueError, match="Must provide"):
+        with pytest.raises(ValidationError, match="No chromosome order"):
             get_chromosome_order()
 
     def test_dog_alias_works(self):

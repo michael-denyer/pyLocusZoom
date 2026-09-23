@@ -254,8 +254,7 @@ class LocusZoomPlotter:
             ``plotly.graph_objects.Figure``, or ``bokeh.layouts.Column``).
 
         Raises:
-            ValueError: On an invalid region or a contradictory config
-                (raised by :class:`PlotConfig` as a ``ValidationError``), or
+            ValidationError: On an invalid region or a contradictory config,
                 a missing required GWAS column, or when no SNP in the region
                 lifts to the target build.
             pylocuszoom.exceptions.PlinkError: When PLINK itself fails
@@ -406,7 +405,7 @@ class LocusZoomPlotter:
             significance_threshold: As on :meth:`plot`.
 
         Raises:
-            ValueError: If ``gwas_dfs`` is empty or a per-panel list has a
+            ValidationError: If ``gwas_dfs`` is empty or a per-panel list has a
                 different length.
 
         Example:
@@ -422,7 +421,7 @@ class LocusZoomPlotter:
         """
         gwas_dfs = [to_pandas(df) for df in gwas_dfs]
         if not gwas_dfs:
-            raise ValueError("At least one GWAS DataFrame required")
+            raise ValidationError("At least one GWAS DataFrame required")
         config = StackedPlotConfig(
             region=RegionConfig(chrom=chrom, start=start, end=end),
             columns=columns,

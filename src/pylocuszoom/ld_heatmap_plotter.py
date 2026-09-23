@@ -11,6 +11,7 @@ import pandas as pd
 
 from ._figure import FigurePlan, render_figure
 from .backends import BackendType, get_backend
+from .exceptions import ValidationError
 from .panels.ld_heatmap import LDHeatmapPanel
 
 
@@ -70,9 +71,8 @@ class LDHeatmapPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValueError: If ld_matrix is not square.
-            ValueError: If lead_snp not found in snp_ids.
-            ValueError: If any highlight_snps not found in snp_ids.
+            ValidationError: If ld_matrix is not square, or lead_snp or any
+                highlight_snps is not in snp_ids.
 
         Example:
             >>> fig = plotter.plot_ld_heatmap(
@@ -94,11 +94,11 @@ class LDHeatmapPlotter:
 
         # Validate square matrix
         if data.ndim != 2 or data.shape[0] != data.shape[1]:
-            raise ValueError(f"ld_matrix must be square, got shape {data.shape}")
+            raise ValidationError(f"ld_matrix must be square, got shape {data.shape}")
 
         n_snps = len(snp_ids)
         if data.shape[0] != n_snps:
-            raise ValueError(
+            raise ValidationError(
                 f"snp_ids length ({n_snps}) does not match matrix dimension ({data.shape[0]})"
             )
 
@@ -106,7 +106,7 @@ class LDHeatmapPlotter:
         lead_idx = None
         if lead_snp is not None:
             if lead_snp not in snp_ids:
-                raise ValueError(f"lead_snp '{lead_snp}' not found in snp_ids")
+                raise ValidationError(f"lead_snp '{lead_snp}' not found in snp_ids")
             lead_idx = snp_ids.index(lead_snp)
 
         # Validate highlight_snps
@@ -114,7 +114,7 @@ class LDHeatmapPlotter:
         if highlight_snps:
             for snp in highlight_snps:
                 if snp not in snp_ids:
-                    raise ValueError(f"highlight_snp '{snp}' not found in snp_ids")
+                    raise ValidationError(f"highlight_snp '{snp}' not found in snp_ids")
                 highlight_indices.append(snp_ids.index(snp))
 
         panel = LDHeatmapPanel(

@@ -82,7 +82,7 @@ def to_pandas(
         pandas DataFrame.
 
     Raises:
-        TypeError: If df is not a supported DataFrame type.
+        ValidationError: If df is not a supported DataFrame type.
 
     Example:
         >>> # PySpark DataFrame
@@ -107,7 +107,7 @@ def to_pandas(
     if hasattr(df, "toPandas"):
         return df.toPandas()
 
-    raise TypeError(
+    raise ValidationError(
         f"Unsupported DataFrame type: {type(df).__name__}. "
         f"Expected pandas.DataFrame or pyspark.sql.DataFrame"
     )

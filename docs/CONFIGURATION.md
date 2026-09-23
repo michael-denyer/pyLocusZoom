@@ -150,7 +150,9 @@ Because configuration is passed at call time, "required" here means
 | `ld_col`                 | Optional                               | Mutually exclusive with `ld_reference_file`.               |
 | `snp_labels`, `label_top_n`, `show_recombination`, `figsize` | Optional | Sensible defaults (see table above).      |
 
-Validation failures raise `pydantic.ValidationError` at call time.
+Validation failures raise `pylocuszoom.ValidationError` at call time, naming
+each failing field. It subclasses `PyLocusZoomError` and `ValueError`, not
+pydantic's own `ValidationError`.
 
 ## Defaults Summary
 

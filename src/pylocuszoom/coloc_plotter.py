@@ -25,6 +25,7 @@ from .colors import (
     get_ld_color,
 )
 from .config import ColocConfig
+from .exceptions import ValidationError
 from .panels.coloc import ColocPanel
 from .schemas import Canonical, validate_coloc_df
 from .utils import DataFrameLike, to_pandas
@@ -64,7 +65,9 @@ def _project_coloc_input(
     ):
         if source is not None:
             if source not in df.columns:
-                raise ValueError(f"{field} '{source}' not found in {name.upper()} data")
+                raise ValidationError(
+                    f"{field} '{source}' not found in {name.upper()} data"
+                )
             roles[role] = source
     if rs_col is not None and rs_col in df.columns:
         roles["rs"] = rs_col
@@ -101,7 +104,9 @@ def _merge_and_transform(
     )
     merged = pd.merge(gwas, eqtl, on="pos", how="inner")
     if merged.empty:
-        raise ValueError("No overlapping positions between GWAS and eQTL DataFrames")
+        raise ValidationError(
+            "No overlapping positions between GWAS and eQTL DataFrames"
+        )
     if config.color_by_effect:
         merged["color"] = merged.apply(
             lambda row: _get_effect_agreement_color(
@@ -131,17 +136,19 @@ def _resolve_lead_idx(merged: pd.DataFrame, config: ColocConfig) -> Optional[Any
         Index label of the lead row, or None to draw no lead marker.
 
     Raises:
-        ValueError: If ``lead_snp`` is named but the merged frame has no SNP
+        ValidationError: If ``lead_snp`` is named but the merged frame has no SNP
             ID column or no row matching it.
     """
     if config.lead_snp is not None:
         if "rs" not in merged:
-            raise ValueError(
+            raise ValidationError(
                 f"lead_snp '{config.lead_snp}' specified but rs_col not found"
             )
         matches = merged[merged["rs"] == config.lead_snp]
         if len(matches) == 0:
-            raise ValueError(f"lead_snp '{config.lead_snp}' not found in merged data")
+            raise ValidationError(
+                f"lead_snp '{config.lead_snp}' not found in merged data"
+            )
         return matches.index[0]
     if "ld" in merged:
         combined = merged["neglog10_gwas"] + merged["neglog10_eqtl"]
@@ -233,11 +240,10 @@ class ColocPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValidationError: If required columns are missing or invalid.
-            ValueError: If no overlapping positions between GWAS and eQTL.
-            ValueError: If lead_snp specified but not found in merged data.
-            ValueError: If color_by_effect=True but effect columns not provided.
-            ValueError: If h4_posterior is not in [0, 1] range.
+            ValidationError: If required columns are missing or invalid, no
+                position is in both frames, ``lead_snp`` is not found,
+                ``color_by_effect=True`` lacks its effect columns, or
+                ``h4_posterior`` is outside [0, 1].
 
         Example:
             >>> fig = plotter.plot_coloc(

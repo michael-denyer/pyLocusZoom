@@ -10,6 +10,7 @@ import pytest
 from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
 from pylocuszoom.colors import LEAD_SNP_COLOR
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.figure_probes import PROBES
 
@@ -530,9 +531,7 @@ class TestLeadPosBoundary:
             }
         )
 
-        from pydantic import ValidationError as PydanticValidationError
-
-        with pytest.raises(PydanticValidationError, match="greater than or equal to 1"):
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
             plotter.plot(
                 gwas_df,
                 chrom=1,

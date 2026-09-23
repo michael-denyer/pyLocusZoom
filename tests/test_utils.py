@@ -206,7 +206,7 @@ class TestToPandas:
 
     def test_unsupported_type_raises_error(self):
         """Unsupported type raises TypeError."""
-        with pytest.raises(TypeError, match="Unsupported DataFrame type"):
+        with pytest.raises(ValidationError, match="Unsupported DataFrame type"):
             to_pandas([1, 2, 3])
 
     def test_object_with_only_to_pandas_is_rejected(self):
@@ -216,7 +216,7 @@ class TestToPandas:
         mock_obj.__class__.__name__ = "CustomDataFrame"
         mock_obj.__class__.__module__ = "custom"
 
-        with pytest.raises(TypeError, match="Unsupported DataFrame type"):
+        with pytest.raises(ValidationError, match="Unsupported DataFrame type"):
             to_pandas(mock_obj)
 
     def test_object_with_toPandas_method(self):

@@ -725,9 +725,8 @@ class TestColocConfigIntegration:
 
     def test_invalid_config_caught(self):
         """Test invalid ColocConfig raises ValidationError."""
-        from pydantic import ValidationError
-
         from pylocuszoom.config import ColocConfig
+        from pylocuszoom.exceptions import ValidationError
 
         # color_by_effect without effect columns
         with pytest.raises(ValidationError, match="color_by_effect"):

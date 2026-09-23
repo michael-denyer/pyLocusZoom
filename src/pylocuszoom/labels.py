@@ -13,6 +13,7 @@ from matplotlib.text import Annotation
 
 from pylocuszoom._label_data import select_label_candidates
 from pylocuszoom.colors import SNP_LABEL_COLOR
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.logging import logger
 from pylocuszoom.schemas import Canonical
 
@@ -66,7 +67,7 @@ def add_snp_labels(
         >>> texts = add_snp_labels(ax, df, label_top_n=5)
     """
     if neglog10p_col not in df.columns:
-        raise ValueError(
+        raise ValidationError(
             f"Column '{neglog10p_col}' not found in DataFrame. "
             "Ensure -log10(p) values are calculated before calling add_snp_labels."
         )

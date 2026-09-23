@@ -5,6 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from .exceptions import ValidationError
 from .logging import logger
 
 P_VALUE_FLOOR = 1e-300
@@ -40,7 +41,7 @@ def prepare_pvalue_data(
         A filtered copy carrying ``out_col``.
 
     Raises:
-        ValueError: If nothing survives and ``on_empty`` names a message.
+        ValidationError: If nothing survives and ``on_empty`` names a message.
     """
     result = df.copy()
     initial_count = len(result)
@@ -68,5 +69,5 @@ def prepare_pvalue_data(
     if dropped:
         logger.debug("P-value filtering removed {} of {} rows", dropped, initial_count)
     if result.empty and on_empty is not None:
-        raise ValueError(on_empty)
+        raise ValidationError(on_empty)
     return result

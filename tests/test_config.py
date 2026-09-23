@@ -8,9 +8,9 @@ Tests cover:
 """
 
 import pytest
-from pydantic import ValidationError
 
 from pylocuszoom import DisplayConfig
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.figure_probes import PROBES
 

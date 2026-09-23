@@ -34,6 +34,7 @@ from typing import (
 
 import matplotlib.colors as mcolors
 import pandas as pd
+import pydantic
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._liftover import CoordinateLifter, load_chain
@@ -42,6 +43,7 @@ from ._plotter_utils import (
     DEFAULT_EQTL_THRESHOLD,
     DEFAULT_GENOMEWIDE_THRESHOLD,
 )
+from .exceptions import ValidationError
 from .schemas import (
     DEPRECATED_ALIAS_REMOVED_IN,
     DEPRECATED_COLUMN_ALIASES,
@@ -51,7 +53,37 @@ from .schemas import (
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
 
 
-class RegionConfig(BaseModel):
+def _describe(error: pydantic.ValidationError) -> str:
+    """Name each failing field and why, without pydantic's type codes and URLs."""
+    faults = []
+    for fault in error.errors():
+        field = ".".join(str(part) for part in fault["loc"])
+        message = fault["msg"].removeprefix("Value error, ")
+        faults.append(f"{field}: {message}" if field else message)
+    return f"Invalid {error.title}: " + "; ".join(faults)
+
+
+class _Config(BaseModel):
+    """Base of every config model: a rejected value raises our ValidationError.
+
+    pydantic's own ``ValidationError`` shares the name but not the hierarchy,
+    so ``except PyLocusZoomError`` would miss it.
+    """
+
+    def __init__(self, /, **data: Any) -> None:
+        try:
+            super().__init__(**data)
+        except pydantic.ValidationError as error:
+            raise ValidationError(_describe(error)) from error
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        try:
+            super().__setattr__(name, value)
+        except pydantic.ValidationError as error:
+            raise ValidationError(_describe(error)) from error
+
+
+class RegionConfig(_Config):
     """Genomic region specification.
 
     Attributes:
@@ -84,7 +116,7 @@ class RegionConfig(BaseModel):
         return self
 
 
-class ColumnConfig(BaseModel):
+class ColumnConfig(_Config):
     """DataFrame column name mappings for GWAS data.
 
     The defaults are the canonical names every loader emits, so a loaded
@@ -103,7 +135,7 @@ class ColumnConfig(BaseModel):
     rs_col: str = Field(default=Canonical.RS, description="SNP ID column name")
 
 
-class DisplayConfig(BaseModel):
+class DisplayConfig(_Config):
     """Display and visual options for plots.
 
     Attributes:
@@ -152,7 +184,7 @@ class DisplayConfig(BaseModel):
         )
 
 
-class LDConfig(BaseModel):
+class LDConfig(_Config):
     """Linkage disequilibrium configuration.
 
     Supports three modes:
@@ -192,7 +224,7 @@ class LDConfig(BaseModel):
         return self
 
 
-class LiftoverConfig(BaseModel):
+class LiftoverConfig(_Config):
     """Plot summary statistics from one genome build on another build's annotations.
 
     With a ``lifter`` or a ``chain_path``, ``plot()`` treats ``gwas_df``,
@@ -240,7 +272,7 @@ class LiftoverConfig(BaseModel):
         return self.lifter
 
 
-class PanelInputs(BaseModel):
+class PanelInputs(_Config):
     """Caller-supplied data for the optional panels beneath the association track."""
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
@@ -285,7 +317,7 @@ class PanelInputs(BaseModel):
         return self
 
 
-class PlotConfig(BaseModel):
+class PlotConfig(_Config):
     """Everything ``plot()`` was asked for, as one validated value.
 
     ``plot()`` builds one from its arguments; the cross-model rules live
@@ -369,7 +401,7 @@ class StackedPlotConfig(PlotConfig):
         return self
 
 
-class GenomeWideConfig(BaseModel):
+class GenomeWideConfig(_Config):
     """Column names and chromosome order for the genome-wide plot families.
 
     Manhattan, QQ and Miami plots lay a whole-genome frame out along one
@@ -399,7 +431,7 @@ class GenomeWideConfig(BaseModel):
 PositiveFontSize = Annotated[int, Field(gt=0)]
 
 
-class GenomeWideStyle(BaseModel):
+class GenomeWideStyle(_Config):
     """Colours, points, fonts and chromosome axis of the genome-wide plots.
 
     Every Manhattan, QQ, Manhattan-QQ, stacked and Miami method takes one as
@@ -511,7 +543,7 @@ class GenomeWideStyle(BaseModel):
         return tuple(mcolors.to_hex(colour) for colour in colours)
 
 
-class ColocConfig(BaseModel):
+class ColocConfig(_Config):
     """Configuration for colocalization plot.
 
     Attributes:

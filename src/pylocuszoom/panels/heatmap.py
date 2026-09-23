@@ -9,6 +9,7 @@ from ..backends.base import PlotBackend
 from ..backends.composition import heatmap_highlight_rects, lower_triangle
 from ..colors import LD_HEATMAP_COLORS, LEAD_SNP_HIGHLIGHT_COLOR
 from ..config import RegionConfig
+from ..exceptions import ValidationError
 from ..logging import logger
 from .association import AssociationPanel
 
@@ -39,13 +40,13 @@ class HeatmapPanel:
         """Map heatmap SNP ids to positions through the source panel's frame.
 
         Raises:
-            ValueError: If the source frame has no SNP id column, or no
+            ValidationError: If the source frame has no SNP id column, or no
                 heatmap SNP falls inside the region.
         """
         df = source.data
         rs_col, pos_col = source.columns.rs_col, source.columns.pos_col
         if rs_col not in df.columns:
-            raise ValueError(
+            raise ValidationError(
                 f"Cannot map heatmap to genomic coords: column '{rs_col}' not in GWAS data"
             )
 
@@ -56,13 +57,13 @@ class HeatmapPanel:
             if snp_id in snp_to_pos and region.start <= snp_to_pos[snp_id] <= region.end
         ]
         if not kept:
-            raise ValueError(
+            raise ValidationError(
                 "No SNPs from LD heatmap overlap with region - heatmap not rendered"
             )
         kept.sort(key=lambda record: record[2])
         indices, kept_ids, x_positions = (list(column) for column in zip(*kept))
         if len(set(x_positions)) != len(x_positions):
-            raise ValueError(
+            raise ValidationError(
                 "Regional heatmap SNPs must have distinct genomic positions"
             )
 
