@@ -79,25 +79,10 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
     Raises:
         ValueError: If the plan has no panels.
     """
-    n_panels = len(plan.panels)
-    if n_panels == 0:
+    if not plan.panels:
         raise ValueError("Figure plan must contain at least one panel")
 
-    if plan.n_cols == 1:
-        fig, axes = backend.create_figure(
-            height_ratios=plan.height_ratios or [1.0] * n_panels,
-            figsize=plan.figsize,
-            sharex=plan.sharex,
-        )
-    else:
-        fig, axes = backend.create_figure_grid(
-            n_rows=n_panels // plan.n_cols,
-            n_cols=plan.n_cols,
-            width_ratios=plan.width_ratios,
-            height_ratios=plan.height_ratios,
-            figsize=plan.figsize,
-        )
-
+    fig, axes = _create_figure(backend, plan)
     for ax, panel in zip(axes, plan.panels):
         panel.draw(backend, ax)
 
@@ -131,3 +116,21 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
     if plan.footer:
         backend.set_footer(fig, plan.footer)
     return fig
+
+
+def _create_figure(backend: PlotBackend, plan: FigurePlan) -> Tuple[Any, List[Any]]:
+    """Create a vertical stack for a one-column plan, or a grid."""
+    n_panels = len(plan.panels)
+    if plan.n_cols == 1:
+        return backend.create_figure(
+            height_ratios=plan.height_ratios or [1.0] * n_panels,
+            figsize=plan.figsize,
+            sharex=plan.sharex,
+        )
+    return backend.create_figure_grid(
+        n_rows=n_panels // plan.n_cols,
+        n_cols=plan.n_cols,
+        width_ratios=plan.width_ratios,
+        height_ratios=plan.height_ratios,
+        figsize=plan.figsize,
+    )
