@@ -1044,3 +1044,89 @@ def test_managed_maps_use_their_known_liftover_chain(tmp_path, monkeypatch):
     result = recomb_for_region(1, 200, 300, genome_build="canfam4")
     assert result.status is RecombStatus.OK
     assert result.frame["pos"].tolist() == [250]
+
+
+class TestLiftoverChainFailures:
+    """A chain that cannot be fetched or read skips the overlay like a map does."""
+
+    CHAIN = "chain 1000 chr1 5000 + 0 1000 chr1 5000 + 100 1100 1\n1000\n\n"
+
+    @pytest.fixture
+    def chain_dir(self, tmp_path, monkeypatch):
+        """Install managed canfam3 maps and return the (not yet created) chain dir."""
+        maps = tmp_path / "recombination_maps"
+        TestPublishMapGeneration._write_maps(
+            maps, "chr\tpos\trate\tcM\n1\t150\t1.0\t0.1\n"
+        )
+        chain_dir = tmp_path / "liftover"
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: maps
+        )
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_chain_dir", lambda: chain_dir
+        )
+        return chain_dir
+
+    def test_a_chain_download_failure_is_a_download_failure(
+        self, chain_dir, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file",
+            Mock(side_effect=DataDownloadError("simulated chain 404")),
+        )
+
+        result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
+
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        assert "simulated chain 404" in result.detail
+
+    def test_a_corrupt_cached_chain_is_downloaded_again(self, chain_dir, monkeypatch):
+        import gzip
+
+        chain_dir.mkdir()
+        (chain_dir / "canFam3ToCanFam4.over.chain.gz").write_bytes(b"not a chain")
+
+        def download(url, dest, desc=None):
+            Path(dest).write_bytes(gzip.compress(self.CHAIN.encode()))
+
+        fetch = Mock(side_effect=download)
+        monkeypatch.setattr("pylocuszoom.recombination.download_file", fetch)
+
+        result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
+
+        assert fetch.call_count == 1
+        assert result.status is RecombStatus.OK
+        assert result.frame["pos"].tolist() == [250]
+
+    def test_a_chain_that_stays_unreadable_is_a_download_failure(
+        self, chain_dir, monkeypatch
+    ):
+        def download(url, dest, desc=None):
+            Path(dest).write_bytes(b"<html>502</html>")
+
+        monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+
+        result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
+
+        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        assert "unreadable" in result.detail
+
+
+def test_a_lift_that_drops_the_whole_map_is_not_ok(tmp_path, recwarn):
+    """An empty overlay after liftover must say why, not report OK."""
+    (tmp_path / "chr1_recomb.tsv").write_text(
+        "chr\tpos\trate\tcM\n1\t150\t42\t0.1\n1\t180\t40\t0.2\n"
+    )
+
+    result = recomb_for_region(
+        1,
+        100,
+        200,
+        species="canine",
+        data_dir=str(tmp_path),
+        lifter=InMemoryLifter({("chr2", 0): 0}),
+    )
+
+    assert result.status is not RecombStatus.OK
+    assert "chr1" in result.detail
+    assert list(recwarn) == []
