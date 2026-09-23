@@ -204,6 +204,10 @@ class MatplotlibProbe:
             if isinstance(p, Rectangle) and p.get_data_transform() is not ax.transData
         ]
 
+    def colorbar_titles(self, fig):
+        """The title of every colour scale on the figure."""
+        return [ax.get_ylabel() for ax in fig.axes if hasattr(ax, "_colorbar")]
+
     def font_sizes(self, fig):
         """Point sizes of the figure title, panel titles, axis labels and ticks."""
         panels = self.panels(fig)
@@ -375,6 +379,14 @@ class PlotlyProbe:
             RegionHighlight(s.x0, s.x1, _hex(s.fillcolor))
             for s in self._shapes(fig, panel, "rect")
             if str(s.yref).endswith("domain")
+        ]
+
+    def colorbar_titles(self, fig):
+        """The title of every colour scale on the figure."""
+        return [
+            trace.colorbar.title.text
+            for trace in fig.data
+            if trace.type == "heatmap" and trace.showscale
         ]
 
     def font_sizes(self, fig):
@@ -588,6 +600,17 @@ class BokehProbe:
             RegionHighlight(box.left, box.right, _hex(box.fill_color))
             for box in self.panels(fig)[panel].center
             if isinstance(box, BoxAnnotation)
+        ]
+
+    def colorbar_titles(self, fig):
+        """The title of every colour scale on the figure."""
+        from bokeh.models import ColorBar
+
+        return [
+            bar.title
+            for plot in self.panels(fig)
+            for bar in plot.right
+            if isinstance(bar, ColorBar)
         ]
 
     def font_sizes(self, fig):

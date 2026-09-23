@@ -19,7 +19,6 @@ from ._coerce import (
     normalize_ratios,
     pixels,
 )
-from .base import Mappable
 from .composition import LegendEntry, mb_tick_positions
 from .hover import plotly_hovertemplate
 from .plotly_layout import (
@@ -70,11 +69,6 @@ class PlotlyBackend:
     - R² with lead SNP
     - Nearest gene
     """
-
-    @property
-    def supports_hover(self) -> bool:
-        """Plotly supports hover tooltips."""
-        return True
 
     def create_figure(
         self,
@@ -300,7 +294,6 @@ class PlotlyBackend:
         fontsize: int = 10,
         ha: str = "center",
         va: str = "bottom",
-        rotation: float = 0,
         color: str = "black",
     ) -> None:
         """Add text annotation to panel."""
@@ -317,7 +310,6 @@ class PlotlyBackend:
             font=dict(size=fontsize, color=color),
             xanchor=xanchor_map.get(ha, "center"),
             yanchor=yanchor_map.get(va, "bottom"),
-            textangle=-rotation,
             showarrow=False,
             row=row,
             col=col,
@@ -624,7 +616,6 @@ class PlotlyBackend:
         self,
         ax: _Panel,
         entries: List[LegendEntry],
-        loc: str = "upper left",
         title: Optional[str] = None,
     ) -> None:
         """Render legend entries as an independently-positioned Plotly legend.
@@ -653,7 +644,7 @@ class PlotlyBackend:
                 legend_key,
                 entry.edgecolor or "black",
             )
-        configure_legend(ax, legend_key, convert_latex_to_unicode(title or ""), loc)
+        configure_legend(ax, legend_key, convert_latex_to_unicode(title or ""))
 
     def hide_yaxis(self, ax: _Panel) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
@@ -794,8 +785,13 @@ class PlotlyBackend:
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Mappable:
-        """Render a heatmap of an already-shaped matrix."""
+        colorbar_label: Optional[str] = None,
+    ) -> None:
+        """Render a heatmap of an already-shaped matrix.
+
+        Plotly draws the colour scale as part of the heatmap trace, so the
+        label turns the trace's own scale on.
+        """
         import numpy as np
 
         fig, row, col = ax.fig, ax.row, ax.col
@@ -814,33 +810,9 @@ class PlotlyBackend:
                 colorscale=colorscale,
                 zmin=vmin,
                 zmax=vmax,
-                showscale=False,
+                showscale=colorbar_label is not None,
+                colorbar=None if colorbar_label is None else dict(title=colorbar_label),
             ),
             row=row,
             col=col,
-        )
-        # add_trace stores a copy, so hand back the figure's own trace: that is
-        # the object add_colorbar has to mutate for the scale to appear.
-        return fig.data[-1]
-
-    def add_colorbar(
-        self,
-        ax: _Panel,
-        mappable: Mappable,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> None:
-        """Add colorbar legend for heatmap.
-
-        Plotly draws the scale as part of the heatmap trace rather than as a
-        separate artist, so this turns the trace's own scale on and titles it.
-        ``add_heatmap`` leaves it off, which is what lets a caller skip this
-        call to get a heatmap with no scale.
-        """
-        mappable.update(
-            showscale=True,
-            colorbar=dict(
-                title=label,
-                orientation="h" if orientation == "horizontal" else "v",
-            ),
         )

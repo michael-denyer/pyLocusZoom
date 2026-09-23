@@ -11,23 +11,6 @@ from typing import NamedTuple, Optional, Tuple
 
 import plotly.graph_objects as go
 
-# Matplotlib legend `loc` vocabulary mapped to Plotly (xanchor, yanchor).
-# "best" has no Plotly equivalent, so it takes the upper-right default.
-_LEGEND_ANCHORS = {
-    "best": ("right", "top"),
-    "upper right": ("right", "top"),
-    "upper left": ("left", "top"),
-    "upper center": ("center", "top"),
-    "lower right": ("right", "bottom"),
-    "lower left": ("left", "bottom"),
-    "lower center": ("center", "bottom"),
-    "center right": ("right", "middle"),
-    "center left": ("left", "middle"),
-    "right": ("right", "middle"),
-    "center": ("center", "middle"),
-}
-_LEGEND_X = {"left": 0.01, "center": 0.5, "right": 0.99}
-
 
 class _Panel(NamedTuple):
     """One subplot of a Plotly figure, resolved from a renderer's panel handle.
@@ -129,43 +112,35 @@ def secondary_axis_key(secondary_ref: str) -> str:
     return secondary_ref
 
 
-def panel_y(panel: _Panel, vertical: str) -> float:
-    """Find a y-coordinate in paper coords inside a subplot's domain.
+def panel_top(panel: _Panel) -> float:
+    """The top of a subplot's domain, in paper coordinates.
 
     Args:
         panel: The subplot.
-        vertical: One of ``"bottom"``, ``"middle"``, or ``"top"``.
 
     Returns:
         The y-coordinate in paper coordinates.
     """
     yaxis = getattr(panel.fig.layout, panel.axis("yaxis"), None)
-    domain = yaxis.domain if yaxis and yaxis.domain else (0.01, 0.99)
-    if vertical == "bottom":
-        return domain[0]
-    if vertical == "middle":
-        return (domain[0] + domain[1]) / 2
-    return domain[1]
+    return yaxis.domain[1] if yaxis and yaxis.domain else 0.99
 
 
-def configure_legend(panel: _Panel, legend_key: str, title: str, loc: str) -> None:
-    """Position and style one of a figure's legends against a panel.
+def configure_legend(panel: _Panel, legend_key: str, title: str) -> None:
+    """Anchor one of a figure's legends in a panel's upper-right corner.
 
     Args:
         panel: The subplot the legend belongs to.
         legend_key: Layout key for this legend, such as ``"legend2"``.
         title: Legend title, already in display form.
-        loc: Matplotlib legend location vocabulary, such as ``"upper right"``.
     """
-    horizontal, vertical = _LEGEND_ANCHORS.get(loc, _LEGEND_ANCHORS["upper right"])
     panel.fig.update_layout(
         **{
             legend_key: dict(
                 title=dict(text=title),
-                x=_LEGEND_X[horizontal],
-                y=panel_y(panel, vertical),
-                xanchor=horizontal,
-                yanchor=vertical,
+                x=0.99,
+                y=panel_top(panel),
+                xanchor="right",
+                yanchor="top",
                 bgcolor="rgba(255,255,255,0.9)",
                 bordercolor="black",
                 borderwidth=1,

@@ -8,12 +8,11 @@ three copies.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional, Sequence, TypeVar
 
 import numpy as np
 import pandas as pd
 
-from .._figure import title_weight
 from .._plotter_utils import (
     MANHATTAN_CATEGORICAL_POINT_SIZE,
     MANHATTAN_EDGE_WIDTH,
@@ -34,15 +33,6 @@ T = TypeVar("T")
 def styled(override: Optional[T], default: T) -> T:
     """Return a style field the caller set, or the panel's own default."""
     return default if override is None else override
-
-
-def scatter_alpha(style: GenomeWideStyle) -> Dict[str, float]:
-    """Return the ``alpha`` keyword for ``scatter``, or none when it is unset.
-
-    Left out rather than passed as None, so a backend registered before
-    ``scatter`` took ``alpha`` still draws an unstyled figure.
-    """
-    return {} if style.point_alpha is None else {"alpha": style.point_alpha}
 
 
 def padded_ymax(y_max: float, headroom: float) -> float:
@@ -75,9 +65,7 @@ class ManhattanPanelSpec:
         panel_label: Corner label, or None for none.
         panel_label_y_frac: Fractional height of the corner label.
         invert_y: Draw the y axis descending, as the lower Miami panel does.
-        hover: Hover column mapping, or None for no tooltips. Built only
-            when the backend reports ``supports_hover``, since matplotlib
-            discards the frame the builder would allocate per group.
+        hover: Hover column mapping, or None for no tooltips.
         style: Caller styling. A field it sets overrides the matching
             field above.
     """
@@ -263,9 +251,11 @@ def render_manhattan_panel(
         group_data = df[df[spec.group_col] == group]
         if group_data.empty:
             continue
-        hover_data = None
-        if spec.hover is not None and backend.supports_hover:
-            hover_data = HoverDataBuilder(spec.hover).build_dataframe(group_data)
+        hover_data = (
+            HoverDataBuilder(spec.hover).build_dataframe(group_data)
+            if spec.hover is not None
+            else None
+        )
         backend.scatter(
             ax,
             group_data[spec.x_col],
@@ -277,7 +267,7 @@ def render_manhattan_panel(
             linewidth=styled(style.point_edge_width, MANHATTAN_EDGE_WIDTH),
             zorder=2,
             hover_data=hover_data,
-            **scatter_alpha(style),
+            alpha=style.point_alpha,
         )
 
     line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
@@ -324,7 +314,7 @@ def render_manhattan_panel(
             ax,
             spec.title,
             fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
-            **title_weight(style.title_fontweight),
+            fontweight=style.title_fontweight,
         )
     if spec.panel_label:
         backend.add_panel_label(ax, spec.panel_label, y_frac=spec.panel_label_y_frac)

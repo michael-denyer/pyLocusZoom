@@ -41,7 +41,6 @@ from ._coerce import (
     pixels,
     split_pixels,
 )
-from .base import Mappable
 from .composition import LegendEntry, cell_edges
 from .hover import bokeh_tooltips
 
@@ -52,21 +51,6 @@ _MARKER_MAP = {
     "s": "square",
     "^": "triangle",
     "v": "inverted_triangle",
-}
-# Matplotlib legend `loc` vocabulary mapped to Bokeh legend locations.
-# "best" has no Bokeh equivalent, so it takes the upper-right default.
-_LEGEND_LOCATIONS = {
-    "best": "top_right",
-    "upper right": "top_right",
-    "upper left": "top_left",
-    "upper center": "top_center",
-    "lower right": "bottom_right",
-    "lower left": "bottom_left",
-    "lower center": "bottom_center",
-    "center right": "center_right",
-    "center left": "center_left",
-    "right": "center_right",
-    "center": "center",
 }
 _DASH_MAP = {
     "-": "solid",
@@ -116,11 +100,6 @@ class BokehBackend:
     Produces interactive HTML plots suitable for embedding in web
     applications and dashboards.
     """
-
-    @property
-    def supports_hover(self) -> bool:
-        """Bokeh supports hover tooltips."""
-        return True
 
     def create_figure(
         self,
@@ -321,7 +300,6 @@ class BokehBackend:
         fontsize: int = 10,
         ha: str = "center",
         va: str = "bottom",
-        rotation: float = 0,
         color: str = "black",
     ) -> None:
         """Add text annotation to figure."""
@@ -333,8 +311,6 @@ class BokehBackend:
             text_color=color,
             text_align=ha,
             text_baseline=_BASELINE_MAP.get(va, va),
-            angle=rotation,
-            angle_units="deg",
         )
         ax.add_layout(label)
 
@@ -595,13 +571,11 @@ class BokehBackend:
         )
         return LegendItem(label=label, renderers=[renderer])
 
-    def _create_legend(
-        self, ax: figure, items: List[Any], title: str, loc: str
-    ) -> None:
-        """Create and add a styled legend to the figure."""
+    def _create_legend(self, ax: figure, items: List[Any], title: str) -> None:
+        """Create and add a styled legend to the figure's upper-right corner."""
         legend = Legend(
             items=items,
-            location=_LEGEND_LOCATIONS.get(loc, "top_right"),
+            location="top_right",
             title=convert_latex_to_unicode(title),
             background_fill_alpha=0.9,
             border_line_color="black",
@@ -616,7 +590,6 @@ class BokehBackend:
         self,
         ax: figure,
         entries: List[LegendEntry],
-        loc: str = "upper left",
         title: Optional[str] = None,
     ) -> None:
         """Render legend entries as a Bokeh legend using invisible glyphs."""
@@ -638,7 +611,7 @@ class BokehBackend:
                     edgecolor=entry.edgecolor or "black",
                 )
             )
-        self._create_legend(ax, items, title or "", loc)
+        self._create_legend(ax, items, title or "")
 
     def hide_yaxis(self, ax: figure) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
@@ -747,7 +720,8 @@ class BokehBackend:
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Mappable:
+        colorbar_label: Optional[str] = None,
+    ) -> None:
         """Render a heatmap of an already-shaped matrix."""
         # Create custom palette from start to end color
         # For a simple 2-color gradient, create a palette of intermediate colors
@@ -785,24 +759,14 @@ class BokehBackend:
             line_color=None,
             source=source,
         )
-        return mapper
-
-    def add_colorbar(
-        self,
-        ax: figure,
-        mappable: Mappable,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> None:
-        """Add colorbar legend for heatmap."""
-        color_bar = ColorBar(
-            color_mapper=mappable,
-            ticker=BasicTicker(),
-            label_standoff=6,
-            title=label,
-            orientation=orientation,
-        )
-        ax.add_layout(color_bar, "right")
+        if colorbar_label is not None:
+            color_bar = ColorBar(
+                color_mapper=mapper,
+                ticker=BasicTicker(),
+                label_standoff=6,
+                title=colorbar_label,
+            )
+            ax.add_layout(color_bar, "right")
 
 
 def _create_color_palette(start_color: str, end_color: str, n_colors: int) -> List[str]:

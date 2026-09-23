@@ -107,7 +107,6 @@ class FinemappingPanel:
                 backend.add_legend(
                     ax,
                     finemapping_legend_entries(self.credible_sets),
-                    loc="upper right",
                     title="Credible sets",
                 )
         backend.set_ylabel(ax, "PIP")

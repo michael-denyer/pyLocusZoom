@@ -32,7 +32,7 @@ class LDHeatmapPanel:
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw the lower-triangle heatmap, its highlights, ticks, and title."""
         n_snps = len(self.snp_ids)
-        mappable = backend.add_heatmap(
+        backend.add_heatmap(
             ax,
             data=lower_triangle(self.data),
             x_coords=list(range(n_snps)),
@@ -40,11 +40,10 @@ class LDHeatmapPanel:
             cmap_colors=LD_HEATMAP_COLORS,
             vmin=0.0,
             vmax=1.0,
+            colorbar_label=(
+                ("R²" if self.metric == "r2" else "D'") if self.show_colorbar else None
+            ),
         )
-        if self.show_colorbar:
-            backend.add_colorbar(
-                ax, mappable, label="R²" if self.metric == "r2" else "D'"
-            )
         if self.lead_idx is not None:
             _highlight(backend, ax, self.lead_idx, n_snps, LEAD_SNP_HIGHLIGHT_COLOR)
         for idx in self.highlight_indices:

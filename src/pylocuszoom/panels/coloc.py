@@ -106,10 +106,6 @@ class ColocPanel:
         if self.title:
             backend.set_title(ax, self.title)
         if config.color_by_effect:
-            backend.add_legend(
-                ax, effect_legend_entries(), loc="upper right", title="Effect"
-            )
+            backend.add_legend(ax, effect_legend_entries(), title="Effect")
         elif "ld" in merged:
-            backend.add_legend(
-                ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
-            )
+            backend.add_legend(ax, ld_legend_entries(), title=LD_LEGEND_TITLE)

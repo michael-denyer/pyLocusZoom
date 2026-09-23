@@ -105,9 +105,15 @@ def test_figure_level_policy_reaches_the_backend():
     assert highlight_args[1:] == (10.0, 20.0)
     assert highlight_kwargs == {"color": "yellow", "alpha": 0.3}
     ((suptitle_args, suptitle_kwargs),) = _calls(backend, "set_suptitle")
-    assert suptitle_args[1] == "Title" and suptitle_kwargs == {"fontsize": 14}
+    assert suptitle_args[1] == "Title" and suptitle_kwargs == {
+        "fontsize": 14,
+        "fontweight": "bold",
+    }
     ((title_args, title_kwargs),) = _calls(backend, "set_title")
-    assert title_args[1] == "Top panel" and title_kwargs == {"fontsize": 14}
+    assert title_args[1] == "Top panel" and title_kwargs == {
+        "fontsize": 14,
+        "fontweight": "bold",
+    }
     assert names.index("scatter", 1) < names.index("set_title")
     ((_, layout_kwargs),) = _calls(backend, "finalize_layout")
     assert layout_kwargs == {"top": 0.9, "hspace": 0.05}

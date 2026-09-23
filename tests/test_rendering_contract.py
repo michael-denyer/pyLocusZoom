@@ -20,8 +20,6 @@ from pylocuszoom.qq import prepare_qq_data
 class RecordingBackend:
     """Small primitive adapter that records every backend call it receives."""
 
-    supports_hover = False
-
     def __init__(self):
         self.calls = []
 
@@ -104,9 +102,6 @@ class RecordingBackend:
 
     def add_heatmap(self, *args, **kwargs):
         return self._record("add_heatmap", *args, **kwargs)
-
-    def add_colorbar(self, *args, **kwargs):
-        return self._record("add_colorbar", *args, **kwargs)
 
     def errorbar_h(self, *args, **kwargs):
         return self._record("errorbar_h", *args, **kwargs)
@@ -264,10 +259,8 @@ def test_ld_heatmap_panel_owns_its_policy():
     assert "set_xticks" in names and "set_yticks" in names
     assert "set_title" in names
 
-    colorbar = next(
-        kwargs for name, _, kwargs in backend.calls if name == "add_colorbar"
-    )
-    assert colorbar["label"] == "D'"
+    heatmap = next(kwargs for name, _, kwargs in backend.calls if name == "add_heatmap")
+    assert heatmap["colorbar_label"] == "D'"
 
 
 def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
@@ -289,8 +282,8 @@ def test_ld_heatmap_panel_skips_the_colorbar_when_not_asked():
     render_figure(backend, FigurePlan(panels=[panel], figsize=(8.0, 8.0)))
 
     names = [name for name, _, _ in backend.calls]
-    assert "add_heatmap" in names
-    assert "add_colorbar" not in names
+    heatmap = next(kwargs for name, _, kwargs in backend.calls if name == "add_heatmap")
+    assert heatmap["colorbar_label"] is None
     assert "add_rectangle" not in names
     assert "set_title" not in names
 

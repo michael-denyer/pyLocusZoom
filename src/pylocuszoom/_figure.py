@@ -9,7 +9,7 @@ only code above ``backends/`` that creates a figure or finalizes its layout.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, Tuple
+from typing import Any, List, Literal, Optional, Protocol, Sequence, Tuple
 
 from .backends.base import PlotBackend
 
@@ -18,16 +18,6 @@ class Panel(Protocol):
     """A prepared panel that draws itself onto one backend axis."""
 
     def draw(self, backend: PlotBackend, ax: Any) -> None: ...
-
-
-def title_weight(fontweight: Literal["bold", "normal"]) -> Dict[str, str]:
-    """Return the ``fontweight`` keyword for a title, or none when it is bold.
-
-    Left out rather than passed as "bold", so a backend registered before
-    ``set_title`` and ``set_suptitle`` took ``fontweight`` still draws an
-    unstyled figure.
-    """
-    return {} if fontweight == "bold" else {"fontweight": fontweight}
 
 
 @dataclass(frozen=True)
@@ -122,13 +112,20 @@ def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:
         backend.add_region_highlight(
             axes, span.start, span.end, color=span.color, alpha=span.alpha
         )
-    weight = title_weight(plan.title_fontweight)
     if plan.first_panel_title:
         backend.set_title(
-            axes[0], plan.first_panel_title, fontsize=plan.title_fontsize, **weight
+            axes[0],
+            plan.first_panel_title,
+            fontsize=plan.title_fontsize,
+            fontweight=plan.title_fontweight,
         )
     if plan.suptitle:
-        backend.set_suptitle(fig, plan.suptitle, fontsize=plan.title_fontsize, **weight)
+        backend.set_suptitle(
+            fig,
+            plan.suptitle,
+            fontsize=plan.title_fontsize,
+            fontweight=plan.title_fontweight,
+        )
     backend.finalize_layout(fig, top=plan.top, hspace=plan.hspace)
     # After the layout, so the backend can grow the bottom margin it just set.
     if plan.footer:

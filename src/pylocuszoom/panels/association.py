@@ -100,7 +100,6 @@ class AssociationPanel:
                 neglog10p_col="neglog10p",
                 rs_col=snp_col,
                 label_top_n=self.display.label_top_n,
-                adjust=True,
             )
 
         recomb_df = self.recomb_df
@@ -110,9 +109,7 @@ class AssociationPanel:
         if self.panel_label:
             backend.add_panel_label(ax, self.panel_label)
         if self.add_ld_legend and self.ld_col is not None:
-            backend.add_legend(
-                ax, ld_legend_entries(), loc="upper right", title=LD_LEGEND_TITLE
-            )
+            backend.add_legend(ax, ld_legend_entries(), title=LD_LEGEND_TITLE)
 
 
 def _draw_association_points(

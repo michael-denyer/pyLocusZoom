@@ -87,7 +87,7 @@ class HeatmapPanel:
         if n_snps < 2:
             logger.debug("Skipping heatmap: fewer than 2 SNPs after filtering")
             return
-        mappable = backend.add_heatmap(
+        backend.add_heatmap(
             ax,
             data=lower_triangle(self.matrix.values),
             x_coords=self.x_positions,
@@ -95,8 +95,8 @@ class HeatmapPanel:
             cmap_colors=LD_HEATMAP_COLORS,
             vmin=0.0,
             vmax=1.0,
+            colorbar_label="R²" if self.metric == "r2" else "D'",
         )
-        backend.add_colorbar(ax, mappable, label="R²" if self.metric == "r2" else "D'")
         if self.lead_snp_id is not None and self.lead_snp_id in self.snp_ids:
             rects = heatmap_highlight_rects(
                 self.snp_ids.index(self.lead_snp_id),

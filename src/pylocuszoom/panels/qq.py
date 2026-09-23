@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from .._figure import title_weight
 from .._plotter_utils import (
     POINT_EDGE_COLOR,
     QQ_CI_ALPHA,
@@ -16,7 +15,7 @@ from .._plotter_utils import (
 from ..backends.base import PlotBackend
 from ..colors import QQ_CI_COLOR, QQ_POINT_COLOR
 from ..config import GenomeWideStyle
-from .manhattan import scatter_alpha, styled
+from .manhattan import styled
 
 
 def qq_title(lambda_gc: float, *, show_lambda: bool, compact: bool) -> str:
@@ -107,7 +106,7 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         edgecolor=POINT_EDGE_COLOR,
         linewidth=styled(style.point_edge_width, QQ_EDGE_WIDTH),
         zorder=3,
-        **scatter_alpha(style),
+        alpha=style.point_alpha,
     )
     backend.set_xlim(ax, 0, max_val * 1.05)
     backend.set_ylim(ax, 0, max_val * 1.05)
@@ -121,5 +120,5 @@ def render_qq_panel(backend: PlotBackend, ax: Any, spec: QQPanelSpec) -> None:
         ax,
         spec.title,
         fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
-        **title_weight(style.title_fontweight),
+        fontweight=style.title_fontweight,
     )

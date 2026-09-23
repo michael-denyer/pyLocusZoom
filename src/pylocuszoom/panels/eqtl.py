@@ -102,7 +102,6 @@ class EqtlPanel:
                 backend.add_legend(
                     ax,
                     eqtl_legend_entries(),
-                    loc="upper right",
                     title="eQTL effect",
                 )
             else:
@@ -122,7 +121,6 @@ class EqtlPanel:
                 backend.add_legend(
                     ax,
                     [LegendEntry(label, EQTL_MARKER_COLOR, marker="D")],
-                    loc="upper right",
                 )
         backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
         add_significance_line(backend, ax, self.threshold, alpha=REGIONAL_LINE_ALPHA)

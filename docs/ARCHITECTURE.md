@@ -398,13 +398,14 @@ seam by pure functions in `backends/composition.py` and handed down as
 `LegendEntry` values:
 
 ```python
-def add_legend(self, ax, entries: list[LegendEntry], loc="upper left", title=None):
+def add_legend(self, ax, entries: list[LegendEntry], title=None):
     """entries carry label, color, marker ("patch" or a marker code), edgecolor."""
 ```
 
-Backends must honour `loc` (matplotlib's vocabulary) and each entry's
-`edgecolor`, falling back to black when it is `None`. No drawing primitive
-takes a label, so `add_legend` is the only route to legend content.
+Backends draw the legend in the panel's upper-right corner and honour each
+entry's `edgecolor`, falling back to black when it is `None`. (2.0 also took a
+`loc`, which every caller set to `"upper right"`; 5.0 removed it.) No drawing
+primitive takes a label, so `add_legend` is the only route to legend content.
 
 **2. `add_recombination_overlay` is gone.** The overlay is composed from
 primitives by `composition.render_recombination_overlay()`. A backend that wants
@@ -419,8 +420,9 @@ detected with `isinstance` against `@runtime_checkable` protocols, so a backend
 declares support by implementing the methods and declines by omitting them:
 `SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`. Only
 `SupportsSNPLabels` is still optional; see "One optional capability" below.
-`supports_hover` stays a boolean, because it is a rendering-quality flag with no
-method to key on.
+`supports_hover` stayed a boolean until 5.0 deleted it
+([ADR-0011](adr/0011-protocol-diet-and-one-panel-body.md)): its one caller
+saved about 5 ms, and matplotlib ignores hover data anyway.
 
 No compatibility shim is provided. See
 [ADR-0004](adr/0004-complete-rendering-seam-and-capability-protocols.md) for the
@@ -438,7 +440,7 @@ decline it. See
 [ADR-0005](adr/0005-heatmap-and-bar-chart-capability-protocols.md) for the split
 and why it was reversed.
 
-`add_heatmap`, `add_colorbar`, `errorbar_h`, `create_twin_axis`,
+`add_heatmap`, `errorbar_h`, `create_twin_axis`,
 `set_secondary_ylim`, `set_secondary_ylabel` and `add_region_highlight` are
 required methods again. A backend that implements every required method and no
 `add_snp_labels` still renders every regional, Manhattan, Miami, colocalisation

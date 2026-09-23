@@ -20,13 +20,6 @@ import pandas as pd
 if TYPE_CHECKING:
     from .composition import LegendEntry
 
-Mappable = Any
-"""Opaque handle produced by ``add_heatmap`` and consumed by ``add_colorbar``.
-
-The only backend return value that crosses the seam. Every drawing primitive
-returns ``None``: a caller draws, it does not collect handles.
-"""
-
 
 @runtime_checkable
 class SupportsSNPLabels(Protocol):
@@ -40,11 +33,12 @@ class SupportsSNPLabels(Protocol):
         neglog10p_col: str,
         rs_col: str,
         label_top_n: int,
-        adjust: bool = True,
-        lead_pos: Optional[int] = None,
-        region_span: Optional[int] = None,
-    ) -> List[Any]:
-        """Add SNP labels to a panel and return the text objects."""
+    ) -> None:
+        """Label the ``label_top_n`` strongest rows of ``df`` with their SNP ids.
+
+        The caller has already chosen the rows eligible for a label, so the
+        backend ranks and places them.
+        """
         ...
 
 
@@ -54,9 +48,6 @@ class PlotBackend(Protocol):
     All backends (matplotlib, plotly, bokeh) must implement these methods
     to enable consistent plotting across different rendering engines.
 
-    Capability Properties:
-        supports_hover: Whether backend supports hover tooltips.
-
     ``zorder`` is advisory. Matplotlib honours it; the interactive backends
     accept it and draw in call order, because neither library orders glyphs by
     a depth key. Legend content is composed above the seam and rendered by
@@ -64,8 +55,6 @@ class PlotBackend(Protocol):
 
     Every drawing primitive returns ``None``. A caller draws onto a panel and
     reads the panel back from the figure; it does not collect artist handles.
-    ``add_heatmap`` is the one exception, returning a ``Mappable`` that only
-    ``add_colorbar`` consumes.
 
     ``SupportsSNPLabels`` is the one optional capability, a separate
     runtime_checkable protocol checked with isinstance rather than a boolean
@@ -75,19 +64,6 @@ class PlotBackend(Protocol):
     were optional protocols that all three shipped backends implemented, so
     every gate on them guarded a branch no backend could reach.
     """
-
-    # =========================================================================
-    # Capability Properties
-    # =========================================================================
-
-    @property
-    def supports_hover(self) -> bool:
-        """Whether backend supports hover tooltips.
-
-        Interactive backends (Plotly, Bokeh) support hover tooltips.
-        Matplotlib does not support hover - use SNP labels instead.
-        """
-        ...
 
     # =========================================================================
     # Figure Creation
@@ -328,7 +304,6 @@ class PlotBackend(Protocol):
         fontsize: int = 10,
         ha: str = "center",
         va: str = "bottom",
-        rotation: float = 0,
         color: str = "black",
     ) -> None:
         """Add text annotation to axes.
@@ -341,7 +316,6 @@ class PlotBackend(Protocol):
             fontsize: Font size.
             ha: Horizontal alignment.
             va: Vertical alignment.
-            rotation: Text rotation in degrees.
             color: Text color.
         """
         ...
@@ -582,15 +556,13 @@ class PlotBackend(Protocol):
         self,
         ax: Any,
         entries: "List[LegendEntry]",
-        loc: str = "upper left",
         title: Optional[str] = None,
     ) -> None:
-        """Add a legend rendering the given backend-neutral entries.
+        """Add a legend in the panel's upper-right corner.
 
         Args:
             ax: Axes or panel.
             entries: Backend-neutral ``LegendEntry`` specs to render.
-            loc: Legend location.
             title: Legend title.
         """
         ...
@@ -635,13 +607,13 @@ class PlotBackend(Protocol):
         cmap_colors: List[str],
         vmin: float = 0.0,
         vmax: float = 1.0,
-    ) -> Mappable:
+        colorbar_label: Optional[str] = None,
+    ) -> None:
         """Render a heatmap of an already-shaped matrix.
 
         Used for LD heatmap visualization. Masking the upper triangle is the
         caller's job via ``composition.lower_triangle``, so a backend draws
-        whatever it is handed. The colour scale is left off; ``add_colorbar``
-        turns it on.
+        whatever it is handed.
 
         Args:
             ax: Axes or panel to plot on.
@@ -651,26 +623,8 @@ class PlotBackend(Protocol):
             cmap_colors: Color gradient endpoints [start_color, end_color].
             vmin: Minimum value for color scale.
             vmax: Maximum value for color scale.
-
-        Returns:
-            Heatmap object (mappable for colorbar attachment).
-        """
-        ...
-
-    def add_colorbar(
-        self,
-        ax: Any,
-        mappable: Mappable,
-        label: str = "R²",
-        orientation: str = "vertical",
-    ) -> None:
-        """Show the colour scale for a heatmap.
-
-        Args:
-            ax: Axes or panel (or figure for some backends).
-            mappable: Heatmap object returned by add_heatmap.
-            label: Colorbar label (e.g., "R²" or "D'").
-            orientation: "vertical" or "horizontal".
+            colorbar_label: Title of a vertical colour scale drawn to the
+                right of the panel, or None to draw no scale.
         """
         ...
 
