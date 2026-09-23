@@ -73,7 +73,8 @@ def _optional_layer(
 
     The stacklevel counts on one call path: the public method, then
     ``_render_regional``, then ``_resolve_annotations`` or
-    ``_association_panels``, which call this directly from a plain loop.
+    ``_association_panels``, which call this directly. The latter's loop stays
+    a plain ``for``: a comprehension adds a frame on Python 3.10 and 3.11.
     """
     try:
         return build()
