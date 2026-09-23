@@ -172,7 +172,9 @@ def _publish_map_generation(
     new one, never a gap. Nothing is moved aside, so nothing can be left
     behind, and a writer that loses the race to another still succeeds. The
     map set for a source URL never changes, so interleaved writers converge
-    on the same files.
+    on the same files. Replacing an older release's symlink is the exception:
+    a reader between its unlink and the rename finds no maps.
+    ``specs/tla/RecombPublish.tla`` models these claims.
     """
     if not _has_complete_maps(staging_dir, source):
         raise DataDownloadError(
@@ -183,7 +185,12 @@ def _publish_map_generation(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.is_symlink():
         # Older releases published behind a symlink; its target is not ours.
-        output_path.unlink()
+        try:
+            output_path.unlink()
+        except OSError:
+            # A concurrent writer removed it first and may have published.
+            if output_path.is_symlink():
+                raise
     try:
         os.rename(staging_dir, output_path)
         return output_path
