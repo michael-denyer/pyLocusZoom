@@ -129,18 +129,17 @@ def secondary_axis_key(secondary_ref: str) -> str:
     return secondary_ref
 
 
-def panel_y(fig: go.Figure, row: int, vertical: str) -> float:
-    """Find a y-coordinate in paper coords inside a subplot row's domain.
+def panel_y(panel: _Panel, vertical: str) -> float:
+    """Find a y-coordinate in paper coords inside a subplot's domain.
 
     Args:
-        fig: The figure carrying the subplot.
-        row: Row number, 1-indexed.
+        panel: The subplot.
         vertical: One of ``"bottom"``, ``"middle"``, or ``"top"``.
 
     Returns:
         The y-coordinate in paper coordinates.
     """
-    yaxis = getattr(fig.layout, _Panel(fig, row).axis("yaxis"), None)
+    yaxis = getattr(panel.fig.layout, panel.axis("yaxis"), None)
     domain = yaxis.domain if yaxis and yaxis.domain else (0.01, 0.99)
     if vertical == "bottom":
         return domain[0]
@@ -149,25 +148,22 @@ def panel_y(fig: go.Figure, row: int, vertical: str) -> float:
     return domain[1]
 
 
-def configure_legend(
-    fig: go.Figure, row: int, legend_key: str, title: str, loc: str
-) -> None:
-    """Position and style one of a figure's legends against a panel row.
+def configure_legend(panel: _Panel, legend_key: str, title: str, loc: str) -> None:
+    """Position and style one of a figure's legends against a panel.
 
     Args:
-        fig: The figure carrying the legend.
+        panel: The subplot the legend belongs to.
         legend_key: Layout key for this legend, such as ``"legend2"``.
-        row: Row number the legend belongs to, 1-indexed.
         title: Legend title, already in display form.
         loc: Matplotlib legend location vocabulary, such as ``"upper right"``.
     """
     horizontal, vertical = _LEGEND_ANCHORS.get(loc, _LEGEND_ANCHORS["upper right"])
-    fig.update_layout(
+    panel.fig.update_layout(
         **{
             legend_key: dict(
                 title=dict(text=title),
                 x=_LEGEND_X[horizontal],
-                y=panel_y(fig, row, vertical),
+                y=panel_y(panel, vertical),
                 xanchor=horizontal,
                 yanchor=vertical,
                 bgcolor="rgba(255,255,255,0.9)",

@@ -41,14 +41,14 @@ class TestPanelY:
         """Every anchor of a row falls within that row's own domain."""
         domain = two_row_figure.layout.yaxis.domain
 
-        y = plotly_layout.panel_y(two_row_figure, 1, vertical)
+        y = plotly_layout.panel_y(plotly_layout._Panel(two_row_figure, 1), vertical)
 
         assert domain[0] <= y <= domain[1]
 
     def test_the_three_anchors_are_ordered(self, two_row_figure):
         """Bottom, middle and top increase in paper coordinates."""
         anchors = [
-            plotly_layout.panel_y(two_row_figure, 1, vertical)
+            plotly_layout.panel_y(plotly_layout._Panel(two_row_figure, 1), vertical)
             for vertical in ("bottom", "middle", "top")
         ]
 
@@ -58,13 +58,15 @@ class TestPanelY:
         """The middle anchor is exactly halfway up the row."""
         domain = two_row_figure.layout.yaxis.domain
 
-        assert plotly_layout.panel_y(two_row_figure, 1, "middle") == pytest.approx(
-            (domain[0] + domain[1]) / 2
-        )
+        assert plotly_layout.panel_y(
+            plotly_layout._Panel(two_row_figure, 1), "middle"
+        ) == pytest.approx((domain[0] + domain[1]) / 2)
 
     def test_a_figure_without_domains_falls_back(self):
         """A plain figure with no subplot domains still yields a coordinate."""
-        assert plotly_layout.panel_y(go.Figure(), 1, "bottom") == pytest.approx(0.01)
+        assert plotly_layout.panel_y(
+            plotly_layout._Panel(go.Figure(), 1), "bottom"
+        ) == pytest.approx(0.01)
 
 
 class TestXRange:

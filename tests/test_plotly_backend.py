@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from pylocuszoom.backends.composition import mb_tick_positions
+from pylocuszoom.backends.composition import LegendEntry, mb_tick_positions
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
@@ -184,6 +184,41 @@ class TestPlotlyGridSubplotAxisAddressing:
         assert qq_span < 100, (
             f"QQ x-range ({qq_span}) should be small (-log10(p) values)"
         )
+
+    @staticmethod
+    def _grid_2x2():
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure_grid(n_rows=2, n_cols=2)
+        for ax in axes:  # add_vrect skips subplots that hold no trace
+            backend.scatter(ax, pd.Series([0.0, 30.0]), pd.Series([0.0, 1.0]), "blue")
+        return backend, fig, axes
+
+    def test_region_highlight_lands_on_the_panels_given(self):
+        backend, fig, axes = self._grid_2x2()
+
+        backend.add_region_highlight([axes[1], axes[3]], 10, 20)
+
+        assert [(s.xref, s.yref) for s in fig.layout.shapes] == [
+            ("x2", "y2 domain"),
+            ("x4", "y4 domain"),
+        ]
+
+    def test_legend_lands_on_the_panel_given(self):
+        backend, fig, axes = self._grid_2x2()
+
+        backend.add_legend(axes[3], [LegendEntry(label="a", color="red", marker="o")])
+
+        entry = fig.data[-1]
+        assert (entry.xaxis, entry.yaxis) == ("x4", "y4")
+        assert fig.layout.legend.y == fig.layout.yaxis4.domain[1]
+
+    def test_fill_between_accepts_a_scalar_y2(self):
+        backend = PlotlyBackend()
+        fig, axes = backend.create_figure(height_ratios=[1.0], figsize=(6, 4))
+
+        backend.fill_between(axes[0], pd.Series([1.0, 2.0]), pd.Series([3.0, 4.0]), 0.5)
+
+        assert list(fig.data[-1].y) == [0.5, 0.5, 4.0, 3.0]
 
 
 class TestPlotlySetTitleOverwriting:

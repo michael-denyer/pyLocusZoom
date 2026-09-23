@@ -250,6 +250,7 @@ class PlotlyBackend:
     ) -> None:
         """Fill area between two y-values."""
         y1 = pd.Series(broadcast(y1, len(x)))
+        y2 = pd.Series(broadcast(y2, len(x)))
 
         trace = go.Scatter(
             x=pd.concat([x, x[::-1]]),
@@ -570,8 +571,7 @@ class PlotlyBackend:
 
     def _add_legend_item(
         self,
-        fig: go.Figure,
-        row: int,
+        ax: _Panel,
         name: str,
         color: str,
         symbol: str,
@@ -580,7 +580,7 @@ class PlotlyBackend:
         edgecolor: str = "black",
     ) -> None:
         """Add an invisible scatter trace for a legend entry."""
-        fig.add_trace(
+        ax.fig.add_trace(
             go.Scatter(
                 x=[None],
                 y=[None],
@@ -595,8 +595,8 @@ class PlotlyBackend:
                 showlegend=True,
                 legend=legend_group,
             ),
-            row=row,
-            col=1,
+            row=ax.row,
+            col=ax.col,
         )
 
     def add_panel_label(
@@ -632,7 +632,7 @@ class PlotlyBackend:
         Each call allocates a fresh legend key (legend, legend2, ...) so several
         legends coexist on one figure, positioned per panel row.
         """
-        fig, row = ax.fig, ax.row
+        fig = ax.fig
         # to_plotly_json reports only legends that have been configured, so the
         # count of existing ones gives the next free key.
         existing = [k for k in fig.to_plotly_json()["layout"] if k.startswith("legend")]
@@ -645,8 +645,7 @@ class PlotlyBackend:
                 else _MARKER_SYMBOLS.get(entry.marker, "circle")
             )
             self._add_legend_item(
-                fig,
-                row,
+                ax,
                 entry.label,
                 entry.color,
                 symbol,
@@ -654,9 +653,7 @@ class PlotlyBackend:
                 legend_key,
                 entry.edgecolor or "black",
             )
-        configure_legend(
-            fig, row, legend_key, convert_latex_to_unicode(title or ""), loc
-        )
+        configure_legend(ax, legend_key, convert_latex_to_unicode(title or ""), loc)
 
     def hide_yaxis(self, ax: _Panel) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""
@@ -775,18 +772,17 @@ class PlotlyBackend:
         color: str = "yellow",
         alpha: float = 0.3,
     ) -> None:
-        """Highlight an x-range across multiple plotly subplot rows."""
-        fig = axes[0].fig
-        for row in range(1, len(axes) + 1):
-            fig.add_vrect(
+        """Highlight an x-range on each of the given subplots."""
+        for ax in axes:
+            ax.fig.add_vrect(
                 x0=x_start,
                 x1=x_end,
                 fillcolor=color,
                 opacity=alpha,
                 layer="below",
                 line_width=0,
-                row=row,
-                col=1,
+                row=ax.row,
+                col=ax.col,
             )
 
     def add_heatmap(
