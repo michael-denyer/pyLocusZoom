@@ -89,7 +89,9 @@ class LDHeatmapPanel:
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw the lower-triangle heatmap, its highlights, ticks, and title."""
         ticks = list(range(len(self.snp_ids)))
-        lead = [] if self.lead_idx is None else [self.lead_idx]
+        outlines = [(idx, SECONDARY_HIGHLIGHT_COLOR) for idx in self.highlight_indices]
+        if self.lead_idx is not None:
+            outlines.insert(0, (self.lead_idx, LEAD_SNP_HIGHLIGHT_COLOR))
         draw_ld_heatmap(
             backend,
             ax,
@@ -97,8 +99,7 @@ class LDHeatmapPanel:
             ticks,
             metric=self.metric,
             show_colorbar=self.show_colorbar,
-            outlines=[(idx, LEAD_SNP_HIGHLIGHT_COLOR) for idx in lead]
-            + [(idx, SECONDARY_HIGHLIGHT_COLOR) for idx in self.highlight_indices],
+            outlines=outlines,
         )
         backend.set_xticks(ax, ticks, self.snp_ids, rotation=90)
         backend.set_yticks(ax, ticks, self.snp_ids)

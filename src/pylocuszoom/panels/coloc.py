@@ -207,8 +207,10 @@ class ColocPanel:
             correlation = (float(r), float(p))
         if config.color_by_effect:
             legend = "effect"
+        elif "ld" in merged:
+            legend = "ld"
         else:
-            legend = "ld" if "ld" in merged else None
+            legend = None
         has_label = lead_idx is not None and "rs" in merged
         return cls(
             merged=merged,
