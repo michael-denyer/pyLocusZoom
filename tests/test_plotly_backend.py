@@ -55,74 +55,60 @@ class TestPlotlyGridSubplotAxisAddressing:
             "Bug: both columns writing to same axis."
         )
 
-    def test_plotly_axhline_targets_correct_column(self):
-        """axhline should pass correct col parameter (verified by code inspection).
+    @staticmethod
+    def _qq_column_with_a_trace(backend):
+        """A 1x2 grid whose column-2 panel holds a point.
 
-        Note: Plotly's add_hline doesn't immediately add to fig.layout.shapes;
-        it creates an internal shape that's rendered later. We verify the fix
-        by checking that the code now passes col instead of hard-coded col=1.
+        Plotly drops a row/col-addressed hline or vline on a subplot with no
+        trace, so the column needs data before a line can land on it.
         """
-        backend = PlotlyBackend()
         fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
+        backend.scatter(axes[1], pd.Series([1.0]), pd.Series([1.0]), colors="red")
+        return fig, axes[1]
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
+    def test_plotly_axhline_targets_correct_column(self):
+        """axhline spans column 2's x domain at a y in column 2's data units."""
+        backend = PlotlyBackend()
+        fig, qq_ax = self._qq_column_with_a_trace(backend)
 
-        # Add horizontal line to QQ plot (column 2)
-        # This should not raise an error
         backend.axhline(qq_ax, y=5.0, color="red")
 
-        # The fix is verified by the fact that the method now correctly
-        # extracts col from the ax tuple and passes it to add_hline.
-        # We can't easily verify Plotly's internal shape storage,
-        # but we can verify the integration test works.
-        assert True  # Method completed without error
+        assert [(s.type, s.xref, s.yref, s.y0) for s in fig.layout.shapes] == [
+            ("line", "x2 domain", "y2", 5.0)
+        ]
 
     def test_plotly_add_rectangle_targets_correct_column(self):
         """add_rectangle should add shape to the correct column."""
         backend = PlotlyBackend()
         fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
+        backend.add_rectangle(axes[1], xy=(0, 0), width=1, height=1)
 
-        # Add rectangle to QQ plot (column 2)
-        backend.add_rectangle(qq_ax, xy=(0, 0), width=1, height=1)
-
-        # Bug: add_rectangle hard-codes col=1
-        shapes = fig.layout.shapes
-        assert shapes is not None and len(shapes) > 0, "No shapes added"
+        assert [(s.type, s.xref, s.yref) for s in fig.layout.shapes] == [
+            ("rect", "x2", "y2")
+        ]
 
     def test_plotly_add_polygon_targets_correct_column(self):
         """add_polygon should add shape to the correct column."""
         backend = PlotlyBackend()
         fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
+        backend.add_polygon(axes[1], points=[[0, 0], [1, 0], [0.5, 1]])
 
-        # Add polygon to QQ plot (column 2)
-        backend.add_polygon(qq_ax, points=[[0, 0], [1, 0], [0.5, 1]])
-
-        # Bug: add_polygon hard-codes col=1
-        shapes = fig.layout.shapes
-        assert shapes is not None and len(shapes) > 0, "No shapes added"
+        assert [(s.type, s.xref, s.yref) for s in fig.layout.shapes] == [
+            ("path", "x2", "y2")
+        ]
 
     def test_plotly_axvline_targets_correct_column(self):
-        """axvline should pass correct col parameter (verified by code inspection).
-
-        Note: Plotly's add_vline doesn't immediately add to fig.layout.shapes;
-        it creates an internal shape that's rendered later.
-        """
+        """axvline spans column 2's y domain at an x in column 2's data units."""
         backend = PlotlyBackend()
-        fig, axes = backend.create_figure_grid(n_rows=1, n_cols=2, figsize=(12, 6))
+        fig, qq_ax = self._qq_column_with_a_trace(backend)
 
-        qq_ax = axes[1]  # (fig, row=1, col=2)
-
-        # Add vertical line to QQ plot (column 2)
-        # This should not raise an error
         backend.axvline(qq_ax, x=5.0, color="red")
 
-        # The fix is verified by the fact that the method now correctly
-        # extracts col from the ax tuple and passes it to add_vline.
-        assert True  # Method completed without error
+        assert [(s.type, s.xref, s.yref, s.x0) for s in fig.layout.shapes] == [
+            ("line", "x2", "y2 domain", 5.0)
+        ]
 
     def test_plotly_set_xlim_targets_correct_column(self):
         """set_xlim should set limits on the correct column's x-axis."""

@@ -2,17 +2,18 @@
 
 from unittest.mock import Mock, patch
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
-from matplotlib.figure import Figure
 
 from pylocuszoom import ColumnConfig, DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom._gene_source import GeneAnnotations
+from pylocuszoom.backends.composition import LD_LEGEND_TITLE
+from pylocuszoom.colors import LEAD_SNP_COLOR
 from pylocuszoom.panels.association import AssociationPanel
 from pylocuszoom.plotter import LocusZoomPlotter
 from pylocuszoom.recombination import RecombResult, RecombStatus
+from tests.figure_probes import PROBES
 from tests.reference_mocks import (
     gene_transcript_exon_payload,
     ok_response,
@@ -25,6 +26,11 @@ def _drawn_positions(ax):
     return {
         float(x) for collection in ax.collections for x, _ in collection.get_offsets()
     }
+
+
+def _lead_marker_positions(fig, panel=0):
+    """Return the x of every lead-SNP marker drawn on one panel."""
+    return PROBES["matplotlib"].marker_x(fig, panel, color=LEAD_SNP_COLOR)
 
 
 def _captured_association_leads(call):
@@ -245,15 +251,20 @@ class TestAutoGenes:
 class TestLocusZoomPlotterPlot:
     """Tests for LocusZoomPlotter.plot() method."""
 
-    def test_creates_figure(self, canine_plotter, regional_gwas_df):
-        """Should create a matplotlib figure."""
+    def test_recombination_overlay_is_on_by_default(
+        self, canine_plotter, regional_gwas_df
+    ):
+        """A species with maps gets a recombination-rate axis over the association."""
         fig = canine_plotter.plot(
             regional_gwas_df,
             chrom=1,
             start=1000000,
             end=2000000,
         )
-        assert isinstance(fig, plt.Figure)
+        assert [ax.get_ylabel() for ax in fig.axes] == [
+            r"$-\log_{10}$ P",
+            "Recombination rate (cM/Mb)",
+        ]
 
     def test_plots_with_gene_track(
         self, canine_plotter, regional_gwas_df, sample_genes_df
@@ -279,8 +290,7 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             ld=LDConfig(lead_pos=lead_pos),
         )
-        assert isinstance(fig, Figure)
-        # Test passes if no exception
+        assert _lead_marker_positions(fig) == [lead_pos]
 
     def test_handles_empty_dataframe(self, canine_plotter):
         """Empty GWAS DataFrame should raise ValidationError."""
@@ -310,8 +320,10 @@ class TestLocusZoomPlotterPlot:
             start=1000000,
             end=2000000,
             columns=ColumnConfig(pos_col="position", p_col="pvalue", rs_col="snp_id"),
+            display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert _drawn_positions(fig.axes[0]) == {1100000.0, 1500000.0, 1900000.0}
+        assert _lead_marker_positions(fig) == [1100000.0]
 
     def test_with_precomputed_ld(self, canine_plotter, regional_gwas_df):
         """Should use pre-computed LD column when provided."""
@@ -321,7 +333,9 @@ class TestLocusZoomPlotterPlot:
         fig = canine_plotter.plot(
             df, chrom=1, start=1000000, end=2000000, ld=LDConfig(ld_col="R2")
         )
-        assert isinstance(fig, Figure)
+        legend = fig.axes[0].get_legend()
+        assert legend is not None
+        assert legend.get_title().get_text() == LD_LEGEND_TITLE
 
     def test_with_recombination_data(
         self, canine_plotter, regional_gwas_df, sample_recomb_df
@@ -334,7 +348,9 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             panels=PanelInputs(recomb_df=sample_recomb_df),
         )
-        assert isinstance(fig, Figure)
+        (recomb_line,) = fig.axes[1].get_lines()
+        assert list(recomb_line.get_xdata()) == list(sample_recomb_df["pos"])
+        assert list(recomb_line.get_ydata()) == list(sample_recomb_df["rate"])
 
     def test_disables_snp_labels(self, canine_plotter, regional_gwas_df):
         """Should not add labels when snp_labels=False."""
@@ -343,9 +359,9 @@ class TestLocusZoomPlotterPlot:
             chrom=1,
             start=1000000,
             end=2000000,
-            display=DisplayConfig(snp_labels=False),
+            display=DisplayConfig(snp_labels=False, show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert list(fig.axes[0].texts) == []
 
     def test_disables_recombination(self, canine_plotter, regional_gwas_df):
         """Should not show recombination when show_recombination=False."""
@@ -356,7 +372,7 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1
 
 
 class TestPlotEdgeCases:

@@ -152,6 +152,37 @@ class TestSetXticks:
         assert PROBES[backend_name].xticks(fig) == ([0, 1, 2], ["A", "B", "C"])
 
 
+class TestReferenceLines:
+    """axhline draws on the panel it is given, whatever that panel holds."""
+
+    @pytest.mark.parametrize(
+        "backend_name",
+        [
+            "matplotlib",
+            pytest.param(
+                "plotly",
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    reason=(
+                        "plotly's add_hline(row=, col=) adds no shape to a subplot "
+                        "with no trace, so the line is silently dropped"
+                    ),
+                ),
+            ),
+            "bokeh",
+        ],
+    )
+    def test_axhline_on_an_empty_panel_draws_the_line(self, backend_name):
+        from pylocuszoom.backends import get_backend
+
+        backend = get_backend(backend_name)
+        fig, axes = backend.create_figure([1.0, 1.0], (6, 4))
+
+        backend.axhline(axes[1], y=5.0)
+
+        assert PROBES[backend_name].hline_levels(fig, panel=1) == [5.0]
+
+
 class TestConvertLatexToUnicode:
     """Tests for LaTeX to Unicode conversion."""
 

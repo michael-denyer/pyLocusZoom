@@ -5,10 +5,8 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import GenomeWideConfig
-from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
-from tests.conftest import FIGURE_TYPES
 from tests.figure_probes import PROBES
 
 
@@ -74,30 +72,6 @@ class TestManhattanPlotter:
         assert [tick.get_text() for tick in bottom.get_xticklabels()] == ["1", "2", "3"]
 
 
-class TestManhattanPlotterBackends:
-    """Tests for ManhattanPlotter backend support."""
-
-    @pytest.fixture
-    def manhattan_chrom_df(self):
-        """Create sample GWAS data."""
-        return pd.DataFrame(
-            {
-                "chr": [1, 1, 2],
-                "pos": [1000, 2000, 1000],
-                "p_value": [0.01, 0.001, 0.0001],
-            }
-        )
-
-    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
-    def test_returns_the_backends_figure_type(self, backend, manhattan_chrom_df):
-        """Each backend returns its own figure type."""
-        plotter = ManhattanPlotter(species="canine", backend=backend)
-
-        fig = plotter.plot_manhattan(manhattan_chrom_df)
-
-        assert isinstance(fig, FIGURE_TYPES[backend])
-
-
 class TestCategoricalManhattanRendersIntegerCategories:
     """Test categorical Manhattan with integer category columns."""
 
@@ -112,7 +86,6 @@ class TestCategoricalManhattanRendersIntegerCategories:
         )
         plotter = ManhattanPlotter(species="human")
         fig = plotter.plot_manhattan(df, category_col="cat")
-        assert fig is not None
 
         ax = fig.axes[0]
         total_points = sum(len(coll.get_offsets()) for coll in ax.collections)

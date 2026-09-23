@@ -154,6 +154,25 @@ class MatplotlibProbe:
             and (linestyle is None or line.get_linestyle() == linestyle)
         ]
 
+    def marker_x(self, fig, panel=0, color=None):
+        """Sorted x of every scatter marker on one panel, optionally of one fill."""
+        from matplotlib.collections import PathCollection
+
+        xs = []
+        for c in self.panels(fig)[panel].collections:
+            if not isinstance(c, PathCollection):
+                continue
+            offsets = c.get_offsets()
+            fills = [_hex(f) for f in c.get_facecolors()] or [None]
+            if len(fills) == 1:
+                fills = fills * len(offsets)
+            xs.extend(
+                float(x)
+                for (x, _), fill in zip(offsets, fills)
+                if color is None or fill == _hex(color)
+            )
+        return sorted(xs)
+
     def point_alphas(self, fig):
         """The alpha of every scatter layer."""
         from matplotlib.collections import PathCollection
@@ -323,6 +342,25 @@ class PlotlyProbe:
             and s.y0 == s.y1
             and (dash is None or s.line.dash == dash)
         ]
+
+    def marker_x(self, fig, panel=0, color=None):
+        """Sorted x of every scatter marker on one panel, optionally of one fill."""
+        xref = self._xref(fig, panel)
+        xs = []
+        for t in fig.data:
+            if t.type != "scatter" or t.mode != "markers" or t.x is None:
+                continue
+            if (t.xaxis or "x") != xref:
+                continue
+            fills = t.marker.color
+            if fills is None or isinstance(fills, str):
+                fills = [fills] * len(t.x)
+            xs.extend(
+                float(x)
+                for x, fill in zip(t.x, fills)
+                if x is not None and (color is None or _hex(fill) == _hex(color))
+            )
+        return sorted(xs)
 
     def point_alphas(self, fig):
         """The opacity of every marker trace that carries data."""
@@ -500,6 +538,26 @@ class BokehProbe:
             and (dash is None or _dash_name(span.line_dash) == dash)
         ]
 
+    def marker_x(self, fig, panel=0, color=None):
+        """Sorted x of every scatter marker on one panel, optionally of one fill."""
+        from bokeh.models import GlyphRenderer, Scatter
+
+        xs = []
+        for renderer in self.panels(fig)[panel].renderers:
+            if not (
+                isinstance(renderer, GlyphRenderer)
+                and isinstance(renderer.glyph, Scatter)
+            ):
+                continue
+            positions = _glyph_values(renderer, "x")
+            fills = _glyph_values(renderer, "fill_color")
+            xs.extend(
+                float(x)
+                for x, fill in zip(positions, fills)
+                if color is None or _hex(fill) == _hex(color)
+            )
+        return sorted(xs)
+
     def point_alphas(self, fig):
         """The alpha of every scatter glyph, where fill and line agree."""
         return {
@@ -565,7 +623,7 @@ def _glyph_values(renderer, prop):
     """Per-item values of a bokeh glyph property, whether column or literal."""
     spec = getattr(renderer.glyph, prop)
     data = renderer.data_source.data
-    if isinstance(spec, str):
+    if isinstance(spec, str) and spec in data:
         return list(data[spec])
     if isinstance(spec, dict) and "field" in spec:
         return list(data[spec["field"]])

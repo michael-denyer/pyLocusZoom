@@ -5,14 +5,15 @@ import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
-from matplotlib.figure import Figure
 
 from pylocuszoom import DisplayConfig
 from pylocuszoom._data import prepare_pvalue_data
+from pylocuszoom.colors import LEAD_SNP_COLOR
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
 from pylocuszoom.manhattan import prepare_categorical_data, prepare_manhattan_frames
 from pylocuszoom.plotter import LocusZoomPlotter
 from pylocuszoom.qq import prepare_qq_data
+from tests.figure_probes import PROBES
 from tests.strategies import gwas_dataframes
 
 BAD_PVALUES = [1e-6, None, 0.0, -0.1, 1.5, 1e-320]
@@ -107,10 +108,10 @@ class TestPValueValidation:
         """Create plotter instance."""
         return LocusZoomPlotter(species=None)
 
-    def test_plot_handles_nan_pvalues_with_warning(self, speciesless_plotter):
-        """Plot should handle NaN p-values and log a warning."""
-        import numpy as np
-
+    def test_plot_handles_nan_pvalues_with_warning(
+        self, speciesless_plotter, warning_records
+    ):
+        """A NaN p-value is dropped from the plot with a warning."""
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3"],
@@ -120,7 +121,6 @@ class TestPValueValidation:
             }
         )
 
-        # Should not raise, but should warn (captured by logging)
         fig = speciesless_plotter.plot(
             gwas_df,
             chrom=1,
@@ -128,7 +128,8 @@ class TestPValueValidation:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert set(PROBES["matplotlib"].marker_x(fig)) == {1100000.0, 1900000.0}
+        assert any("1 NaN p-values" in line for line in warning_records)
 
     def test_plot_stacked_handles_all_nan_pvalues(self, speciesless_plotter):
         """plot_stacked should handle region with all NaN p-values.
@@ -136,8 +137,6 @@ class TestPValueValidation:
         Regression test: idxmin() on all-NaN series returns NaN,
         causing subsequent loc to fail.
         """
-        import numpy as np
-
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3"],
@@ -147,7 +146,6 @@ class TestPValueValidation:
             }
         )
 
-        # Should not raise - should handle gracefully
         fig = speciesless_plotter.plot_stacked(
             [gwas_df],
             chrom=1,
@@ -155,10 +153,12 @@ class TestPValueValidation:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert PROBES["matplotlib"].marker_x(fig) == []
 
-    def test_plot_handles_out_of_range_pvalues(self, speciesless_plotter):
-        """Plot should handle p-values outside [0, 1] range."""
+    def test_plot_handles_out_of_range_pvalues(
+        self, speciesless_plotter, warning_records
+    ):
+        """A p-value outside [0, 1] is dropped from the plot with a warning."""
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2", "rs3"],
@@ -168,7 +168,6 @@ class TestPValueValidation:
             }
         )
 
-        # Should not raise, but should warn
         fig = speciesless_plotter.plot(
             gwas_df,
             chrom=1,
@@ -176,7 +175,8 @@ class TestPValueValidation:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert set(PROBES["matplotlib"].marker_x(fig)) == {1900000.0}
+        assert any("2 p-values outside [0, 1]" in line for line in warning_records)
 
     def test_prepare_pvalue_data_filters_invalid_range(self, warning_records):
         """prepare_pvalue_data filters out-of-range p-values (< 0 or > 1)."""
@@ -266,7 +266,6 @@ class TestPValueValidation:
             }
         )
 
-        # Should not raise — lead detection should skip the invalid p-value
         fig = speciesless_plotter.plot_stacked(
             [gwas_df],
             chrom=1,
@@ -274,7 +273,8 @@ class TestPValueValidation:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        lead_x = PROBES["matplotlib"].marker_x(fig, color=LEAD_SNP_COLOR)
+        assert lead_x == [1900000.0]
 
     def test_plot_stacked_all_invalid_pvalues(self, speciesless_plotter):
         """plot_stacked should handle region with all out-of-range p-values."""
@@ -294,7 +294,7 @@ class TestPValueValidation:
             end=2000000,
             display=DisplayConfig(show_recombination=False),
         )
-        assert isinstance(fig, Figure)
+        assert PROBES["matplotlib"].marker_x(fig) == []
 
 
 class TestPvalueTransformation:
