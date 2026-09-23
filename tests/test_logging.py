@@ -416,3 +416,22 @@ class TestImportSideEffects:
         )
 
         assert "host sink alive" in result.stdout
+
+    def test_default_sink_survives_import(self):
+        """loguru's own stderr sink keeps printing the host's messages."""
+        script = (
+            "from loguru import logger\n"
+            "import pylocuszoom\n"
+            "logger.info('host default sink alive')\n"
+            "exec(\n"
+            "    'from pylocuszoom.logging import logger\\n'\n"
+            "    'logger.info(\"library message\")',\n"
+            "    {'__name__': 'pylocuszoom.probe'},\n"
+            ")\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=True
+        )
+
+        assert "host default sink alive" in result.stderr
+        assert result.stderr.count("library message") == 1

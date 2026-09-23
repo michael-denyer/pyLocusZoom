@@ -30,7 +30,26 @@ class _LoguruWrapper:
         self._enabled = False
         self._handler_id = None
         self._error_handler_id = None
-        self._remove_handler(_LOGURU_DEFAULT_HANDLER_ID)
+        self._keep_default_handler_off_pylocuszoom()
+
+    @staticmethod
+    def _keep_default_handler_off_pylocuszoom() -> None:
+        """Swap loguru's default stderr sink for one that skips pylocuszoom records.
+
+        The default sink takes every record from DEBUG up, so it would print each
+        pylocuszoom message a second time beside this module's own handler.
+        Removing it outright also silenced the host application's output, so
+        it is re-added with loguru's defaults and a filter. A host that has
+        already removed the default sink gets nothing back.
+        """
+        try:
+            _loguru_logger.remove(_LOGURU_DEFAULT_HANDLER_ID)
+        except ValueError:
+            return
+        _loguru_logger.add(
+            sys.stderr,
+            filter=lambda record: not (record["name"] or "").startswith("pylocuszoom"),
+        )
 
     def _add_error_handler(self) -> None:
         """Add error-only handler (used when main handler is disabled)."""
