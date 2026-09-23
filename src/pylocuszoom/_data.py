@@ -112,7 +112,7 @@ def prepare_pvalue_data(
         error_class: Exception raised when the policy rejects a p-value.
 
     Returns:
-        A filtered copy carrying ``out_col``.
+        A filtered copy with numeric ``p_col`` and the transformed ``out_col``.
 
     Raises:
         ValidationError: If the policy rejects an invalid p-value, or if
@@ -148,6 +148,7 @@ def prepare_pvalue_data(
         )
     result = result.loc[valid].copy()
     valid_values = p_values.loc[valid]
+    result[p_col] = valid_values
     clipped = int((valid_values < P_VALUE_FLOOR).sum())
     if clipped:
         logger.debug("Clipping {} p-values below {}", clipped, P_VALUE_FLOOR)

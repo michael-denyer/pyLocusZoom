@@ -3,22 +3,24 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
+import numpy as np
 import pandas as pd
 
+from .._ld_matrix import prepare_ld_matrix
 from ..backends.base import PlotBackend
 from ..backends.composition import draw_ld_heatmap
 from ..colors import LEAD_SNP_HIGHLIGHT_COLOR
 from ..config import RegionConfig
 from ..exceptions import ValidationError
 from ..logging import logger
-from .association import AssociationPanel
+from .association import AssociationInput
 
 
 @dataclass(frozen=True)
 class HeatmapPanel:
     """Prepared regional LD heatmap panel."""
 
-    matrix: pd.DataFrame
+    matrix: np.ndarray
     region: RegionConfig
     height: float
     x_positions: List[int]
@@ -32,19 +34,20 @@ class HeatmapPanel:
         ld_matrix: pd.DataFrame,
         snp_ids: List[str],
         *,
-        source: AssociationPanel,
+        source: AssociationInput,
         region: RegionConfig,
         height: float,
         metric: str,
     ) -> "HeatmapPanel":
-        """Map heatmap SNP ids to positions through the source panel's frame.
+        """Map heatmap SNP ids to positions through the selected association frame.
 
         Raises:
             ValidationError: If the source frame has no SNP id column, or no
                 heatmap SNP falls inside the region.
         """
+        matrix, snp_ids = prepare_ld_matrix(ld_matrix, snp_ids)
         df = source.data
-        rs_col, pos_col = source.hover.snp_col, source.columns.pos_col
+        rs_col, pos_col = source.rs_col, source.columns.pos_col
         if rs_col is None:
             raise ValidationError(
                 "Cannot map heatmap to genomic coords: column "
@@ -72,7 +75,7 @@ class HeatmapPanel:
             df.at[source.lead_index, rs_col] if source.lead_index is not None else None
         )
         return cls(
-            matrix=ld_matrix.iloc[indices, indices].copy(),
+            matrix=matrix[np.ix_(indices, indices)],
             region=region,
             height=height,
             x_positions=x_positions,
@@ -90,7 +93,7 @@ class HeatmapPanel:
         draw_ld_heatmap(
             backend,
             ax,
-            self.matrix.values,
+            self.matrix,
             self.x_positions,
             metric=self.metric,
             show_colorbar=True,

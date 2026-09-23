@@ -77,7 +77,7 @@ def optional_panels(
 def ld_heatmap_panels(
     heatmap: Optional[LDHeatmapInput],
     *,
-    source: AssociationPanel,
+    source: AssociationInput,
     region: RegionConfig,
     association_height: float,
 ) -> List[HeatmapPanel]:
@@ -85,7 +85,7 @@ def ld_heatmap_panels(
 
     Args:
         heatmap: The caller's LD heatmap input, or None for no panel.
-        source: The association panel whose SNPs place the heatmap.
+        source: The selected association input whose SNPs place the heatmap.
         region: The figure's region.
         association_height: Height-ratio units of an association panel,
             which the heatmap's own height scales.

@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Union, get_args
 import numpy as np
 import pandas as pd
 
+from .._ld_matrix import prepare_ld_matrix
 from ..backends.base import PlotBackend
 from ..backends.composition import draw_ld_heatmap
 from ..colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
@@ -53,22 +54,7 @@ class LDHeatmapPanel:
         if metric not in get_args(LDMetric):
             raise ValidationError(f"metric must be 'r2' or 'dprime', got {metric!r}")
 
-        if isinstance(ld_matrix, pd.DataFrame):
-            data = ld_matrix.values
-            if snp_ids is None:
-                snp_ids = list(ld_matrix.index.astype(str))
-        else:
-            data = np.asarray(ld_matrix)
-            if snp_ids is None:
-                snp_ids = [str(i) for i in range(data.shape[0])]
-
-        if data.ndim != 2 or data.shape[0] != data.shape[1]:
-            raise ValidationError(f"ld_matrix must be square, got shape {data.shape}")
-        if data.shape[0] != len(snp_ids):
-            raise ValidationError(
-                f"snp_ids length ({len(snp_ids)}) does not match matrix "
-                f"dimension ({data.shape[0]})"
-            )
+        data, snp_ids = prepare_ld_matrix(ld_matrix, snp_ids)
 
         if lead_snp is not None and lead_snp not in snp_ids:
             raise ValidationError(f"lead_snp '{lead_snp}' not found in snp_ids")

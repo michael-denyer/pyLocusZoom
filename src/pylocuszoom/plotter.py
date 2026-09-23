@@ -459,6 +459,12 @@ class LocusZoomPlotter:
         display = config.display.with_defaults(
             label_top_n=label_top_n, auto_genes=self._auto_genes
         )
+        heatmap = ld_heatmap_panels(
+            inputs.ld_heatmap,
+            source=association_inputs[0],
+            region=region,
+            association_height=association_height,
+        )
         genes_df, exons_df, recomb_df = self._resolve_annotations(
             inputs, region, display, recomb_lifter
         )
@@ -470,12 +476,6 @@ class LocusZoomPlotter:
             threshold=threshold,
             height=association_height,
             recomb_df=recomb_df,
-        )
-        heatmap = ld_heatmap_panels(
-            inputs.ld_heatmap,
-            source=association[0],
-            region=region,
-            association_height=association_height,
         )
         panels: List[RegionalPanel] = [*association, *tracks, *heatmap]
         height = max(min_figure_height, sum(panel.height for panel in panels))

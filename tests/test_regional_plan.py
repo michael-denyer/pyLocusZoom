@@ -30,8 +30,8 @@ def _gwas():
     )
 
 
-def _association(*, data=None, ld_col=None, rs_col="rs", label=None, is_top=False):
-    request = AssociationInput(
+def _association_input(*, data=None, ld_col=None, rs_col="rs", label=None):
+    return AssociationInput(
         data=prepare_pvalue_data(_gwas(), "p_value", "regional")
         if data is None
         else data,
@@ -42,8 +42,11 @@ def _association(*, data=None, ld_col=None, rs_col="rs", label=None, is_top=Fals
         lead_index=1,
         label=label,
     )
+
+
+def _association(*, is_top=False, **kwargs):
     return AssociationPanel.from_input(
-        request,
+        _association_input(**kwargs),
         region=REGION,
         display=DisplayConfig(snp_labels=False),
         threshold=5e-8,
@@ -165,7 +168,7 @@ def test_heatmap_panel_from_matrix_keeps_region_snps_and_lead():
     panel = HeatmapPanel.from_matrix(
         _ld_matrix(ids),
         ids,
-        source=_association(),
+        source=_association_input(),
         region=REGION,
         height=1.0,
         metric="r2",
@@ -185,7 +188,7 @@ def test_heatmap_panel_from_matrix_raises_without_overlap():
         HeatmapPanel.from_matrix(
             _ld_matrix(ids),
             ids,
-            source=_association(),
+            source=_association_input(),
             region=REGION,
             height=1.0,
             metric="r2",
@@ -194,7 +197,7 @@ def test_heatmap_panel_from_matrix_raises_without_overlap():
 
 def test_heatmap_panel_from_matrix_raises_without_snp_id_column():
     ids = ["rs1", "rs2"]
-    source = _association(rs_col=None)
+    source = _association_input(rs_col=None)
 
     with pytest.raises(ValueError, match="not in GWAS data"):
         HeatmapPanel.from_matrix(
@@ -212,7 +215,7 @@ def test_heatmap_panel_renders_on_a_capable_backend():
     panel = HeatmapPanel.from_matrix(
         _ld_matrix(ids),
         ids,
-        source=_association(),
+        source=_association_input(),
         region=REGION,
         height=1.0,
         metric="r2",

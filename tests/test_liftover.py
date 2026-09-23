@@ -181,7 +181,10 @@ class TestChainLifter:
 
         def download(url, dest, desc=None):
             urls.append(url)
-            dest.write_bytes(gzip.compress(SPLIT_CHAIN.encode()))
+            content = SPLIT_CHAIN.encode()
+            dest.write_bytes(
+                gzip.compress(content) if dest.suffix == ".gz" else content
+            )
 
         monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
         return urls
@@ -210,9 +213,10 @@ class TestChainLifter:
         )
         target = GenomeBuild(key="bar", species="x", assembly_name="Bar")
 
-        chain_lifter(source, target)
+        lifter = chain_lifter(source, target)
 
         assert downloads == [url]
+        assert lifter.convert_coordinate("chr1", 999)[0][:2] == ("chr1", 1099)
 
     def test_an_unregistered_pair_is_a_validation_error(self, cache_home, downloads):
         with pytest.raises(ValidationError, match="No liftover chain"):
@@ -480,3 +484,21 @@ class TestRecombinationLifter:
         )
 
         assert result["pos"].tolist() == [11_000, 12_000]
+
+
+@pytest.mark.parametrize("content", [None, "chain bad header\n", "not a chain\n"])
+def test_unreadable_caller_chain_is_a_validation_error(tmp_path, content):
+    path = tmp_path / "invalid.chain"
+    if content is not None:
+        path.write_text(content)
+
+    with pytest.raises(ValidationError, match="invalid.chain"):
+        LiftoverConfig(chain_path=path).resolve()
+
+
+def test_unwritable_chain_cache_is_a_download_error(cache_home):
+    cache_home.mkdir(parents=True, exist_ok=True)
+    (cache_home / "liftover").write_text("a file blocks creating the cache directory")
+
+    with pytest.raises(DataDownloadError, match="liftover"):
+        chain_lifter(GENOME_BUILDS["canfam3"], GENOME_BUILDS["canfam4"])

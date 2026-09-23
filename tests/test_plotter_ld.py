@@ -744,3 +744,49 @@ class TestPlotEdgeCases:
                 display=DisplayConfig(show_recombination=False),
                 ld=LDConfig(ld_col="r2_typo"),
             )
+
+
+@pytest.mark.parametrize(
+    "shape, message",
+    [((1, 1), "snp_ids length"), ((3, 3), "snp_ids length"), ((2, 3), "square")],
+)
+@pytest.mark.parametrize("stacked", [False, True])
+def test_regional_heatmap_rejects_invalid_dimensions(
+    shape, message, stacked, tiny_regional_gwas_df
+):
+    plotter = LocusZoomPlotter(species=None)
+    plot = plotter.plot_stacked if stacked else plotter.plot
+    frames = [tiny_regional_gwas_df] if stacked else tiny_regional_gwas_df
+    with pytest.raises(ValidationError, match=message):
+        plot(
+            frames,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(
+                ld_heatmap=LDHeatmapInput(
+                    matrix=pd.DataFrame(np.ones(shape)), snp_ids=["rs1", "rs2"]
+                )
+            ),
+        )
+
+
+def test_invalid_heatmap_is_rejected_before_plink(fake_plink, tiny_regional_gwas_df):
+    bfile, plink_writes = fake_plink
+    with plink_writes(TestLocusZoomPlotterLdCalculation.LD_OUTPUT) as run:
+        with pytest.raises(ValidationError, match="snp_ids length"):
+            LocusZoomPlotter(species="canine", plink_path="/mock/plink").plot(
+                tiny_regional_gwas_df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1100000, ld_reference_file=bfile),
+                panels=PanelInputs(
+                    ld_heatmap=LDHeatmapInput(
+                        matrix=pd.DataFrame(np.eye(3)), snp_ids=["rs1", "rs2"]
+                    )
+                ),
+            )
+        run.assert_not_called()

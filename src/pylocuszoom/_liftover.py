@@ -9,6 +9,7 @@ pyliftover positions are 0-based on both sides. Every position column in this
 package is 1-based, so each query subtracts one and each hit adds it back.
 """
 
+import gzip
 import os
 from collections import Counter
 from dataclasses import dataclass
@@ -82,6 +83,7 @@ def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
 
     Raises:
         OptionalDependencyMissing: If pyliftover is not installed.
+        ValidationError: If the chain is missing, unreadable or has no mappings.
     """
     try:
         from pyliftover import LiftOver
@@ -91,7 +93,18 @@ def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
         ) from e
 
     logger.info(f"Loading liftover chain {chain_path}")
-    return LiftOver(str(chain_path))
+    path = Path(chain_path)
+    opener = gzip.open if path.suffix == ".gz" else open
+    try:
+        # pyliftover raises bare Exception for malformed headers and blocks.
+        # Translate at this adapter, and close the stream even when parsing fails.
+        with opener(path, "rb") as stream:
+            lifter = LiftOver(stream)
+    except Exception as e:
+        raise ValidationError(f"Liftover chain {path} is unreadable: {e}") from e
+    if not lifter.chain_file.chains:
+        raise ValidationError(f"Liftover chain {path} contains no mappings")
+    return lifter
 
 
 def chain_lifter(source: GenomeBuild, target: GenomeBuild) -> CoordinateLifter:
@@ -122,21 +135,29 @@ def chain_lifter(source: GenomeBuild, target: GenomeBuild) -> CoordinateLifter:
         _download_chain(url, path)
     try:
         return load_chain(path)
-    except (OSError, EOFError, ValueError) as e:
+    except ValidationError as e:
         logger.warning(f"Liftover chain {path} is unreadable ({e}); refetching")
     _download_chain(url, path)
     try:
         return load_chain(path)
-    except (OSError, EOFError, ValueError) as e:
-        path.unlink(missing_ok=True)
+    except ValidationError as e:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            raise DataDownloadError(
+                f"Liftover chain {path} is unreadable and could not be removed: {cleanup_error}"
+            ) from e
         raise DataDownloadError(f"Liftover chain {path} is unreadable: {e}") from e
 
 
 def _download_chain(url: str, path: Path) -> None:
     """Download one chain file into the cache."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Downloading liftover chain {url}")
-    download_file(url, path, desc="Liftover chain")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Downloading liftover chain {url}")
+        download_file(url, path, desc="Liftover chain")
+    except OSError as e:
+        raise DataDownloadError(f"Could not write liftover chain {path}: {e}") from e
 
 
 class _Outcome(Enum):

@@ -239,3 +239,29 @@ def test_a_failed_chain_download_warns_once_and_still_plots(
 
     assert len(caught) == 1
     assert fig.get_axes()
+
+
+@pytest.mark.parametrize(
+    "content", ["", "pos\tcM\n100\t0.1\n", "pos\trate\n100\t1\n200\t2\textra\n"]
+)
+def test_unreadable_map_warns_once_and_keeps_the_association(
+    tmp_path, content, tiny_regional_gwas_df
+):
+    from tests.figure_probes import PROBES
+
+    (tmp_path / "chr1_recomb.tsv").write_text(content)
+    plotter = LocusZoomPlotter(species=None, recomb_data_dir=tmp_path)
+    with pytest.warns(
+        UserWarning, match="Recombination overlay skipped.*chr1_recomb.tsv"
+    ) as caught:
+        fig = plotter.plot(
+            tiny_regional_gwas_df,
+            chrom=1,
+            start=1000000,
+            end=2000000,
+            display=DisplayConfig(snp_labels=False),
+        )
+
+    assert len(caught) == 1
+    assert set(PROBES["matplotlib"].marker_x(fig)) == {1100000, 1500000, 1900000}
+    assert len(fig.axes) == 1
