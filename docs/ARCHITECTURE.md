@@ -335,7 +335,7 @@ pyLocusZoom/
 │   ├── ld.py                  # PLINK wrapper for R² calculation
 │   ├── _ld_plotting.py        # LD intake and merge for the regional plot
 │   ├── recombination.py       # Recomb map loading + CanFam4 liftover
-│   ├── _liftover.py           # CoordinateLifter protocol + region liftover
+│   ├── _liftover.py           # The one chain loader, region and window liftover
 │   ├── genome_build.py        # GenomeBuild records: synonyms, UCSC genome, chains
 │   ├── gene_track.py          # Gene region filter, row layout, strand-arrow geometry
 │   ├── ensembl.py             # Ensembl REST client with caching

@@ -3,7 +3,7 @@
 Provides:
 - Recombination rate overlay for regional plots
 - Download and loading of species-specific recombination maps
-- Liftover support for CanFam3.1 to CanFam4 coordinate conversion
+- Liftover of the maps through the chains registered on their GenomeBuild
 """
 
 import io
@@ -21,7 +21,7 @@ from typing import Optional
 import pandas as pd
 
 from ._http import download_file
-from ._liftover import CoordinateLifter, liftover_positions
+from ._liftover import CoordinateLifter, chain_lifter, describe_drops, liftover_region
 from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
 from .genome_build import GENOME_BUILDS, assembly_token, resolve_build
 from .logging import logger
@@ -33,10 +33,6 @@ CANINE_MAP_FILENAMES = frozenset(f"chr{chrom}_recomb.tsv" for chrom in range(1, 
 # Data sources by species
 CANINE_RECOMB_URL = (
     "https://github.com/cflerin/dog_recombination/raw/master/dog_genetic_maps.tar.gz"
-)
-
-CANFAM3_TO_CANFAM4_CHAIN_URL = GENOME_BUILDS["canfam3"].chain_url(
-    GENOME_BUILDS["canfam4"]
 )
 
 
@@ -130,97 +126,6 @@ def ensure_recomb_header(content: str, source_name: str) -> str:
     if not has_header:
         content = _CANONICAL_RECOMB_HEADER + content
     return content
-
-
-def get_chain_dir() -> Path:
-    """Get the directory holding downloaded liftover chain files.
-
-    Chains live beside the recombination maps rather than inside them, so a
-    map set can be replaced wholesale without taking the chain with it.
-    """
-    return _platform_cache_base() / "liftover"
-
-
-def get_chain_file_path() -> Path:
-    """Get path to the CanFam3 to CanFam4 liftover chain file."""
-    return get_chain_dir() / CANFAM3_TO_CANFAM4_CHAIN_URL.rsplit("/", 1)[-1]
-
-
-def download_liftover_chain(force: bool = False) -> Path:
-    """Download the CanFam3 to CanFam4 liftover chain file.
-
-    Args:
-        force: Re-download even if file exists.
-
-    Returns:
-        Path to the downloaded chain file.
-
-    Raises:
-        DataDownloadError: If the download fails.
-    """
-    chain_path = get_chain_file_path()
-
-    if chain_path.exists() and not force:
-        return chain_path
-
-    chain_path.parent.mkdir(parents=True, exist_ok=True)
-
-    logger.info("Downloading CanFam3 to CanFam4 liftover chain...")
-    logger.debug(f"Source: {CANFAM3_TO_CANFAM4_CHAIN_URL}")
-
-    download_file(
-        CANFAM3_TO_CANFAM4_CHAIN_URL,
-        chain_path,
-        desc="Liftover chain",
-    )
-
-    logger.info(f"Chain file saved to: {chain_path}")
-    return chain_path
-
-
-def liftover_recombination_map(
-    recomb_df: pd.DataFrame,
-    from_build: str = "canfam3",
-    to_build: str = "canfam4",
-    chrom: Optional[int] = None,
-) -> pd.DataFrame:
-    """Liftover recombination map coordinates between genome builds.
-
-    Args:
-        recomb_df: DataFrame with 'pos' column (and optionally 'chr').
-        from_build: Source genome build (default: canfam3).
-        to_build: Target genome build (default: canfam4).
-        chrom: Chromosome number (required if 'chr' not in recomb_df).
-
-    Returns:
-        DataFrame with lifted coordinates. Positions that fail to map are dropped.
-
-    Raises:
-        DataDownloadError: If the chain cannot be downloaded, or is still
-            unreadable after a cached copy that failed to parse is replaced.
-    """
-    try:
-        from pyliftover import LiftOver
-    except ImportError as e:
-        raise OptionalDependencyMissing(
-            "pyliftover is required for CanFam4 liftover. "
-            "Install it with: pip install pyliftover"
-        ) from e
-
-    chain_path = download_liftover_chain()
-    try:
-        lifter = LiftOver(str(chain_path))
-    except (OSError, EOFError, ValueError) as e:
-        logger.warning(f"Liftover chain {chain_path} is unreadable ({e}); refetching")
-        chain_path = download_liftover_chain(force=True)
-        try:
-            lifter = LiftOver(str(chain_path))
-        except (OSError, EOFError, ValueError) as e:
-            raise DataDownloadError(
-                f"Liftover chain {chain_path} is unreadable: {e}"
-            ) from e
-    logger.debug(f"Lifting over coordinates from {from_build} to {to_build}")
-    return liftover_positions(recomb_df, lifter, chrom)
 
 
 def get_default_data_dir() -> Path:
@@ -515,38 +420,33 @@ def get_recombination_rate_for_region(
         if record and data_dir is None and lifter is None
         else None
     )
-    native = GENOME_BUILDS[source.native_build] if source is not None else None
     target = resolve_build(genome_build)
-    target_build = assembly_token(genome_build) if genome_build else ""
-    chain_url = native.chain_url(target) if native and target else None
+    lift_build = target
     if (
         source is not None
-        and target_build
-        and target_build != source.native_build
-        and chain_url is None
+        and genome_build
+        and assembly_token(genome_build) != source.native_build
     ):
-        raise ValidationError(
-            f"Built-in {source.species} maps use {source.native_build}; "
-            f"no liftover chain is available for {genome_build!r}. "
-            "Supply data_dir with maps in the requested build."
+        native = GENOME_BUILDS[source.native_build]
+        if target is None or native.chain_url(target) is None:
+            raise ValidationError(
+                f"Built-in {source.species} maps use {source.native_build}; "
+                f"no liftover chain is available for {genome_build!r}. "
+                "Supply data_dir with maps in the requested build."
+            )
+        lifter, lift_build = chain_lifter(native, target), native
+    df = load_recombination_map(chrom, species=record, data_dir=data_dir)
+    if lifter is not None:
+        logger.debug(f"Lifting over recombination map for chr{chrom}")
+        lift = liftover_region(
+            df, chrom=chrom, lifter=lifter, pos_col="pos", build=lift_build
         )
-    df = loaded = load_recombination_map(chrom, species=record, data_dir=data_dir)
-    if chain_url is not None:
-        logger.debug(f"Lifting over recombination map for chr{chrom} to {target_build}")
-        df = liftover_recombination_map(
-            df,
-            from_build=source.native_build,
-            to_build=target_build,
-            chrom=chrom,
-        )
-    elif lifter is not None:
-        df = liftover_positions(df, lifter, chrom, build=target)
-    if df.empty and not loaded.empty:
-        raise ValidationError(
-            f"Liftover mapped none of the {len(loaded)} positions in the "
-            f"chr{chrom} recombination map; the chain or lifter does not "
-            "cover this chromosome."
-        )
+        if lift.lifted_df.empty and not df.empty:
+            raise ValidationError(
+                f"Liftover mapped none of the {len(df)} positions in the "
+                f"chr{chrom} recombination map: {describe_drops(lift, chrom)}"
+            )
+        df = lift.lifted_df.sort_values("pos").reset_index(drop=True)
 
     # Filter to region
     region_df = filter_by_region(

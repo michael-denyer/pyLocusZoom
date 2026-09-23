@@ -2,9 +2,8 @@
 
 import io
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import pandas as pd
 import pytest
 
 from pylocuszoom._liftover import InMemoryLifter
@@ -12,10 +11,8 @@ from pylocuszoom.colors import RECOMB_COLOR
 from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.recombination import (
     RecombStatus,
-    download_liftover_chain,
     get_default_data_dir,
     get_recombination_rate_for_region,
-    liftover_recombination_map,
     load_recombination_map,
     recomb_for_region,
 )
@@ -160,194 +157,6 @@ class TestGetRecombinationRateForRegion:
         assert list(result.columns) == ["pos", "rate"]
 
 
-class TestDownloadLiftoverChain:
-    """Tests for download_liftover_chain function."""
-
-    def test_returns_existing_file(self, tmp_path, monkeypatch):
-        """Returns existing chain file without re-downloading."""
-        # Create mock chain file
-        monkeypatch.setattr("pylocuszoom.recombination.get_chain_dir", lambda: tmp_path)
-        chain_file = tmp_path / "canFam3ToCanFam4.over.chain.gz"
-        chain_file.write_bytes(b"mock chain data")
-
-        result = download_liftover_chain(force=False)
-        assert result == chain_file
-
-    @patch("pylocuszoom.recombination.download_file")
-    def test_downloads_when_missing(self, mock_download, tmp_path, monkeypatch):
-        """Downloads chain file when not present."""
-        monkeypatch.setattr("pylocuszoom.recombination.get_chain_dir", lambda: tmp_path)
-
-        # Mock the download to create the file
-        def create_file(url, dest, desc):
-            dest.write_bytes(b"mock chain data")
-
-        mock_download.side_effect = create_file
-
-        result = download_liftover_chain(force=False)
-        mock_download.assert_called_once()
-        assert result.exists()
-
-    @patch("pylocuszoom.recombination.download_file")
-    def test_force_redownload(self, mock_download, tmp_path, monkeypatch):
-        """Force=True re-downloads even if file exists."""
-        monkeypatch.setattr("pylocuszoom.recombination.get_chain_dir", lambda: tmp_path)
-
-        # Create existing file
-        chain_file = tmp_path / "canFam3ToCanFam4.over.chain.gz"
-        chain_file.write_bytes(b"old data")
-
-        def create_file(url, dest, desc):
-            dest.write_bytes(b"new data")
-
-        mock_download.side_effect = create_file
-
-        download_liftover_chain(force=True)
-
-        # Observable behaviour: the existing file's contents were
-        # overwritten with the freshly-fetched bytes.
-        assert chain_file.read_bytes() == b"new data", (
-            "force=True must replace existing chain file contents"
-        )
-
-
-class TestLiftoverRecombinationMap:
-    """Tests for liftover_recombination_map function."""
-
-    def test_raises_typed_error_when_pyliftover_missing(self):
-        """A missing extra is OptionalDependencyMissing, not a bare ImportError."""
-        import sys
-
-        from pylocuszoom.exceptions import OptionalDependencyMissing
-
-        # Temporarily hide pyliftover from imports
-        original = sys.modules.get("pyliftover")
-        sys.modules["pyliftover"] = None  # type: ignore[assignment]
-        # Force re-import of the function's local import
-        try:
-            # The import happens inside liftover_recombination_map, so we need
-            # to call it. Create minimal valid input.
-            df = pd.DataFrame({"pos": [1000000], "rate": [0.5]})
-            with pytest.raises(
-                OptionalDependencyMissing, match="pip install pyliftover"
-            ):
-                liftover_recombination_map(df, chrom=1)
-        finally:
-            if original is not None:
-                sys.modules["pyliftover"] = original
-            else:
-                sys.modules.pop("pyliftover", None)
-
-    @patch("pylocuszoom.recombination.download_liftover_chain")
-    @patch("pyliftover.LiftOver")
-    def test_lifts_positions(self, mock_liftover_class, mock_download, tmp_path):
-        """Successfully lifts over positions."""
-        # Mock chain download
-        chain_file = tmp_path / "chain.gz"
-        chain_file.touch()
-        mock_download.return_value = chain_file
-
-        # Mock LiftOver
-        mock_lo = MagicMock()
-        mock_lo.convert_coordinate.side_effect = [
-            [("chr1", 1000100, "+", 1)],  # First position maps
-            [("chr1", 1500100, "+", 1)],  # Second position maps
-        ]
-        mock_liftover_class.return_value = mock_lo
-
-        df = pd.DataFrame(
-            {
-                "pos": [1000000, 1500000],
-                "rate": [0.5, 1.0],
-            }
-        )
-
-        result = liftover_recombination_map(df, chrom=1)
-
-        # pyliftover hits are 0-based; the lifted 1-based position adds one.
-        assert len(result) == 2
-        assert result["pos"].iloc[0] == 1000101
-        assert result["pos"].iloc[1] == 1500101
-
-    @patch("pylocuszoom.recombination.download_liftover_chain")
-    @patch("pyliftover.LiftOver")
-    def test_drops_unmapped_positions(
-        self, mock_liftover_class, mock_download, tmp_path
-    ):
-        """Positions that fail to map are dropped."""
-        chain_file = tmp_path / "chain.gz"
-        chain_file.touch()
-        mock_download.return_value = chain_file
-
-        mock_lo = MagicMock()
-        mock_lo.convert_coordinate.side_effect = [
-            [("chr1", 1000100, "+", 1)],  # Maps
-            [],  # Fails to map
-            [("chr1", 2000100, "+", 1)],  # Maps
-        ]
-        mock_liftover_class.return_value = mock_lo
-
-        df = pd.DataFrame(
-            {
-                "pos": [1000000, 1500000, 2000000],
-                "rate": [0.5, 1.0, 1.5],
-            }
-        )
-
-        result = liftover_recombination_map(df, chrom=1)
-
-        assert len(result) == 2
-        assert 1500100 not in result["pos"].values
-
-    @patch("pylocuszoom.recombination.download_liftover_chain")
-    @patch("pyliftover.LiftOver")
-    def test_uses_chr_column_if_present(
-        self, mock_liftover_class, mock_download, tmp_path
-    ):
-        """Uses chr column from DataFrame if present."""
-        chain_file = tmp_path / "chain.gz"
-        chain_file.touch()
-        mock_download.return_value = chain_file
-
-        mock_lo = MagicMock()
-        mock_lo.convert_coordinate.return_value = [("chr1", 1000100, "+", 1)]
-        mock_liftover_class.return_value = mock_lo
-
-        df = pd.DataFrame(
-            {
-                "chr": [1],
-                "pos": [1000000],
-                "rate": [0.5],
-            }
-        )
-
-        liftover_recombination_map(df)  # No chrom argument needed
-
-        # Should have used chr column
-        mock_lo.convert_coordinate.assert_called()
-
-    @patch("pylocuszoom.recombination.download_liftover_chain")
-    @patch("pyliftover.LiftOver")
-    def test_requires_chr_or_chrom_param(
-        self, mock_liftover_class, mock_download, tmp_path
-    ):
-        """Raises ValueError if neither chr column nor chrom param."""
-        chain_file = tmp_path / "chain.gz"
-        chain_file.touch()
-        mock_download.return_value = chain_file
-        mock_liftover_class.return_value = MagicMock()
-
-        df = pd.DataFrame(
-            {
-                "pos": [1000000],
-                "rate": [0.5],
-            }
-        )
-
-        with pytest.raises(ValueError, match="chr"):
-            liftover_recombination_map(df)
-
-
 class TestRecombForRegion:
     """One status per way the overlay can be unavailable, and no warnings."""
 
@@ -425,20 +234,6 @@ class TestRecombForRegion:
         assert list(recwarn) == []
 
 
-class TestDownloadLiftoverChainDownloadError:
-    """download_liftover_chain surfaces failures as DataDownloadError."""
-
-    @patch("pylocuszoom.recombination.download_file")
-    def test_download_error_propagates(self, mock_download, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
-        )
-        mock_download.side_effect = DataDownloadError("404 Client Error")
-
-        with pytest.raises(DataDownloadError, match="404 Client Error"):
-            download_liftover_chain(force=True)
-
-
 @pytest.mark.parametrize("species", [None, "canine", "human"])
 def test_custom_maps_are_read_only_and_need_no_complete_bundle(
     tmp_path, monkeypatch, species
@@ -466,9 +261,7 @@ def test_custom_maps_are_already_in_the_requested_build(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "pylocuszoom.recombination.ensure_recomb_maps", lambda **kwargs: tmp_path
     )
-    monkeypatch.setattr(
-        "pylocuszoom.recombination.liftover_recombination_map", unexpected_liftover
-    )
+    monkeypatch.setattr("pylocuszoom.recombination.chain_lifter", unexpected_liftover)
     result = recomb_for_region(
         1, 100, 200, data_dir=str(tmp_path), genome_build="canfam4"
     )
@@ -492,12 +285,11 @@ def test_managed_maps_use_their_known_liftover_chain(tmp_path, monkeypatch):
         "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
     )
 
-    def lift(frame, from_build, to_build, chrom):
-        assert from_build == "canfam3"
-        assert to_build == "canfam4"
-        return frame.assign(pos=frame["pos"] + 100)
+    def registered_chain(source, target):
+        assert (source.key, target.key) == ("canfam3", "canfam4")
+        return InMemoryLifter({("chr1", 149): 249})
 
-    monkeypatch.setattr("pylocuszoom.recombination.liftover_recombination_map", lift)
+    monkeypatch.setattr("pylocuszoom.recombination.chain_lifter", registered_chain)
     result = recomb_for_region(1, 200, 300, genome_build="canfam4")
     assert result.status is RecombStatus.OK
     assert result.frame["pos"].tolist() == [250]
@@ -509,24 +301,19 @@ class TestLiftoverChainFailures:
     CHAIN = "chain 1000 chr1 5000 + 0 1000 chr1 5000 + 100 1100 1\n1000\n\n"
 
     @pytest.fixture
-    def chain_dir(self, tmp_path, monkeypatch):
+    def chain_dir(self, cache_home):
         """Install managed canfam3 maps and return the (not yet created) chain dir."""
-        maps = tmp_path / "recombination_maps"
-        write_canine_map_set(maps, "chr\tpos\trate\tcM\n1\t150\t1.0\t0.1\n")
-        chain_dir = tmp_path / "liftover"
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_default_data_dir", lambda: maps
+        write_canine_map_set(
+            cache_home / "recombination_maps",
+            "chr\tpos\trate\tcM\n1\t150\t1.0\t0.1\n",
         )
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.get_chain_dir", lambda: chain_dir
-        )
-        return chain_dir
+        return cache_home / "liftover"
 
     def test_a_chain_download_failure_is_a_download_failure(
         self, chain_dir, monkeypatch
     ):
         monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file",
+            "pylocuszoom._liftover.download_file",
             Mock(side_effect=DataDownloadError("simulated chain 404")),
         )
 
@@ -545,7 +332,7 @@ class TestLiftoverChainFailures:
             Path(dest).write_bytes(gzip.compress(self.CHAIN.encode()))
 
         fetch = Mock(side_effect=download)
-        monkeypatch.setattr("pylocuszoom.recombination.download_file", fetch)
+        monkeypatch.setattr("pylocuszoom._liftover.download_file", fetch)
 
         result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
 
@@ -559,7 +346,7 @@ class TestLiftoverChainFailures:
         def download(url, dest, desc=None):
             Path(dest).write_bytes(b"<html>502</html>")
 
-        monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
 
         result = recomb_for_region(1, 1, 5000, species="canine", genome_build="canfam4")
 
@@ -585,3 +372,18 @@ def test_a_lift_that_drops_the_whole_map_is_not_ok(tmp_path, recwarn):
     assert result.status is not RecombStatus.OK
     assert "chr1" in result.detail
     assert list(recwarn) == []
+
+
+def test_a_lifted_map_is_sorted_by_its_new_positions(tmp_path):
+    """The overlay line is drawn left to right, whatever order the chain gives."""
+    (tmp_path / "chr1_recomb.tsv").write_text(
+        "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
+    )
+    lifter = InMemoryLifter({("chr1", 999): 4_999, ("chr1", 1_999): 999})
+
+    frame = get_recombination_rate_for_region(
+        1, 1, 10_000, species="canine", data_dir=str(tmp_path), lifter=lifter
+    )
+
+    assert frame["pos"].tolist() == [1_000, 5_000]
+    assert frame["rate"].tolist() == [0.6, 0.5]

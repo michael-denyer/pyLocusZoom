@@ -45,6 +45,17 @@ def write_canine_map_set(path, content: str, *, complete: bool = True) -> None:
         (path / f"chr{chrom}_recomb.tsv").write_text(content)
 
 
+@pytest.fixture
+def cache_home(tmp_path, monkeypatch):
+    """Point the platform cache at this test's directory and return its root.
+
+    Maps land in ``recombination_maps`` and chains in ``liftover`` under the
+    returned directory, as they would under the user's cache.
+    """
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    return tmp_path / "cache" / "pylocuszoom"
+
+
 @pytest.fixture(autouse=True)
 def close_matplotlib_figures():
     """Close every pyplot figure a test leaves open.

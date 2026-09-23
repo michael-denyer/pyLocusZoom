@@ -18,7 +18,7 @@ import pandas as pd
 from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._ld_plotting import enrich_with_ld
-from ._liftover import CoordinateLifter, liftover_region
+from ._liftover import CoordinateLifter, lift_window
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
@@ -287,15 +287,6 @@ class LocusZoomPlotter:
             ... )
         """
         gwas_df = to_pandas(gwas_df)
-        lifter = liftover.resolve()
-        if lifter is not None:
-            gwas_df, start, end, ld = self._lift_region(
-                gwas_df,
-                lifter,
-                RegionConfig(chrom=chrom, start=start, end=end),
-                columns.pos_col,
-                ld,
-            )
         config = PlotConfig(
             region=RegionConfig(chrom=chrom, start=start, end=end),
             columns=columns,
@@ -303,6 +294,12 @@ class LocusZoomPlotter:
             ld=ld,
             panels=panels,
         )
+        lifter = liftover.resolve()
+        if lifter is not None:
+            [gwas_df], region, [ld] = self._lift(
+                [gwas_df], config.region, columns, [ld], lifter
+            )
+            config = config.model_copy(update={"region": region, "ld": ld})
         return self._render_regional(
             config,
             [_AssociationInput.prepare(gwas_df, config.region, columns, ld)],
@@ -315,69 +312,49 @@ class LocusZoomPlotter:
             recomb_lifter=lifter if liftover.lift_recombination else None,
         )
 
-    def _lift_region(
+    def _lift(
         self,
-        gwas_df: pd.DataFrame,
-        lifter: CoordinateLifter,
+        frames: List[pd.DataFrame],
         region: RegionConfig,
-        pos_col: str,
-        ld: LDConfig,
-    ) -> tuple[pd.DataFrame, int, int, LDConfig]:
-        """Lift a source-build region to the plotter's build for ``plot()``.
+        columns: ColumnConfig,
+        lds: List[LDConfig],
+        lifter: CoordinateLifter,
+    ) -> tuple[List[pd.DataFrame], RegionConfig, List[LDConfig]]:
+        """Lift validated source-build panels to the plotter's build.
 
-        Returns the lifted rows, the lifted window and ``ld`` with its lead
-        lifted. The window keeps the requested margins around the outermost
-        SNPs, since the requested bounds themselves need not lift.
+        Returns the lifted frames, the lifted window and each panel's LD
+        config with its lead lifted. A lead that does not lift is
+        auto-detected instead, unless the panel computes LD from a fileset,
+        which needs the lead; that is an error rather than a warning the
+        next check would contradict.
         """
-        selected = filter_by_region(
-            gwas_df, region=(region.chrom, region.start, region.end), pos_col=pos_col
-        )
-        lift = liftover_region(
-            selected,
+        window = lift_window(
+            frames,
             chrom=region.chrom,
+            start=region.start,
+            end=region.end,
+            chrom_col=columns.chrom_col,
+            pos_col=columns.pos_col,
+            lead_positions=[ld.lead_pos for ld in lds],
             lifter=lifter,
-            pos_col=pos_col,
-            lead_pos=ld.lead_pos,
             build=self.genome_build,
         )
-        where = f"chr{region.chrom}:{region.start}-{region.end}"
-        if lift.lifted_df.empty:
-            raise ValidationError(
-                f"No SNP in {where} lifted to {self.genome_build}: "
-                f"{lift.n_unmapped} unmapped, {lift.n_multimapped} multi-mapped, "
-                f"{lift.n_cross_chrom} on another chromosome"
-            )
-        if lift.n_dropped:
-            logger.info(
-                "Liftover dropped {}/{} SNPs in {} ({} unmapped, {} multi-mapped, "
-                "{} on another chromosome)",
-                lift.n_dropped,
-                lift.n_input,
-                where,
-                lift.n_unmapped,
-                lift.n_multimapped,
-                lift.n_cross_chrom,
-            )
-        if not lift.is_collinear:
-            warnings.warn(
-                f"{where} is rearranged between builds; the regional plot's "
-                "left-to-right order may misrepresent it",
-                stacklevel=3,
-            )
-        if ld.lead_pos is not None and lift.lead_pos is None:
-            warnings.warn(
-                f"Lead SNP at chr{region.chrom}:{ld.lead_pos} did not lift to "
-                f"{self.genome_build}; the lead is auto-detected instead",
-                stacklevel=3,
-            )
-        source_pos = selected.loc[lift.lifted_df.index, pos_col]
-        start = max(1, lift.start - int(source_pos.min() - region.start))
-        end = max(lift.end + int(region.end - source_pos.max()), start + 1)
+        for ld, lead in zip(lds, window.lead_positions):
+            if ld.lead_pos is not None and lead is None and ld.ld_reference_file:
+                raise ValidationError(
+                    f"Lead SNP at chr{region.chrom}:{ld.lead_pos} did not lift to "
+                    f"{self.genome_build}, and LD from ld_reference_file needs a "
+                    "lead; pass a lead that lifts or drop ld_reference_file"
+                )
+        for note in window.notes:
+            warnings.warn(note, stacklevel=3)
         return (
-            lift.lifted_df,
-            start,
-            end,
-            ld.model_copy(update={"lead_pos": lift.lead_pos}),
+            window.frames,
+            RegionConfig(chrom=region.chrom, start=window.start, end=window.end),
+            [
+                ld.model_copy(update={"lead_pos": lead})
+                for ld, lead in zip(lds, window.lead_positions)
+            ],
         )
 
     def plot_stacked(
@@ -395,6 +372,7 @@ class LocusZoomPlotter:
         panel_labels: Optional[List[str]] = None,
         ld_reference_files: Optional[List[str]] = None,
         significance_threshold: ThresholdArg = UNSET,
+        liftover: LiftoverConfig = LiftoverConfig(),
     ) -> Any:
         """Create stacked regional association plots for multiple GWAS.
 
@@ -415,6 +393,9 @@ class LocusZoomPlotter:
             ld_reference_files: One PLINK fileset per panel, replacing the
                 broadcast ``ld.ld_reference_file``.
             significance_threshold: As on :meth:`plot`.
+            liftover: As on :meth:`plot`, applied to every frame. The window
+                spans the lifted SNPs of all panels, with the requested
+                margins around them.
 
         Raises:
             ValidationError: If ``gwas_dfs`` is empty, a per-panel list has a
@@ -445,6 +426,13 @@ class LocusZoomPlotter:
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
         )
+        panel_lds = config.panel_lds()
+        lifter = liftover.resolve()
+        if lifter is not None:
+            gwas_dfs, region, panel_lds = self._lift(
+                gwas_dfs, config.region, columns, panel_lds, lifter
+            )
+            config = config.model_copy(update={"region": region})
         association = [
             _AssociationInput.prepare(
                 frame,
@@ -453,7 +441,7 @@ class LocusZoomPlotter:
                 panel_ld,
                 panel_labels[index] if panel_labels is not None else None,
             )
-            for index, (frame, panel_ld) in enumerate(zip(gwas_dfs, config.panel_lds()))
+            for index, (frame, panel_ld) in enumerate(zip(gwas_dfs, panel_lds))
         ]
         return self._render_regional(
             config,
@@ -464,6 +452,7 @@ class LocusZoomPlotter:
             label_top_n=3,
             association_height=2.5,
             min_figure_height=display.figsize[1],
+            recomb_lifter=lifter if liftover.lift_recombination else None,
         )
 
     def _render_regional(

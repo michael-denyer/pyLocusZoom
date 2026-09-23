@@ -1027,6 +1027,7 @@ fig = plotter.plot_stacked(
     panel_labels=None,          # Labels for each panel
     ld_reference_files=None,    # Per-panel PLINK filesets
     significance_threshold=5e-8,  # As on plot()
+    liftover=LiftoverConfig(),  # As on plot(), applied to every panel
 )
 ```
 
@@ -1043,6 +1044,7 @@ fig = plotter.plot_stacked(
 | `panel_labels` | list | None | Labels, one per panel. |
 | `ld_reference_files` | list | None | PLINK filesets, one per panel, replacing the broadcast `ld.ld_reference_file`. |
 | `significance_threshold` | float or None | plotter's `genomewide_threshold` | As on `plot()`. |
+| `liftover` | `LiftoverConfig` | `LiftoverConfig()` | As on `plot()`, applied to every frame; the window spans the lifted SNPs of all panels. |
 
 ### Parameter Naming Conventions
 
@@ -1502,7 +1504,10 @@ another build's genes, give the plotter the target build and `plot()` a chain
 from the sumstats build to it. `gwas_df`, `start`, `end` and `ld.lead_pos` are
 then source-build coordinates; gene, eQTL and fine-mapping frames are
 target-build. The window keeps the requested margins around the outermost
-lifted SNPs. `plot_stacked()` does not lift.
+lifted SNPs. `plot_stacked()` takes the same `liftover` and lifts every frame;
+its window spans the lifted SNPs of all panels. The config is validated in
+source-build coordinates before anything is lifted, and a lead that does not
+lift is an error when `ld_reference_file` needs it.
 
 ```python
 from pylocuszoom import LiftoverConfig

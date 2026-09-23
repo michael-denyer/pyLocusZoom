@@ -220,7 +220,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | select_label_candidates | Shared lead-proximity eligibility for regional and standalone SNP labels | [_label_data.py](../src/pylocuszoom/_label_data.py) |
 | 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
-| 3j | liftover | Coordinate lift between builds for GWAS regions and recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
+| 3j | load_chain, chain_lifter, liftover_region, lift_window | The one chain loader (cached; registered chains come from `GenomeBuild.liftover_chains`) and the one lift path, shared by `plot()`, `plot_stacked()` and the recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |

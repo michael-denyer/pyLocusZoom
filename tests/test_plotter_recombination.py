@@ -216,25 +216,21 @@ class TestRecombinationOptionalDependency:
 
 
 def test_a_failed_chain_download_warns_and_still_plots(
-    tmp_path, monkeypatch, tiny_regional_gwas_df
+    cache_home, monkeypatch, tiny_regional_gwas_df
 ):
     """The chain is part of the overlay; losing it must not lose the figure."""
     from pylocuszoom.exceptions import DataDownloadError
-    from pylocuszoom.recombination import CANINE_MAP_FILENAMES
+    from tests.conftest import write_canine_map_set
 
-    maps = tmp_path / "recombination_maps"
-    maps.mkdir()
-    for name in CANINE_MAP_FILENAMES:
-        (maps / name).write_text("chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n")
-    monkeypatch.setattr("pylocuszoom.recombination.get_default_data_dir", lambda: maps)
-    monkeypatch.setattr(
-        "pylocuszoom.recombination.get_chain_dir", lambda: tmp_path / "liftover"
+    write_canine_map_set(
+        cache_home / "recombination_maps",
+        "chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n",
     )
 
     def refuse(*args, **kwargs):
         raise DataDownloadError("simulated chain 404")
 
-    monkeypatch.setattr("pylocuszoom.recombination.download_file", refuse)
+    monkeypatch.setattr("pylocuszoom._liftover.download_file", refuse)
     plotter = LocusZoomPlotter(species="canine", genome_build="canfam4", log_level=None)
 
     with pytest.warns(UserWarning, match="simulated chain 404"):
