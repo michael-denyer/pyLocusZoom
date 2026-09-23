@@ -66,6 +66,8 @@ class TestModel:
         assert style.line_width == 1.0
         assert style.title_fontweight == "bold"
         assert style.point_edge_width is None
+        assert style.y_headroom == 0.1
+        assert style.manhattan_qq_width_ratio == 2.5
 
     def test_is_frozen(self):
         with pytest.raises(PydanticValidationError):
@@ -89,6 +91,8 @@ class TestModel:
             ("line_width", 0),
             ("title_fontweight", "heavy"),
             ("point_edge_width", -0.1),
+            ("y_headroom", -0.1),
+            ("manhattan_qq_width_ratio", 0),
         ],
     )
     def test_rejects_invalid_values(self, field, value):
@@ -385,6 +389,29 @@ class TestLines:
 
         (shape,) = fig.layout.shapes
         assert (shape.line.dash, shape.line.width) == ("solid", 1.5)
+
+
+class TestLayout:
+    @pytest.mark.parametrize("headroom", [0.1, 0.3])
+    def test_headroom_is_left_above_the_significance_line(
+        self, plotter, four_chrom_df, headroom
+    ):
+        fig = plotter.plot_manhattan(
+            four_chrom_df,
+            significance_threshold=1e-12,
+            style=GenomeWideStyle(y_headroom=headroom),
+        )
+
+        assert fig.axes[0].get_ylim()[1] == pytest.approx(12 * (1 + headroom))
+
+    def test_width_ratio_sets_manhattan_to_qq_width(self, plotter, four_chrom_df):
+        fig = plotter.plot_manhattan_qq(
+            four_chrom_df, style=GenomeWideStyle(manhattan_qq_width_ratio=2)
+        )
+
+        manhattan, qq = fig.axes[:2]
+        ratio = manhattan.get_position().width / qq.get_position().width
+        assert ratio == pytest.approx(2)
 
 
 class TestPointEdges:

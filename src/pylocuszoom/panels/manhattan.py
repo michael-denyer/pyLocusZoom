@@ -44,9 +44,9 @@ def scatter_alpha(style: GenomeWideStyle) -> Dict[str, float]:
     return {} if style.point_alpha is None else {"alpha": style.point_alpha}
 
 
-def padded_ymax(y_max: float) -> float:
+def padded_ymax(y_max: float, headroom: float) -> float:
     """Return a useful upper y-limit for a Manhattan panel."""
-    return max(y_max * 1.1, 1.0) if pd.notna(y_max) else 1.0
+    return max(y_max * (1 + headroom), 1.0) if pd.notna(y_max) else 1.0
 
 
 @dataclass(frozen=True)
@@ -288,7 +288,7 @@ def render_manhattan_panel(
         for threshold in (spec.significance_threshold, spec.suggestive_threshold)
         if threshold is not None
     ]
-    y_max = padded_ymax(max([df["neglog10p"].max(), *line_levels]))
+    y_max = padded_ymax(max([df["neglog10p"].max(), *line_levels]), style.y_headroom)
     if spec.invert_y:
         backend.set_ylim(ax, y_max, 0)
     else:

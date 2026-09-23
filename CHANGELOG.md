@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `GenomeWideStyle` takes `line_style` and `line_width` for the significance
   and suggestive lines and the QQ diagonal, `title_fontweight` for the figure
-  and panel titles, and `point_edge_width` for the Manhattan and QQ point
-  outlines. The defaults draw what the methods draw today.
+  and panel titles, `point_edge_width` for the Manhattan and QQ point
+  outlines, `y_headroom` for the space above the top Manhattan point or line,
+  and `manhattan_qq_width_ratio` for the Manhattan-QQ panel widths. The
+  defaults draw what the methods draw today.
 - `PlotBackend.set_title` and `PlotBackend.set_suptitle` take `fontweight`.
   It is passed only when the style sets `title_fontweight="normal"`, so
   backends registered with `@register_backend` draw unstyled figures as before.

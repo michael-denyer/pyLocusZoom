@@ -441,6 +441,10 @@ class GenomeWideStyle(BaseModel):
             ``"bold"`` or ``"normal"``.
         point_edge_width: Outline width of the Manhattan and QQ points; 0
             draws no outline. None keeps the method's width.
+        y_headroom: Space left above the highest Manhattan point or threshold
+            line, as a fraction of its height.
+        manhattan_qq_width_ratio: Width of the Manhattan panel relative to the
+            QQ panel in a Manhattan-QQ figure.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -482,6 +486,12 @@ class GenomeWideStyle(BaseModel):
     )
     point_edge_width: Optional[float] = Field(
         default=None, ge=0, description="Marker outline width"
+    )
+    y_headroom: float = Field(
+        default=0.1, ge=0, description="Manhattan space above the top point or line"
+    )
+    manhattan_qq_width_ratio: float = Field(
+        default=2.5, gt=0, description="Manhattan panel width over QQ panel width"
     )
 
     @field_validator("palette", mode="before")
