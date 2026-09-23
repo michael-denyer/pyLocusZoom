@@ -395,7 +395,7 @@ class PanelInputs(_Config):
     )
 
 
-def _require_lead(ld: "LDConfig", where: str) -> None:
+def _require_lead(ld: LDConfig, where: str) -> None:
     """Reject LD computed from a fileset with no lead to compute it against."""
     if ld.ld_reference_file is not None and ld.lead_pos is None:
         raise ValueError(

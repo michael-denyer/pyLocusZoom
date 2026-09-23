@@ -36,9 +36,8 @@ def get_chromosome_order(
         List of chromosome names in display order.
 
     Raises:
-        ValidationError: If the species is unknown, or is known but has no
-            built-in chromosome order.
-        ValidationError: If neither species nor custom_order is provided.
+        ValidationError: If neither species nor custom_order is provided, or
+            the species is unknown or has no built-in chromosome order.
     """
     if custom_order is not None:
         return custom_order

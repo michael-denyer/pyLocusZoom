@@ -148,11 +148,13 @@ def _overlap_coordinates(
     common_chrom: int | str | None,
 ) -> pd.DataFrame:
     """Resolve each input to coordinate and p-value roles before joining."""
-    check(df, eqtl_plot_spec(pos_col, p_col))
     check(
         df,
         ColumnSpec(
-            name="eQTL DataFrame", numeric=(p_col,), error_class=EQTLValidationError
+            name="eQTL DataFrame",
+            required=(pos_col, p_col),
+            numeric=(p_col,),
+            error_class=EQTLValidationError,
         ),
     )
     positions = pd.to_numeric(df[pos_col], errors="coerce")

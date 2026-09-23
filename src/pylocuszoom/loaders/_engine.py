@@ -107,10 +107,9 @@ def _load_tabular(
     spec: LoaderSpec,
     *,
     gene: Optional[str] = None,
-    **requested: Optional[str],
+    **out_cols: str,
 ) -> pd.DataFrame:
     """Load a tabular file per ``spec``: read, map, rename, transform, validate."""
-    out_cols = {k: v for k, v in requested.items() if v is not None}
     df = pd.read_csv(filepath, **spec.read)
 
     col_map = {src: _resolve(dst, out_cols) for src, dst in spec.col_map.items()}

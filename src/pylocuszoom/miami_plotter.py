@@ -116,9 +116,9 @@ class MiamiPlotter:
 
         Raises:
             ValidationError: If either frame is empty or lacks a configured
-                column, or ``rs_col`` when given.
-            ValidationError: If the plotter's species has no chromosome order and
-                ``config.custom_chrom_order`` is not set.
+                column, or ``rs_col`` when given, or if the plotter's species
+                has no chromosome order and ``config.custom_chrom_order`` is
+                not set.
 
         Example:
             >>> fig = plotter.plot_miami(

@@ -70,6 +70,11 @@ PANEL_INPUTS = {
         },
     ),
 }
+_PANEL_OWNER = {
+    old: (field, new)
+    for field, (_, renames) in PANEL_INPUTS.items()
+    for old, new in renames.items()
+}
 GENOMEWIDE = ("chrom_col", "pos_col", "p_col", "custom_chrom_order")
 GENOMEWIDE_METHODS = {
     "plot_manhattan",
@@ -137,16 +142,11 @@ class Rewriter(cst.CSTTransformer):
 
     def _nest_panels(self, call: cst.Call) -> cst.Call:
         """Move a PanelInputs call's flat panel fields into their nested models."""
-        owner = {
-            old: (field, new)
-            for field, (_, renames) in PANEL_INPUTS.items()
-            for old, new in renames.items()
-        }
         kept, moved = [], {field: [] for field in PANEL_INPUTS}
         for arg in call.args:
             key = arg.keyword.value if arg.keyword is not None else None
-            if key in owner:
-                field, new = owner[key]
+            if key in _PANEL_OWNER:
+                field, new = _PANEL_OWNER[key]
                 moved[field].append(arg.with_changes(keyword=cst.Name(new)))
             else:
                 kept.append(arg)

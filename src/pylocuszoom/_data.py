@@ -55,10 +55,6 @@ P_VALUE_POLICY: Mapping[PValueFamily, PValuePolicy] = MappingProxyType(
 )
 
 
-def _domain(allow_zero: bool) -> str:
-    return "[0, 1]" if allow_zero else "(0, 1]"
-
-
 def pvalue_faults(values: pd.Series, column: str, *, allow_zero: bool) -> List[str]:
     """Describe every p-value in ``values`` outside the policy's domain.
 
@@ -72,7 +68,7 @@ def pvalue_faults(values: pd.Series, column: str, *, allow_zero: bool) -> List[s
         domain), empty when every value is valid.
     """
     numeric = pd.to_numeric(values, errors="coerce")
-    below = numeric <= 0 if not allow_zero else numeric < 0
+    below = numeric < 0 if allow_zero else numeric <= 0
     counts = (
         (int(values.isna().sum()), f"Column '{column}' has {{}} null values"),
         (
@@ -148,7 +144,7 @@ def prepare_pvalue_data(
         logger.warning(
             "Found {} p-values outside {} range, filtering out",
             out_of_range,
-            _domain(policy.allow_zero),
+            "[0, 1]" if policy.allow_zero else "(0, 1]",
         )
     result = result.loc[valid].copy()
     valid_values = p_values.loc[valid]

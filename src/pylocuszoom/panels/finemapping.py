@@ -59,7 +59,7 @@ class FinemappingPanel:
         resolved = resolve_column(
             data,
             cs_col,
-            parameter="finemapping_cs_col",
+            parameter="FinemappingInput.cs_col",
             optional_default="cs",
             error_class=FinemappingValidationError,
         )
