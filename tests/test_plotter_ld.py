@@ -7,7 +7,7 @@ import pytest
 from pylocuszoom import DisplayConfig, LDConfig, PanelInputs
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.backends.composition import LD_LEGEND_TITLE
-from pylocuszoom.exceptions import PlinkError
+from pylocuszoom.exceptions import PlinkError, ValidationError
 from pylocuszoom.plotter import LocusZoomPlotter
 from tests.conftest import FIGURE_TYPES
 from tests.figure_probes import PROBES
@@ -656,13 +656,11 @@ class TestPlotEdgeCases:
         """Create plotter instance."""
         return LocusZoomPlotter(species="canine", plink_path="/mock/plink")
 
-    def test_plot_skips_ld_when_rs_col_missing(
-        self, mock_plink_plotter, warning_records
-    ):
-        """LD needs SNP IDs, so a frame without rs_col plots uncoloured.
+    def test_plot_requires_rs_for_reference_ld(self, mock_plink_plotter):
+        """LD from a fileset joins on SNP ids, so a frame without them raises.
 
-        The alternative, a KeyError from deep inside the LD merge, tells the
-        caller nothing about which column is missing.
+        It used to draw every point grey with only a log line, the same
+        picture as "no LD structure".
         """
         df = pd.DataFrame(
             {
@@ -672,14 +670,35 @@ class TestPlotEdgeCases:
             }
         )
 
-        fig = mock_plink_plotter.plot(
-            df,
-            chrom=1,
-            start=1000000,
-            end=2000000,
-            display=DisplayConfig(show_recombination=False),
-            ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
-        )
+        with pytest.raises(ValidationError, match="ld_reference_file.*'rs'"):
+            mock_plink_plotter.plot(
+                df,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(lead_pos=1500000, ld_reference_file="/path/to/genotypes"),
+            )
 
-        assert fig.get_axes()[0].get_legend() is None
-        assert any("rs" in message for message in warning_records)
+    @pytest.mark.parametrize("method", ["plot", "plot_stacked"])
+    def test_plot_rejects_absent_ld_col(self, mock_plink_plotter, method):
+        """A misspelt ld_col used to draw every point grey without a word."""
+        df = pd.DataFrame(
+            {
+                "chr": 1,
+                "pos": [1100000, 1500000],
+                "p_value": [1e-8, 1e-5],
+                "R2": [1.0, 0.5],
+            }
+        )
+        frames = df if method == "plot" else [df]
+
+        with pytest.raises(ValidationError, match="ld_col='r2_typo'"):
+            getattr(mock_plink_plotter, method)(
+                frames,
+                chrom=1,
+                start=1000000,
+                end=2000000,
+                display=DisplayConfig(show_recombination=False),
+                ld=LDConfig(ld_col="r2_typo"),
+            )

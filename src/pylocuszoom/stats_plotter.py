@@ -16,9 +16,11 @@ from ._plotter_utils import (
     resolve_threshold,
 )
 from .backends import BackendType, get_backend
+from .exceptions import ForestValidationError, PheWASValidationError
 from .panels.stats import ForestPanel, PhewasPanel
 from .schemas import Canonical, validate_forest_df, validate_phewas_df
 from .utils import DataFrameLike, to_pandas
+from .validation import resolve_column
 
 
 class StatsPlotter:
@@ -67,8 +69,11 @@ class StatsPlotter:
             variant_id: Variant identifier (e.g., "rs12345") for plot title.
             phenotype_col: Column name for phenotype names.
             p_col: Column name for p-values.
-            category_col: Column name for phenotype categories.
-            effect_col: Optional column name for effect direction (beta/OR).
+            category_col: Column name for phenotype categories. The default
+                ``"category"`` may be absent, which draws one ungrouped
+                scatter; any other name must be a column of ``phewas_df``.
+            effect_col: Optional column name for effect direction (beta/OR),
+                which must be a column of ``phewas_df`` when given.
             significance_threshold: P-value threshold for the significance line.
                 Defaults to the plotter's ``genomewide_threshold``; pass None to
                 draw no line.
@@ -89,6 +94,19 @@ class StatsPlotter:
             significance_threshold, self.genomewide_threshold
         )
         validate_phewas_df(phewas_df, phenotype_col, p_col)
+        category_col = resolve_column(
+            phewas_df,
+            category_col,
+            parameter="category_col",
+            optional_default="category",
+            error_class=PheWASValidationError,
+        )
+        effect_col = resolve_column(
+            phewas_df,
+            effect_col,
+            parameter="effect_col",
+            error_class=PheWASValidationError,
+        )
 
         panel = PhewasPanel.from_frame(
             prepare_pvalue_data(phewas_df, p_col),
@@ -123,7 +141,8 @@ class StatsPlotter:
             effect_col: Column name for effect sizes.
             ci_lower_col: Column name for lower confidence interval.
             ci_upper_col: Column name for upper confidence interval.
-            weight_col: Optional column for study weights (affects marker size).
+            weight_col: Optional column for study weights (affects marker
+                size), which must be a column of ``forest_df`` when given.
             null_value: Reference value for null effect (0 for beta, 1 for OR).
             effect_label: X-axis label.
             figsize: Figure size as (width, height).
@@ -141,6 +160,12 @@ class StatsPlotter:
         """
         forest_df = to_pandas(forest_df)
         validate_forest_df(forest_df, study_col, effect_col, ci_lower_col, ci_upper_col)
+        weight_col = resolve_column(
+            forest_df,
+            weight_col,
+            parameter="weight_col",
+            error_class=ForestValidationError,
+        )
 
         panel = ForestPanel.from_frame(
             forest_df,

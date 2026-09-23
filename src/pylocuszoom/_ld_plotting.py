@@ -15,7 +15,7 @@ def enrich_with_ld(
     reference_file: Optional[str],
     lead_index: Optional[int],
     ld_col: Optional[str],
-    rs_col: str,
+    rs_col: Optional[str],
     start: int,
     end: int,
     plink_path: Optional[str],
@@ -26,15 +26,10 @@ def enrich_with_ld(
 
     ``lead_index`` identifies a row already selected at the regional boundary.
     The helper never infers a variant ID from a potentially ambiguous position.
+    The regional boundary has already required ``rs_col`` whenever
+    ``reference_file`` is set.
     """
     if not reference_file or lead_index is None or ld_col is not None:
-        return df, ld_col
-
-    if rs_col not in df.columns:
-        logger.warning(
-            f"Cannot calculate LD for {context}: column '{rs_col}' not found "
-            "in GWAS data. Provide rs_col or add SNP IDs to the DataFrame."
-        )
         return df, ld_col
 
     lead_snp_id = df.at[lead_index, rs_col]

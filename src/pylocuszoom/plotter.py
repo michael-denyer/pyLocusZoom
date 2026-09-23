@@ -51,9 +51,10 @@ from .panels import (
 )
 from .recombination import RecombResult, RecombStatus, recomb_for_region
 from .reference_genes import get_genes_for_build, source_for
-from .schemas import validate_genes_df, validate_gwas_df
+from .schemas import Canonical, validate_gwas_df
 from .species import Species, resolve_species
 from .utils import DataFrameLike, filter_by_region, to_pandas
+from .validation import resolve_column
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ class _AssociationInput:
 
     data: pd.DataFrame
     columns: ColumnConfig
+    rs_col: Optional[str]
     ld: LDConfig
     lead_index: Optional[int]
     label: Optional[str] = None
@@ -77,6 +79,16 @@ class _AssociationInput:
     ) -> "_AssociationInput":
         columns = resolve_deprecated_columns(frame, columns)
         validate_gwas_df(frame, pos_col=columns.pos_col, p_col=columns.p_col)
+        resolve_column(frame, ld.ld_col, parameter="ld_col")
+        rs_col = resolve_column(
+            frame, columns.rs_col, parameter="rs_col", optional_default=Canonical.RS
+        )
+        if ld.ld_reference_file is not None and rs_col is None:
+            raise ValidationError(
+                "ld_reference_file needs SNP ids to compute LD, and column "
+                f"'{columns.rs_col}' is not in the GWAS data. Add it, or name "
+                "the SNP id column with ColumnConfig(rs_col=...)."
+            )
         selected = filter_by_region(
             frame,
             region=(region.chrom, region.start, region.end),
@@ -95,7 +107,7 @@ class _AssociationInput:
                 "Lead SNP at position {} not found in region; LD coloring will be skipped",
                 ld.lead_pos,
             )
-        return cls(data, columns, ld, lead_index, label)
+        return cls(data, columns, rs_col, ld, lead_index, label)
 
 
 class LocusZoomPlotter:
@@ -527,8 +539,6 @@ class LocusZoomPlotter:
                     genes_df = annotations.genes
                     if exons_df is None:
                         exons_df = annotations.exons
-        if genes_df is not None:
-            validate_genes_df(genes_df)
 
         finemap = (
             FinemappingPanel.from_frame(
@@ -570,15 +580,13 @@ class LocusZoomPlotter:
                 reference_file=ld.ld_reference_file,
                 lead_index=request.lead_index,
                 ld_col=ld.ld_col,
-                rs_col=columns.rs_col,
+                rs_col=request.rs_col,
                 start=region.start,
                 end=region.end,
                 plink_path=self.plink_path,
                 species=self.species,
                 context=f"panel {index + 1}",
             )
-            if ld_col is not None and ld_col not in df.columns:
-                ld_col = None
             association.append(
                 AssociationPanel(
                     data=df,
@@ -588,7 +596,7 @@ class LocusZoomPlotter:
                     display=display,
                     genomewide_threshold=threshold,
                     ld_col=ld_col,
-                    hover=hover_for_association(df, columns, ld_col),
+                    hover=hover_for_association(columns, request.rs_col, ld_col),
                     lead_index=request.lead_index,
                     recomb_df=recomb_df if index == 0 else None,
                     panel_label=request.label,

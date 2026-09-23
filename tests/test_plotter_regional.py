@@ -370,6 +370,35 @@ class TestFloatChromosomeColumn:
         assert set(PROBES["matplotlib"].marker_x(fig)) == {1100.0, 1500.0, 1900.0}
 
 
+class TestSnpIdColumn:
+    """The default rs column is optional; one the caller names is required."""
+
+    FRAME = pd.DataFrame({"chr": [1, 1], "pos": [1500, 1600], "p_value": [1e-3, 1e-9]})
+
+    def test_default_rs_column_absent_draws_without_labels(self):
+        fig = LocusZoomPlotter(species=None, log_level=None).plot(
+            self.FRAME,
+            chrom=1,
+            start=1000,
+            end=2000,
+            display=DisplayConfig(show_recombination=False),
+        )
+
+        assert set(PROBES["matplotlib"].marker_x(fig)) == {1500.0, 1600.0}
+        assert list(fig.axes[0].texts) == []
+
+    def test_named_rs_column_absent_raises(self):
+        with pytest.raises(ValidationError, match="rs_col='snp'"):
+            LocusZoomPlotter(species=None, log_level=None).plot(
+                self.FRAME,
+                chrom=1,
+                start=1000,
+                end=2000,
+                columns=ColumnConfig(rs_col="snp"),
+                display=DISPLAY,
+            )
+
+
 class TestChromosomeColumn:
     """The chromosome is a named column role; position-only is an opt-in."""
 

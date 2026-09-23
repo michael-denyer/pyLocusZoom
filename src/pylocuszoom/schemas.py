@@ -115,6 +115,11 @@ def _genes_plot() -> ColumnSpec:
     )
 
 
+EXONS_PLOT = ColumnSpec(
+    name="exons_df", required=(Canonical.CHROM, "start", "end", "gene_name")
+)
+
+
 def _eqtl_load() -> ColumnSpec:
     return ColumnSpec(
         name="eQTL",

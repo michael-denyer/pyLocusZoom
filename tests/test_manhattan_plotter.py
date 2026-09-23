@@ -229,6 +229,15 @@ class TestManhattanQQStackedValidation:
         with pytest.raises(ValueError, match="At least one GWAS DataFrame"):
             manhattan_plotter.plot_manhattan_qq_stacked([])
 
+    def test_manhattan_qq_stacked_rejects_label_mismatch(
+        self, manhattan_plotter, manhattan_gwas_df
+    ):
+        """It drew one label for two frames; plot_manhattan_stacked raised."""
+        with pytest.raises(ValidationError, match="panel_labels length"):
+            manhattan_plotter.plot_manhattan_qq_stacked(
+                [manhattan_gwas_df, manhattan_gwas_df], panel_labels=["A"]
+            )
+
 
 class TestEmptyManhattanInput:
     """Empty input has no axis limits to compute."""

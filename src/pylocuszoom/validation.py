@@ -89,6 +89,47 @@ def _range_errors(
     ]
 
 
+def resolve_column(
+    df: pd.DataFrame,
+    column: Optional[str],
+    *,
+    parameter: str,
+    optional_default: Optional[str] = None,
+    frame: str = "the data",
+    error_class: Type[ValidationError] = ValidationError,
+) -> Optional[str]:
+    """Resolve a column the caller named, or None when the feature is off.
+
+    The one owner of "named means required". A column the caller names must
+    be in the frame. The exception is a canonical default for an optional
+    feature (``rs``, ``cs``, ``category``): left at that default, a frame
+    without the column simply draws without the feature.
+
+    Args:
+        df: The frame the column should be in.
+        column: The caller's column name, or None for the feature off.
+        parameter: The option that named the column, for the error message.
+        optional_default: The canonical name that may be absent, if any.
+        frame: What the frame is, for the error message.
+        error_class: Exception raised for a missing named column.
+
+    Returns:
+        ``column`` if the frame carries it, else None when ``column`` is None
+        or the absent optional default.
+
+    Raises:
+        ValidationError: If ``column`` names a column the frame lacks.
+    """
+    if column is None or column in df.columns:
+        return column
+    if column == optional_default:
+        return None
+    raise error_class(
+        f"{parameter}='{column}' names no column of {frame}. "
+        f"Available: {list(df.columns)}"
+    )
+
+
 def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
     """Validate ``df`` against ``spec``, accumulating all faults before raising.
 

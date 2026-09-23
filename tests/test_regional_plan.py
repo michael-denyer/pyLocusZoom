@@ -1,7 +1,5 @@
 """Each regional panel type builds itself and draws itself."""
 
-from dataclasses import replace
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -47,7 +45,7 @@ def _association(**overrides):
     fields.update(overrides)
     fields.setdefault(
         "hover",
-        hover_for_association(fields["data"], fields["columns"], fields["ld_col"]),
+        hover_for_association(fields["columns"], "rs", fields["ld_col"]),
     )
     return AssociationPanel(**fields)
 
@@ -193,8 +191,7 @@ def test_heatmap_panel_from_matrix_raises_without_overlap():
 
 def test_heatmap_panel_from_matrix_raises_without_snp_id_column():
     ids = ["rs1", "rs2"]
-    source = _association()
-    source = replace(source, data=source.data.drop(columns=[source.columns.rs_col]))
+    source = _association(hover=hover_for_association(ColumnConfig(), None, None))
 
     with pytest.raises(ValueError, match="not in GWAS data"):
         HeatmapPanel.from_matrix(

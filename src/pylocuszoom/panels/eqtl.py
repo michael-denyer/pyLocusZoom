@@ -59,8 +59,8 @@ class EqtlPanel:
             threshold=threshold,
             effect_col="effect_size" if "effect_size" in data.columns else None,
             hover=HoverConfig(
-                pos_col="pos" if "pos" in data.columns else None,
-                p_col="p_value" if "p_value" in data.columns else None,
+                pos_col="pos",
+                p_col="p_value",
                 extra_cols=extra_cols,
             ),
         )

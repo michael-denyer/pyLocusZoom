@@ -17,6 +17,8 @@ from ..gene_track import (
     compute_arrow_geometry,
     filter_genes_by_region,
 )
+from ..schemas import EXONS_PLOT, validate_genes_df
+from ..validation import check
 
 
 @dataclass(frozen=True)
@@ -40,7 +42,15 @@ class GenePanel:
         region: RegionConfig,
         exons_df: Optional[pd.DataFrame],
     ) -> "GenePanel":
-        """Filter genes to the region and lay them out in non-overlapping rows."""
+        """Filter genes to the region and lay them out in non-overlapping rows.
+
+        Raises:
+            ValidationError: If either frame lacks a chr, start, end or
+                gene_name column.
+        """
+        validate_genes_df(genes_df)
+        if exons_df is not None and not exons_df.empty:
+            check(exons_df, EXONS_PLOT)
         genes = filter_genes_by_region(
             genes_df, region.chrom, region.start, region.end
         ).sort_values("start")

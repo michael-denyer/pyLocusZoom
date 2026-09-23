@@ -51,6 +51,7 @@ from .schemas import (
 )
 
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
+LDMetric = Literal["r2", "dprime"]
 
 
 def _describe(error: pydantic.ValidationError) -> str:
@@ -311,7 +312,7 @@ class PanelInputs(_Config):
         default=0.25,
         description="Heatmap height as a fraction of the association panel",
     )
-    ld_heatmap_metric: str = Field(default="r2", description="LD metric label")
+    ld_heatmap_metric: LDMetric = Field(default="r2", description="LD metric label")
 
     @model_validator(mode="after")
     def validate_heatmap_requires_snp_ids(self) -> "PanelInputs":

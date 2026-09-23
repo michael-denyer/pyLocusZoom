@@ -25,6 +25,7 @@ from .._plotter_utils import (
 from ..backends.base import PlotBackend
 from ..backends.hover import HoverConfig, HoverDataBuilder
 from ..config import GenomeWideStyle
+from ..exceptions import ValidationError
 from ..manhattan import PanelLayout, PreparedManhattan
 
 T = TypeVar("T")
@@ -223,17 +224,23 @@ def stacked_manhattan_specs(
 
     Returns:
         One spec per frame, in the same order.
+
+    Raises:
+        ValidationError: If ``panel_labels`` does not hold one label per frame.
     """
     n_panels = len(prepared)
+    if panel_labels is not None and len(panel_labels) != n_panels:
+        raise ValidationError(
+            f"panel_labels length ({len(panel_labels)}) must match "
+            f"number of GWAS DataFrames ({n_panels})"
+        )
     return [
         manhattan_spec(
             value,
             significance_threshold=significance_threshold,
             y_label_fontsize=10,
             x_label="Chromosome" if index == n_panels - 1 else None,
-            panel_label=panel_labels[index]
-            if panel_labels and index < len(panel_labels)
-            else None,
+            panel_label=panel_labels[index] if panel_labels is not None else None,
             style=style,
         )
         for index, value in enumerate(prepared)

@@ -222,6 +222,20 @@ class TestDrawFinemapping:
 
         assert len(ax.get_lines()) >= 1
 
+    def test_default_cs_column_absent_draws_without_sets(self):
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000], "pip": [0.1, 0.5]})
+
+        panel = FinemappingPanel.from_frame(df, DRAW_REGION, "cs")
+
+        assert panel.credible_sets == []
+
+    def test_named_cs_column_absent_raises(self):
+        """A misspelt finemapping_cs_col used to drop the credible sets."""
+        df = pd.DataFrame({"chr": 1, "pos": [1000, 2000], "pip": [0.1, 0.5]})
+
+        with pytest.raises(FinemappingValidationError, match="cs_col='credset'"):
+            FinemappingPanel.from_frame(df, DRAW_REGION, "credset")
+
     def test_only_points_above_the_pip_threshold_scatter(self, rendering_axes):
         """The panel scatters the variants that clear PIP_SCATTER_THRESHOLD."""
         backend, ax = rendering_axes

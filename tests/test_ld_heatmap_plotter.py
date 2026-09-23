@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pylocuszoom import ValidationError
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 from pylocuszoom.ld_heatmap_plotter import LDHeatmapPlotter
@@ -180,6 +181,11 @@ class TestPlotLDHeatmap:
         fig = plotter.plot_ld_heatmap(small_ld_matrix, metric="r2")
 
         assert fig.get_axes()[1].get_ylabel() == "R²"
+
+    def test_rejects_an_unknown_metric(self, small_ld_matrix):
+        """'R2' used to label an R² matrix D′, the colour bar of any non-'r2'."""
+        with pytest.raises(ValidationError, match="metric"):
+            LDHeatmapPlotter().plot_ld_heatmap(small_ld_matrix, metric="R2")
 
     def test_metric_dprime_label(self, small_ld_matrix):
         """Assert metric='dprime' labels the colorbar D'."""

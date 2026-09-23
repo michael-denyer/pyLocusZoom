@@ -10,7 +10,9 @@ from ..backends.composition import finemapping_legend_entries
 from ..backends.hover import HoverConfig, HoverDataBuilder
 from ..colors import NO_DATA_COLOR, PIP_LINE_COLOR, get_credible_set_color
 from ..config import RegionConfig
+from ..exceptions import FinemappingValidationError
 from ..finemapping import get_credible_sets, prepare_finemapping_for_plotting
+from ..validation import resolve_column
 
 PIP_SCATTER_THRESHOLD = 0.01
 
@@ -33,7 +35,12 @@ class FinemappingPanel:
     def from_frame(
         cls, df: pd.DataFrame, region: RegionConfig, cs_col: Optional[str]
     ) -> "FinemappingPanel":
-        """Validate, region-filter, and sort raw fine-mapping results."""
+        """Validate, region-filter, and sort raw fine-mapping results.
+
+        Raises:
+            FinemappingValidationError: If ``cs_col`` names a column the frame
+                lacks, other than the canonical ``"cs"``, which may be absent.
+        """
         data = prepare_finemapping_for_plotting(
             df,
             pos_col="pos",
@@ -42,7 +49,13 @@ class FinemappingPanel:
             start=region.start,
             end=region.end,
         )
-        resolved = cs_col if cs_col and cs_col in data.columns else None
+        resolved = resolve_column(
+            data,
+            cs_col,
+            parameter="finemapping_cs_col",
+            optional_default="cs",
+            error_class=FinemappingValidationError,
+        )
         extra_cols = {"pip": "PIP"}
         if resolved:
             extra_cols[resolved] = "Credible Set"

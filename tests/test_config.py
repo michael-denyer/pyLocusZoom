@@ -735,3 +735,13 @@ class TestRegionalOptionSurface:
 
         assert not hasattr(PlotConfig, "from_kwargs")
         assert not hasattr(StackedPlotConfig, "from_kwargs")
+
+
+class TestPanelInputs:
+    """The optional-panel inputs reject values the panels cannot draw."""
+
+    def test_rejects_an_unknown_ld_heatmap_metric(self):
+        from pylocuszoom import PanelInputs
+
+        with pytest.raises(ValidationError, match="ld_heatmap_metric"):
+            PanelInputs(ld_heatmap_metric="R2")

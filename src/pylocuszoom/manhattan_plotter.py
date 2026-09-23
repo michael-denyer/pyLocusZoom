@@ -278,12 +278,6 @@ class ManhattanPlotter:
         if n_gwas == 0:
             raise ValidationError("At least one GWAS DataFrame required")
 
-        if panel_labels is not None and len(panel_labels) != n_gwas:
-            raise ValidationError(
-                f"panel_labels length ({len(panel_labels)}) must match "
-                f"number of GWAS DataFrames ({n_gwas})"
-            )
-
         prepared = prepare_genomewide_frames(
             gwas_dfs, config, species=self.species, style=style
         )

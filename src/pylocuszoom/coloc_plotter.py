@@ -29,6 +29,7 @@ from .exceptions import ValidationError
 from .panels.coloc import ColocPanel
 from .schemas import Canonical, validate_coloc_df
 from .utils import DataFrameLike, to_pandas
+from .validation import resolve_column
 
 
 def _get_effect_agreement_color(gwas_effect: float, eqtl_effect: float) -> str:
@@ -59,18 +60,20 @@ def _project_coloc_input(
 ) -> pd.DataFrame:
     """Select roles from their declared source before any merge can rename them."""
     roles = {"pos": pos_col, f"p_{name}": p_col}
-    for role, source, field in (
-        (f"{name}_effect", effect_col, f"{name}_effect_col"),
-        ("ld", ld_col, "ld_col"),
+    for role, source, field, default in (
+        (f"{name}_effect", effect_col, f"{name}_effect_col", None),
+        ("ld", ld_col, "ld_col", None),
+        ("rs", rs_col, "rs_col", Canonical.RS),
     ):
-        if source is not None:
-            if source not in df.columns:
-                raise ValidationError(
-                    f"{field} '{source}' not found in {name.upper()} data"
-                )
-            roles[role] = source
-    if rs_col is not None and rs_col in df.columns:
-        roles["rs"] = rs_col
+        resolved = resolve_column(
+            df,
+            source,
+            parameter=field,
+            optional_default=default,
+            frame=f"the {name.upper()} data",
+        )
+        if resolved is not None:
+            roles[role] = resolved
     projected = pd.DataFrame({role: df[source] for role, source in roles.items()})
     return prepare_pvalue_data(projected, f"p_{name}", out_col=f"neglog10_{name}")
 
@@ -217,7 +220,9 @@ class ColocPlotter:
             pos_col: Column name for genomic positions (must exist in both).
             gwas_p_col: Column name for GWAS p-values.
             eqtl_p_col: Column name for eQTL p-values.
-            rs_col: Column name for SNP IDs (optional, for labeling lead SNP).
+            rs_col: Column name for SNP IDs in ``gwas_df``, for ``lead_snp``.
+                The default ``"rs"`` may be absent; any other name must be a
+                column of ``gwas_df``.
             ld_col: Column name for LD R² values in GWAS df (optional).
             lead_snp: SNP ID to highlight as lead variant. If None and ld_col
                 is provided, auto-selects SNP with highest combined -log10(p).
@@ -275,20 +280,8 @@ class ColocPlotter:
             h4_posterior=h4_posterior,
             figsize=figsize,
         )
-        validate_coloc_df(
-            gwas_df,
-            "GWAS DataFrame",
-            config.pos_col,
-            config.gwas_p_col,
-            config.rs_col,
-        )
-        validate_coloc_df(
-            eqtl_df,
-            "eQTL DataFrame",
-            config.pos_col,
-            config.eqtl_p_col,
-            config.rs_col,
-        )
+        validate_coloc_df(gwas_df, "GWAS DataFrame", config.pos_col, config.gwas_p_col)
+        validate_coloc_df(eqtl_df, "eQTL DataFrame", config.pos_col, config.eqtl_p_col)
 
         merged = _merge_and_transform(gwas_df, eqtl_df, config)
         lead_idx = _resolve_lead_idx(merged, config)

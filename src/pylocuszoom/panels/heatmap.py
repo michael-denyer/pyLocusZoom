@@ -44,10 +44,11 @@ class HeatmapPanel:
                 heatmap SNP falls inside the region.
         """
         df = source.data
-        rs_col, pos_col = source.columns.rs_col, source.columns.pos_col
-        if rs_col not in df.columns:
+        rs_col, pos_col = source.hover.snp_col, source.columns.pos_col
+        if rs_col is None:
             raise ValidationError(
-                f"Cannot map heatmap to genomic coords: column '{rs_col}' not in GWAS data"
+                "Cannot map heatmap to genomic coords: column "
+                f"'{source.columns.rs_col}' not in GWAS data"
             )
 
         snp_to_pos = dict(zip(df[rs_col], df[pos_col]))
