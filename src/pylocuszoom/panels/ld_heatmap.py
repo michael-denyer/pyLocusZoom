@@ -6,12 +6,8 @@ from typing import Any, List, Optional
 import numpy as np
 
 from ..backends.base import PlotBackend
-from ..backends.composition import heatmap_highlight_rects, lower_triangle
-from ..colors import (
-    LD_HEATMAP_COLORS,
-    LEAD_SNP_HIGHLIGHT_COLOR,
-    SECONDARY_HIGHLIGHT_COLOR,
-)
+from ..backends.composition import draw_ld_heatmap
+from ..colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
 
 
 @dataclass(frozen=True)
@@ -31,42 +27,19 @@ class LDHeatmapPanel:
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw the lower-triangle heatmap, its highlights, ticks, and title."""
-        n_snps = len(self.snp_ids)
-        backend.add_heatmap(
+        ticks = list(range(len(self.snp_ids)))
+        lead = [] if self.lead_idx is None else [self.lead_idx]
+        draw_ld_heatmap(
+            backend,
             ax,
-            data=lower_triangle(self.data),
-            x_coords=list(range(n_snps)),
-            y_coords=list(range(n_snps)),
-            cmap_colors=LD_HEATMAP_COLORS,
-            vmin=0.0,
-            vmax=1.0,
-            colorbar_label=(
-                ("R²" if self.metric == "r2" else "D'") if self.show_colorbar else None
-            ),
+            self.data,
+            ticks,
+            metric=self.metric,
+            show_colorbar=self.show_colorbar,
+            outlines=[(idx, LEAD_SNP_HIGHLIGHT_COLOR) for idx in lead]
+            + [(idx, SECONDARY_HIGHLIGHT_COLOR) for idx in self.highlight_indices],
         )
-        if self.lead_idx is not None:
-            _highlight(backend, ax, self.lead_idx, n_snps, LEAD_SNP_HIGHLIGHT_COLOR)
-        for idx in self.highlight_indices:
-            _highlight(backend, ax, idx, n_snps, SECONDARY_HIGHLIGHT_COLOR)
-        ticks = list(range(n_snps))
         backend.set_xticks(ax, ticks, self.snp_ids, rotation=90)
         backend.set_yticks(ax, ticks, self.snp_ids)
         if self.title:
             backend.set_title(ax, self.title)
-
-
-def _highlight(
-    backend: PlotBackend, ax: Any, idx: int, n_snps: int, color: str
-) -> None:
-    coords = list(range(n_snps))
-    for x0, y0, width, height in heatmap_highlight_rects(idx, coords, coords):
-        backend.add_rectangle(
-            ax,
-            (x0, y0),
-            width,
-            height,
-            facecolor=None,
-            edgecolor=color,
-            linewidth=2,
-            zorder=10,
-        )
