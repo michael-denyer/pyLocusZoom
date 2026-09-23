@@ -137,3 +137,41 @@ def test_concurrent_downloads_publish_only_their_own_complete_response(
     assert first_result == b"first"
     assert dest.read_bytes() == b"second"
     assert list(tmp_path.iterdir()) == [dest]
+
+
+class TestRequestJson:
+    def test_invalid_json_is_the_callers_error_with_the_cause_kept(self):
+        from pylocuszoom._http import request_json
+        from pylocuszoom.exceptions import EnsemblAPIError
+
+        response = MagicMock(ok=True)
+        response.json.side_effect = ValueError("Expecting value")
+
+        with (
+            patch("pylocuszoom._http.requests.get", return_value=response),
+            pytest.raises(EnsemblAPIError, match="invalid JSON") as exc_info,
+        ):
+            request_json(
+                "https://example.invalid", {}, error_cls=EnsemblAPIError, service="X"
+            )
+
+        assert isinstance(exc_info.value.__cause__, ValueError)
+
+    def test_a_503_retries_and_then_succeeds(self):
+        from pylocuszoom._http import request_json
+        from pylocuszoom.exceptions import EnsemblAPIError
+
+        busy = MagicMock(ok=False, status_code=503, text="busy")
+        ok = MagicMock(ok=True)
+        ok.json.return_value = {"answer": 42}
+
+        with (
+            patch("pylocuszoom._http.time.sleep") as sleep,
+            patch("pylocuszoom._http.requests.get", side_effect=[busy, busy, ok]),
+        ):
+            payload = request_json(
+                "https://example.invalid", {}, error_cls=EnsemblAPIError, service="X"
+            )
+
+        assert payload == {"answer": 42}
+        assert [call.args[0] for call in sleep.call_args_list] == [1.0, 2.0]

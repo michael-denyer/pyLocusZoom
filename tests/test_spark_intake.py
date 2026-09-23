@@ -43,7 +43,7 @@ def spark_manhattan(manhattan_gwas_df):
 
 def test_regional_plot_collects_the_frame(spark_regional):
     """plot() reaches the association panel from a Spark-like frame."""
-    plotter = LocusZoomPlotter(species=None, log_level=None)
+    plotter = LocusZoomPlotter(species=None)
 
     fig = plotter.plot(spark_regional, chrom=1, start=1_000_000, end=2_000_000)
 
@@ -54,7 +54,7 @@ def test_regional_plot_collects_the_frame(spark_regional):
 def test_stacked_plot_collects_every_frame(tiny_regional_gwas_df):
     """plot_stacked() collects each panel's frame, not only the first."""
     frames = [FakeSparkFrame(tiny_regional_gwas_df) for _ in range(2)]
-    plotter = LocusZoomPlotter(species=None, log_level=None)
+    plotter = LocusZoomPlotter(species=None)
 
     plotter.plot_stacked(frames, chrom=1, start=1_000_000, end=2_000_000)
 

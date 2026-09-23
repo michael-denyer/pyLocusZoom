@@ -647,15 +647,6 @@ class TestAssemblyMismatch:
     938,796. The mismatch has to be loud, and the cache must not mix builds.
     """
 
-    def test_assembly_token_folds_synonyms(self):
-        """Equivalent spellings of one assembly compare equal."""
-        from pylocuszoom.utils import assembly_token
-
-        assert assembly_token("CanFam4.0") == assembly_token("UU_Cfam_GSD_1.0")
-        assert assembly_token("CanFam3.1") == assembly_token("canfam3")
-        assert assembly_token("hg38") == assembly_token("GRCh38")
-        assert assembly_token("CanFam3.1") != assembly_token("ROS_Cfam_1.0")
-
     def test_two_builds_do_not_share_a_cache_entry(self, tmp_path):
         """The same region under two builds must not share a cache entry."""
         from pylocuszoom.ensembl import ensembl_source

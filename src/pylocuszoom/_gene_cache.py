@@ -11,8 +11,6 @@ CSV pairs are misses because they cannot prove both frames belong together.
 """
 
 import hashlib
-import os
-import tempfile
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 from zlib import error as ZlibError
@@ -20,6 +18,7 @@ from zlib import error as ZlibError
 import pandas as pd
 
 from ._gene_source import GeneAnnotations
+from ._http import staged_path
 from .exceptions import ValidationError
 from .logging import logger
 from .utils import _platform_cache_base, normalize_chrom
@@ -36,11 +35,11 @@ def cache_root(source: str) -> Path:
         source: Source leaf directory, e.g. ``"ensembl"`` or ``"ucsc"``.
 
     Returns:
-        Path to the cache directory (created if it doesn't exist).
+        Path to the cache directory. It is not created here: only a write
+        creates it, so a read-only cache base costs the cache and not the
+        genes.
     """
-    path = _platform_cache_base() / source
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return _platform_cache_base() / source
 
 
 def safe_species_dir(cache_dir: Path, species: str) -> Path:
@@ -143,30 +142,16 @@ def save_annotations(
 ) -> None:
     """Publish a complete entry, leaving the old entry intact on failure."""
     entry = _entry_file(cache_dir, species, chrom, start, end, build_token)
-    partial_path = None
     try:
         entry.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            dir=entry.parent, prefix=f".{entry.stem}.", suffix=".part", delete=False
-        ) as partial:
-            partial_path = Path(partial.name)
-        with ZipFile(partial_path, "w") as archive:
+        with staged_path(entry) as partial, ZipFile(partial, "w") as archive:
             with archive.open("genes.csv", "w") as genes:
                 annotations.genes.to_csv(genes, index=False)
             with archive.open("exons.csv", "w") as exons:
                 annotations.exons.to_csv(exons, index=False)
-        os.replace(partial_path, entry)
         logger.debug(f"Cached annotations to: {entry}")
     except OSError as e:
         logger.warning(f"Failed to write gene cache {entry}: {e}")
-    finally:
-        if partial_path is not None:
-            try:
-                partial_path.unlink(missing_ok=True)
-            except OSError as e:
-                logger.warning(
-                    f"Failed to clean up gene cache staging {partial_path}: {e}"
-                )
 
 
 def clear_cache(cache_dir: Path, species: str | None = None) -> int:

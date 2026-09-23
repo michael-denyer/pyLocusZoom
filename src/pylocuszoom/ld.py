@@ -16,7 +16,12 @@ from typing import Literal, Optional, Union
 
 import pandas as pd
 
-from .exceptions import EmptyLDOutputError, PlinkError, ValidationError
+from .exceptions import (
+    EmptyLDOutputError,
+    LDUnavailableError,
+    PlinkError,
+    ValidationError,
+)
 from .logging import logger
 from .species import Species, resolve_species
 
@@ -73,7 +78,8 @@ def build_pairwise_ld_command(
     chrom: Optional[int] = None,
     start: Optional[int] = None,
     end: Optional[int] = None,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     metric: LDMetric = "r2",
 ) -> list:
     """Build PLINK command for pairwise LD matrix computation.
@@ -90,7 +96,9 @@ def build_pairwise_ld_command(
         start: Start position (bp) for region-based extraction.
         end: End position (bp) for region-based extraction.
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         metric: LD metric ('r2' or 'dprime').
 
     Returns:
@@ -179,7 +187,7 @@ def _resolve_plink(plink_path: Optional[str]) -> str:
         Path to the PLINK executable.
 
     Raises:
-        FileNotFoundError: If PLINK is neither supplied nor on PATH.
+        PlinkError: If PLINK is neither supplied nor on PATH.
     """
     if plink_path is None:
         resolved = find_plink()
@@ -188,9 +196,7 @@ def _resolve_plink(plink_path: Optional[str]) -> str:
     else:
         resolved = shutil.which(plink_path)
     if resolved is None:
-        raise FileNotFoundError(
-            "PLINK not found. Install PLINK 1.9 or specify plink_path."
-        )
+        raise PlinkError("PLINK not found. Install PLINK 1.9 or specify plink_path.")
     resolved = str(Path(resolved).expanduser().resolve())
     logger.debug(f"Using PLINK at {resolved}")
     return resolved
@@ -229,7 +235,7 @@ def _run_plink(cmd: list[str], working_dir: str, what: str, hint: str) -> None:
         hint: What the caller can try after a timeout.
 
     Raises:
-        PlinkError: If PLINK times out or exits non-zero.
+        PlinkError: If PLINK cannot be started, times out or exits non-zero.
     """
     logger.debug(f"Running PLINK command: {' '.join(cmd)}")
 
@@ -243,6 +249,8 @@ def _run_plink(cmd: list[str], working_dir: str, what: str, hint: str) -> None:
         )
     except subprocess.TimeoutExpired:
         raise PlinkError(f"PLINK {what} timed out after 300s. {hint}")
+    except OSError as e:
+        raise PlinkError(f"PLINK {what} could not be started: {e}") from e
 
     if result.returncode != 0:
         raise PlinkError(
@@ -258,7 +266,8 @@ def build_ld_command(
     output_path: str,
     window_kb: int = 500,
     ld_window_r2: float = 0.0,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     threads: Optional[int] = None,
 ) -> list:
     """Build PLINK command for LD calculation.
@@ -271,7 +280,9 @@ def build_ld_command(
         window_kb: Window size in kilobases.
         ld_window_r2: Minimum R² to report (0.0 reports all).
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         threads: Number of threads (auto-detect if None).
 
     Returns:
@@ -318,6 +329,7 @@ def parse_pairwise_ld_output(
 
     Raises:
         PlinkError: If output files are missing after a successful PLINK run.
+        LDUnavailableError: If the snplist names a variant id more than once.
     """
     if not os.path.exists(ld_file) or not os.path.exists(snplist_file):
         missing = [f for f in (ld_file, snplist_file) if not os.path.exists(f)]
@@ -334,6 +346,7 @@ def parse_pairwise_ld_output(
             f"PLINK reported success but snplist file is empty: {snplist_file}. "
             f"No SNPs were retained after filtering."
         )
+    _reject_duplicate_ids(pd.Series(snp_ids), snplist_file)
 
     # Read LD matrix (whitespace-separated, no headers)
     # Values can be numbers or 'nan'
@@ -363,6 +376,8 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
 
     Raises:
         PlinkError: If output file is missing after a successful PLINK run.
+        EmptyLDOutputError: If PLINK reported no LD pairs.
+        LDUnavailableError: If the output names a variant id more than once.
     """
     if not os.path.exists(ld_file):
         raise PlinkError(
@@ -398,8 +413,20 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
     # Add the lead SNP itself with R2=1.0
     lead_row = pd.DataFrame({"SNP": [lead_snp], "R2": [1.0]})
     result = pd.concat([result, lead_row], ignore_index=True)
+    _reject_duplicate_ids(result["SNP"], ld_file)
 
     return result
+
+
+def _reject_duplicate_ids(ids: pd.Series, source: str) -> None:
+    """Refuse LD output that names a variant twice; it cannot be keyed by id."""
+    duplicated = sorted(set(ids[ids.duplicated()]))
+    if duplicated:
+        raise LDUnavailableError(
+            f"PLINK output {source} names variant ids more than once: "
+            f"{', '.join(map(str, duplicated[:5]))}. Give every variant in the "
+            ".bim file a unique id."
+        )
 
 
 def calculate_ld(
@@ -408,7 +435,8 @@ def calculate_ld(
     window_kb: int = 500,
     plink_path: Optional[str] = None,
     working_dir: Optional[str] = None,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     threads: Optional[int] = None,
 ) -> pd.DataFrame:
     """Calculate LD (R²) between a lead SNP and all SNPs in a region.
@@ -424,22 +452,25 @@ def calculate_ld(
             for a bare name. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         threads: Number of threads for PLINK.
 
     Returns:
         DataFrame with columns: SNP (rsid), R2 (LD with lead SNP).
 
     Raises:
-        FileNotFoundError: If PLINK executable not found.
         ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing.
-        PlinkError: If PLINK subprocess fails or times out.
+        PlinkError: If PLINK is not found, fails or times out.
+        LDUnavailableError: If PLINK's output names a variant id twice.
 
     Example:
         >>> ld_df = calculate_ld(
         ...     bfile_path="/path/to/genotypes",
         ...     lead_snp="rs12345",
         ...     window_kb=500,
+        ...     species="canine",
         ... )
         >>> # Merge with GWAS results for plotting
         >>> gwas_with_ld = gwas_df.merge(ld_df, left_on="rs", right_on="SNP")
@@ -483,7 +514,8 @@ def calculate_pairwise_ld(
     end: int | None = None,
     plink_path: str | None = None,
     working_dir: str | None = None,
-    species: str | Species | None = "canine",
+    *,
+    species: str | Species | None,
     metric: LDMetric = "r2",
 ) -> tuple[pd.DataFrame, list[str]]:
     """Calculate pairwise LD matrix for a set of variants.
@@ -501,7 +533,9 @@ def calculate_pairwise_ld(
             for a bare name. Auto-detects if None.
         working_dir: Directory for PLINK output files. Uses temp dir if None.
         species: Species name or record, or None for PLINK's default
-            (human) chromosome set. An unknown name raises ValidationError.
+            (human) chromosome set. Required, because a guess reads another
+            species' chromosome codes without error; an unknown name raises
+            ValidationError.
         metric: LD metric ('r2' or 'dprime').
 
     Returns:
@@ -509,15 +543,16 @@ def calculate_pairwise_ld(
         DataFrame has SNP IDs as both index and columns.
 
     Raises:
-        FileNotFoundError: If PLINK executable not found.
-        ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing.
-        ValidationError: If requested SNPs are not found in reference panel.
-        PlinkError: If PLINK subprocess fails or times out.
+        ValidationError: If PLINK binary files (.bed/.bim/.fam) are missing,
+            or requested SNPs are not found in reference panel.
+        PlinkError: If PLINK is not found, fails or times out.
+        LDUnavailableError: If PLINK's output names a variant id twice.
 
     Example:
         >>> matrix, snp_ids = calculate_pairwise_ld(
         ...     bfile_path="/path/to/genotypes",
         ...     snp_list=["rs1", "rs2", "rs3"],
+        ...     species=None,
         ... )
         >>> # matrix is 3x3 DataFrame with LD values
         >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2

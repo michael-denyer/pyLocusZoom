@@ -11,13 +11,12 @@ import pytest
 from pylocuszoom.exceptions import DataDownloadError, ValidationError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
-    RecombStatus,
     _publish_map_generation,
     _stage_archive,
     download_canine_recombination_maps,
     ensure_recomb_header,
     ensure_recomb_maps,
-    recomb_for_region,
+    get_recombination_rate_for_region,
 )
 from tests.conftest import write_canine_map_set
 
@@ -240,6 +239,18 @@ class TestPublishMapGeneration:
             "a replaced symlink does not confer ownership of its target"
         )
 
+    def test_a_stray_map_in_the_target_does_not_make_the_set_incomplete(self, tmp_path):
+        """Otherwise every later ensure_recomb_maps would download again."""
+        output = tmp_path / "maps"
+        write_canine_map_set(output, "old")
+        (output / "chr39_recomb.tsv").write_text("stray")
+        staging = tmp_path / "staging"
+        write_canine_map_set(staging, "new")
+
+        _publish_map_generation(staging, output, CANINE_SOURCE)
+
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+
     def test_incomplete_generation_leaves_active_maps_unchanged(self, tmp_path):
         output = tmp_path / "maps"
         write_canine_map_set(output, "old")
@@ -251,6 +262,86 @@ class TestPublishMapGeneration:
 
         assert (output / "chr1_recomb.tsv").read_text() == "old"
         assert (output / "chr38_recomb.tsv").read_text() == "old"
+
+
+class TestConcurrentPublication:
+    """Two writers publishing at once converge, and readers never see a gap.
+
+    Map directories are shared: pytest-xdist workers share XDG_CACHE_HOME and
+    every Databricks notebook shares /dbfs/FileStore/reference_data.
+    """
+
+    @pytest.fixture
+    def output(self, tmp_path):
+        return tmp_path / "recombination_maps"
+
+    @staticmethod
+    def _staged(tmp_path, tag):
+        staging = tmp_path / f"staging_{tag}"
+        write_canine_map_set(staging, f"chr\tpos\trate\tcM\n1\t1\t1\t{tag}\n")
+        return staging
+
+    def _interleave(self, monkeypatch, output, name, other_writer):
+        """Run other_writer at writer A's first os.<name>, checking every step.
+
+        Records whether the published directory existed at every rename or
+        replace either writer made.
+        """
+        import os
+
+        real = getattr(os, name)
+        seen = []
+        state = {"fired": False}
+
+        def interleaving(src, dst, *args, **kwargs):
+            seen.append(output.is_dir())
+            if not state["fired"]:
+                state["fired"] = True
+                other_writer()
+            return real(src, dst, *args, **kwargs)
+
+        monkeypatch.setattr(os, name, interleaving)
+        return seen
+
+    def test_a_writer_that_loses_the_first_install_still_succeeds(
+        self, tmp_path, output, monkeypatch
+    ):
+        staged_a, staged_b = self._staged(tmp_path, "A"), self._staged(tmp_path, "B")
+        self._interleave(
+            monkeypatch,
+            output,
+            "rename",
+            lambda: _publish_map_generation(staged_b, output, CANINE_SOURCE),
+        )
+
+        _publish_map_generation(staged_a, output, CANINE_SOURCE)
+
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+        assert sorted(p.name for p in tmp_path.iterdir()) == [
+            "recombination_maps",
+            "staging_A",
+        ], "nothing moved aside, and the loser's staging is its caller's to drop"
+
+    def test_refreshes_racing_on_a_published_set_never_open_a_gap(
+        self, tmp_path, output, monkeypatch
+    ):
+        _publish_map_generation(self._staged(tmp_path, "old"), output, CANINE_SOURCE)
+        staged_a, staged_b = self._staged(tmp_path, "A"), self._staged(tmp_path, "B")
+        seen = self._interleave(
+            monkeypatch,
+            output,
+            "replace",
+            lambda: _publish_map_generation(staged_b, output, CANINE_SOURCE),
+        )
+
+        _publish_map_generation(staged_a, output, CANINE_SOURCE)
+
+        assert seen and all(seen), "a reader found the maps directory missing"
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+        assert not list(tmp_path.glob(".*previous*"))
+        assert {
+            (output / name).read_text().split()[-1] for name in CANINE_SOURCE.filenames
+        } <= {"A", "B"}
 
 
 class TestEnsureRecombMaps:
@@ -302,7 +393,7 @@ class TestEnsureRecombMaps:
     def test_ensure_recomb_maps_propagates_a_download_error(
         self, mock_get_dir, tmp_path
     ):
-        """The data layer raises; recomb_for_region is what degrades."""
+        """The data layer raises; the plotter is what degrades."""
         mock_get_dir.return_value = tmp_path / "recomb_data"
         mock_download = Mock(side_effect=DataDownloadError("Network error"))
 
@@ -310,21 +401,22 @@ class TestEnsureRecombMaps:
             with pytest.raises(DataDownloadError, match="Network error"):
                 ensure_recomb_maps(species="canine")
 
-    @patch("pylocuszoom.recombination.get_default_data_dir")
-    def test_ensure_recomb_maps_propagates_an_io_error(self, mock_get_dir, tmp_path):
-        mock_get_dir.return_value = tmp_path / "recomb_data"
-        mock_download = Mock(side_effect=OSError("Disk full"))
+    def test_ensure_recomb_maps_reports_an_unwritable_cache_as_a_download_error(
+        self, tmp_path, monkeypatch
+    ):
+        blocker = tmp_path / "not_a_directory"
+        blocker.write_text("")
+        monkeypatch.setenv("XDG_CACHE_HOME", str(blocker / "cache"))
 
-        with self._patched_download(mock_download):
-            with pytest.raises(OSError, match="Disk full"):
-                ensure_recomb_maps(species="canine")
+        with pytest.raises(DataDownloadError, match="Could not write"):
+            ensure_recomb_maps(species="canine")
 
 
 class TestEnsureRecombMapsCorruptArchive:
-    """A corrupt archive surfaces as a status, not a crash, through the plotter."""
+    """A corrupt archive is a typed download error, not a crash."""
 
     @patch("pylocuszoom.recombination.download_file")
-    def test_a_corrupt_archive_is_a_download_failure(
+    def test_a_corrupt_archive_is_a_download_error(
         self, mock_download, tmp_path, monkeypatch
     ):
         monkeypatch.setattr(
@@ -336,9 +428,8 @@ class TestEnsureRecombMapsCorruptArchive:
 
         mock_download.side_effect = write_garbage
 
-        result = recomb_for_region(1, 1_000_000, 2_000_000, species="canine")
-
-        assert result.status is RecombStatus.DOWNLOAD_FAILED
+        with pytest.raises(DataDownloadError, match="not a valid tar.gz"):
+            get_recombination_rate_for_region(1, 1_000_000, 2_000_000, species="canine")
 
 
 class TestArchiveWithoutMaps:
@@ -407,7 +498,7 @@ class TestDownloadCanineRecombHeaderDetection:
         monkeypatch.setattr(
             "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path / "out"
         )
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
         gwas = pd.DataFrame(
             {
                 "chr": 1,

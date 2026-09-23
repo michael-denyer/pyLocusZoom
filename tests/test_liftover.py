@@ -6,6 +6,9 @@ off-by-one query lands in the wrong block, so these tests use real pyliftover
 rather than a fake that could encode the wrong contract.
 """
 
+import gzip
+import warnings
+
 import pandas as pd
 import pytest
 from pyliftover import LiftOver
@@ -18,14 +21,15 @@ from pylocuszoom import (
     LiftoverConfig,
     LocusZoomPlotter,
     liftover_region,
-    resolve_species,
 )
-from pylocuszoom._liftover import InMemoryLifter, liftover_positions
-from pylocuszoom.recombination import (
-    RecombResult,
-    RecombStatus,
-    get_recombination_rate_for_region,
+from pylocuszoom._liftover import InMemoryLifter, chain_lifter
+from pylocuszoom.exceptions import (
+    DataDownloadError,
+    OptionalDependencyMissing,
+    ValidationError,
 )
+from pylocuszoom.genome_build import GENOME_BUILDS, GenomeBuild
+from pylocuszoom.recombination import get_recombination_rate_for_region
 
 # chr1 [0, 1000) -> chr1 [100, 1100); chr1 [1000, 2000) -> chr5 [0, 1000).
 # 1-based chr1:1000 is 0-based 999, the last base of the first block.
@@ -40,63 +44,6 @@ def split_lifter(tmp_path):
     path = tmp_path / "split.chain"
     path.write_text(SPLIT_CHAIN)
     return LiftOver(str(path))
-
-
-class TestLiftoverPositions:
-    """The recombination-map liftover used for managed canine maps."""
-
-    def test_queries_zero_based_and_returns_one_based(self, split_lifter):
-        df = pd.DataFrame({"pos": [500, 1000], "rate": [0.1, 0.2]})
-
-        result = liftover_positions(df, split_lifter, chrom=1)
-
-        assert result["pos"].tolist() == [600, 1100]
-        assert result["rate"].tolist() == [0.1, 0.2]
-
-    def test_drops_hits_on_another_chromosome(self, split_lifter):
-        df = pd.DataFrame({"pos": [500, 1500], "rate": [0.1, 0.2]})
-
-        result = liftover_positions(df, split_lifter, chrom=1)
-
-        assert result["pos"].tolist() == [600]
-
-    def test_drops_multimapped_positions(self):
-        lifter = InMemoryLifter({("chr1", 999): [1099, 4099], ("chr1", 499): 599})
-        df = pd.DataFrame({"pos": [500, 1000], "rate": [0.1, 0.2]})
-
-        result = liftover_positions(df, lifter, chrom=1)
-
-        assert result["pos"].tolist() == [600]
-
-    def test_drops_unmapped_positions(self):
-        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
-        lifter = InMemoryLifter({("chr1", 999): 1099})  # 2000 fails to map
-
-        result = liftover_positions(df, lifter, chrom=1)
-
-        assert list(result["pos"]) == [1100]
-        assert list(result["rate"]) == [0.5]
-
-    def test_uses_chr_column_when_present(self):
-        df = pd.DataFrame({"chr": [1, 2], "pos": [1000, 3000], "rate": [0.1, 0.2]})
-        lifter = InMemoryLifter({("chr1", 999): 1099, ("chr2", 2999): 3299})
-
-        result = liftover_positions(df, lifter)
-
-        assert set(result["pos"]) == {1100, 3300}
-
-    def test_result_sorted_by_lifted_position(self):
-        df = pd.DataFrame({"pos": [1000, 2000], "rate": [0.5, 0.6]})
-        lifter = InMemoryLifter({("chr1", 999): 4999, ("chr1", 1999): 999})
-
-        result = liftover_positions(df, lifter, chrom=1)
-
-        assert list(result["pos"]) == [1000, 5000]
-
-    def test_requires_chr_column_or_chrom(self):
-        df = pd.DataFrame({"pos": [1000], "rate": [0.5]})
-        with pytest.raises(ValueError, match="Either 'chr' column or chrom"):
-            liftover_positions(df, InMemoryLifter({}))
 
 
 class TestLiftoverRegion:
@@ -176,9 +123,16 @@ class TestLiftoverRegion:
         assert (result.start, result.end) == (None, None)
         assert result.n_unmapped == 3
 
-    def test_warns_when_chain_lacks_the_chromosome(self, region_df):
-        with pytest.warns(UserWarning, match="chr1 is unknown"):
-            liftover_region(region_df, chrom=1, lifter=InMemoryLifter({("chr2", 0): 0}))
+    def test_reports_a_chromosome_the_chain_lacks_without_warning(
+        self, region_df, recwarn
+    ):
+        result = liftover_region(
+            region_df, chrom=1, lifter=InMemoryLifter({("chr2", 0): 0})
+        )
+
+        assert result.chain_has_chrom is False
+        assert result.lifted_df.empty
+        assert list(recwarn) == []
 
     @pytest.mark.parametrize("chrom", [39, "39", 41, "XY", "X", "chrX"])
     def test_canine_plink_x_codes_query_chr_x(self, chrom, tmp_path):
@@ -192,7 +146,7 @@ class TestLiftoverRegion:
             df,
             chrom=chrom,
             lifter=LiftOver(str(path)),
-            species=resolve_species("canine"),
+            build="canfam3",
         )
 
         assert result.lifted_df["pos"].tolist() == [1100]
@@ -202,19 +156,90 @@ class TestLiftoverRegion:
         lifter = InMemoryLifter({("chrX", 99): 1099})
         df = pd.DataFrame({"pos": [100], "p_value": [1e-9]})
 
-        result = liftover_region(
-            df, chrom=chrom, lifter=lifter, species=resolve_species("feline")
-        )
+        result = liftover_region(df, chrom=chrom, lifter=lifter, build="felCat9")
 
         assert result.lifted_df["pos"].tolist() == [1100]
 
-    def test_numeric_x_code_is_not_aliased_without_species(self):
+    def test_numeric_x_code_is_not_aliased_without_a_build(self):
         lifter = InMemoryLifter({("chrX", 99): 1099, ("chr39", 0): 0})
         df = pd.DataFrame({"pos": [100], "p_value": [1e-9]})
 
         result = liftover_region(df, chrom=39, lifter=lifter)
 
         assert result.lifted_df.empty
+
+
+class TestChainLifter:
+    """Registered chains download once into the cache and load through load_chain."""
+
+    CANFAM3, CANFAM4 = GENOME_BUILDS["canfam3"], GENOME_BUILDS["canfam4"]
+
+    @pytest.fixture
+    def downloads(self, monkeypatch):
+        """Record every chain download, writing SPLIT_CHAIN to the destination."""
+        urls = []
+
+        def download(url, dest, desc=None):
+            urls.append(url)
+            dest.write_bytes(gzip.compress(SPLIT_CHAIN.encode()))
+
+        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        return urls
+
+    def test_downloads_a_missing_chain_into_the_cache(self, cache_home, downloads):
+        lifter = chain_lifter(self.CANFAM3, self.CANFAM4)
+
+        assert downloads == [self.CANFAM3.chain_url(self.CANFAM4)]
+        assert (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").exists()
+        assert lifter.convert_coordinate("chr1", 999)[0][:2] == ("chr1", 1099)
+
+    def test_reuses_a_cached_chain(self, cache_home, downloads):
+        (cache_home / "liftover").mkdir(parents=True)
+        (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").write_bytes(
+            gzip.compress(SPLIT_CHAIN.encode())
+        )
+
+        chain_lifter(self.CANFAM3, self.CANFAM4)
+
+        assert downloads == []
+
+    def test_each_registered_chain_downloads_its_own_url(self, cache_home, downloads):
+        url = "https://example.org/chains/fooToBar.over.chain"
+        source = GenomeBuild(
+            key="foo", species="x", assembly_name="Foo", liftover_chains=(("bar", url),)
+        )
+        target = GenomeBuild(key="bar", species="x", assembly_name="Bar")
+
+        chain_lifter(source, target)
+
+        assert downloads == [url]
+
+    def test_an_unregistered_pair_is_a_validation_error(self, cache_home, downloads):
+        with pytest.raises(ValidationError, match="No liftover chain"):
+            chain_lifter(self.CANFAM4, self.CANFAM3)
+        assert downloads == []
+
+    def test_a_chain_that_stays_unreadable_is_removed_and_reported(
+        self, cache_home, monkeypatch
+    ):
+        def download(url, dest, desc=None):
+            dest.write_bytes(b"<html>502</html>")
+
+        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+
+        with pytest.raises(DataDownloadError, match="unreadable"):
+            chain_lifter(self.CANFAM3, self.CANFAM4)
+        assert not (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").exists()
+
+    def test_missing_pyliftover_is_a_typed_error(self, tmp_path, monkeypatch):
+        from pylocuszoom._liftover import load_chain
+
+        monkeypatch.setitem(__import__("sys").modules, "pyliftover", None)
+        path = tmp_path / "split.chain"
+        path.write_text(SPLIT_CHAIN)
+
+        with pytest.raises(OptionalDependencyMissing, match="pip install pyliftover"):
+            load_chain(path)
 
 
 class TestLiftoverConfig:
@@ -247,9 +272,7 @@ class TestPlotAcrossBuilds:
 
     @pytest.fixture
     def plotter(self):
-        return LocusZoomPlotter(
-            species="canine", genome_build="canfam4", log_level=None
-        )
+        return LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     @pytest.fixture
     def source_gwas_df(self):
@@ -285,21 +308,19 @@ class TestPlotAcrossBuilds:
         assert xs == {11_000, 12_000, 13_000}
         assert ax.get_xlim() == (10_500, 13_500)
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=ValueError,
-        reason="_lift_region still selects the source region by the default 'chr' "
-        "column; the liftover move (remediation PR 4) threads ColumnConfig.chrom_col",
-    )
-    def test_lifts_a_frame_with_a_named_chromosome_column(
-        self, plotter, source_gwas_df
+    @pytest.mark.parametrize("chrom_col", ["chrom", None])
+    def test_lifts_a_frame_by_its_configured_chromosome_column(
+        self, plotter, source_gwas_df, chrom_col
     ):
+        frame = source_gwas_df.drop(columns="chr")
+        if chrom_col is not None:
+            frame[chrom_col] = source_gwas_df["chr"]
         fig = plotter.plot(
-            source_gwas_df.rename(columns={"chr": "chrom"}),
+            frame,
             chrom=1,
             start=500,
             end=3_500,
-            columns=ColumnConfig(chrom_col="chrom", pos_col="ps", p_col="p_wald"),
+            columns=ColumnConfig(chrom_col=chrom_col, pos_col="ps", p_col="p_wald"),
             display=DisplayConfig(show_recombination=False, snp_labels=False),
             liftover=LiftoverConfig(lifter=self.LIFTER),
         )
@@ -333,31 +354,112 @@ class TestPlotAcrossBuilds:
                 liftover=LiftoverConfig(lifter=lifter),
             )
 
-    def test_recombination_uses_the_same_lifter_when_asked(
-        self, plotter, source_gwas_df, monkeypatch
-    ):
-        seen = []
+    def test_warns_when_the_region_is_rearranged(self, plotter, source_gwas_df):
+        lifter = InMemoryLifter(
+            {("chr1", 999): 12_999, ("chr1", 1_999): 11_999, ("chr1", 2_999): 10_999}
+        )
+        with pytest.warns(UserWarning, match="rearranged between builds"):
+            plotter.plot(
+                source_gwas_df,
+                chrom=1,
+                start=500,
+                end=3_500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(show_recombination=False, snp_labels=False),
+                liftover=LiftoverConfig(lifter=lifter),
+            )
 
-        def fake_recomb(**kwargs):
-            seen.append(kwargs["lifter"])
-            return RecombResult(RecombStatus.NO_MAPS_FOR_SPECIES, detail="none")
+    def test_validates_the_config_before_lifting(self, plotter, source_gwas_df):
+        """A lead lost to liftover is not announced as auto-detected and then refused."""
+        lifter = InMemoryLifter({("chr1", 1_999): 11_999, ("chr1", 2_999): 12_999})
 
-        monkeypatch.setattr("pylocuszoom.plotter.recomb_for_region", fake_recomb)
-        for lift_recombination in (False, True):
-            with pytest.warns(UserWarning, match="Recombination overlay skipped"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(ValidationError, match="needs a lead"):
                 plotter.plot(
                     source_gwas_df,
                     chrom=1,
                     start=500,
                     end=3_500,
                     columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-                    display=DisplayConfig(snp_labels=False),
-                    liftover=LiftoverConfig(
-                        lifter=self.LIFTER, lift_recombination=lift_recombination
-                    ),
+                    ld=LDConfig(lead_pos=1_000, ld_reference_file="/no/such/ref"),
+                    display=DisplayConfig(show_recombination=False),
+                    liftover=LiftoverConfig(lifter=lifter),
                 )
 
-        assert seen == [None, self.LIFTER]
+    def test_an_invalid_region_is_refused_before_lifting(self, plotter, source_gwas_df):
+        with pytest.raises(ValueError, match="must be < end"):
+            plotter.plot(
+                source_gwas_df,
+                chrom=1,
+                start=3_500,
+                end=500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                liftover=LiftoverConfig(lifter=InMemoryLifter({("chr1", 0): 0})),
+            )
+
+    def test_plot_stacked_lifts_every_panel_into_one_window(
+        self, plotter, source_gwas_df
+    ):
+        second = source_gwas_df.assign(ps=[1_000, 2_000, 4_000])
+        lifter = InMemoryLifter(
+            {
+                ("chr1", 999): 10_999,
+                ("chr1", 1_999): 11_999,
+                ("chr1", 2_999): 12_999,
+                ("chr1", 3_999): 13_999,
+            }
+        )
+
+        fig = plotter.plot_stacked(
+            [source_gwas_df, second],
+            chrom=1,
+            start=500,
+            end=4_500,
+            columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+            lead_positions=[1_000, 4_000],
+            display=DisplayConfig(show_recombination=False, snp_labels=False),
+            liftover=LiftoverConfig(lifter=lifter),
+        )
+
+        top, bottom = fig.axes[0], fig.axes[1]
+        top_xs = {x for coll in top.collections for x, _ in coll.get_offsets()}
+        bottom_xs = {x for coll in bottom.collections for x, _ in coll.get_offsets()}
+        assert top_xs == {11_000, 12_000, 13_000}
+        assert bottom_xs == {11_000, 12_000, 14_000}
+        assert top.get_xlim() == (10_500, 14_500)
+
+    def test_recombination_uses_the_same_lifter_when_asked(
+        self, plotter, source_gwas_df, tmp_path
+    ):
+        """lift_recombination sends the plotter's maps through the caller's chain."""
+        maps = tmp_path / "maps"
+        maps.mkdir()
+        (maps / "chr1_recomb.tsv").write_text(
+            "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n1\t2000\t0.7\t0.2\n"
+        )
+        lifting = LocusZoomPlotter(
+            species="canine",
+            genome_build="canfam4",
+            recomb_data_dir=str(maps),
+        )
+
+        def overlay_positions(lift_recombination):
+            fig = lifting.plot(
+                source_gwas_df,
+                chrom=1,
+                start=500,
+                end=3_500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                display=DisplayConfig(snp_labels=False),
+                liftover=LiftoverConfig(
+                    lifter=self.LIFTER, lift_recombination=lift_recombination
+                ),
+            )
+            return [x for ax in fig.axes[1:] for x in ax.get_lines()[0].get_xdata()]
+
+        assert overlay_positions(False) == []
+        assert overlay_positions(True) == [11_000, 12_000]
 
 
 class TestRecombinationLifter:

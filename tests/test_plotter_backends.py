@@ -122,7 +122,7 @@ class TestBackendEQTLFinemapping:
         sample_finemapping_df,
     ):
         """Every backend draws the association panel plus each optional panel asked for."""
-        plotter = LocusZoomPlotter(species=None, backend=backend, log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend=backend)
 
         panels = {}
         if eqtl_fixture is not None:
@@ -148,7 +148,7 @@ class TestBackendEQTLFinemapping:
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
     ):
         """plot() carries the same optional panels as plot_stacked()."""
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib")
 
         fig = plotter.plot(
             small_regional_gwas_df,
@@ -169,7 +169,7 @@ class TestBackendEQTLFinemapping:
 
     def test_eqtl_chr_filtering(self, small_regional_gwas_df):
         """Drop eQTLs on another chromosome even when their position is in range."""
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib")
 
         eqtl_df = pd.DataFrame(
             {
@@ -207,7 +207,7 @@ class TestBackendEQTLFinemapping:
         """
         from pylocuszoom.eqtl import EQTLValidationError
 
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib")
         eqtl_df_no_gene_col = pd.DataFrame(
             {
                 "pos": [1200000, 1400000, 1600000],
@@ -229,7 +229,7 @@ class TestBackendEQTLFinemapping:
 
     def test_eqtl_zero_pvalue_is_dropped(self, small_regional_gwas_df):
         """A zero eQTL p-value is outside the strict (0, 1] domain and not drawn."""
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib")
         eqtl_df = pd.DataFrame(
             {
                 "chr": 1,

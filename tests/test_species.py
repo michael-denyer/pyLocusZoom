@@ -30,30 +30,30 @@ class TestDogAliasReachesEverySubsystem:
     """The three degradations the review measured, one test each."""
 
     def test_dog_gives_plink_the_canine_chromosome_set(self):
-        plotter = LocusZoomPlotter(species="dog", log_level=None)
+        plotter = LocusZoomPlotter(species="dog")
         assert _plink_flags(plotter) == ["--dog"]
 
     def test_dog_resolves_the_canine_recombination_source(self):
-        plotter = LocusZoomPlotter(species="dog", log_level=None)
+        plotter = LocusZoomPlotter(species="dog")
         assert RECOMB_SOURCES[plotter.species.key].native_build == "canfam3"
 
     def test_dog_defaults_to_the_canfam3_build(self):
-        plotter = LocusZoomPlotter(species="dog", log_level=None)
+        plotter = LocusZoomPlotter(species="dog")
         assert plotter.genome_build == "canfam3.1"
 
     def test_case_is_folded(self):
-        plotter = LocusZoomPlotter(species="Canine", log_level=None)
+        plotter = LocusZoomPlotter(species="Canine")
         assert _plink_flags(plotter) == ["--dog"]
         assert plotter.genome_build == "canfam3.1"
 
     def test_cat_reaches_the_feline_record(self):
-        plotter = LocusZoomPlotter(species="cat", log_level=None)
+        plotter = LocusZoomPlotter(species="cat")
         assert _plink_flags(plotter) == ["--chr-set", "18"]
         assert plotter.genome_build == "felCat9"
         assert plotter.species.ensembl_name == "felis_catus"
 
     def test_unknown_species_is_an_ensembl_only_record(self):
-        plotter = LocusZoomPlotter(species="Sus_scrofa", log_level=None)
+        plotter = LocusZoomPlotter(species="Sus_scrofa")
         assert plotter.species == Species(key="sus_scrofa", ensembl_name="sus_scrofa")
         with pytest.raises(ValidationError, match="PLINK"):
             _plink_flags(plotter)

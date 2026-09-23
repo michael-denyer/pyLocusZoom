@@ -8,9 +8,9 @@ on the legacy REST platform and the archive REST hosts redirect to a help page,
 so CanFam3.1, CanFam4 and FelCat9 have no Ensembl source at any URL. UCSC hosts
 all three.
 
-``UCSC_BUILDS`` is the whole policy: a build listed there is fetched from UCSC,
-anything else from Ensembl. Both sources return the same columns, including
-``assembly``, so callers do not branch on which one answered.
+``GenomeBuild.ucsc_genome`` is the whole policy: a build that names one is
+fetched from UCSC, anything else from Ensembl. Both sources return the same
+columns, including ``assembly``, so callers do not branch on which one answered.
 
 A ``GeneSource`` is everything the fetch-and-cache orchestration needs to know
 about a source: where it caches and how to ask it for genes and exons.
@@ -23,26 +23,11 @@ from pathlib import Path
 from ._gene_cache import cache_root, clear_cache, load_annotations, save_annotations
 from ._gene_source import GeneAnnotations, GeneSource
 from .ensembl import ensembl_source
+from .genome_build import resolve_build
 from .logging import logger
 from .species import Species
 from .ucsc import ucsc_source
-from .utils import assembly_token, normalize_chrom
-
-# Build token (from utils.assembly_token) -> UCSC genome name.
-# Only builds Ensembl cannot serve belong here; everything else stays on
-# Ensembl, which covers far more species than UCSC does.
-UCSC_BUILDS: dict[str, str] = {
-    "canfam3": "canFam3",
-    "canfam4": "canFam4",
-    "felcat9": "felCat9",
-}
-
-
-def ucsc_genome_for_build(genome_build: str | None) -> str | None:
-    """Return the UCSC genome serving this build, or None to use Ensembl."""
-    if not genome_build:
-        return None
-    return UCSC_BUILDS.get(assembly_token(genome_build))
+from .utils import normalize_chrom
 
 
 def source_for(species: str | Species, genome_build: str | None = None) -> GeneSource:
@@ -57,15 +42,15 @@ def source_for(species: str | Species, genome_build: str | None = None) -> GeneS
     Returns:
         The source to fetch from, already bound to the species or genome.
     """
-    ucsc_genome = ucsc_genome_for_build(genome_build)
-    if ucsc_genome is None:
+    build = resolve_build(genome_build)
+    if build is None or build.ucsc_genome is None:
         return ensembl_source(species, genome_build)
 
     logger.debug(
         f"Genome build {genome_build!r} is not served by Ensembl; "
-        f"fetching genes from UCSC {ucsc_genome}"
+        f"fetching genes from UCSC {build.ucsc_genome}"
     )
-    return ucsc_source(ucsc_genome)
+    return ucsc_source(build)
 
 
 def get_genes_for_build(

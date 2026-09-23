@@ -87,6 +87,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | Recombination map loading, region lookup, liftover and overlay status | `tests/test_recombination.py` |
 | Fetching, unpacking and publishing the managed map set | `tests/test_recombination_maps.py` |
 | Coordinate liftover | `tests/test_liftover.py` |
+| Genome-build records and name folding | `tests/test_genome_build.py` |
 | Exception hierarchy | `tests/test_exceptions.py` |
 | Logging switches and sinks | `tests/test_logging.py` |
 | Loaders | `tests/test_loaders.py` (dispatch, format detection, file paths), one `tests/test_loaders_<family>.py` per loader family |
@@ -102,9 +103,9 @@ Tests assert on public behaviour. These private names are the deliberate excepti
 
 - **Plan layer** ([ADR 0001](adr/0001-deepen-rendering-seam.md), [ADR 0007](adr/0007-one-figure-plan.md)): `pylocuszoom._figure` (`FigurePlan`, `render_figure`, `RegionHighlight`), the panel specs in `pylocuszoom.panels.*` (including `MiamiRequest`, `AssociationPanel` in `test_regional_plan.py`), and the `RecordingBackend` in `test_rendering_contract.py`.
 - **Deep internal modules with their own unit tests**: `_gene_cache`, `_gene_source`, `_http`, `_data`, `_liftover`, `_ld_plotting`, `_plotter_utils`, `backends._coerce`, `plotly_layout`.
-- **I/O boundaries patched where they are looked up**: `pylocuszoom._http.requests.get` and `_http.time.sleep` (HTTP), `subprocess.run` through `fake_plink` (PLINK), `pylocuszoom.ld.find_plink`, `pylocuszoom._ld_plotting.calculate_ld`, and the `pylocuszoom.recombination` download and directory functions.
+- **I/O boundaries patched where they are looked up**: `pylocuszoom._http.requests.get` and `_http.time.sleep` (HTTP), `subprocess.run` through `fake_plink` (PLINK), `pylocuszoom.ld.find_plink`, `pylocuszoom._ld_plotting.calculate_ld`, the `pylocuszoom.recombination` download and directory functions, and `pylocuszoom._liftover.download_file` (chain downloads). A test that reads or fills the managed cache takes the `cache_home` fixture, which points `XDG_CACHE_HOME` at the test's directory.
 - **Pure private helpers pinned for their edge cases**: `recombination._stage_archive` and `_publish_map_generation` (archive safety), `ld._resolve_plink` and `_add_species_flags`, `loaders.gwas._detect_format`, `colors._find_eqtl_bin`, `coloc_plotter._get_effect_agreement_color`, `bokeh_backend._create_color_palette`, `utils._platform_cache_base`.
-- **Registry and logger state**: `backends._BACKENDS` (registering a test backend), `logging._LoguruWrapper` and `logger._enabled` (restoring process-wide logging state, including in `conftest.warning_records`).
+- **Registry and logger state**: `backends._BACKENDS` (registering a test backend), and loguru's `logger.enable`/`logger.disable("pylocuszoom")` and `logger._core.handlers` (switching the package's records on for `conftest.warning_records`, and checking that import leaves the handlers alone).
 
 Panel classes, `LocusZoomPlotter` private methods and caches, and the coloc merge and lead functions are not seams: test them through the rendered figure.
 
@@ -124,7 +125,7 @@ One fixture name means exactly one schema. `regional_gwas_df`, `small_regional_g
 An autouse fixture closes every pyplot figure after each test, so a test that
 builds a figure does not need to close it.
 
-`warning_records` collects `pylocuszoom` warnings. loguru does not feed pytest's `caplog`, so a test that takes `caplog` and asserts on it will pass no matter what the code logs.
+`warning_records` collects `pylocuszoom` WARNING log records, switching the package's logging on for the test and off again. loguru does not feed pytest's `caplog`, so a test that takes `caplog` and asserts on it will pass no matter what the code logs. A layer the plot skips is a `UserWarning`, not a log record: assert it with `pytest.warns`.
 
 Hypothesis strategies shared across tests live in `tests/strategies.py`.
 

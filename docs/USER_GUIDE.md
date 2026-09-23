@@ -863,7 +863,6 @@ plotter = LocusZoomPlotter(
     plink_path=None,            # Path to PLINK (auto-detects)
     recomb_data_dir=None,       # Custom recombination maps
     genomewide_threshold=5e-8,  # Significance line threshold
-    log_level="INFO",           # "DEBUG", "INFO", "WARNING", None
     auto_genes=False,           # Auto-fetch gene track from Ensembl
 )
 ```
@@ -876,7 +875,6 @@ plotter = LocusZoomPlotter(
 | `plink_path` | str | Auto | Path to PLINK executable. |
 | `recomb_data_dir` | str | Auto | Directory with recombination maps. |
 | `genomewide_threshold` | float | `5e-8` | P-value for significance line. |
-| `log_level` | str | `"INFO"` | Logging verbosity or `None` to disable. |
 | `auto_genes` | bool | `False` | If `True`, fetch the gene track with exon structure when `genes_df` is not supplied. |
 
 ### plot() Method
@@ -1027,6 +1025,7 @@ fig = plotter.plot_stacked(
     panel_labels=None,          # Labels for each panel
     ld_reference_files=None,    # Per-panel PLINK filesets
     significance_threshold=5e-8,  # As on plot()
+    liftover=LiftoverConfig(),  # As on plot(), applied to every panel
 )
 ```
 
@@ -1043,6 +1042,7 @@ fig = plotter.plot_stacked(
 | `panel_labels` | list | None | Labels, one per panel. |
 | `ld_reference_files` | list | None | PLINK filesets, one per panel, replacing the broadcast `ld.ld_reference_file`. |
 | `significance_threshold` | float or None | plotter's `genomewide_threshold` | As on `plot()`. |
+| `liftover` | `LiftoverConfig` | `LiftoverConfig()` | As on `plot()`, applied to every frame; the window spans the lifted SNPs of all panels. |
 
 ### Parameter Naming Conventions
 
@@ -1502,7 +1502,10 @@ another build's genes, give the plotter the target build and `plot()` a chain
 from the sumstats build to it. `gwas_df`, `start`, `end` and `ld.lead_pos` are
 then source-build coordinates; gene, eQTL and fine-mapping frames are
 target-build. The window keeps the requested margins around the outermost
-lifted SNPs. `plot_stacked()` does not lift.
+lifted SNPs. `plot_stacked()` takes the same `liftover` and lifts every frame;
+its window spans the lifted SNPs of all panels. The config is validated in
+source-build coordinates before anything is lifted, and a lead that does not
+lift is an error when `ld_reference_file` needs it.
 
 ```python
 from pylocuszoom import LiftoverConfig
@@ -1528,7 +1531,7 @@ from pylocuszoom import liftover_region
 
 lift = liftover_region(
     region_df, chrom=12, lifter=LiftOver("canFam3ToCanFam4.over.chain.gz"),
-    lead_pos=33_500_000, species=plotter.species,
+    lead_pos=33_500_000, build=plotter.genome_build,
 )
 lift.n_lifted, lift.n_unmapped, lift.n_multimapped, lift.n_cross_chrom
 ```
@@ -1546,10 +1549,14 @@ fig.savefig("plot.pdf", bbox_inches="tight")
 fig.savefig("plot.svg", bbox_inches="tight")
 ```
 
-### Suppress Logging
+### Logging
+
+Logging is off by default. Turn it on, at a level, with `enable_logging`:
 
 ```python
-plotter = LocusZoomPlotter(species="canine", log_level=None)
+from pylocuszoom import enable_logging
+
+enable_logging("DEBUG")
 ```
 
 ### Custom Significance Threshold
@@ -1627,7 +1634,7 @@ fig = plotter.plot(pandas_df, chrom=1, start=1e6, end=2e6)
 ### PLINK Not Found
 
 ```text
-ValidationError: Could not find PLINK executable
+PlinkError: PLINK not found. Install PLINK 1.9 or specify plink_path.
 ```
 
 Install PLINK 1.9 and add to PATH, or specify:
@@ -1658,7 +1665,11 @@ Image("plot.png")
 
 ### LD Calculation Fails
 
-Ensure:
+When LD cannot colour a panel (PLINK finds no pairs for the lead, or the
+reference panel names a variant twice), the plot is drawn without LD colouring
+and one `UserWarning` names the panel and the reason. A GWAS frame without its
+SNP-id column raises `ValidationError` before any PLINK call, and a PLINK
+failure (not found, non-zero exit, timeout) raises `PlinkError`. Ensure:
 
 1. GWAS DataFrame has `rs` column (or specify `rs_col`)
 2. SNP IDs match those in PLINK fileset
@@ -1707,7 +1718,7 @@ do, and open an issue so the name can be promoted to core.
 | SNP labels | `add_snp_labels`, `adjust_snp_labels` |
 | Gene track | `get_nearest_gene` |
 | Gene reference routing | `get_genes_for_build`, `source_for`, `clear_gene_cache`, `get_ensembl_species_name` |
-| Recombination maps | `download_canine_recombination_maps`, `ensure_recomb_maps`, `get_recombination_rate_for_region`, `load_recombination_map`, `recomb_for_region`, `RecombResult`, `RecombStatus` |
+| Recombination maps | `download_canine_recombination_maps`, `ensure_recomb_maps`, `get_recombination_rate_for_region`, `load_recombination_map` |
 | Liftover | `CoordinateLifter`, `liftover_region`, `RegionLiftResult` |
 | eQTL helpers | `filter_eqtl_by_gene`, `filter_eqtl_by_region`, `prepare_eqtl_for_plotting`, `get_eqtl_genes`, `calculate_colocalization_overlap` |
 | Fine-mapping helpers | `filter_finemapping_by_region`, `filter_by_credible_set`, `get_credible_sets`, `get_top_pip_variants`, `prepare_finemapping_for_plotting` |

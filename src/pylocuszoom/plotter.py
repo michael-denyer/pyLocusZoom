@@ -11,14 +11,14 @@ Supports multiple backends:
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, List, Optional, Union
+from typing import Any, Callable, List, Optional, TypeVar, Union
 
 import pandas as pd
 
 from ._data import prepare_pvalue_data
 from ._figure import FigurePlan, render_figure
 from ._ld_plotting import enrich_with_ld
-from ._liftover import CoordinateLifter, liftover_region
+from ._liftover import CoordinateLifter, lift_window
 from ._plotter_utils import (
     DEFAULT_GENOMEWIDE_THRESHOLD,
     UNSET,
@@ -36,9 +36,15 @@ from .config import (
     RegionConfig,
     StackedPlotConfig,
 )
-from .exceptions import ReferenceAPIError, ValidationError
+from .exceptions import (
+    EmptyLDOutputError,
+    LDUnavailableError,
+    PyLocusZoomError,
+    ReferenceAPIError,
+    ValidationError,
+)
 from .ld import find_plink
-from .logging import enable_logging, logger
+from .logging import logger
 from .panels import (
     AssociationPanel,
     EqtlPanel,
@@ -48,12 +54,33 @@ from .panels import (
     RegionalPanel,
     hover_for_association,
 )
-from .recombination import RecombResult, RecombStatus, recomb_for_region
+from .recombination import get_recombination_rate_for_region
 from .reference_genes import get_genes_for_build, source_for
 from .schemas import Canonical, gwas_plot_spec
 from .species import Species, resolve_species
 from .utils import DataFrameLike, filter_by_region, to_pandas
 from .validation import check, resolve_column
+
+T = TypeVar("T")
+
+
+def _optional_layer(
+    what: str, build: Callable[[], T], *skip: type[PyLocusZoomError]
+) -> Optional[T]:
+    """Return ``build()``, or warn once and return None if the layer is unavailable.
+
+    The one skip policy for the optional regional layers: the gene track, the
+    recombination overlay and LD colouring. Library code raises a typed
+    ``PyLocusZoomError`` saying why a layer is unavailable; this turns the
+    ones listed in ``skip`` (every ``PyLocusZoomError`` by default) into one
+    ``UserWarning`` pointing at the caller's ``plot()`` or ``plot_stacked()``
+    line, and the figure is drawn without the layer.
+    """
+    try:
+        return build()
+    except skip or PyLocusZoomError as e:
+        warnings.warn(f"{what} skipped; {e}", UserWarning, stacklevel=4)
+        return None
 
 
 @dataclass(frozen=True)
@@ -137,8 +164,6 @@ class LocusZoomPlotter:
         recomb_data_dir: Directory containing recombination maps.
             Uses platform cache if None.
         genomewide_threshold: P-value threshold for significance line.
-        log_level: Logging level ("DEBUG", "INFO", "WARNING", "ERROR", or None
-            to disable). Defaults to "INFO".
 
     Example:
         >>> # Static plot (default)
@@ -167,13 +192,9 @@ class LocusZoomPlotter:
         plink_path: Optional[str] = None,
         recomb_data_dir: Optional[str] = None,
         genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
-        log_level: Optional[str] = "INFO",
         auto_genes: bool = False,
     ):
         """Initialize the plotter."""
-        if log_level is not None:
-            enable_logging(log_level)
-
         self.species = resolve_species(species)
         self.genome_build = genome_build or (
             self.species.default_build if self.species else None
@@ -191,15 +212,15 @@ class LocusZoomPlotter:
         start: int,
         end: int,
         lifter: Optional[CoordinateLifter] = None,
-    ) -> RecombResult:
-        """Get a region's recombination rates, or the reason there are none.
+    ) -> pd.DataFrame:
+        """Get a region's recombination rates, or raise why there are none.
 
-        Caches per region, build and lifter. The caller renders the outcome;
-        this does not warn, so a region asked for twice is reported once.
+        Caches frames per region, build and lifter. A failure is not cached,
+        so the next plot of the region retries a download that failed.
         """
         cache_key = (chrom, start, end, self.genome_build, lifter)
         if cache_key not in self._recomb_cache:
-            self._recomb_cache[cache_key] = recomb_for_region(
+            self._recomb_cache[cache_key] = get_recombination_rate_for_region(
                 chrom=chrom,
                 start=start,
                 end=end,
@@ -270,10 +291,12 @@ class LocusZoomPlotter:
                 a missing required GWAS column, or when no SNP in the region
                 lifts to the target build.
             pylocuszoom.exceptions.PlinkError: When PLINK itself fails
-                (timeout, non-zero exit, corrupt ``.bed``, missing output).
-                The specific "empty LD output" case, a singleton lead SNP with
-                no neighbours in the window, is downgraded to a warning and
-                the plot is drawn without LD colouring.
+                (not found, timeout, non-zero exit, corrupt ``.bed``, missing
+                output). LD that cannot colour the panel, because PLINK found
+                no pairs for a singleton lead or the frame has no usable
+                variant ids, is a warning and the plot is drawn without LD
+                colouring; so is an unavailable gene track or recombination
+                overlay.
 
         Example:
             >>> from pylocuszoom import LDConfig, PanelInputs
@@ -287,15 +310,6 @@ class LocusZoomPlotter:
             ... )
         """
         gwas_df = to_pandas(gwas_df)
-        lifter = liftover.resolve()
-        if lifter is not None:
-            gwas_df, start, end, ld = self._lift_region(
-                gwas_df,
-                lifter,
-                RegionConfig(chrom=chrom, start=start, end=end),
-                columns.pos_col,
-                ld,
-            )
         config = PlotConfig(
             region=RegionConfig(chrom=chrom, start=start, end=end),
             columns=columns,
@@ -303,6 +317,12 @@ class LocusZoomPlotter:
             ld=ld,
             panels=panels,
         )
+        lifter = liftover.resolve()
+        if lifter is not None:
+            [gwas_df], region, [ld] = self._lift(
+                [gwas_df], config.region, columns, [ld], lifter
+            )
+            config = config.model_copy(update={"region": region, "ld": ld})
         return self._render_regional(
             config,
             [_AssociationInput.prepare(gwas_df, config.region, columns, ld)],
@@ -315,69 +335,49 @@ class LocusZoomPlotter:
             recomb_lifter=lifter if liftover.lift_recombination else None,
         )
 
-    def _lift_region(
+    def _lift(
         self,
-        gwas_df: pd.DataFrame,
-        lifter: CoordinateLifter,
+        frames: List[pd.DataFrame],
         region: RegionConfig,
-        pos_col: str,
-        ld: LDConfig,
-    ) -> tuple[pd.DataFrame, int, int, LDConfig]:
-        """Lift a source-build region to the plotter's build for ``plot()``.
+        columns: ColumnConfig,
+        lds: List[LDConfig],
+        lifter: CoordinateLifter,
+    ) -> tuple[List[pd.DataFrame], RegionConfig, List[LDConfig]]:
+        """Lift validated source-build panels to the plotter's build.
 
-        Returns the lifted rows, the lifted window and ``ld`` with its lead
-        lifted. The window keeps the requested margins around the outermost
-        SNPs, since the requested bounds themselves need not lift.
+        Returns the lifted frames, the lifted window and each panel's LD
+        config with its lead lifted. A lead that does not lift is
+        auto-detected instead, unless the panel computes LD from a fileset,
+        which needs the lead; that is an error rather than a warning the
+        next check would contradict.
         """
-        selected = filter_by_region(
-            gwas_df, region=(region.chrom, region.start, region.end), pos_col=pos_col
-        )
-        lift = liftover_region(
-            selected,
+        window = lift_window(
+            frames,
             chrom=region.chrom,
+            start=region.start,
+            end=region.end,
+            chrom_col=columns.chrom_col,
+            pos_col=columns.pos_col,
+            lead_positions=[ld.lead_pos for ld in lds],
             lifter=lifter,
-            pos_col=pos_col,
-            lead_pos=ld.lead_pos,
-            species=self.species,
+            build=self.genome_build,
         )
-        where = f"chr{region.chrom}:{region.start}-{region.end}"
-        if lift.lifted_df.empty:
-            raise ValidationError(
-                f"No SNP in {where} lifted to {self.genome_build}: "
-                f"{lift.n_unmapped} unmapped, {lift.n_multimapped} multi-mapped, "
-                f"{lift.n_cross_chrom} on another chromosome"
-            )
-        if lift.n_dropped:
-            logger.info(
-                "Liftover dropped {}/{} SNPs in {} ({} unmapped, {} multi-mapped, "
-                "{} on another chromosome)",
-                lift.n_dropped,
-                lift.n_input,
-                where,
-                lift.n_unmapped,
-                lift.n_multimapped,
-                lift.n_cross_chrom,
-            )
-        if not lift.is_collinear:
-            warnings.warn(
-                f"{where} is rearranged between builds; the regional plot's "
-                "left-to-right order may misrepresent it",
-                stacklevel=3,
-            )
-        if ld.lead_pos is not None and lift.lead_pos is None:
-            warnings.warn(
-                f"Lead SNP at chr{region.chrom}:{ld.lead_pos} did not lift to "
-                f"{self.genome_build}; the lead is auto-detected instead",
-                stacklevel=3,
-            )
-        source_pos = selected.loc[lift.lifted_df.index, pos_col]
-        start = max(1, lift.start - int(source_pos.min() - region.start))
-        end = max(lift.end + int(region.end - source_pos.max()), start + 1)
+        for ld, lead in zip(lds, window.lead_positions):
+            if ld.lead_pos is not None and lead is None and ld.ld_reference_file:
+                raise ValidationError(
+                    f"Lead SNP at chr{region.chrom}:{ld.lead_pos} did not lift to "
+                    f"{self.genome_build}, and LD from ld_reference_file needs a "
+                    "lead; pass a lead that lifts or drop ld_reference_file"
+                )
+        for note in window.notes:
+            warnings.warn(note, stacklevel=3)
         return (
-            lift.lifted_df,
-            start,
-            end,
-            ld.model_copy(update={"lead_pos": lift.lead_pos}),
+            window.frames,
+            RegionConfig(chrom=region.chrom, start=window.start, end=window.end),
+            [
+                ld.model_copy(update={"lead_pos": lead})
+                for ld, lead in zip(lds, window.lead_positions)
+            ],
         )
 
     def plot_stacked(
@@ -395,6 +395,7 @@ class LocusZoomPlotter:
         panel_labels: Optional[List[str]] = None,
         ld_reference_files: Optional[List[str]] = None,
         significance_threshold: ThresholdArg = UNSET,
+        liftover: LiftoverConfig = LiftoverConfig(),
     ) -> Any:
         """Create stacked regional association plots for multiple GWAS.
 
@@ -415,6 +416,9 @@ class LocusZoomPlotter:
             ld_reference_files: One PLINK fileset per panel, replacing the
                 broadcast ``ld.ld_reference_file``.
             significance_threshold: As on :meth:`plot`.
+            liftover: As on :meth:`plot`, applied to every frame. The window
+                spans the lifted SNPs of all panels, with the requested
+                margins around them.
 
         Raises:
             ValidationError: If ``gwas_dfs`` is empty, a per-panel list has a
@@ -445,6 +449,13 @@ class LocusZoomPlotter:
             panel_labels=panel_labels,
             ld_reference_files=ld_reference_files,
         )
+        panel_lds = config.panel_lds()
+        lifter = liftover.resolve()
+        if lifter is not None:
+            gwas_dfs, region, panel_lds = self._lift(
+                gwas_dfs, config.region, columns, panel_lds, lifter
+            )
+            config = config.model_copy(update={"region": region})
         association = [
             _AssociationInput.prepare(
                 frame,
@@ -453,7 +464,7 @@ class LocusZoomPlotter:
                 panel_ld,
                 panel_labels[index] if panel_labels is not None else None,
             )
-            for index, (frame, panel_ld) in enumerate(zip(gwas_dfs, config.panel_lds()))
+            for index, (frame, panel_ld) in enumerate(zip(gwas_dfs, panel_lds))
         ]
         return self._render_regional(
             config,
@@ -464,6 +475,7 @@ class LocusZoomPlotter:
             label_top_n=3,
             association_height=2.5,
             min_figure_height=display.figsize[1],
+            recomb_lifter=lifter if liftover.lift_recombination else None,
         )
 
     def _render_regional(
@@ -510,20 +522,17 @@ class LocusZoomPlotter:
                 region.start,
                 region.end,
             )
-            try:
-                annotations = get_genes_for_build(
+            annotations = _optional_layer(
+                f"Gene track for chr{region.chrom}:{region.start}-{region.end}",
+                lambda: get_genes_for_build(
                     source_for(self.species, self.genome_build),
                     region.chrom,
                     region.start,
                     region.end,
-                )
-            except ReferenceAPIError as e:
-                warnings.warn(
-                    f"Gene track skipped for chr{region.chrom}:{region.start}-"
-                    f"{region.end}; the gene source failed: {e}",
-                    stacklevel=3,
-                )
-            else:
+                ),
+                ReferenceAPIError,
+            )
+            if annotations is not None:
                 if annotations.genes.empty:
                     logger.debug("No genes found in region")
                 else:
@@ -559,32 +568,33 @@ class LocusZoomPlotter:
         )
 
         if display.show_recombination and recomb_df is None:
-            recomb = self._get_recomb_for_region(
-                region.chrom, region.start, region.end, recomb_lifter
+            recomb_df = _optional_layer(
+                "Recombination overlay",
+                lambda: self._get_recomb_for_region(
+                    region.chrom, region.start, region.end, recomb_lifter
+                ),
             )
-            if recomb.status is RecombStatus.OK:
-                recomb_df = recomb.frame
-            else:
-                warnings.warn(
-                    f"Recombination overlay skipped; {recomb.detail}",
-                    stacklevel=3,
-                )
 
         association: List[AssociationPanel] = []
         for index, request in enumerate(association_inputs):
             columns, ld = request.columns, request.ld
-            df, ld_col = enrich_with_ld(
-                request.data,
-                reference_file=ld.ld_reference_file,
-                lead_index=request.lead_index,
-                ld_col=ld.ld_col,
-                rs_col=request.rs_col,
-                start=region.start,
-                end=region.end,
-                plink_path=self.plink_path,
-                species=self.species,
-                context=f"panel {index + 1}",
+            enriched = _optional_layer(
+                f"LD colouring for panel {index + 1}",
+                lambda: enrich_with_ld(
+                    request.data,
+                    reference_file=ld.ld_reference_file,
+                    lead_index=request.lead_index,
+                    ld_col=ld.ld_col,
+                    rs_col=request.rs_col,
+                    start=region.start,
+                    end=region.end,
+                    plink_path=self.plink_path,
+                    species=self.species,
+                ),
+                EmptyLDOutputError,
+                LDUnavailableError,
             )
+            df, ld_col = enriched or (request.data, ld.ld_col)
             association.append(
                 AssociationPanel(
                     data=df,

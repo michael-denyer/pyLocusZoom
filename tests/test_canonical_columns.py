@@ -107,7 +107,7 @@ class TestPre4ColumnNamesAreNotAliases:
     """A frame in the 3.x ps/p_wald names is an ordinary frame missing columns."""
 
     def test_regional_plot_names_the_missing_canonical_column(self, legacy_gwas_df):
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         with pytest.raises(ValidationError, match="'pos', 'p_value'"):
             plotter.plot(legacy_gwas_df, chrom=1, start=1_000_000, end=2_000_000)
@@ -122,7 +122,7 @@ class TestPre4ColumnNamesAreNotAliases:
 
     def test_naming_the_old_columns_plots_them(self, legacy_gwas_df):
         """The migration is one ColumnConfig, or one rename."""
-        fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        fig = LocusZoomPlotter(species=None).plot(
             legacy_gwas_df,
             chrom=1,
             start=1_000_000,
@@ -140,7 +140,7 @@ class TestPre4ColumnNamesAreNotAliases:
 
     def test_a_caller_named_column_gets_no_fallback(self, legacy_gwas_df):
         """An explicit name is honoured, not swapped for a similar column."""
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         with pytest.raises(ValidationError, match="position"):
             plotter.plot(

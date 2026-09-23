@@ -25,52 +25,47 @@ from ._gene_source import (
     empty_frame,
 )
 from ._http import request_json
-from .exceptions import UCSCAPIError
+from .exceptions import UCSCAPIError, ValidationError
+from .genome_build import GenomeBuild, resolve_build, ucsc_chrom
 from .logging import logger
 from .utils import normalize_chrom
 
 UCSC_REST_URL = "https://api.genome.ucsc.edu"
-UCSC_REQUEST_TIMEOUT = 30  # seconds
-UCSC_MAX_RETRIES = 3
-UCSC_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 UCSC_GENE_TRACK = "ncbiRefSeq"
-
-# UCSC genome name -> the assembly name recorded on every returned row.
-# Every genome reachable through reference_genes.UCSC_BUILDS belongs here.
-UCSC_ASSEMBLY_NAMES: dict[str, str] = {
-    "canFam3": "CanFam3.1",
-    "canFam4": "UU_Cfam_GSD_1.0",
-    "felCat9": "Felis_catus_9.0",
-}
 
 # RefSeq accession prefixes for transcripts that code for protein.
 _CODING_PREFIXES = ("NM_", "XM_")
 
 
+def _ucsc_build(build: str | GenomeBuild) -> GenomeBuild:
+    """Resolve a build that UCSC serves gene annotations for."""
+    record = resolve_build(build)
+    if record is None or record.ucsc_genome is None:
+        raise ValidationError(f"UCSC serves no gene annotations for build {build!r}")
+    return record
+
+
 def _fetch_track(
-    ucsc_genome: str, chrom: str | int, start: int, end: int
+    build: GenomeBuild, chrom: str | int, start: int, end: int
 ) -> list[dict]:
     """Fetch raw ncbiRefSeq transcript rows overlapping a region."""
-    chrom_str = normalize_chrom(chrom)
+    ucsc_name = ucsc_chrom(chrom, build)
     payload = request_json(
         f"{UCSC_REST_URL}/getData/track",
         {
-            "genome": ucsc_genome,
+            "genome": build.ucsc_genome,
             "track": UCSC_GENE_TRACK,
-            "chrom": f"chr{chrom_str}",
+            "chrom": ucsc_name,
             "start": start,
             "end": end,
         },
         error_cls=UCSCAPIError,
         service="UCSC",
-        timeout=UCSC_REQUEST_TIMEOUT,
-        max_retries=UCSC_MAX_RETRIES,
-        retry_delay=UCSC_RETRY_DELAY,
     )
     rows = payload.get(UCSC_GENE_TRACK, [])
     # UCSC returns a chrom-keyed dict when the request spans the whole genome.
     if isinstance(rows, dict):
-        rows = rows.get(f"chr{chrom_str}", [])
+        rows = rows.get(ucsc_name, [])
     return rows
 
 
@@ -116,14 +111,14 @@ def _exon_record(
 
 
 def _genes_from_rows(
-    rows: list[dict], ucsc_genome: str, chrom_str: str, biotype: str
+    rows: list[dict], build: GenomeBuild, chrom_str: str, biotype: str
 ) -> pd.DataFrame:
     """Collapse transcript rows into one row per gene symbol.
 
     ncbiRefSeq is a transcript-level track, so the many transcripts sharing a
     symbol become one row spanning the widest of them.
     """
-    assembly = UCSC_ASSEMBLY_NAMES.get(ucsc_genome, ucsc_genome)
+    assembly = build.assembly_name
 
     genes: dict[str, dict] = {}
     for row in rows:
@@ -144,18 +139,18 @@ def _genes_from_rows(
         records = [g for g in records if g["biotype"] == biotype]
 
     if not records:
-        logger.debug(f"No genes found in {ucsc_genome} {chrom_str}")
+        logger.debug(f"No genes found in {build.ucsc_genome} {chrom_str}")
         return empty_frame(GENE_COLUMNS)
 
-    logger.debug(f"Fetched {len(records)} genes from UCSC {ucsc_genome}")
+    logger.debug(f"Fetched {len(records)} genes from UCSC {build.ucsc_genome}")
     return pd.DataFrame(records)
 
 
 def _exons_from_rows(
-    rows: list[dict], ucsc_genome: str, chrom_str: str
+    rows: list[dict], build: GenomeBuild, chrom_str: str
 ) -> pd.DataFrame:
     """Expand every transcript row into one row per exon."""
-    assembly = UCSC_ASSEMBLY_NAMES.get(ucsc_genome, ucsc_genome)
+    assembly = build.assembly_name
 
     records = []
     for row in rows:
@@ -171,15 +166,15 @@ def _exons_from_rows(
         )
 
     if not records:
-        logger.debug(f"No exons found in {ucsc_genome} {chrom_str}")
+        logger.debug(f"No exons found in {build.ucsc_genome} {chrom_str}")
         return empty_frame(EXON_COLUMNS)
 
-    logger.debug(f"Fetched {len(records)} exons from UCSC {ucsc_genome}")
+    logger.debug(f"Fetched {len(records)} exons from UCSC {build.ucsc_genome}")
     return pd.DataFrame(records)
 
 
 def fetch_track_frames(
-    ucsc_genome: str,
+    build: str | GenomeBuild,
     chrom: str | int,
     start: int,
     end: int,
@@ -191,8 +186,11 @@ def fetch_track_frames(
     cost nothing beyond the genes.
 
     Args:
-        ucsc_genome: UCSC genome name, e.g. ``"canFam3"``.
-        chrom: Chromosome name or number.
+        build: Build UCSC serves genes for, as a record or a name such as
+            ``"canFam3"`` or ``"CanFam3.1"``.
+        chrom: Chromosome name or number. Codes UCSC spells differently,
+            such as canine 39, are asked for by their UCSC name; the rows keep
+            the caller's name.
         start: Region start position (1-based).
         end: Region end position (1-based).
         biotype: Gene biotype filter. ncbiRefSeq carries no finer biotypes
@@ -207,24 +205,25 @@ def fetch_track_frames(
         rest of pyLocusZoom use.
 
     Raises:
+        ValidationError: If UCSC serves no gene annotations for the build.
         UCSCAPIError: If the API fails.
     """
+    record = _ucsc_build(build)
     chrom_str = normalize_chrom(chrom)
-    rows = _fetch_track(ucsc_genome, chrom_str, start, end)
+    rows = _fetch_track(record, chrom_str, start, end)
 
     return GeneAnnotations(
-        _genes_from_rows(rows, ucsc_genome, chrom_str, biotype),
-        _exons_from_rows(rows, ucsc_genome, chrom_str),
+        _genes_from_rows(rows, record, chrom_str, biotype),
+        _exons_from_rows(rows, record, chrom_str),
     )
 
 
-def ucsc_source(ucsc_genome: str) -> GeneSource:
-    """Build the GeneSource for one UCSC genome."""
+def ucsc_source(build: str | GenomeBuild) -> GeneSource:
+    """Build the GeneSource for one build UCSC serves genes for."""
+    record = _ucsc_build(build)
     return GeneSource(
         name="ucsc",
-        cache_species=ucsc_genome,
+        cache_species=record.ucsc_genome,
         build_token="",
-        fetch=lambda chrom, start, end: fetch_track_frames(
-            ucsc_genome, chrom, start, end
-        ),
+        fetch=lambda chrom, start, end: fetch_track_frames(record, chrom, start, end),
     )

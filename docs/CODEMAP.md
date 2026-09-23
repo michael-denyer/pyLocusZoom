@@ -192,15 +192,15 @@ Data transformation between validated input and backend-ready primitives.
 | 3a | calculate_ld | PLINK wrapper, lead-SNP R² | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | find_plink | Locate PLINK executable | [ld.py](../src/pylocuszoom/ld.py) |
 | 3a | Species, resolve_species | The one record a species resolves to, and the boundary parser every entry point calls | [species.py](../src/pylocuszoom/species.py) |
+| 3a | GenomeBuild, resolve_build | The one record a genome build resolves to: assembly name, synonyms, UCSC gene genome, liftover chains, UCSC chromosome renames | [genome_build.py](../src/pylocuszoom/genome_build.py) |
 | 3b | colors.py | The one owner of the palette: LD, eQTL, credible-set, PheWAS, gene-track, recombination, QQ and heatmap colours. No module outside `backends/` holds a hex literal, and `test_colors.py` fails if one appears | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_ld_color | Map R² → hex colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_credible_set_color | CS index → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3c | assign_gene_positions | Overlap-free gene row layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3c | compute_arrow_geometry | Strand-arrow tip positions and dimensions | [gene_track.py](../src/pylocuszoom/gene_track.py) |
-| 3d | get_recombination_rate_for_region | Region-filtered recomb rate | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | get_recombination_rate_for_region | Region-filtered recomb rate, downloading and lifting managed maps; every reason there is none is a typed `PyLocusZoomError` | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
-| 3d | recomb_for_region, RecombResult | The one place the skip-the-overlay decision is made, reported as a value | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_recombination_maps, RecombSource | Species-generic download, canonical member streaming and publication; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3e | prepare_genomewide_frames | Per-input column projection before genome-wide layout and composition | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
@@ -219,7 +219,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3j | calculate_colocalization_overlap | Significant coordinate overlap on chromosome and absolute position | [eqtl.py](../src/pylocuszoom/eqtl.py) |
 | 3j | select_label_candidates | Shared lead-proximity eligibility for regional and standalone SNP labels | [_label_data.py](../src/pylocuszoom/_label_data.py) |
 | 3j | add_snp_labels | SNP label ranking and placement | [labels.py](../src/pylocuszoom/labels.py) |
-| 3j | liftover | Coordinate lift between builds for GWAS regions and recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
+| 3j | load_chain, chain_lifter, liftover_region, lift_window | The one chain loader (cached; registered chains come from `GenomeBuild.liftover_chains`) and the one lift path, shared by `plot()`, `plot_stacked()` and the recombination maps | [_liftover.py](../src/pylocuszoom/_liftover.py) |
 | 3j | UNSET, resolve_threshold | The significance-threshold sentinel every threshold-bearing plotter uses, which keeps `None` meaning "draw no line" | [_plotter_utils.py](../src/pylocuszoom/_plotter_utils.py) |
 | 3i | Regional panels | The five regional panel value types, each with the `draw` method that draws it, one per module | [panels/](../src/pylocuszoom/panels/) |
 | 3i | MiamiRequest, MiamiPanel, miami_plan | The Miami request the plotter resolves, the panel drawing one mirrored half with its annotations, and the plan builder | [panels/miami.py](../src/pylocuszoom/panels/miami.py) |
@@ -289,7 +289,7 @@ implementing the methods and out by omitting them; see
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 5a | PyLocusZoomError | Exception hierarchy root | [exceptions.py](../src/pylocuszoom/exceptions.py) |
-| 5b | enable_logging | Loguru/stdlib logging facade | [logging.py](../src/pylocuszoom/logging.py) |
+| 5b | enable_logging, disable_logging | The one switch for the package's loguru records, which import leaves disabled without touching the host's handlers | [logging.py](../src/pylocuszoom/logging.py) |
 | 5c | to_pandas | PySpark → pandas bridge, called by every public plot method on the frames it is given | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom_series | Column-level chromosome normaliser | [utils.py](../src/pylocuszoom/utils.py) |
@@ -304,8 +304,10 @@ PyLocusZoomError
 │   ├── FinemappingValidationError
 │   ├── LoaderValidationError
 │   ├── PheWASValidationError
-│   └── ForestValidationError
+│   ├── ForestValidationError
+│   └── LDUnavailableError
 ├── OptionalDependencyMissing (also ImportError)
+├── RecombinationMapNotFound (also FileNotFoundError)
 ├── PlinkError (also RuntimeError)
 │   └── EmptyLDOutputError
 └── DataDownloadError (also RuntimeError)
@@ -558,11 +560,8 @@ two tiers, core and toolbox, tabulated under
 |------|---------|
 | `download_canine_recombination_maps` | Download canine recombination rate maps from Campbell et al. 2016. |
 | `ensure_recomb_maps` | Ensure recombination maps are available, downloading if needed. |
-| `get_recombination_rate_for_region` | Get recombination rate data for a genomic region. |
+| `get_recombination_rate_for_region` | Get recombination rate data for a genomic region, or raise why there is none. |
 | `load_recombination_map` | Load recombination map for a specific chromosome. |
-| `recomb_for_region` | Get a region's recombination rates, or a `RecombStatus` saying why there are none. |
-| `RecombResult` | The outcome of one region's recombination query: status, frame, detail. |
-| `RecombStatus` | Why a region does or does not have recombination rates to draw. |
 
 ### Liftover
 
@@ -614,8 +613,8 @@ two tiers, core and toolbox, tabulated under
 
 | Name | Purpose |
 |------|---------|
-| `disable_logging` | Disable logging output. |
-| `enable_logging` | Enable logging output. |
+| `disable_logging` | Silence pyLocusZoom's records and remove the sink enable_logging added. |
+| `enable_logging` | Send pyLocusZoom's records at a level and above to a sink. |
 
 ### Utilities
 
@@ -633,11 +632,13 @@ two tiers, core and toolbox, tabulated under
 | `EnsemblAPIError` | Raised when the Ensembl REST API is unreachable or returns an error. |
 | `FinemappingValidationError` | Raised when fine-mapping DataFrame validation fails. |
 | `ForestValidationError` | Raised when forest plot DataFrame validation fails. |
+| `LDUnavailableError` | Raised when LD values cannot be matched to variants by id. |
 | `LoaderValidationError` | Raised when loaded data fails validation. |
 | `OptionalDependencyMissing` | Raised when a feature needs an optional extra that is not installed. |
 | `PheWASValidationError` | Raised when PheWAS DataFrame validation fails. |
 | `PlinkError` | Raised when PLINK subprocess fails. |
 | `PyLocusZoomError` | Base exception for all pyLocusZoom errors. |
+| `RecombinationMapNotFound` | Raised when there is no recombination map for a species or chromosome. |
 | `ReferenceAPIError` | Raised when a reference-annotation API is unreachable or errors. |
 | `UCSCAPIError` | Raised when the UCSC REST API is unreachable or returns an error. |
 | `ValidationError` | Raised when input validation fails. Inherits ValueError for backward compat. |
@@ -668,6 +669,7 @@ two tiers, core and toolbox, tabulated under
 | LD / PLINK | [ld.py](../src/pylocuszoom/ld.py) |
 | Gene track layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | Species records | [species.py](../src/pylocuszoom/species.py) |
+| Genome-build records | [genome_build.py](../src/pylocuszoom/genome_build.py) |
 | Recombination maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | Gene reference routing | [reference_genes.py](../src/pylocuszoom/reference_genes.py) |
 | Gene source value type | [_gene_source.py](../src/pylocuszoom/_gene_source.py) |

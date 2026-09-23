@@ -1,6 +1,7 @@
 """Atomic publication of complete gene and exon cache entries."""
 
 import pandas as pd
+import pytest
 
 from pylocuszoom._gene_cache import load_annotations, save_annotations
 from pylocuszoom._gene_source import GeneAnnotations
@@ -194,3 +195,24 @@ def test_invalid_deflate_stream_is_a_miss(tmp_path):
         data[index : index + 2] = (8).to_bytes(2, "little")
     archive_path.write_bytes(data)
     assert load_annotations(tmp_path, "human", "1", 100, 200) is None
+
+
+@pytest.mark.parametrize("use_cache", [False, True])
+def test_an_unwritable_cache_base_still_serves_genes(tmp_path, monkeypatch, use_cache):
+    """Building the cache path must not create it; only a write may fail, quietly."""
+    from pylocuszoom._gene_source import GeneSource, empty_annotations
+    from pylocuszoom.reference_genes import get_genes_for_build
+
+    blocker = tmp_path / "not_a_directory"
+    blocker.write_text("")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(blocker / "cache"))
+    source = GeneSource(
+        name="ensembl",
+        cache_species="x",
+        build_token="",
+        fetch=lambda chrom, start, end: empty_annotations(),
+    )
+
+    annotations = get_genes_for_build(source, 1, 1, 100, use_cache=use_cache)
+
+    assert annotations.genes.empty

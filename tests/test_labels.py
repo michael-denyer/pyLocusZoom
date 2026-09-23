@@ -19,7 +19,7 @@ def test_regional_labels_select_one_lead_and_distant_rows_before_ranking():
         },
         index=[4, 4, 5, 6, 7],
     )
-    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+    fig = LocusZoomPlotter(species=None).plot(
         frame,
         chrom=1,
         start=1000000,
@@ -356,29 +356,15 @@ class TestAddSnpLabels:
 class TestAdjustTextWarning:
     """Test warning is logged when adjustText is unavailable."""
 
-    def test_warning_logged_when_adjusttext_unavailable(self, labelled_gwas_df):
+    def test_warning_logged_when_adjusttext_unavailable(
+        self, labelled_gwas_df, warning_records
+    ):
         """Verify warning is logged when adjustText import fails."""
         import builtins
-        import io
         from unittest.mock import patch
-
-        from loguru import logger as loguru_logger
-
-        from pylocuszoom.logging import logger
 
         fig, ax = plt.subplots()
         ax.scatter(labelled_gwas_df["pos"], labelled_gwas_df["neglog10p"])
-
-        # Capture log output with a custom sink
-        log_capture = io.StringIO()
-        handler_id = loguru_logger.add(
-            log_capture,
-            level="WARNING",
-            format="{message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
-
-        # Store the original __import__
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -386,27 +372,13 @@ class TestAdjustTextWarning:
                 raise ImportError("No module named 'adjustText'")
             return original_import(name, *args, **kwargs)
 
-        # Ensure logging is enabled and patch __import__ to fail for adjustText
-        logger.enable("WARNING")
-        try:
-            with patch.object(builtins, "__import__", side_effect=mock_import):
-                # Need multiple labels to trigger the adjustText code path
-                texts = add_snp_labels(
-                    ax=ax,
-                    df=labelled_gwas_df,
-                    label_top_n=3,
-                )
-        finally:
-            loguru_logger.remove(handler_id)
+        with patch.object(builtins, "__import__", side_effect=mock_import):
+            # Need multiple labels to trigger the adjustText code path
+            texts = add_snp_labels(ax=ax, df=labelled_gwas_df, label_top_n=3)
 
         # Should still return labels even without adjustText
         assert len(texts) == 3
-
-        # Check that warning was logged about adjustText
-        log_output = log_capture.getvalue()
-        assert "adjustText" in log_output, (
-            f"Expected warning about adjustText, got: {log_output}"
-        )
+        assert any("adjustText" in record for record in warning_records)
 
 
 class TestDeferredAdjustment:

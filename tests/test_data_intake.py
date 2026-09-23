@@ -442,7 +442,7 @@ def _policy_frame(value):
 
 
 def _regional_points(df):
-    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+    fig = LocusZoomPlotter(species=None).plot(
         df,
         chrom=1,
         start=1,
@@ -472,7 +472,7 @@ def _qq_points(df):
 def _eqtl_points(df):
     from pylocuszoom import PanelInputs
 
-    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+    fig = LocusZoomPlotter(species=None).plot(
         _policy_frame(1e-3),
         chrom=1,
         start=1,

@@ -6,8 +6,13 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import DisplayConfig, PanelInputs
+from pylocuszoom.exceptions import DataDownloadError
 from pylocuszoom.plotter import LocusZoomPlotter
-from pylocuszoom.recombination import RecombResult, RecombStatus
+from tests.conftest import write_canine_map_set
+
+
+def _skip_warnings(caught):
+    return [w for w in caught if "Recombination overlay skipped" in str(w.message)]
 
 
 class TestLocusZoomPlotterRecombination:
@@ -95,80 +100,79 @@ class TestLocusZoomPlotterRecombination:
 
 
 class TestRecombinationDownloadErrors:
-    """Tests for recombination map error handling.
-
-    These tests verify that when recombination maps are unavailable,
-    the plotter gracefully handles None return values and allows
-    plotting to continue without recombination overlay.
-
-    Note: Detailed error handling (network, I/O, OS errors) is tested
-    in test_recombination.py at the recomb_for_region level.
-    """
+    """A map set that cannot be had skips the overlay, never the figure."""
 
     @pytest.fixture
-    def debug_canine_plotter(self):
-        """Create a plotter instance for testing download errors."""
-        return LocusZoomPlotter(species="canine", log_level="DEBUG")
+    def canine(self, cache_home):
+        return LocusZoomPlotter(species="canine")
 
     @staticmethod
     def _download_failed():
         return patch(
-            "pylocuszoom.plotter.recomb_for_region",
-            return_value=RecombResult(
-                RecombStatus.DOWNLOAD_FAILED, detail="could not download maps"
-            ),
+            "pylocuszoom.recombination.download_file",
+            side_effect=DataDownloadError("could not download maps"),
         )
 
     def test_plotting_continues_without_recomb_maps(
-        self, debug_canine_plotter, tiny_regional_gwas_df
+        self, canine, tiny_regional_gwas_df
     ):
-        """Plotting should succeed even when recombination maps are unavailable."""
         with self._download_failed():
             with pytest.warns(UserWarning, match="could not download maps"):
-                fig = debug_canine_plotter.plot(
-                    tiny_regional_gwas_df,
-                    chrom=1,
-                    start=1000000,
-                    end=2000000,
-                    display=DisplayConfig(show_recombination=True),
+                fig = canine.plot(
+                    tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000
                 )
         assert [ax.get_ylabel() for ax in fig.axes] == [r"$-\log_{10}$ P"]
 
-    def test_a_skipped_overlay_warns_once(
-        self, debug_canine_plotter, tiny_regional_gwas_df
-    ):
-        """Three layers used to decide this; only one of them speaks now."""
-        with self._download_failed(), pytest.warns(UserWarning) as caught:
-            debug_canine_plotter.plot(
-                tiny_regional_gwas_df,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                display=DisplayConfig(show_recombination=True),
-            )
-
-        skipped = [
-            w for w in caught if "Recombination overlay skipped" in str(w.message)
-        ]
-        assert len(skipped) == 1
-
-    def test_the_warning_points_at_the_caller_not_the_library(
-        self, debug_canine_plotter, tiny_regional_gwas_df
+    def test_a_skipped_overlay_warns_once_and_points_at_the_caller(
+        self, canine, tiny_regional_gwas_df
     ):
         """A file:line inside pylocuszoom tells the user nothing actionable."""
         with self._download_failed(), pytest.warns(UserWarning) as caught:
-            debug_canine_plotter.plot(
-                tiny_regional_gwas_df,
-                chrom=1,
-                start=1000000,
-                end=2000000,
-                display=DisplayConfig(show_recombination=True),
+            canine.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)
+
+        assert len(caught) == 1
+        assert len(_skip_warnings(caught)) == 1
+        assert caught[0].filename == __file__
+
+    def test_plot_stacked_warns_at_its_caller_too(self, canine, tiny_regional_gwas_df):
+        with self._download_failed(), pytest.warns(UserWarning) as caught:
+            canine.plot_stacked(
+                [tiny_regional_gwas_df], chrom=1, start=1000000, end=2000000
             )
 
-        skipped = next(
-            w for w in caught if "Recombination overlay skipped" in str(w.message)
+        assert [w.filename for w in caught] == [__file__]
+
+    def test_a_failed_download_is_retried_on_the_next_plot(
+        self, canine, cache_home, tiny_regional_gwas_df
+    ):
+        """Failures are not memoised; a region that failed once can recover."""
+        with self._download_failed(), pytest.warns(UserWarning):
+            canine.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)
+        write_canine_map_set(
+            cache_home / "recombination_maps",
+            "chr\tpos\trate\tcM\n1\t1500000\t3.0\t0.1\n",
         )
-        assert skipped.filename == __file__
+
+        fig = canine.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)
+
+        assert fig.axes[1].get_ylabel() == "Recombination rate (cM/Mb)"
+
+    def test_an_unwritable_cache_skips_the_overlay_with_one_warning(
+        self, tmp_path, monkeypatch, tiny_regional_gwas_df
+    ):
+        blocker = tmp_path / "not_a_directory"
+        blocker.write_text("")
+        monkeypatch.setenv("XDG_CACHE_HOME", str(blocker / "cache"))
+        plotter = LocusZoomPlotter(species="canine")
+
+        with pytest.warns(UserWarning) as caught:
+            fig = plotter.plot(
+                tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000
+            )
+
+        assert len(caught) == 1
+        assert "Could not write recombination maps" in str(caught[0].message)
+        assert fig.get_axes()
 
 
 class TestRecombinationOptionalDependency:
@@ -176,68 +180,62 @@ class TestRecombinationOptionalDependency:
     other ImportError, decided by exception type rather than message text."""
 
     @pytest.fixture
-    def plotter(self, tmp_path):
-        return LocusZoomPlotter(species="canine", log_level=None)
-
-    @pytest.fixture(autouse=True)
-    def _maps_are_present(self, tmp_path):
-        with patch(
-            "pylocuszoom.recombination.ensure_recomb_maps", return_value=tmp_path
-        ):
-            yield
+    def plotter(self, cache_home, monkeypatch):
+        write_canine_map_set(
+            cache_home / "recombination_maps",
+            "chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n",
+        )
+        return LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     def test_missing_optional_dependency_skips_the_overlay_with_a_warning(
-        self, plotter, tiny_regional_gwas_df
+        self, plotter, monkeypatch, tiny_regional_gwas_df
     ):
-        from pylocuszoom.exceptions import OptionalDependencyMissing
+        import gzip
+        import sys
 
-        with (
-            patch(
-                "pylocuszoom.recombination.get_recombination_rate_for_region",
-                side_effect=OptionalDependencyMissing("no liftover here"),
-            ),
-            pytest.warns(UserWarning, match="no liftover here"),
-        ):
+        def download(url, dest, desc=None):
+            dest.write_bytes(gzip.compress(b"chain"))
+
+        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setitem(sys.modules, "pyliftover", None)
+
+        with pytest.warns(UserWarning, match="pip install pyliftover") as caught:
             fig = plotter.plot(
                 tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000
             )
 
+        assert len(caught) == 1
         assert [ax.get_ylabel() for ax in fig.axes] == [r"$-\log_{10}$ P"]
 
-    def test_other_import_error_propagates(self, plotter, tiny_regional_gwas_df):
-        with patch(
-            "pylocuszoom.recombination.get_recombination_rate_for_region",
-            side_effect=ImportError("pyliftover mentioned but unrelated"),
-        ):
-            with pytest.raises(ImportError, match="mentioned but unrelated"):
-                plotter.plot(
-                    tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000
-                )
+    def test_other_import_error_propagates(
+        self, plotter, monkeypatch, tiny_regional_gwas_df
+    ):
+        def broken(*args, **kwargs):
+            raise ImportError("pyliftover mentioned but unrelated")
+
+        monkeypatch.setattr("pylocuszoom._liftover.download_file", broken)
+
+        with pytest.raises(ImportError, match="mentioned but unrelated"):
+            plotter.plot(tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000)
 
 
-def test_a_failed_chain_download_warns_and_still_plots(
-    tmp_path, monkeypatch, tiny_regional_gwas_df
+def test_a_failed_chain_download_warns_once_and_still_plots(
+    cache_home, monkeypatch, tiny_regional_gwas_df
 ):
     """The chain is part of the overlay; losing it must not lose the figure."""
-    from pylocuszoom.exceptions import DataDownloadError
-    from pylocuszoom.recombination import CANINE_MAP_FILENAMES
-
-    maps = tmp_path / "recombination_maps"
-    maps.mkdir()
-    for name in CANINE_MAP_FILENAMES:
-        (maps / name).write_text("chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n")
-    monkeypatch.setattr("pylocuszoom.recombination.get_default_data_dir", lambda: maps)
-    monkeypatch.setattr(
-        "pylocuszoom.recombination.get_chain_dir", lambda: tmp_path / "liftover"
+    write_canine_map_set(
+        cache_home / "recombination_maps",
+        "chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n",
     )
 
     def refuse(*args, **kwargs):
         raise DataDownloadError("simulated chain 404")
 
-    monkeypatch.setattr("pylocuszoom.recombination.download_file", refuse)
-    plotter = LocusZoomPlotter(species="canine", genome_build="canfam4", log_level=None)
+    monkeypatch.setattr("pylocuszoom._liftover.download_file", refuse)
+    plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 
-    with pytest.warns(UserWarning, match="simulated chain 404"):
+    with pytest.warns(UserWarning, match="simulated chain 404") as caught:
         fig = plotter.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)
 
+    assert len(caught) == 1
     assert fig.get_axes()

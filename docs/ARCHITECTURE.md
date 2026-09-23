@@ -22,9 +22,13 @@ rename internal fields. The backends use the shared `cell_edges` geometry for
 heatmap cells and highlights.
 
 Reference-data ownership is explicit. Caller map directories are read-only;
-managed caches alone may download and replace generations. Download writers have
+managed caches alone may download and install map sets. Download writers have
 private staging files, map archives stream regular members into canonical names,
-and gene/exon pairs publish as one atomically replaced ZIP. See
+and gene/exon pairs publish as one atomically replaced ZIP. A map set installs
+by renaming its staging directory into place when none exists; over an existing
+set the directory stays and each map file is swapped in with one `os.replace`,
+so a reader never finds the directory missing and concurrent writers converge
+on the same files without moving anything aside. See
 [ADR 0009](adr/0009-resolved-inputs-and-owned-publication.md).
 
 ## Component Diagram
@@ -193,16 +197,23 @@ stages:
    depending on the plotter).
 5. **Auxiliary data.** Gene annotations are assembled via `gene_track.py`, or
    fetched through `reference_genes.py`, which routes the plotter's
-   `genome_build` to whichever source can serve it: `ucsc.py` for CanFam3.1,
-   CanFam4 and FelCat9, `ensembl.py` for everything else. Each source answers
+   `genome_build` to whichever source can serve it: `ucsc.py` for a
+   `GenomeBuild` naming a `ucsc_genome` (CanFam3.1, CanFam4 and FelCat9),
+   `ensembl.py` for everything else. Each source answers
    with genes and exons from one request, so an automatic gene track carries
    exon structure. Recombination rates come from
-   `recombination.recomb_for_region`, which handles download of bundled canine
-   maps and CanFam3.1 → CanFam4 liftover through pyliftover. It never warns:
-   it returns a `RecombResult` whose `RecombStatus` says whether there is a
-   frame and, if not, why. The plotter turns any status other than `OK` into
-   one `UserWarning` pointing at the caller's own line, so every reason the
-   overlay is missing reaches the user the same way.
+   `recombination.get_recombination_rate_for_region`, which handles download
+   of bundled canine maps and CanFam3.1 → CanFam4 liftover through the chain
+   the `GenomeBuild` registers. Neither lookup warns. Each raises a typed
+   `PyLocusZoomError` saying why there is nothing to draw (`ReferenceAPIError`
+   for genes; `DataDownloadError`, `RecombinationMapNotFound`,
+   `OptionalDependencyMissing` or `ValidationError` for recombination), as
+   LD enrichment does. The plotter's one `_optional_layer` helper turns those
+   into one `UserWarning` pointing at the caller's own line and draws the
+   figure without the layer, so every reason a layer is missing reaches the
+   user the same way. Before 5.0 recombination reported a status enum instead;
+   it was a second error taxonomy kept in sync by hand beside the exception
+   hierarchy, and a chain failure that escaped it crashed `plot()`.
 6. **Regional composition and backend dispatch.** `plot()` and
    `plot_stacked()` take the region plus four frozen config values
    (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`), so each
@@ -334,7 +345,8 @@ pyLocusZoom/
 │   ├── ld.py                  # PLINK wrapper for R² calculation
 │   ├── _ld_plotting.py        # LD intake and merge for the regional plot
 │   ├── recombination.py       # Recomb map loading + CanFam4 liftover
-│   ├── _liftover.py           # CoordinateLifter protocol + region liftover
+│   ├── _liftover.py           # The one chain loader, region and window liftover
+│   ├── genome_build.py        # GenomeBuild records: synonyms, UCSC genome, chains
 │   ├── gene_track.py          # Gene region filter, row layout, strand-arrow geometry
 │   ├── ensembl.py             # Ensembl REST client with caching
 │   ├── ucsc.py                # UCSC REST client for assemblies Ensembl retired

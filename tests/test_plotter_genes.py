@@ -30,7 +30,7 @@ class TestSuppliedExons:
         )
 
         with pytest.raises(ValidationError, match="(?s)exons_df.*'chr'"):
-            LocusZoomPlotter(species=None, log_level=None).plot(
+            LocusZoomPlotter(species=None).plot(
                 small_regional_gwas_df,
                 chrom=1,
                 start=1000000,
@@ -68,7 +68,7 @@ class TestAutoGenes:
             }
         )
 
-        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
+        plotter = LocusZoomPlotter(species="human", auto_genes=True)
 
         with patch(
             "pylocuszoom.plotter.get_genes_for_build",
@@ -99,7 +99,7 @@ class TestAutoGenes:
 
         from pylocuszoom.gene_track import INTRON_HEIGHT
 
-        plotter = LocusZoomPlotter(species=species, log_level=None, auto_genes=True)
+        plotter = LocusZoomPlotter(species=species, auto_genes=True)
 
         with (
             patch("pylocuszoom.reference_genes.cache_root", return_value=tmp_path),
@@ -126,14 +126,16 @@ class TestAutoGenes:
         self, small_regional_gwas_df, tmp_path
     ):
         """A gene-source outage warns instead of passing as an empty region."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None, auto_genes=True)
+        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
         unavailable = Mock(ok=False, status_code=503, text="Service Unavailable")
 
         with (
             patch("pylocuszoom.reference_genes.cache_root", return_value=tmp_path),
             patch("pylocuszoom._http.time.sleep"),
             patch("pylocuszoom._http.requests.get", return_value=unavailable),
-            pytest.warns(UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"),
+            pytest.warns(
+                UserWarning, match=r"chr1:1000000-2000000.*UCSC.*503"
+            ) as caught,
         ):
             fig = plotter.plot(
                 small_regional_gwas_df,
@@ -143,6 +145,7 @@ class TestAutoGenes:
                 display=DisplayConfig(show_recombination=False),
             )
 
+        assert [w.filename for w in caught] == [__file__]
         assert fig is not None
 
     def test_plot_stacked_auto_genes_overrides_constructor(
@@ -158,7 +161,7 @@ class TestAutoGenes:
                 "strand": ["+"],
             }
         )
-        plotter = LocusZoomPlotter(species="human", log_level=None)
+        plotter = LocusZoomPlotter(species="human")
 
         with patch(
             "pylocuszoom.plotter.get_genes_for_build",
@@ -177,7 +180,7 @@ class TestAutoGenes:
 
     def test_plot_auto_genes_disabled_by_default(self, small_regional_gwas_df):
         """Without auto_genes a plot reaches no reference source."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
 
         with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
             plotter.plot(
@@ -194,7 +197,7 @@ class TestAutoGenes:
         self, small_regional_gwas_df, two_gene_track_df
     ):
         """Draw the caller's own genes, and fetch nothing, when genes_df is given."""
-        plotter = LocusZoomPlotter(species="human", log_level=None, auto_genes=True)
+        plotter = LocusZoomPlotter(species="human", auto_genes=True)
 
         with patch("pylocuszoom.plotter.get_genes_for_build") as mock_fetch:
             fig = plotter.plot(

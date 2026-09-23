@@ -128,6 +128,7 @@ class TestCalculateLd:
                 lead_snp="rs12345",
                 plink_path="/usr/bin/plink1.9",
                 working_dir=str(tmp_path),
+                species="canine",
             )
 
         assert list(result.columns) == ["SNP", "R2"]
@@ -156,6 +157,7 @@ class TestCalculateLd:
                 lead_snp="1:12345:A:G",
                 plink_path="/usr/bin/plink1.9",
                 working_dir=str(tmp_path),
+                species="canine",
             )
 
         lead = result[result["SNP"] == "1:12345:A:G"]
@@ -175,6 +177,7 @@ class TestCalculateLd:
                     lead_snp="rs12345",
                     plink_path="/usr/bin/plink1.9",
                     working_dir=str(tmp_path),
+                    species="canine",
                 )
 
     def test_raises_validation_error_for_missing_plink_files(self, tmp_path):
@@ -189,6 +192,7 @@ class TestCalculateLd:
                 calculate_ld(
                     bfile_path=nonexistent_bfile,
                     lead_snp="rs12345",
+                    species="canine",
                 )
 
 
@@ -215,6 +219,7 @@ class TestCalculatePairwiseLd:
                         bfile_path=mock_plink_files,
                         snp_list=["rs1", "rs2", "rs3"],
                         working_dir=str(tmp_path),
+                        species="canine",
                     )
 
                 # Check the SNP list file was written (before PLINK ran)
@@ -244,6 +249,7 @@ class TestCalculatePairwiseLd:
                     start=1000000,
                     end=2000000,
                     working_dir=str(tmp_path),
+                    species="canine",
                 )
 
         assert snp_ids == ["rs1", "rs2"]
@@ -271,6 +277,7 @@ class TestCalculatePairwiseLd:
                         bfile_path=mock_plink_files,
                         snp_list=["rs1", "rs2", "rs3"],  # rs3 not in output
                         working_dir=str(tmp_path),
+                        species="canine",
                     )
 
     def test_returns_matrix_and_snp_ids_on_success(self, tmp_path, mock_plink_files):
@@ -289,6 +296,7 @@ class TestCalculatePairwiseLd:
                     bfile_path=mock_plink_files,
                     snp_list=["rs1", "rs2", "rs3"],
                     working_dir=str(tmp_path),
+                    species="canine",
                 )
 
                 assert matrix.shape == (3, 3)
@@ -297,9 +305,11 @@ class TestCalculatePairwiseLd:
 
 
 ENTRY_POINTS = [
-    pytest.param(partial(calculate_ld, lead_snp="rs12345"), id="calculate_ld"),
     pytest.param(
-        partial(calculate_pairwise_ld, snp_list=["rs1", "rs2"]),
+        partial(calculate_ld, lead_snp="rs12345", species="canine"), id="calculate_ld"
+    ),
+    pytest.param(
+        partial(calculate_pairwise_ld, snp_list=["rs1", "rs2"], species="canine"),
         id="calculate_pairwise_ld",
     ),
 ]
@@ -314,8 +324,17 @@ class TestPlinkFailureModes:
         bfile, _ = fake_plink
 
         with patch("pylocuszoom.ld.find_plink", return_value=None):
-            with pytest.raises(FileNotFoundError, match="PLINK not found"):
+            with pytest.raises(PlinkError, match="PLINK not found"):
                 entry_point(bfile_path=bfile)
+
+    def test_an_unstartable_plink_is_a_plink_error(self, entry_point, fake_plink):
+        bfile, _ = fake_plink
+
+        with (
+            patch("subprocess.run", side_effect=PermissionError("not executable")),
+            pytest.raises(PlinkError, match="could not be started"),
+        ):
+            entry_point(bfile_path=bfile, plink_path="/mock/plink")
 
     def test_nonzero_exit_raises_plink_error_with_stderr(
         self, entry_point, tmp_path, fake_plink
@@ -403,11 +422,13 @@ def test_plink_paths_resolve_from_caller_before_changing_directory(
         plink_path="tools/plink" if relative_input else str(executable),
     )
     if pairwise:
-        matrix, ids = calculate_pairwise_ld(**args, snp_list=["rs1", "rs2"])
+        matrix, ids = calculate_pairwise_ld(
+            **args, snp_list=["rs1", "rs2"], species="canine"
+        )
         assert ids == ["rs1", "rs2"]
         assert matrix.loc["rs1", "rs2"] == 0.4
     else:
-        result = calculate_ld(**args, lead_snp="rs1")
+        result = calculate_ld(**args, lead_snp="rs1", species="canine")
         assert result.set_index("SNP")["R2"].to_dict() == {"rs1": 1.0, "rs2": 0.4}
 
 
@@ -427,5 +448,5 @@ def test_missing_bare_executable_name_raises(tmp_path, monkeypatch):
     from pylocuszoom.ld import _resolve_plink
 
     monkeypatch.setenv("PATH", str(tmp_path))
-    with pytest.raises(FileNotFoundError, match="PLINK not found"):
+    with pytest.raises(PlinkError, match="PLINK not found"):
         _resolve_plink("missing-plink")

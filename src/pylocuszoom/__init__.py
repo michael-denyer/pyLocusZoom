@@ -95,11 +95,13 @@ from .exceptions import (
     EQTLValidationError,
     FinemappingValidationError,
     ForestValidationError,
+    LDUnavailableError,
     LoaderValidationError,
     OptionalDependencyMissing,
     PheWASValidationError,
     PlinkError,
     PyLocusZoomError,
+    RecombinationMapNotFound,
     ReferenceAPIError,
     UCSCAPIError,
     ValidationError,
@@ -163,13 +165,10 @@ from .plotter import LocusZoomPlotter
 
 # Reference data management
 from .recombination import (
-    RecombResult,
-    RecombStatus,
     download_canine_recombination_maps,
     ensure_recomb_maps,
     get_recombination_rate_for_region,
     load_recombination_map,
-    recomb_for_region,
 )
 
 # Gene source routing over the Ensembl and UCSC clients
@@ -245,8 +244,10 @@ __all__ = [
     "ValidationError",
     "DataDownloadError",
     "EmptyLDOutputError",
+    "LDUnavailableError",
     "EnsemblAPIError",
     "OptionalDependencyMissing",
+    "RecombinationMapNotFound",
     "ReferenceAPIError",
     "UCSCAPIError",
     "PlinkError",
@@ -286,9 +287,6 @@ __all__ = [
     "ensure_recomb_maps",
     "get_recombination_rate_for_region",
     "load_recombination_map",
-    "recomb_for_region",
-    "RecombResult",
-    "RecombStatus",
     # Liftover
     "CoordinateLifter",
     "RegionLiftResult",

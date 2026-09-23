@@ -30,18 +30,16 @@ from ._gene_source import (
 )
 from ._http import request_json
 from .exceptions import EnsemblAPIError, ValidationError
+from .genome_build import assembly_token
 from .logging import logger
 from .species import Species, ensembl_species_name
-from .utils import assembly_token, normalize_chrom
+from .utils import normalize_chrom
 
 # Ensembl API limits regions to 5Mb
 ENSEMBL_MAX_REGION_SIZE = 5_000_000
 
 
 ENSEMBL_REST_URL = "https://rest.ensembl.org"
-ENSEMBL_REQUEST_TIMEOUT = 30  # seconds
-ENSEMBL_MAX_RETRIES = 3
-ENSEMBL_RETRY_DELAY = 1.0  # seconds, doubles on each retry
 
 
 def _response_assembly(features: list) -> str:
@@ -213,9 +211,6 @@ def fetch_overlap_frames(
         error_cls=EnsemblAPIError,
         service="Ensembl",
         headers={"Content-Type": "application/json"},
-        timeout=ENSEMBL_REQUEST_TIMEOUT,
-        max_retries=ENSEMBL_MAX_RETRIES,
-        retry_delay=ENSEMBL_RETRY_DELAY,
     )
 
     if not data:

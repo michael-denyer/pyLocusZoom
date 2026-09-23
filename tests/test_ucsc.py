@@ -105,6 +105,13 @@ class TestUCSCGeneFetch:
         ):
             fetch_track_frames("canFam3", "1", 1_000_000, 1_200_000)
 
+    def test_a_build_ucsc_serves_no_genes_for_is_rejected(self):
+        from pylocuszoom.exceptions import ValidationError
+        from pylocuszoom.ucsc import ucsc_source
+
+        with pytest.raises(ValidationError, match="GRCh38"):
+            ucsc_source("GRCh38")
+
 
 class TestUCSCCaching:
     def test_second_call_is_served_from_cache(self, tmp_path):
@@ -205,9 +212,11 @@ class TestBuildRouting:
         ],
     )
     def test_source_selection(self, build, expected):
-        from pylocuszoom.reference_genes import ucsc_genome_for_build
+        from pylocuszoom.reference_genes import source_for
 
-        assert ucsc_genome_for_build(build) == expected
+        source = source_for("canine", build)
+
+        assert (source.cache_species if source.name == "ucsc" else None) == expected
 
     def test_retired_build_routes_to_ucsc(self, tmp_path):
         """A CanFam3.1 caller gets CanFam3.1 coordinates, not ROS_Cfam_1.0."""
@@ -246,20 +255,42 @@ class TestBuildRouting:
 
         assert genes["assembly"].tolist() == ["ROS_Cfam_1.0"]
 
+    @pytest.mark.parametrize("chrom", [39, "39", "chr39"])
+    def test_canine_plink_x_code_asks_ucsc_for_chr_x(self, chrom, tmp_path):
+        """UCSC names the canine X chrX; asking for chr39 returns no genes."""
+        from pylocuszoom.reference_genes import get_genes_for_build, source_for
+
+        with patch(
+            "pylocuszoom._http.requests.get",
+            return_value=ok_response(refseq_payload()),
+        ) as mock_get:
+            genes, _ = get_genes_for_build(
+                source_for("canine", "canfam3.1"),
+                chrom,
+                1_000_000,
+                1_200_000,
+                cache_dir=tmp_path,
+            )
+
+        assert mock_get.call_args.kwargs["params"]["chrom"] == "chrX"
+        assert set(genes["chr"]) == {"39"}, "rows keep the caller's chromosome"
+
     def test_plotter_default_canine_build_reaches_ucsc(self):
         """The canine default is CanFam3.1, so auto_genes must land on UCSC."""
         from pylocuszoom import LocusZoomPlotter
-        from pylocuszoom.reference_genes import ucsc_genome_for_build
+        from pylocuszoom.reference_genes import source_for
 
-        plotter = LocusZoomPlotter(species="canine", auto_genes=True, log_level=None)
-        assert ucsc_genome_for_build(plotter.genome_build) == "canFam3"
+        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
+        assert source_for(plotter.species, plotter.genome_build).cache_species == (
+            "canFam3"
+        )
 
     def test_plotter_fetches_in_its_own_build(self):
         """auto_genes fetches from the source its own build routes to."""
         from pylocuszoom import DisplayConfig, LocusZoomPlotter
         from pylocuszoom._gene_source import GeneAnnotations
 
-        plotter = LocusZoomPlotter(species="canine", auto_genes=True, log_level=None)
+        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
         gwas = pd.DataFrame(
             {
                 "chr": 1,
