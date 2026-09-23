@@ -112,6 +112,7 @@ def miami_plan(req: MiamiRequest) -> FigurePlan:
         highlights=highlights,
         suptitle=req.title,
         title_fontsize=req.style.title_fontsize,
+        title_fontweight=req.style.title_fontweight,
         top=0.92 if req.title else 0.95,
         hspace=0.05,
     )

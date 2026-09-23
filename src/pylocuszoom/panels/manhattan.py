@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence, TypeVar
 import numpy as np
 import pandas as pd
 
+from .._figure import title_weight
 from .._plotter_utils import (
     MANHATTAN_CATEGORICAL_POINT_SIZE,
     MANHATTAN_EDGE_WIDTH,
@@ -266,15 +267,20 @@ def render_manhattan_panel(
             sizes=styled(style.point_size, spec.point_size),
             marker="o",
             edgecolor=POINT_EDGE_COLOR,
-            linewidth=MANHATTAN_EDGE_WIDTH,
+            linewidth=styled(style.point_edge_width, MANHATTAN_EDGE_WIDTH),
             zorder=2,
             hover_data=hover_data,
             **scatter_alpha(style),
         )
 
-    add_significance_line(backend, ax, spec.significance_threshold)
+    line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
+    add_significance_line(backend, ax, spec.significance_threshold, **line_kwargs)
     add_significance_line(
-        backend, ax, spec.suggestive_threshold, color=SUGGESTIVE_LINE_COLOR
+        backend,
+        ax,
+        spec.suggestive_threshold,
+        color=SUGGESTIVE_LINE_COLOR,
+        **line_kwargs,
     )
     backend.set_xlim(ax, *spec.layout.x_limits)
     line_levels = [
@@ -311,6 +317,7 @@ def render_manhattan_panel(
             ax,
             spec.title,
             fontsize=styled(style.panel_title_fontsize, spec.title_fontsize),
+            **title_weight(style.title_fontweight),
         )
     if spec.panel_label:
         backend.add_panel_label(ax, spec.panel_label, y_frac=spec.panel_label_y_frac)

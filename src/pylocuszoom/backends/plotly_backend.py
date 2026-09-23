@@ -4,7 +4,7 @@ Interactive backend with hover tooltips and zoom/pan capabilities.
 """
 
 import html
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -450,7 +450,13 @@ class PlotlyBackend:
             }
         )
 
-    def set_title(self, ax: _Panel, title: str, fontsize: int = 14) -> None:
+    def set_title(
+        self,
+        ax: _Panel,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set subplot title using annotation.
 
         For grid layouts, this adds an annotation above the subplot.
@@ -466,7 +472,7 @@ class PlotlyBackend:
             yref = f"{ax.ref('y')} domain"
 
             ax.fig.add_annotation(
-                text=f"<b>{title}</b>",
+                text=f"<b>{title}</b>" if fontweight == "bold" else title,
                 xref=xref,
                 yref=yref,
                 x=0.5,
@@ -477,8 +483,18 @@ class PlotlyBackend:
                 yanchor="bottom",
             )
 
-    def set_suptitle(self, fig: go.Figure, title: str, fontsize: int = 14) -> None:
-        """Set overall figure title (super title)."""
+    def set_suptitle(
+        self,
+        fig: go.Figure,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
+        """Set overall figure title (super title).
+
+        Plotly draws the layout title at normal weight, so ``fontweight`` has
+        nothing to change here.
+        """
         fig.update_layout(
             title=dict(
                 text=title,

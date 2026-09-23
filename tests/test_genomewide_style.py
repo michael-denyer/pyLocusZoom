@@ -62,6 +62,10 @@ class TestModel:
         assert style.tick_step == 1
         assert style.tick_rotation is None
         assert style.chrom_gap == CHROMOSOME_GAP == 1_000_000
+        assert style.line_style == "--"
+        assert style.line_width == 1.0
+        assert style.title_fontweight == "bold"
+        assert style.point_edge_width is None
 
     def test_is_frozen(self):
         with pytest.raises(PydanticValidationError):
@@ -81,6 +85,10 @@ class TestModel:
             ("chrom_gap", -1),
             ("palette", ()),
             ("palette", ("#d60000", "not-a-colour")),
+            ("line_style", "dashed"),
+            ("line_width", 0),
+            ("title_fontweight", "heavy"),
+            ("point_edge_width", -0.1),
         ],
     )
     def test_rejects_invalid_values(self, field, value):
@@ -340,6 +348,110 @@ class TestFonts:
             for axis in plot.xaxis + plot.yaxis:
                 assert axis.axis_label_text_font_size == "20pt"
                 assert axis.major_label_text_font_size == "18pt"
+
+
+class TestLines:
+    STYLE = GenomeWideStyle(line_style="-", line_width=1.5)
+
+    def test_threshold_lines_and_qq_diagonal_take_the_style(
+        self, plotter, four_chrom_df
+    ):
+        fig = plotter.plot_manhattan_qq(
+            four_chrom_df, suggestive_threshold=1e-5, style=self.STYLE
+        )
+
+        manhattan_ax, qq_ax = fig.get_axes()
+        lines = manhattan_ax.get_lines() + qq_ax.get_lines()
+        assert len(lines) == 3
+        assert {(line.get_linestyle(), line.get_linewidth()) for line in lines} == {
+            ("-", 1.5)
+        }
+
+    def test_miami_threshold_lines_take_the_style(self, four_chrom_df):
+        fig = MiamiPlotter(species="human").plot_miami(
+            four_chrom_df, four_chrom_df, style=self.STYLE
+        )
+
+        lines = [line for ax in fig.get_axes() for line in ax.get_lines()]
+        assert lines
+        assert {(line.get_linestyle(), line.get_linewidth()) for line in lines} == {
+            ("-", 1.5)
+        }
+
+    def test_plotly_threshold_line_takes_the_style(self, four_chrom_df):
+        plotter = ManhattanPlotter(species="human", backend="plotly")
+
+        fig = plotter.plot_manhattan(four_chrom_df, style=self.STYLE)
+
+        (shape,) = fig.layout.shapes
+        assert (shape.line.dash, shape.line.width) == ("solid", 1.5)
+
+
+class TestPointEdges:
+    def test_zero_removes_manhattan_and_qq_outlines(self, plotter, four_chrom_df):
+        fig = plotter.plot_manhattan_qq(
+            four_chrom_df, style=GenomeWideStyle(point_edge_width=0)
+        )
+
+        widths = {
+            float(w)
+            for ax in fig.get_axes()
+            for c in _manhattan_collections(ax)
+            for w in c.get_linewidths()
+        }
+        assert widths == {0.0}
+
+    def test_unset_keeps_each_method_width(self, plotter, four_chrom_df):
+        fig = plotter.plot_manhattan_qq(four_chrom_df)
+
+        manhattan_ax, qq_ax = fig.get_axes()
+        assert {
+            float(w)
+            for c in _manhattan_collections(manhattan_ax)
+            for w in c.get_linewidths()
+        } == {0.1}
+        assert {
+            float(w) for c in _manhattan_collections(qq_ax) for w in c.get_linewidths()
+        } == {0.02}
+
+
+class TestTitleWeight:
+    STYLE = GenomeWideStyle(title_fontweight="normal")
+
+    def test_default_titles_are_bold(self, plotter, four_chrom_df):
+        fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study")
+
+        assert fig._suptitle.get_fontweight() == "bold"
+        assert {ax.title.get_fontweight() for ax in fig.get_axes()} == {"bold"}
+
+    def test_normal_weight_on_suptitle_and_panel_titles(self, plotter, four_chrom_df):
+        fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
+
+        assert fig._suptitle.get_fontweight() == "normal"
+        assert {ax.title.get_fontweight() for ax in fig.get_axes()} == {"normal"}
+
+    def test_normal_weight_on_stacked_title(self, plotter, four_chrom_df):
+        fig = plotter.plot_manhattan_stacked(
+            [four_chrom_df, four_chrom_df], title="Stack", style=self.STYLE
+        )
+
+        assert fig.get_axes()[0].title.get_fontweight() == "normal"
+
+    def test_plotly_panel_titles_are_not_bold(self, four_chrom_df):
+        plotter = ManhattanPlotter(species="human", backend="plotly")
+
+        fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
+
+        texts = [a.text for a in fig.layout.annotations]
+        assert texts
+        assert not any("<b>" in text for text in texts)
+
+    def test_bokeh_titles_are_not_bold(self, four_chrom_df):
+        plotter = ManhattanPlotter(species="human", backend="bokeh")
+
+        fig = plotter.plot_manhattan_qq(four_chrom_df, title="Study", style=self.STYLE)
+
+        assert {p.title.text_font_style for p in _bokeh_plots(fig)} == {"normal"}
 
 
 class TestChromosomeAxis:

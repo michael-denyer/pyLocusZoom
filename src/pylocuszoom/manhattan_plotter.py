@@ -299,6 +299,7 @@ class ManhattanPlotter:
                 height_ratios=[figsize[1] / n_gwas] * n_gwas,
                 first_panel_title=title,
                 title_fontsize=style.title_fontsize,
+                title_fontweight=style.title_fontweight,
                 hspace=0.1,
             ),
         )
@@ -387,6 +388,7 @@ class ManhattanPlotter:
                 width_ratios=[2.5, 1],
                 suptitle=title,
                 title_fontsize=style.title_fontsize,
+                title_fontweight=style.title_fontweight,
                 footer=footer,
                 top=0.90 if title else 0.95,
             ),
@@ -476,6 +478,7 @@ class ManhattanPlotter:
                 width_ratios=[2.5, 1],
                 suptitle=title,
                 title_fontsize=style.title_fontsize,
+                title_fontweight=style.title_fontweight,
                 top=0.90 if title else 0.95,
                 hspace=0.15,
             ),

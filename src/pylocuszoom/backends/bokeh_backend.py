@@ -5,7 +5,7 @@ Interactive backend with hover tooltips, well-suited for dashboards.
 
 import html
 import math
-from typing import Any, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, List, Literal, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -445,12 +445,25 @@ class BokehBackend:
         for axis in (ax.xaxis, ax.yaxis):
             axis.major_label_text_font_size = f"{fontsize}pt"
 
-    def set_title(self, ax: figure, title: str, fontsize: int = 14) -> None:
+    def set_title(
+        self,
+        ax: figure,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set figure title."""
         ax.title.text = title
         ax.title.text_font_size = f"{fontsize}pt"
+        ax.title.text_font_style = fontweight
 
-    def set_suptitle(self, fig: Any, title: str, fontsize: int = 14) -> None:
+    def set_suptitle(
+        self,
+        fig: Any,
+        title: str,
+        fontsize: int = 14,
+        fontweight: Literal["bold", "normal"] = "bold",
+    ) -> None:
         """Set overall figure title.
 
         For Bokeh layouts, add title to the first figure in the layout.
@@ -460,6 +473,7 @@ class BokehBackend:
             first = first.children[0]
         first.title.text = title
         first.title.text_font_size = f"{fontsize}pt"
+        first.title.text_font_style = fontweight
 
     def set_footer(self, fig: Any, text: str, fontsize: int = 10) -> None:
         """Append the footer to the layout column as a centred line of text."""
