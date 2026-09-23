@@ -828,3 +828,24 @@ class TestPanelInputs:
 
         with pytest.raises(ValidationError, match="genes_df"):
             PanelInputs(genes_df=[1, 2, 3])
+
+
+class TestUnknownFields:
+    """A misspelt or removed option is an error, not a silently dropped keyword."""
+
+    @pytest.mark.parametrize(
+        ("model", "field"),
+        [
+            ("PanelInputs", "eqtl_df"),
+            ("PanelInputs", "ld_heatmap_metric"),
+            ("LDConfig", "ld_column"),
+            ("DisplayConfig", "lable_top_n"),
+            ("ColumnConfig", "chr_col"),
+            ("GenomeWideStyle", "pallete"),
+        ],
+    )
+    def test_unknown_field_raises_naming_it(self, model, field):
+        import pylocuszoom
+
+        with pytest.raises(ValidationError, match=field):
+            getattr(pylocuszoom, model)(**{field: "x"})

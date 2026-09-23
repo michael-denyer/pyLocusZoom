@@ -53,7 +53,8 @@ overrides were scheduled for removal in 5.0.
   `category`): left at the default, a frame without the column draws without
   the feature; any other name is required. `validation.resolve_column` is
   the one owner of that rule. LD from a reference fileset needs SNP ids, so
-  it requires the `rs_col` column.
+  it requires the `rs_col` column. The same holds for option names: a config
+  model rejects a field it does not declare instead of ignoring it.
 - **The chromosome is a column role.** `ColumnConfig.chrom_col` defaults to
   `"chr"`, and a frame without it raises. `chrom_col=None` is the explicit
   opt-in to position-only selection, for a frame already scoped to one

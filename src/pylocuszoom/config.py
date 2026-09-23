@@ -70,8 +70,12 @@ class _Config(BaseModel):
     """Base of every config model: a rejected value raises our ValidationError.
 
     pydantic's own ``ValidationError`` shares the name but not the hierarchy,
-    so ``except PyLocusZoomError`` would miss it.
+    so ``except PyLocusZoomError`` would miss it. An unknown field is an
+    error too, so a misspelt or removed option cannot be silently dropped.
+    Subclasses' ``model_config`` merges with this one.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     def __init__(self, /, **data: Any) -> None:
         try:
