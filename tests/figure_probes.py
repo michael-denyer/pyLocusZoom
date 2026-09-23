@@ -143,6 +143,14 @@ class MatplotlibProbe:
             and (linestyle is None or line.get_linestyle() == linestyle)
         ]
 
+    def vline_levels(self, fig, panel=0):
+        """Positions of full-height vertical lines on one panel."""
+        return [
+            float(line.get_xdata()[0])
+            for line in self.panels(fig)[panel].get_lines()
+            if list(line.get_ydata()) == [0, 1]
+        ]
+
     def marker_x(self, fig, panel=0, color=None):
         """Sorted x of every scatter marker on one panel, optionally of one fill."""
         from matplotlib.collections import PathCollection
@@ -333,6 +341,14 @@ class PlotlyProbe:
             if str(s.xref).endswith("domain")
             and s.y0 == s.y1
             and (dash is None or s.line.dash == dash)
+        ]
+
+    def vline_levels(self, fig, panel=0):
+        """Positions of full-height vertical lines on one panel."""
+        return [
+            float(s.x0)
+            for s in self._shapes(fig, panel, "line")
+            if str(s.yref).endswith("domain") and s.x0 == s.x1
         ]
 
     def marker_x(self, fig, panel=0, color=None):
@@ -536,6 +552,16 @@ class BokehProbe:
             if isinstance(span, Span)
             and span.dimension == "width"
             and (dash is None or _dash_name(span.line_dash) == dash)
+        ]
+
+    def vline_levels(self, fig, panel=0):
+        """Positions of full-height vertical lines on one panel."""
+        from bokeh.models import Span
+
+        return [
+            float(span.location)
+            for span in self.panels(fig)[panel].center
+            if isinstance(span, Span) and span.dimension == "height"
         ]
 
     def marker_x(self, fig, panel=0, color=None):

@@ -283,6 +283,7 @@ class PlotlyBackend:
             opacity=alpha,
             row=row,
             col=col,
+            exclude_empty_subplots=False,
         )
 
     def add_text(
@@ -698,6 +699,7 @@ class PlotlyBackend:
             opacity=alpha,
             row=row,
             col=col,
+            exclude_empty_subplots=False,
         )
 
     def errorbar_h(
@@ -774,6 +776,7 @@ class PlotlyBackend:
                 line_width=0,
                 row=ax.row,
                 col=ax.col,
+                exclude_empty_subplots=False,
             )
 
     def add_heatmap(
