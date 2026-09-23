@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2026-09-23
+
+### Fixed
+
+- **The QQ x-axis spans the expected values, not the top observed one.** Both axes were set to the larger of the two maxima, so one strong hit (observed 23 against expected 5) stretched the x-axis to 24 and squashed every point against the left edge. Each axis now follows its own data, and the diagonal runs to the x limit.
+
 ## [4.3.0] - 2026-09-23
 
 ### Changed
