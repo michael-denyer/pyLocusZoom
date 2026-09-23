@@ -10,7 +10,7 @@ import pytest
 
 from pylocuszoom._liftover import InMemoryLifter, liftover_positions
 from pylocuszoom.colors import RECOMB_COLOR
-from pylocuszoom.exceptions import DataDownloadError
+from pylocuszoom.exceptions import DataDownloadError, ValidationError
 from pylocuszoom.recombination import (
     CANINE_SOURCE,
     RecombStatus,
@@ -439,15 +439,80 @@ class TestDownloadCanineRecombinationMaps:
         assert result == tmp_path
 
     @patch("pylocuszoom.recombination.download_file")
-    def test_rejects_wrong_39_file_manifest(self, mock_download, tmp_path):
+    def test_rejects_wrong_39_file_manifest(self, mock_download, tmp_path, monkeypatch):
         """A count of 39 files is not proof that the canine set is complete."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path
+        )
         for i in range(1, 40):
             (tmp_path / f"chr{i}_recomb.tsv").touch()
 
         mock_download.side_effect = DataDownloadError("download attempted")
 
         with pytest.raises(DataDownloadError, match="download attempted"):
-            download_canine_recombination_maps(output_dir=str(tmp_path), force=False)
+            download_canine_recombination_maps(force=False)
+
+    @staticmethod
+    def _fake_archive(url, dest, desc=None):
+        TestStageArchive._tar(
+            dest,
+            {
+                f"chr{i}.txt": f"chr\tpos\trate\tcM\n{i}\t1\t1\t0\n"
+                for i in range(1, 39)
+            },
+        )
+
+    def test_caller_files_in_output_dir_survive(self, tmp_path, monkeypatch):
+        """output_dir is the caller's; the library never moves or deletes it."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        caller_dir = tmp_path / "my_project_data"
+        caller_dir.mkdir()
+        (caller_dir / "genotypes.bed").write_text("precious")
+
+        with pytest.raises(ValidationError, match="my_project_data"):
+            download_canine_recombination_maps(output_dir=str(caller_dir))
+
+        assert (caller_dir / "genotypes.bed").read_text() == "precious"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["my_project_data"]
+
+    def test_a_custom_map_beside_a_complete_set_survives(self, tmp_path, monkeypatch):
+        """An extra caller map makes the set inexact; it must not be wiped."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        for i in range(1, 39):
+            (tmp_path / f"chr{i}_recomb.tsv").write_text("old")
+        (tmp_path / "chrX_recomb.tsv").write_text("custom")
+
+        with pytest.raises(ValidationError):
+            download_canine_recombination_maps(output_dir=str(tmp_path))
+
+        assert (tmp_path / "chrX_recomb.tsv").read_text() == "custom"
+
+    def test_new_output_dir_receives_the_maps(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        output = tmp_path / "maps"
+
+        download_canine_recombination_maps(output_dir=str(output))
+
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+
+    def test_force_refreshes_an_output_dir_holding_only_maps(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        for i in range(1, 39):
+            (tmp_path / f"chr{i}_recomb.tsv").write_text("old")
+
+        download_canine_recombination_maps(output_dir=str(tmp_path), force=True)
+
+        assert (tmp_path / "chr1_recomb.tsv").read_text().startswith("chr\tpos")
 
 
 class TestStageArchive:

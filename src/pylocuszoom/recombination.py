@@ -233,6 +233,15 @@ def _has_complete_maps(path: Path, source: RecombSource) -> bool:
     return present == source.filenames
 
 
+def _holds_only_maps(path: Path, source: RecombSource) -> bool:
+    """Return whether replacing path wholesale would discard only this source's maps."""
+    if not path.exists():
+        return True
+    return path.is_dir() and all(
+        entry.is_file() and entry.name in source.filenames for entry in path.iterdir()
+    )
+
+
 def _discard_map_dir(path: Path) -> None:
     """Delete a replaced directory without acquiring ownership of symlink targets."""
     if path.is_symlink():
@@ -374,7 +383,9 @@ def download_canine_recombination_maps(
     - cM: Cumulative genetic distance (centiMorgans)
 
     Args:
-        output_dir: Directory to save maps. Uses platform cache if None.
+        output_dir: Directory to save maps. Uses platform cache if None. It
+            must be new, empty or hold only a previous canine map set, because
+            publishing replaces the whole directory.
         force: Re-download even if files exist.
 
     Returns:
@@ -383,10 +394,17 @@ def download_canine_recombination_maps(
     Raises:
         DataDownloadError: If the download fails or the archive is corrupt,
             incomplete, or not a recombination map set.
+        ValidationError: If output_dir holds anything besides canine maps.
     """
     output_path = _resolve_map_dir(output_dir)
     if not force and _has_complete_maps(output_path, CANINE_SOURCE):
         return output_path
+    if output_dir is not None and not _holds_only_maps(output_path, CANINE_SOURCE):
+        raise ValidationError(
+            f"output_dir {output_path} holds files other than the canine "
+            "recombination maps, and publishing the map set would replace it. "
+            "Pass a new or empty directory."
+        )
     return download_recombination_maps(CANINE_SOURCE, output_path)
 
 
