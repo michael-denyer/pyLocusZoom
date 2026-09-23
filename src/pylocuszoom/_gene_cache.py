@@ -36,11 +36,11 @@ def cache_root(source: str) -> Path:
         source: Source leaf directory, e.g. ``"ensembl"`` or ``"ucsc"``.
 
     Returns:
-        Path to the cache directory (created if it doesn't exist).
+        Path to the cache directory. It is not created here: only a write
+        creates it, so a read-only cache base costs the cache and not the
+        genes.
     """
-    path = _platform_cache_base() / source
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return _platform_cache_base() / source
 
 
 def safe_species_dir(cache_dir: Path, species: str) -> Path:
