@@ -280,7 +280,7 @@ class TestBuildRouting:
         from pylocuszoom import LocusZoomPlotter
         from pylocuszoom.reference_genes import source_for
 
-        plotter = LocusZoomPlotter(species="canine", auto_genes=True, log_level=None)
+        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
         assert source_for(plotter.species, plotter.genome_build).cache_species == (
             "canFam3"
         )
@@ -290,7 +290,7 @@ class TestBuildRouting:
         from pylocuszoom import DisplayConfig, LocusZoomPlotter
         from pylocuszoom._gene_source import GeneAnnotations
 
-        plotter = LocusZoomPlotter(species="canine", auto_genes=True, log_level=None)
+        plotter = LocusZoomPlotter(species="canine", auto_genes=True)
         gwas = pd.DataFrame(
             {
                 "chr": 1,

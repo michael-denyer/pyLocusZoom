@@ -104,7 +104,7 @@ class TestRecombinationDownloadErrors:
 
     @pytest.fixture
     def canine(self, cache_home):
-        return LocusZoomPlotter(species="canine", log_level=None)
+        return LocusZoomPlotter(species="canine")
 
     @staticmethod
     def _download_failed():
@@ -163,7 +163,7 @@ class TestRecombinationDownloadErrors:
         blocker = tmp_path / "not_a_directory"
         blocker.write_text("")
         monkeypatch.setenv("XDG_CACHE_HOME", str(blocker / "cache"))
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
 
         with pytest.warns(UserWarning) as caught:
             fig = plotter.plot(
@@ -185,9 +185,7 @@ class TestRecombinationOptionalDependency:
             cache_home / "recombination_maps",
             "chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n",
         )
-        return LocusZoomPlotter(
-            species="canine", genome_build="canfam4", log_level=None
-        )
+        return LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     def test_missing_optional_dependency_skips_the_overlay_with_a_warning(
         self, plotter, monkeypatch, tiny_regional_gwas_df
@@ -234,7 +232,7 @@ def test_a_failed_chain_download_warns_once_and_still_plots(
         raise DataDownloadError("simulated chain 404")
 
     monkeypatch.setattr("pylocuszoom._liftover.download_file", refuse)
-    plotter = LocusZoomPlotter(species="canine", genome_build="canfam4", log_level=None)
+    plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     with pytest.warns(UserWarning, match="simulated chain 404") as caught:
         fig = plotter.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)

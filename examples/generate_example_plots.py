@@ -227,7 +227,7 @@ exons_df = pd.DataFrame(
 
 print("Generating example plots...")
 
-plotter = LocusZoomPlotter(species="canine", log_level=None)
+plotter = LocusZoomPlotter(species="canine")
 
 # 1. Regional plot with recombination overlay (full LocusZoom style)
 # Use a region that has recombination data (canine maps start at ~4Mb on chr1)
@@ -607,7 +607,7 @@ print("   Saved: examples/matplotlib/finemapping_plot.png")
 
 # 6. Interactive Plotly regional plot with recombination
 print("6. Interactive Plotly regional plot with recombination...")
-plotly_plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+plotly_plotter = LocusZoomPlotter(species="canine", backend="plotly")
 fig = plotly_plotter.plot(
     recomb_gwas_df,
     chrom=1,
@@ -662,7 +662,7 @@ print("   Saved: examples/plotly/finemapping_plotly.html")
 print("11. Interactive Bokeh regional plot with recombination...")
 from bokeh.io import output_file, save
 
-bokeh_plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+bokeh_plotter = LocusZoomPlotter(species="canine", backend="bokeh")
 fig = bokeh_plotter.plot(
     recomb_gwas_df,
     chrom=1,

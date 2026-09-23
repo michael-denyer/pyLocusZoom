@@ -665,9 +665,7 @@ class TestRegionalOptionSurface:
         return DisplayConfig(show_recombination=False)
 
     def test_threshold_omitted_inherits_the_plotter(self, small_regional_gwas_df):
-        plotter = LocusZoomPlotter(
-            species="canine", genomewide_threshold=1e-5, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", genomewide_threshold=1e-5)
         fig = plotter.plot(
             small_regional_gwas_df,
             chrom=1,

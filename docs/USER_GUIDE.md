@@ -863,7 +863,6 @@ plotter = LocusZoomPlotter(
     plink_path=None,            # Path to PLINK (auto-detects)
     recomb_data_dir=None,       # Custom recombination maps
     genomewide_threshold=5e-8,  # Significance line threshold
-    log_level="INFO",           # "DEBUG", "INFO", "WARNING", None
     auto_genes=False,           # Auto-fetch gene track from Ensembl
 )
 ```
@@ -876,7 +875,6 @@ plotter = LocusZoomPlotter(
 | `plink_path` | str | Auto | Path to PLINK executable. |
 | `recomb_data_dir` | str | Auto | Directory with recombination maps. |
 | `genomewide_threshold` | float | `5e-8` | P-value for significance line. |
-| `log_level` | str | `"INFO"` | Logging verbosity or `None` to disable. |
 | `auto_genes` | bool | `False` | If `True`, fetch the gene track with exon structure when `genes_df` is not supplied. |
 
 ### plot() Method
@@ -1551,10 +1549,14 @@ fig.savefig("plot.pdf", bbox_inches="tight")
 fig.savefig("plot.svg", bbox_inches="tight")
 ```
 
-### Suppress Logging
+### Logging
+
+Logging is off by default. Turn it on, at a level, with `enable_logging`:
 
 ```python
-plotter = LocusZoomPlotter(species="canine", log_level=None)
+from pylocuszoom import enable_logging
+
+enable_logging("DEBUG")
 ```
 
 ### Custom Significance Threshold

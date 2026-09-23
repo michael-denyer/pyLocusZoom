@@ -284,7 +284,7 @@ def regional_plotter():
     """LocusZoomPlotter with logging left at the caller's level."""
     from pylocuszoom import LocusZoomPlotter
 
-    return LocusZoomPlotter(species=None, log_level=None)
+    return LocusZoomPlotter(species=None)
 
 
 @pytest.fixture
@@ -407,27 +407,20 @@ def fake_plink(tmp_path):
 
 @pytest.fixture
 def warning_records():
-    """Collect pylocuszoom WARNING messages; loguru does not feed caplog.
+    """Collect pylocuszoom WARNING log records; loguru does not feed caplog.
 
-    The wrapper in ``pylocuszoom.logging`` drops warnings entirely while
-    disabled, so the sink alone would capture nothing after any test that
-    called ``disable_logging()``.
+    pyLocusZoom's records are disabled until enable_logging(), so the fixture
+    enables them for the test and disables them again, which is the default.
     """
-    from loguru import logger as loguru_logger
-
-    from pylocuszoom.logging import logger
+    from loguru import logger
 
     records: list[str] = []
-    handler_id = loguru_logger.add(
-        records.append,
-        level="WARNING",
-        format="{message}",
-        filter=lambda record: record["name"].startswith("pylocuszoom"),
+    handler_id = logger.add(
+        records.append, level="WARNING", format="{message}", filter="pylocuszoom"
     )
-    was_enabled = logger._enabled
-    logger._enabled = True
+    logger.enable("pylocuszoom")
     try:
         yield records
     finally:
-        logger._enabled = was_enabled
-        loguru_logger.remove(handler_id)
+        logger.disable("pylocuszoom")
+        logger.remove(handler_id)

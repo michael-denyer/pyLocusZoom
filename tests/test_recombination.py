@@ -1,6 +1,5 @@
 """Recombination maps: loading, region lookup, liftover and why a lookup fails."""
 
-import io
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -95,29 +94,20 @@ class TestLoadRecombinationMap:
         result = load_recombination_map(chrom="chr1", data_dir=str(tmp_path))
         assert len(result) == 1
 
-    def test_non_numeric_values_produce_warning(self, tmp_path):
+    def test_non_numeric_values_produce_warning(self, tmp_path, warning_records):
         """Non-numeric values in pos/rate should produce a warning."""
         map_content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.001\n1\tBAD\t1.2\t0.005\n"
-        map_file = tmp_path / "chr1_recomb.tsv"
-        map_file.write_text(map_content)
+        (tmp_path / "chr1_recomb.tsv").write_text(map_content)
 
-        log_capture = io.StringIO()
-        from pylocuszoom.logging import logger as plz_logger
-
-        plz_logger.enable("WARNING", sink=log_capture)
-        try:
-            result = load_recombination_map(chrom=1, data_dir=str(tmp_path))
-        finally:
-            plz_logger.enable("INFO")
+        result = load_recombination_map(chrom=1, data_dir=str(tmp_path))
 
         # Only valid row should remain
         assert len(result) == 1
         assert result["pos"].iloc[0] == 1000
-
-        # Warning should mention non-numeric values
-        log_output = log_capture.getvalue()
-        assert "non-numeric values" in log_output
-        assert "chr1" in log_output
+        assert any(
+            "non-numeric values" in record and "chr1" in record
+            for record in warning_records
+        )
 
 
 class TestGetRecombinationRateForRegion:

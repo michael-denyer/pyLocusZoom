@@ -498,7 +498,7 @@ class TestDownloadCanineRecombHeaderDetection:
         monkeypatch.setattr(
             "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path / "out"
         )
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
         gwas = pd.DataFrame(
             {
                 "chr": 1,

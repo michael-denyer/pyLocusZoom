@@ -1,126 +1,50 @@
-"""Logging configuration for pylocuszoom.
+"""Logging switches for pylocuszoom.
 
-Provides logging with sensible defaults:
-- Logging is enabled by default at INFO level
-- Uses loguru (a hard dependency)
-- Users can adjust level via enable_logging() or disable via disable_logging()
+pyLocusZoom logs through loguru and is silent until asked, following loguru's
+pattern for libraries: importing the package calls
+``logger.disable("pylocuszoom")`` and adds or removes no handler, so the host
+application's sinks are exactly as it left them. ``enable_logging`` is the one
+switch that turns pyLocusZoom's records on.
+
+Log records are diagnostics. A layer the plot has to leave out (the gene
+track, the recombination overlay or LD colouring) is reported as a
+``UserWarning`` instead, so it reaches the user whether logging is on or not.
 
 Usage:
     >>> from pylocuszoom.logging import enable_logging, disable_logging
-    >>> enable_logging("DEBUG")  # Enable DEBUG level for troubleshooting
-    >>> disable_logging()  # Suppress all logging output
+    >>> enable_logging("DEBUG")  # DEBUG level for troubleshooting
+    >>> disable_logging()  # silent again
 """
 
 import sys
 from typing import Optional
 
-from loguru import logger as _loguru_logger
+from loguru import logger
 
-_LOGURU_DEFAULT_HANDLER_ID = 0
+logger.disable("pylocuszoom")
+
+_FORMAT = "<level>{level: <8}</level> | <cyan>pylocuszoom</cyan> | {message}"
+_handler_id: Optional[int] = None
 
 
-class _LoguruWrapper:
-    """Wrapper around loguru logger with enable/disable support.
-
-    Errors always emit (even when logging is disabled) so that callers
-    using logger.error() for real failures are never silently swallowed.
-    """
-
-    def __init__(self):
-        self._enabled = False
-        self._handler_id = None
-        self._error_handler_id = None
-        self._keep_default_handler_off_pylocuszoom()
-
-    @staticmethod
-    def _keep_default_handler_off_pylocuszoom() -> None:
-        """Swap loguru's default stderr sink for one that skips pylocuszoom records.
-
-        The default sink takes every record from DEBUG up, so it would print each
-        pylocuszoom message a second time beside this module's own handler.
-        Removing it outright also silenced the host application's output, so
-        it is re-added with loguru's defaults and a filter. A host that has
-        already removed the default sink gets nothing back.
-        """
+def _remove_handler() -> None:
+    """Remove the sink enable_logging added, if another caller has not already."""
+    global _handler_id
+    if _handler_id is not None:
         try:
-            _loguru_logger.remove(_LOGURU_DEFAULT_HANDLER_ID)
+            logger.remove(_handler_id)
         except ValueError:
-            return
-        _loguru_logger.add(
-            sys.stderr,
-            filter=lambda record: not (record["name"] or "").startswith("pylocuszoom"),
-        )
-
-    def _add_error_handler(self) -> None:
-        """Add error-only handler (used when main handler is disabled)."""
-        if self._error_handler_id is None:
-            self._error_handler_id = _loguru_logger.add(
-                sys.stderr,
-                level="ERROR",
-                format="<level>{level: <8}</level> | <cyan>pylocuszoom</cyan> | {message}",
-                filter=lambda record: record["name"].startswith("pylocuszoom"),
-            )
-
-    def _remove_handler(self, handler_id: Optional[int]) -> None:
-        """Remove a handler, tolerating an id another module already removed.
-
-        A global ``loguru.remove()`` elsewhere invalidates the ids stored here,
-        so a stale id is an expected state rather than a fault.
-        """
-        if handler_id is None:
-            return
-        try:
-            _loguru_logger.remove(handler_id)
-        except ValueError:
-            pass
-
-    def enable(self, level: str = "INFO", sink=sys.stderr) -> None:
-        """Enable logging at the specified level."""
-        # Remove error-only handler (main handler covers errors)
-        self._remove_handler(self._error_handler_id)
-        self._error_handler_id = None
-        self._remove_handler(self._handler_id)
-        self._handler_id = _loguru_logger.add(
-            sink,
-            level=level,
-            format="<level>{level: <8}</level> | <cyan>pylocuszoom</cyan> | {message}",
-            filter=lambda record: record["name"].startswith("pylocuszoom"),
-        )
-        self._enabled = True
-
-    def disable(self) -> None:
-        """Disable logging (errors still emit via error-only handler)."""
-        self._remove_handler(self._handler_id)
-        self._handler_id = None
-        # Re-add error-only handler so errors still reach stderr
-        self._add_error_handler()
-        self._enabled = False
-
-    def debug(self, msg: str, *args, **kwargs) -> None:
-        if self._enabled:
-            _loguru_logger.opt(depth=1).debug(msg, *args, **kwargs)
-
-    def info(self, msg: str, *args, **kwargs) -> None:
-        if self._enabled:
-            _loguru_logger.opt(depth=1).info(msg, *args, **kwargs)
-
-    def warning(self, msg: str, *args, **kwargs) -> None:
-        if self._enabled:
-            _loguru_logger.opt(depth=1).warning(msg, *args, **kwargs)
-
-    def error(self, msg: str, *args, **kwargs) -> None:
-        _loguru_logger.opt(depth=1).error(msg, *args, **kwargs)
-
-
-# Create the logger instance
-logger = _LoguruWrapper()
-
-# Enable logging at INFO level by default
-logger.enable("INFO")
+            pass  # A global logger.remove() elsewhere already took it.
+        _handler_id = None
 
 
 def enable_logging(level: str = "INFO", sink=sys.stderr) -> None:
-    """Enable logging output.
+    """Send pyLocusZoom's records at ``level`` and above to ``sink``.
+
+    A second call replaces the sink the first one added. The records also
+    reach any sink the application added without a filter, loguru's default
+    stderr sink included; an application that routes everything through its
+    own sinks can call loguru's ``logger.enable("pylocuszoom")`` instead.
 
     Args:
         level: Log level ("DEBUG", "INFO", "WARNING", "ERROR").
@@ -131,9 +55,13 @@ def enable_logging(level: str = "INFO", sink=sys.stderr) -> None:
         >>> enable_logging()  # INFO level
         >>> enable_logging("DEBUG")  # DEBUG level for troubleshooting
     """
-    logger.enable(level, sink)
+    global _handler_id
+    _remove_handler()
+    _handler_id = logger.add(sink, level=level, format=_FORMAT, filter="pylocuszoom")
+    logger.enable("pylocuszoom")
 
 
 def disable_logging() -> None:
-    """Disable logging output."""
-    logger.disable()
+    """Silence pyLocusZoom's records and remove the sink enable_logging added."""
+    _remove_handler()
+    logger.disable("pylocuszoom")

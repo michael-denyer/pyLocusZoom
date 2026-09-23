@@ -231,7 +231,7 @@ class TestLDHeatmapIntegration:
     ):
         """When ld_heatmap_df and ld_heatmap_snp_ids provided, figure has heatmap panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -252,7 +252,7 @@ class TestLDHeatmapIntegration:
     ):
         """Heatmap SNPs render at their genomic positions from GWAS data."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -281,7 +281,7 @@ class TestLDHeatmapIntegration:
     ):
         """In stacked plots, heatmap appears below gene track (at very bottom)."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig = plotter.plot_stacked(
             [ld_heatmap_gwas_df],
@@ -304,7 +304,7 @@ class TestLDHeatmapIntegration:
     ):
         """Keep only the heatmap SNPs inside [start, end], shrinking the matrix."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -331,7 +331,7 @@ class TestLDHeatmapIntegration:
     ):
         """A heatmap whose SNPs all fall outside the region is a caller fault."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level="WARNING")
+        plotter = LocusZoomPlotter(species=None)
 
         with pytest.raises(ValueError, match="No SNPs from LD heatmap overlap"):
             plotter.plot(
@@ -350,7 +350,7 @@ class TestLDHeatmapIntegration:
     ):
         """Size the heatmap panel as ld_heatmap_height of the association panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig1 = plotter.plot(
             ld_heatmap_gwas_df,
@@ -382,7 +382,7 @@ class TestLDHeatmapIntegration:
     ):
         """Draw the highlight crosshair over the lead SNP's own heatmap column."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -408,7 +408,7 @@ class TestLDHeatmapIntegration:
     ):
         """Every backend stacks the heatmap as a second panel."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, backend=backend_name, log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend=backend_name)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -443,7 +443,7 @@ class TestLDHeatmapIntegration:
         )
         snp_ids = ["rs1", "rs2", "rs3", "rs4", "rs5"]
 
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         fig = plotter.plot(
             ld_heatmap_gwas_df,
@@ -465,7 +465,7 @@ class TestLDHeatmapIntegration:
     ):
         """Draw the heatmap unhighlighted when the lead SNP is not one of its SNPs."""
         ld_matrix, snp_ids = sample_ld_heatmap_data
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
 
         gwas_with_extra = ld_heatmap_gwas_df.copy()
         gwas_with_extra = pd.concat(
@@ -539,7 +539,7 @@ class TestRegionalHeatmapOutlineIsInGenomicCoordinates:
         return pd.DataFrame(values, index=ids, columns=ids)
 
     def _plot(self, backend, gwas_df, ld_matrix):
-        return LocusZoomPlotter(species=None, log_level=None, backend=backend).plot(
+        return LocusZoomPlotter(species=None, backend=backend).plot(
             gwas_df,
             chrom=1,
             start=self.START,
@@ -583,7 +583,7 @@ def test_regional_heatmap_sorts_coordinates_and_matrix_together():
         }
     )
     matrix = pd.DataFrame([[0.9, 0.1, 0.2], [0.1, 0.8, 0.3], [0.2, 0.3, 0.7]])
-    fig = LocusZoomPlotter(species=None, backend="bokeh", log_level=None).plot(
+    fig = LocusZoomPlotter(species=None, backend="bokeh").plot(
         frame,
         chrom=1,
         start=1,
@@ -611,7 +611,7 @@ def test_regional_heatmap_rejects_duplicate_genomic_coordinates():
         {"chr": 1, "pos": [150, 150], "p_value": [0.1, 0.01], "rs": ["a", "b"]}
     )
     with pytest.raises(ValueError, match="distinct genomic positions"):
-        LocusZoomPlotter(species=None, log_level=None).plot(
+        LocusZoomPlotter(species=None).plot(
             frame,
             chrom=1,
             start=100,
@@ -634,7 +634,7 @@ def test_heatmap_highlights_selected_variant_at_duplicate_source_position():
             "rs": ["weak", "strong", "other"],
         }
     )
-    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+    fig = LocusZoomPlotter(species=None).plot(
         frame,
         chrom=1,
         start=100,
@@ -664,7 +664,7 @@ def test_regional_colorbar_preserves_genomic_display_alignment(
             "rs": ["a", "b", "c"],
         }
     )
-    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+    fig = LocusZoomPlotter(species=None).plot(
         frame,
         chrom=1,
         start=1_000_000,

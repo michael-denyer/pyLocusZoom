@@ -57,7 +57,7 @@ class TestBackendForestPlotMethods:
 @pytest.fixture
 def regional_figure(backend_name, regional_gwas_df):
     """The single-panel regional figure the export tests inspect."""
-    plotter = LocusZoomPlotter(species="canine", backend=backend_name, log_level=None)
+    plotter = LocusZoomPlotter(species="canine", backend=backend_name)
     return plotter.plot(
         regional_gwas_df,
         chrom=1,
@@ -90,9 +90,7 @@ class TestNotebookExport:
 
     def test_stacked_figure_exports_the_same_way(self, backend_name, regional_gwas_df):
         """Two stacked panels export as one document, not two."""
-        plotter = LocusZoomPlotter(
-            species="canine", backend=backend_name, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", backend=backend_name)
         fig = plotter.plot_stacked(
             [regional_gwas_df, regional_gwas_df.copy()],
             chrom=1,
@@ -115,7 +113,7 @@ class TestPlotlyNotebookCompatibility:
 
     def test_plotly_figure_has_repr_html(self, regional_gwas_df):
         """Jupyter renders a plotly figure through _repr_html_()."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        plotter = LocusZoomPlotter(species="canine", backend="plotly")
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -131,7 +129,7 @@ class TestPlotlyNotebookCompatibility:
 
     def test_plotly_figure_has_data(self, regional_gwas_df):
         """Plotly figures must contain scatter data."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        plotter = LocusZoomPlotter(species="canine", backend="plotly")
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -154,7 +152,7 @@ class TestBokehNotebookCompatibility:
         """Bokeh should provide components for Databricks embedding."""
         from bokeh.embed import components
 
-        plotter = LocusZoomPlotter(species="canine", backend="bokeh", log_level=None)
+        plotter = LocusZoomPlotter(species="canine", backend="bokeh")
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -239,9 +237,7 @@ class TestBackendConsistency:
     @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
     def test_backend_returns_its_own_figure_type(self, backend_name, regional_gwas_df):
         """Each backend returns the figure type its library defines."""
-        plotter = LocusZoomPlotter(
-            species="canine", backend=backend_name, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", backend=backend_name)
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -261,9 +257,7 @@ class TestBackendConsistency:
         from pylocuszoom.exceptions import ValidationError
 
         empty_df = pd.DataFrame(columns=["rs", "chr", "pos", "p_value"])
-        plotter = LocusZoomPlotter(
-            species="canine", backend=backend_name, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", backend=backend_name)
         with pytest.raises(ValidationError, match="empty"):
             plotter.plot(
                 empty_df,
@@ -277,9 +271,7 @@ class TestBackendConsistency:
     def test_backend_marks_the_lead_position(self, backend_name, regional_gwas_df):
         """Each backend draws the lead marker at the lead_pos it is given."""
         lead = int(regional_gwas_df["pos"].iloc[50])
-        plotter = LocusZoomPlotter(
-            species="canine", backend=backend_name, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", backend=backend_name)
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -298,9 +290,7 @@ class TestBackendConsistency:
         df = regional_gwas_df.assign(
             R2=np.random.default_rng(0).uniform(0, 1, len(regional_gwas_df))
         )
-        plotter = LocusZoomPlotter(
-            species="canine", backend=backend_name, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", backend=backend_name)
         fig = plotter.plot(
             df,
             chrom=1,
@@ -351,7 +341,7 @@ def finemapping_figure(
 
 
 def _stacked(backend_name, gwas_df, genes_df, **panels):
-    plotter = LocusZoomPlotter(species="canine", backend=backend_name, log_level=None)
+    plotter = LocusZoomPlotter(species="canine", backend=backend_name)
     return plotter.plot_stacked(
         [gwas_df],
         chrom=1,
@@ -418,9 +408,7 @@ class TestGeneTrackMbFormatting:
 
         Regression test: gene track axis showed raw bp ticks while label said "Mb".
         """
-        plotter = LocusZoomPlotter(
-            species="canine", backend=backend_name, log_level=None
-        )
+        plotter = LocusZoomPlotter(species="canine", backend=backend_name)
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,
@@ -438,7 +426,7 @@ class TestGeneTrackMbFormatting:
         self, regional_gwas_df, sample_genes_df
     ):
         """Plotly writes fixed Mb ticks, so they must start at the region start."""
-        plotter = LocusZoomPlotter(species="canine", backend="plotly", log_level=None)
+        plotter = LocusZoomPlotter(species="canine", backend="plotly")
         fig = plotter.plot(
             regional_gwas_df,
             chrom=1,

@@ -809,14 +809,14 @@ download_canine_recombination_maps()
 
 ## Logging
 
-Logging uses [loguru](https://github.com/Delgan/loguru) and is configured via the `log_level` parameter (default: `"INFO"`):
+Logging uses [loguru](https://github.com/Delgan/loguru) and is off until you turn it on. Importing pyLocusZoom adds and removes no loguru handler, so your application's own logging is untouched. A gene track, recombination overlay or LD colouring the plot has to leave out is a `UserWarning`, not a log line, so you see it with logging off.
 
 ```python
-# Suppress logging
-plotter = LocusZoomPlotter(log_level=None)
+from pylocuszoom import disable_logging, enable_logging
 
-# Enable DEBUG level for troubleshooting
-plotter = LocusZoomPlotter(log_level="DEBUG")
+enable_logging()         # INFO and above to stderr
+enable_logging("DEBUG")  # for troubleshooting
+disable_logging()        # silent again
 ```
 
 ## Requirements

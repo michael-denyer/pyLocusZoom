@@ -44,7 +44,7 @@ from .exceptions import (
     ValidationError,
 )
 from .ld import find_plink
-from .logging import enable_logging, logger
+from .logging import logger
 from .panels import (
     AssociationPanel,
     EqtlPanel,
@@ -164,8 +164,6 @@ class LocusZoomPlotter:
         recomb_data_dir: Directory containing recombination maps.
             Uses platform cache if None.
         genomewide_threshold: P-value threshold for significance line.
-        log_level: Logging level ("DEBUG", "INFO", "WARNING", "ERROR", or None
-            to disable). Defaults to "INFO".
 
     Example:
         >>> # Static plot (default)
@@ -194,13 +192,9 @@ class LocusZoomPlotter:
         plink_path: Optional[str] = None,
         recomb_data_dir: Optional[str] = None,
         genomewide_threshold: float = DEFAULT_GENOMEWIDE_THRESHOLD,
-        log_level: Optional[str] = "INFO",
         auto_genes: bool = False,
     ):
         """Initialize the plotter."""
-        if log_level is not None:
-            enable_logging(log_level)
-
         self.species = resolve_species(species)
         self.genome_build = genome_build or (
             self.species.default_build if self.species else None

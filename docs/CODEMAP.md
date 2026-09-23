@@ -289,7 +289,7 @@ implementing the methods and out by omitting them; see
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
 | 5a | PyLocusZoomError | Exception hierarchy root | [exceptions.py](../src/pylocuszoom/exceptions.py) |
-| 5b | enable_logging | Loguru/stdlib logging facade | [logging.py](../src/pylocuszoom/logging.py) |
+| 5b | enable_logging, disable_logging | The one switch for the package's loguru records, which import leaves disabled without touching the host's handlers | [logging.py](../src/pylocuszoom/logging.py) |
 | 5c | to_pandas | PySpark → pandas bridge, called by every public plot method on the frames it is given | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom_series | Column-level chromosome normaliser | [utils.py](../src/pylocuszoom/utils.py) |
@@ -613,8 +613,8 @@ two tiers, core and toolbox, tabulated under
 
 | Name | Purpose |
 |------|---------|
-| `disable_logging` | Disable logging output. |
-| `enable_logging` | Enable logging output. |
+| `disable_logging` | Silence pyLocusZoom's records and remove the sink enable_logging added. |
+| `enable_logging` | Send pyLocusZoom's records at a level and above to a sink. |
 
 ### Utilities
 

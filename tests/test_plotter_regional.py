@@ -47,7 +47,7 @@ def test_region_selects_points_and_scale_before_drawing(backend):
         }
     )
     original = frame.copy(deep=True)
-    plotter = LocusZoomPlotter(species=None, backend=backend, log_level=None)
+    plotter = LocusZoomPlotter(species=None, backend=backend)
     fig = plotter.plot(frame, chrom=1, start=100, end=200, display=DISPLAY)
     points, maximum = points_and_limit(fig, backend)
     assert points == [[150, 2.0]]
@@ -72,7 +72,7 @@ def test_ld_lead_comes_from_selected_chromosome():
         return pd.DataFrame({"SNP": ["wanted"], "R2": [1.0]})
 
     with patch("pylocuszoom._ld_plotting.calculate_ld", side_effect=calculate):
-        LocusZoomPlotter(species=None, log_level=None).plot(
+        LocusZoomPlotter(species=None).plot(
             frame,
             chrom=1,
             start=100,
@@ -86,7 +86,7 @@ def test_ld_lead_comes_from_selected_chromosome():
 @pytest.mark.parametrize("override, expected", [(None, 150), ([175], 175)])
 def test_stacked_resolves_shared_lead_and_per_panel_override(override, expected):
     frame = pd.DataFrame({"chr": 1, "pos": [150, 175], "p_value": [0.01, 1e-8]})
-    fig = LocusZoomPlotter(species=None, backend="plotly", log_level=None).plot_stacked(
+    fig = LocusZoomPlotter(species=None, backend="plotly").plot_stacked(
         [frame],
         chrom=1,
         start=100,
@@ -102,7 +102,7 @@ def test_stacked_resolves_shared_lead_and_per_panel_override(override, expected)
 def test_stacked_rejects_invalid_lead_positions(lead):
     frame = pd.DataFrame({"pos": [150], "p_value": [0.01]})
     with pytest.raises(ValueError, match="greater than or equal to 1"):
-        LocusZoomPlotter(species=None, log_level=None).plot_stacked(
+        LocusZoomPlotter(species=None).plot_stacked(
             [frame], chrom=1, start=100, end=200, display=DISPLAY, lead_positions=[lead]
         )
 
@@ -111,7 +111,7 @@ def test_duplicate_index_does_not_make_lead_ambiguous():
     frame = pd.DataFrame(
         {"chr": 1, "pos": [150, 175], "p_value": [0.01, 1e-8]}, index=[0, 0]
     )
-    fig = LocusZoomPlotter(species=None, backend="plotly", log_level=None).plot(
+    fig = LocusZoomPlotter(species=None, backend="plotly").plot(
         frame, chrom=1, start=100, end=200, display=DISPLAY, columns=ColumnConfig()
     )
     assert list(fig.data[-1].x) == [175]
@@ -134,9 +134,7 @@ def test_duplicate_positions_use_one_strongest_lead_row(lead_positions):
         return pd.DataFrame({"SNP": ["weak", "strong"], "R2": [0.2, 1.0]})
 
     with patch("pylocuszoom._ld_plotting.calculate_ld", side_effect=calculate):
-        fig = LocusZoomPlotter(
-            species=None, backend="plotly", log_level=None
-        ).plot_stacked(
+        fig = LocusZoomPlotter(species=None, backend="plotly").plot_stacked(
             [frame],
             chrom=1,
             start=100,
@@ -158,7 +156,7 @@ def test_duplicate_positions_use_one_strongest_lead_row(lead_positions):
 
 def test_requested_lead_missing_from_region_warns(warning_records):
     frame = pd.DataFrame({"chr": 1, "pos": [150], "p_value": [0.1], "rs": ["other"]})
-    fig = LocusZoomPlotter(species=None, backend="plotly", log_level=None).plot(
+    fig = LocusZoomPlotter(species=None, backend="plotly").plot(
         frame,
         chrom=1,
         start=100,
@@ -174,7 +172,7 @@ def test_same_position_nonlead_variant_is_excluded_from_lead_labels():
     frame = pd.DataFrame(
         {"chr": 1, "pos": [150, 150], "p_value": [0.1, 1e-8], "rs": ["weak", "strong"]}
     )
-    fig = LocusZoomPlotter(species=None, log_level=None).plot(
+    fig = LocusZoomPlotter(species=None).plot(
         frame,
         chrom=1,
         start=100,
@@ -344,7 +342,7 @@ class TestFloatChromosomeColumn:
                 "rs": ["a", "b", "c"],
             }
         )
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
 
         fig = plotter.plot(
             df,
@@ -363,7 +361,7 @@ class TestSnpIdColumn:
     FRAME = pd.DataFrame({"chr": [1, 1], "pos": [1500, 1600], "p_value": [1e-3, 1e-9]})
 
     def test_default_rs_column_absent_draws_without_labels(self):
-        fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        fig = LocusZoomPlotter(species=None).plot(
             self.FRAME,
             chrom=1,
             start=1000,
@@ -376,7 +374,7 @@ class TestSnpIdColumn:
 
     def test_named_rs_column_absent_raises(self):
         with pytest.raises(ValidationError, match="rs_col='snp'"):
-            LocusZoomPlotter(species=None, log_level=None).plot(
+            LocusZoomPlotter(species=None).plot(
                 self.FRAME,
                 chrom=1,
                 start=1000,
@@ -400,7 +398,7 @@ class TestChromosomeColumn:
 
     @pytest.mark.parametrize("method", ["plot", "plot_stacked"])
     def test_missing_chromosome_column_raises(self, method):
-        plotter = LocusZoomPlotter(species=None, log_level=None)
+        plotter = LocusZoomPlotter(species=None)
         frame = self.FRAME if method == "plot" else [self.FRAME]
 
         with pytest.raises(ValidationError, match="'chr'"):
@@ -409,7 +407,7 @@ class TestChromosomeColumn:
             )
 
     def test_named_chromosome_column_selects_the_region_chromosome(self):
-        fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        fig = LocusZoomPlotter(species=None).plot(
             self.FRAME,
             chrom=1,
             start=1000,
@@ -421,7 +419,7 @@ class TestChromosomeColumn:
         assert set(PROBES["matplotlib"].marker_x(fig)) == {1500.0}
 
     def test_chrom_col_none_selects_by_position_only(self):
-        fig = LocusZoomPlotter(species=None, log_level=None).plot(
+        fig = LocusZoomPlotter(species=None).plot(
             self.FRAME.drop(columns="chrom"),
             chrom=1,
             start=1000,
@@ -565,7 +563,7 @@ class TestLeadPosBoundary:
         The SNP at 1 is not the strongest, so a falsy check that dropped the
         lead to None would move the marker to the auto-detected hit.
         """
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
         gwas_df = pd.DataFrame(
             {
                 "chr": 1,
@@ -589,7 +587,7 @@ class TestLeadPosBoundary:
 
     def test_lead_pos_zero_rejected_at_api(self):
         """Public API enforces genomic coords are 1-based; lead_pos=0 rejected."""
-        plotter = LocusZoomPlotter(species="canine", log_level=None)
+        plotter = LocusZoomPlotter(species="canine")
         gwas_df = pd.DataFrame(
             {
                 "rs": ["rs1", "rs2"],

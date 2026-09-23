@@ -272,9 +272,7 @@ class TestPlotAcrossBuilds:
 
     @pytest.fixture
     def plotter(self):
-        return LocusZoomPlotter(
-            species="canine", genome_build="canfam4", log_level=None
-        )
+        return LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     @pytest.fixture
     def source_gwas_df(self):
@@ -444,7 +442,6 @@ class TestPlotAcrossBuilds:
             species="canine",
             genome_build="canfam4",
             recomb_data_dir=str(maps),
-            log_level=None,
         )
 
         def overlay_positions(lift_recombination):

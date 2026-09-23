@@ -279,7 +279,7 @@ class TestPlotterDelegation:
         a change to the internal dispatch path cannot break this test without
         changing what the reader sees.
         """
-        plotter = LocusZoomPlotter(species=None, backend="matplotlib", log_level=None)
+        plotter = LocusZoomPlotter(species=None, backend="matplotlib")
 
         gwas_df = pd.DataFrame(
             {"chr": 1, "pos": [1000, 2000], "p_value": [0.01, 0.001]}
