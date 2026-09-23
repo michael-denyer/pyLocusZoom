@@ -8,12 +8,12 @@ from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom.config import ColumnConfig, DisplayConfig, RegionConfig
 from pylocuszoom.panels import (
+    AssociationInput,
     AssociationPanel,
     EqtlPanel,
     FinemappingPanel,
     GenePanel,
     HeatmapPanel,
-    hover_for_association,
 )
 from tests.test_rendering_contract import RecordingBackend
 
@@ -30,24 +30,27 @@ def _gwas():
     )
 
 
-def _association(**overrides):
-    fields = dict(
-        data=prepare_pvalue_data(_gwas(), "p_value", "regional"),
-        region=REGION,
-        height=4.0,
+def _association(*, data=None, ld_col=None, rs_col="rs", label=None, is_top=False):
+    request = AssociationInput(
+        data=prepare_pvalue_data(_gwas(), "p_value", "regional")
+        if data is None
+        else data,
         columns=ColumnConfig(),
-        display=DisplayConfig(snp_labels=False),
-        genomewide_threshold=5e-8,
-        ld_col=None,
+        rs_col=rs_col,
+        ld_col=ld_col,
+        ld_reference_file=None,
         lead_index=1,
+        label=label,
+    )
+    return AssociationPanel.from_input(
+        request,
+        region=REGION,
+        display=DisplayConfig(snp_labels=False),
+        threshold=5e-8,
+        height=4.0,
         recomb_df=None,
+        is_top=is_top,
     )
-    fields.update(overrides)
-    fields.setdefault(
-        "hover",
-        hover_for_association(fields["columns"], "rs", fields["ld_col"]),
-    )
-    return AssociationPanel(**fields)
 
 
 def _render(panel, backend=None):
@@ -74,9 +77,7 @@ def test_association_panel_label_and_ld_legend():
         R2=[1.0, 0.5, 0.1]
     )
     names = _names(
-        _render(
-            _association(data=data, ld_col="R2", panel_label="A", add_ld_legend=True)
-        )
+        _render(_association(data=data, ld_col="R2", label="A", is_top=True))
     )
 
     assert "add_panel_label" in names
@@ -193,7 +194,7 @@ def test_heatmap_panel_from_matrix_raises_without_overlap():
 
 def test_heatmap_panel_from_matrix_raises_without_snp_id_column():
     ids = ["rs1", "rs2"]
-    source = _association(hover=hover_for_association(ColumnConfig(), None, None))
+    source = _association(rs_col=None)
 
     with pytest.raises(ValueError, match="not in GWAS data"):
         HeatmapPanel.from_matrix(

@@ -12,7 +12,7 @@ other families have one caller each and are imported from their own module.
 
 from typing import Union
 
-from .association import AssociationPanel, hover_for_association
+from .association import AssociationInput, AssociationPanel
 from .eqtl import EqtlPanel
 from .finemapping import FinemappingPanel
 from .genes import GenePanel
@@ -27,11 +27,11 @@ RegionalPanel = Union[
 ]
 
 __all__ = [
+    "AssociationInput",
     "AssociationPanel",
     "EqtlPanel",
     "FinemappingPanel",
     "GenePanel",
     "HeatmapPanel",
     "RegionalPanel",
-    "hover_for_association",
 ]
