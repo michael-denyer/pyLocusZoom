@@ -152,7 +152,10 @@ Every frame field also accepts a PySpark DataFrame, collected with
   `lead_positions`, `panel_labels`, and `ld_reference_files` fields for
   multi-panel plots. Each list, when set, must hold exactly `n_panels`
   entries.
-- `ColocConfig` covers colocalisation-specific options.
+- `ColocConfig` is the value `plot_coloc(gwas_df, eqtl_df, config=...)` takes:
+  the column names of both frames, the lead SNP, effect or LD colouring, the
+  correlation and H4 annotations, and the figure size. The two thresholds are
+  per-call arguments of `plot_coloc`, not config fields.
 
 All config models are `frozen=True` — construct a new instance rather than
 mutating an existing one.

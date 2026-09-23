@@ -4,7 +4,7 @@ Creates scatter plots comparing GWAS -log10(p) vs eQTL -log10(p)
 with points colored by LD to the lead SNP.
 """
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 from ._figure import FigurePlan, render_figure
 from ._plotter_utils import (
@@ -16,8 +16,8 @@ from ._plotter_utils import (
 )
 from .backends import BackendType, get_backend
 from .config import ColocConfig
+from .exceptions import ValidationError
 from .panels.coloc import ColocPanel
-from .schemas import Canonical
 from .utils import DataFrameLike, to_pandas
 
 
@@ -39,7 +39,9 @@ class ColocPlotter:
 
     Example:
         >>> plotter = ColocPlotter()
-        >>> fig = plotter.plot_coloc(gwas_df, eqtl_df, lead_snp="rs12345")
+        >>> fig = plotter.plot_coloc(
+        ...     gwas_df, eqtl_df, config=ColocConfig(lead_snp="rs12345")
+        ... )
         >>> fig.savefig("coloc.png", dpi=150)
     """
 
@@ -58,20 +60,10 @@ class ColocPlotter:
         self,
         gwas_df: DataFrameLike,
         eqtl_df: DataFrameLike,
-        pos_col: str = Canonical.POS,
-        gwas_p_col: str = "p_gwas",
-        eqtl_p_col: str = "p_eqtl",
-        rs_col: Optional[str] = Canonical.RS,
-        ld_col: Optional[str] = None,
-        lead_snp: Optional[str] = None,
+        *,
+        config: ColocConfig = ColocConfig(),
         gwas_threshold: ThresholdArg = UNSET,
         eqtl_threshold: ThresholdArg = UNSET,
-        show_correlation: bool = True,
-        color_by_effect: bool = False,
-        gwas_effect_col: Optional[str] = None,
-        eqtl_effect_col: Optional[str] = None,
-        h4_posterior: Optional[float] = None,
-        figsize: Tuple[float, float] = (8.0, 8.0),
         title: Optional[str] = None,
     ) -> Any:
         """Create GWAS-eQTL colocalization scatter plot.
@@ -79,76 +71,53 @@ class ColocPlotter:
         Args:
             gwas_df: GWAS results DataFrame with positions and p-values.
             eqtl_df: eQTL results DataFrame with positions and p-values.
-            pos_col: Column name for genomic positions (must exist in both).
-            gwas_p_col: Column name for GWAS p-values.
-            eqtl_p_col: Column name for eQTL p-values.
-            rs_col: Column name for SNP IDs in ``gwas_df``, for ``lead_snp``.
-                The default ``"rs"`` may be absent; any other name must be a
-                column of ``gwas_df``.
-            ld_col: Column name for LD R² values in GWAS df (optional).
-            lead_snp: SNP ID to highlight as lead variant. If None and ld_col
-                is provided, auto-selects SNP with highest combined -log10(p).
+            config: :class:`~pylocuszoom.ColocConfig` naming the columns of
+                both frames, the lead SNP, the colouring and annotations, and
+                the figure size.
             gwas_threshold: Significance threshold for the GWAS line. Defaults
                 to the plotter's ``genomewide_threshold``; pass None to draw no
                 line.
             eqtl_threshold: Significance threshold for the eQTL line. Defaults
                 to the plotter's ``eqtl_threshold``; pass None to draw no line.
-            show_correlation: Whether to display Pearson correlation.
-            color_by_effect: Whether to color points by effect direction agreement.
-            gwas_effect_col: Column name for GWAS effect sizes (required if
-                color_by_effect=True).
-            eqtl_effect_col: Column name for eQTL effect sizes (required if
-                color_by_effect=True).
-            h4_posterior: Optional COLOC H4 posterior probability to display.
-            figsize: Figure size as (width, height).
             title: Plot title.
 
         Returns:
             Figure object (type depends on backend).
 
         Raises:
-            ValidationError: If required columns are missing or invalid, no
-                position is in both frames, ``lead_snp`` is not found,
-                ``color_by_effect=True`` lacks its effect columns, or
-                ``h4_posterior`` is outside [0, 1].
+            ValidationError: If required or named columns are missing or
+                invalid, no position is in both frames, ``config.lead_snp``
+                is not found, or a threshold is outside (0, 1].
 
         Example:
+            >>> from pylocuszoom import ColocConfig
             >>> fig = plotter.plot_coloc(
-            ...     gwas_df, eqtl_df,
-            ...     ld_col="ld", lead_snp="rs12345",
+            ...     gwas_df,
+            ...     eqtl_df,
+            ...     config=ColocConfig(ld_col="ld", lead_snp="rs12345"),
             ... )
             >>> # With effect coloring
             >>> fig = plotter.plot_coloc(
-            ...     gwas_df, eqtl_df,
-            ...     color_by_effect=True,
-            ...     gwas_effect_col="beta_gwas",
-            ...     eqtl_effect_col="beta_eqtl",
+            ...     gwas_df,
+            ...     eqtl_df,
+            ...     config=ColocConfig(
+            ...         color_by_effect=True,
+            ...         gwas_effect_col="beta_gwas",
+            ...         eqtl_effect_col="beta_eqtl",
+            ...     ),
             ... )
         """
-        gwas_df, eqtl_df = to_pandas(gwas_df), to_pandas(eqtl_df)
-        config = ColocConfig(
-            pos_col=pos_col,
-            gwas_p_col=gwas_p_col,
-            eqtl_p_col=eqtl_p_col,
-            rs_col=rs_col,
-            ld_col=ld_col,
-            lead_snp=lead_snp,
-            gwas_threshold=resolve_threshold(gwas_threshold, self.genomewide_threshold),
-            eqtl_threshold=resolve_threshold(eqtl_threshold, self.eqtl_threshold),
-            show_correlation=show_correlation,
-            color_by_effect=color_by_effect,
-            gwas_effect_col=gwas_effect_col,
-            eqtl_effect_col=eqtl_effect_col,
-            h4_posterior=h4_posterior,
-            figsize=figsize,
-        )
+        thresholds = {
+            "gwas_threshold": resolve_threshold(
+                gwas_threshold, self.genomewide_threshold
+            ),
+            "eqtl_threshold": resolve_threshold(eqtl_threshold, self.eqtl_threshold),
+        }
+        for name, value in thresholds.items():
+            if value is not None and not 0 < value <= 1:
+                raise ValidationError(f"{name} must be in (0, 1], got {value}")
         panel = ColocPanel.from_frames(
-            gwas_df,
-            eqtl_df,
-            config,
-            gwas_threshold=config.gwas_threshold,
-            eqtl_threshold=config.eqtl_threshold,
-            title=title,
+            to_pandas(gwas_df), to_pandas(eqtl_df), config, title=title, **thresholds
         )
         return render_figure(
             self._backend, FigurePlan(panels=[panel], figsize=config.figsize)

@@ -531,8 +531,6 @@ class TestColocConfig:
         assert config.rs_col == "rs"
         assert config.ld_col is None
         assert config.lead_snp is None
-        assert config.gwas_threshold == 5e-8
-        assert config.eqtl_threshold == 1e-5
         assert config.show_correlation is True
         assert config.color_by_effect is False
         assert config.gwas_effect_col is None
@@ -540,23 +538,12 @@ class TestColocConfig:
         assert config.h4_posterior is None
         assert config.figsize == (8.0, 8.0)
 
-    def test_threshold_validation(self):
-        """Test that invalid thresholds raise ValidationError."""
+    def test_thresholds_are_not_config_fields(self):
+        """Thresholds are passed per call to plot_coloc, as in every family."""
         from pylocuszoom.config import ColocConfig
 
-        # Threshold must be > 0
         with pytest.raises(ValidationError, match="gwas_threshold"):
-            ColocConfig(gwas_threshold=0)
-
-        with pytest.raises(ValidationError, match="gwas_threshold"):
-            ColocConfig(gwas_threshold=-1e-8)
-
-        # Threshold must be <= 1
-        with pytest.raises(ValidationError, match="gwas_threshold"):
-            ColocConfig(gwas_threshold=1.5)
-
-        with pytest.raises(ValidationError, match="eqtl_threshold"):
-            ColocConfig(eqtl_threshold=0)
+            ColocConfig(gwas_threshold=1e-5)
 
     def test_h4_posterior_range(self):
         """Test that h4_posterior must be in [0, 1]."""
@@ -631,8 +618,6 @@ class TestColocConfig:
             rs_col="snp_id",
             ld_col="r2",
             lead_snp="rs12345",
-            gwas_threshold=1e-5,
-            eqtl_threshold=1e-3,
             show_correlation=False,
             figsize=(10.0, 10.0),
         )
@@ -642,8 +627,6 @@ class TestColocConfig:
         assert config.rs_col == "snp_id"
         assert config.ld_col == "r2"
         assert config.lead_snp == "rs12345"
-        assert config.gwas_threshold == 1e-5
-        assert config.eqtl_threshold == 1e-3
         assert config.show_correlation is False
         assert config.figsize == (10.0, 10.0)
 

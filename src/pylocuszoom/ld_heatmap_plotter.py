@@ -47,6 +47,7 @@ class LDHeatmapPlotter:
         self,
         ld_matrix: Union[pd.DataFrame, np.ndarray],
         snp_ids: Optional[List[str]] = None,
+        *,
         lead_snp: Optional[str] = None,
         highlight_snps: Optional[List[str]] = None,
         metric: LDMetric = "r2",

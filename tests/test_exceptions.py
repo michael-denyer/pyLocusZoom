@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 import pylocuszoom
+from pylocuszoom import ColocConfig
 from pylocuszoom.exceptions import (
     DataDownloadError,
     EmptyLDOutputError,
@@ -191,12 +192,16 @@ INPUT_ERRORS = [
         id="coloc without overlap",
     ),
     pytest.param(
-        lambda: pylocuszoom.ColocPlotter().plot_coloc(_COLOC, _COLOC, ld_col="r2"),
+        lambda: pylocuszoom.ColocPlotter().plot_coloc(
+            _COLOC, _COLOC, config=ColocConfig(ld_col="r2")
+        ),
         "r2",
         id="coloc missing ld column",
     ),
     pytest.param(
-        lambda: pylocuszoom.ColocPlotter().plot_coloc(_COLOC, _COLOC, lead_snp="c"),
+        lambda: pylocuszoom.ColocPlotter().plot_coloc(
+            _COLOC, _COLOC, config=ColocConfig(lead_snp="c")
+        ),
         "lead_snp",
         id="coloc lead_snp not found",
     ),

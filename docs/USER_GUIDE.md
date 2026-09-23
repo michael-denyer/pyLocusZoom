@@ -310,7 +310,7 @@ Visualize GWAS-eQTL colocalization by comparing association signals in a scatter
 ![Colocalization plot](../examples/matplotlib/colocalization_plot.png)
 
 ```python
-from pylocuszoom import ColocPlotter
+from pylocuszoom import ColocConfig, ColocPlotter
 import pandas as pd
 
 # GWAS data with position and p-value
@@ -328,12 +328,10 @@ eqtl_df = pd.DataFrame({
 
 plotter = ColocPlotter()
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",  # Optional: color by LD
+    gwas_df,
+    eqtl_df,
+    # ld_col is optional: it colours the points by LD
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
 )
 fig.savefig("colocalization.png", dpi=150)
 ```
@@ -367,15 +365,17 @@ eqtl_df = pd.DataFrame({
 })
 
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    gwas_effect_col="beta",
-    eqtl_effect_col="slope",
-    color_by_effect=True,  # Green=same direction, Red=opposite
-    h4_posterior=0.85,  # Display coloc H4 posterior probability
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(
+        pos_col="pos",
+        gwas_p_col="p",
+        eqtl_p_col="p",
+        gwas_effect_col="beta",
+        eqtl_effect_col="slope",
+        color_by_effect=True,  # Green=same direction, Red=opposite
+        h4_posterior=0.85,  # Display coloc H4 posterior probability
+    ),
 )
 ```
 
@@ -383,13 +383,10 @@ fig = plotter.plot_coloc(
 
 ```python
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
-    # Significance thresholds
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
+    # Significance thresholds, per call; None draws no line
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
 )
@@ -398,16 +395,13 @@ fig = plotter.plot_coloc(
 **Interactive Plotly backend:**
 
 ```python
-from pylocuszoom import ColocPlotter
+from pylocuszoom import ColocConfig, ColocPlotter
 
 plotter = ColocPlotter(backend="plotly")
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
 )
 
 # Save as interactive HTML

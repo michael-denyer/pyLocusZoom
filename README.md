@@ -404,7 +404,7 @@ fig = plotter.plot(
 Visualize GWAS-eQTL colocalization by comparing association signals in a scatter plot with LD coloring:
 
 ```python
-from pylocuszoom import ColocPlotter
+from pylocuszoom import ColocConfig, ColocPlotter
 
 # GWAS and eQTL data with matching positions
 gwas_df = pd.DataFrame({
@@ -420,12 +420,9 @@ eqtl_df = pd.DataFrame({
 
 plotter = ColocPlotter()
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    ld_col="ld_r2",
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
     gwas_threshold=5e-8,
     eqtl_threshold=1e-5,
 )
@@ -439,15 +436,17 @@ fig.savefig("colocalization.png", dpi=150)
 
 ```python
 fig = plotter.plot_coloc(
-    gwas_df=gwas_df,
-    eqtl_df=eqtl_df,
-    pos_col="pos",
-    gwas_p_col="p",
-    eqtl_p_col="p",
-    gwas_effect_col="beta",
-    eqtl_effect_col="slope",
-    color_by_effect=True,  # Green=congruent, Red=incongruent
-    h4_posterior=0.85,     # Display coloc H4 probability
+    gwas_df,
+    eqtl_df,
+    config=ColocConfig(
+        pos_col="pos",
+        gwas_p_col="p",
+        eqtl_p_col="p",
+        gwas_effect_col="beta",
+        eqtl_effect_col="slope",
+        color_by_effect=True,  # Green=congruent, Red=incongruent
+        h4_posterior=0.85,  # Display coloc H4 probability
+    ),
 )
 ```
 

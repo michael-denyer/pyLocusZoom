@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from matplotlib.colors import to_hex
 
-from pylocuszoom import ValidationError
+from pylocuszoom import ColocConfig, ValidationError
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.coloc_plotter import ColocPlotter
 from pylocuszoom.colors import LEAD_SNP_COLOR
@@ -99,7 +99,9 @@ class TestPlotColoc:
         plotter = ColocPlotter()
 
         fig = plotter.plot_coloc(
-            gwas_data_with_ld, eqtl_data, ld_col="ld", lead_snp="rs1"
+            gwas_data_with_ld,
+            eqtl_data,
+            config=ColocConfig(ld_col="ld", lead_snp="rs1"),
         )
 
         others = fig.get_axes()[0].collections[0]
@@ -115,7 +117,9 @@ class TestPlotColoc:
         plotter = ColocPlotter()
 
         fig = plotter.plot_coloc(
-            gwas_data_with_ld, eqtl_data, ld_col="ld", lead_snp="rs1"
+            gwas_data_with_ld,
+            eqtl_data,
+            config=ColocConfig(ld_col="ld", lead_snp="rs1"),
         )
 
         lead = fig.get_axes()[0].collections[1]
@@ -130,7 +134,9 @@ class TestPlotColoc:
 
         plotter = ColocPlotter()
 
-        fig = plotter.plot_coloc(gwas_data_with_ld, eqtl_data, ld_col="ld")
+        fig = plotter.plot_coloc(
+            gwas_data_with_ld, eqtl_data, config=ColocConfig(ld_col="ld")
+        )
 
         ax = fig.get_axes()[0]
         lead = ax.collections[1]
@@ -184,7 +190,9 @@ class TestPlotColoc:
 
         plotter = ColocPlotter()
 
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, show_correlation=True)
+        fig = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, config=ColocConfig(show_correlation=True)
+        )
 
         correlations = [t for t in _texts(fig.get_axes()[0]) if t.startswith("r = ")]
         assert len(correlations) == 1
@@ -210,7 +218,9 @@ class TestPlotColoc:
         )
         plotter = ColocPlotter()
 
-        fig = plotter.plot_coloc(gwas_small, eqtl_small, show_correlation=True)
+        fig = plotter.plot_coloc(
+            gwas_small, eqtl_small, config=ColocConfig(show_correlation=True)
+        )
 
         assert not [t for t in _texts(fig.get_axes()[0]) if t.startswith("r = ")]
 
@@ -221,7 +231,9 @@ class TestPlotColoc:
 
         plotter = ColocPlotter()
 
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, ld_col=None)
+        fig = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, config=ColocConfig(ld_col=None)
+        )
 
         points = fig.get_axes()[0].collections[0]
         assert _face_hexes(points) == [to_hex(LD_NA_COLOR)] * len(coloc_gwas_df)
@@ -255,10 +267,12 @@ class TestPlotColoc:
         fig = plotter.plot_coloc(
             gwas_custom,
             eqtl_custom,
-            pos_col="position",
-            gwas_p_col="pval",
-            eqtl_p_col="pval_eqtl",
-            rs_col="snp_id",
+            config=ColocConfig(
+                pos_col="position",
+                gwas_p_col="pval",
+                eqtl_p_col="pval_eqtl",
+                rs_col="snp_id",
+            ),
         )
         expected = plotter.plot_coloc(gwas_default, eqtl_default)
 
@@ -272,7 +286,9 @@ class TestPlotColoc:
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter()
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, figsize=(10, 10))
+        fig = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, config=ColocConfig(figsize=(10, 10))
+        )
         width, height = fig.get_size_inches()
         assert width == 10
         assert height == 10
@@ -291,6 +307,22 @@ class TestPlotColoc:
 
 class TestColocPlotterValidation:
     """Tests for ColocPlotter validation."""
+
+    def test_options_are_keyword_only(self, coloc_gwas_df, eqtl_data):
+        """Only the two frames are positional; the config is named."""
+        with pytest.raises(TypeError):
+            ColocPlotter().plot_coloc(coloc_gwas_df, eqtl_data, ColocConfig())
+
+    @pytest.mark.parametrize(
+        "name, value",
+        [("gwas_threshold", 0), ("gwas_threshold", 1.5), ("eqtl_threshold", -1e-8)],
+    )
+    def test_a_threshold_outside_the_unit_interval_raises(
+        self, coloc_gwas_df, eqtl_data, name, value
+    ):
+        """A per-call threshold must be a p-value in (0, 1]."""
+        with pytest.raises(ValidationError, match=name):
+            ColocPlotter().plot_coloc(coloc_gwas_df, eqtl_data, **{name: value})
 
     def test_empty_merge_raises_error(self):
         """Test that no overlapping positions raises ValueError."""
@@ -374,7 +406,9 @@ class TestColocSnpIdColumn:
 
     def test_named_rs_column_absent_raises(self):
         with pytest.raises(ValidationError, match="rs_col='snp'"):
-            ColocPlotter().plot_coloc(self.FRAME, self.FRAME, rs_col="snp")
+            ColocPlotter().plot_coloc(
+                self.FRAME, self.FRAME, config=ColocConfig(rs_col="snp")
+            )
 
 
 class TestColocPlotterBackends:
@@ -399,7 +433,9 @@ class TestColocPlotterBackends:
 
         plotter = ColocPlotter(backend="matplotlib")
         fig = plotter.plot_coloc(
-            gwas_data_with_ld, eqtl_data, ld_col="ld", lead_snp="rs1"
+            gwas_data_with_ld,
+            eqtl_data,
+            config=ColocConfig(ld_col="ld", lead_snp="rs1"),
         )
         # Legend should be present
         axes = fig.get_axes()
@@ -470,8 +506,7 @@ class TestColocPlotterEdgeCases:
             plotter.plot_coloc(
                 gwas_data_with_ld,
                 eqtl_data,
-                ld_col="ld",
-                lead_snp="invalid_rs",
+                config=ColocConfig(ld_col="ld", lead_snp="invalid_rs"),
             )
 
 
@@ -528,9 +563,11 @@ class TestEffectDirectionColoring:
         fig = plotter.plot_coloc(
             gwas_data_with_effects,
             eqtl_data_with_effects,
-            color_by_effect=True,
-            gwas_effect_col="beta_gwas",
-            eqtl_effect_col="beta_eqtl",
+            config=ColocConfig(
+                color_by_effect=True,
+                gwas_effect_col="beta_gwas",
+                eqtl_effect_col="beta_eqtl",
+            ),
         )
 
         congruent, incongruent = (
@@ -574,9 +611,7 @@ class TestEffectDirectionColoring:
         # Missing both columns
         with pytest.raises(ValueError, match="color_by_effect.*requires"):
             plotter.plot_coloc(
-                coloc_gwas_df,
-                eqtl_data,
-                color_by_effect=True,
+                coloc_gwas_df, eqtl_data, config=ColocConfig(color_by_effect=True)
             )
 
         # Missing eqtl_effect_col
@@ -584,8 +619,7 @@ class TestEffectDirectionColoring:
             plotter.plot_coloc(
                 coloc_gwas_df,
                 eqtl_data,
-                color_by_effect=True,
-                gwas_effect_col="beta_gwas",
+                config=ColocConfig(color_by_effect=True, gwas_effect_col="beta_gwas"),
             )
 
     def test_effect_nan_handled(self):
@@ -610,9 +644,11 @@ class TestEffectDirectionColoring:
         fig = plotter.plot_coloc(
             gwas_data_with_effects,
             eqtl_data_with_effects,
-            color_by_effect=True,
-            gwas_effect_col="beta_gwas",
-            eqtl_effect_col="beta_eqtl",
+            config=ColocConfig(
+                color_by_effect=True,
+                gwas_effect_col="beta_gwas",
+                eqtl_effect_col="beta_eqtl",
+            ),
         )
         # Check that legend exists on axis
         axes = fig.get_axes()
@@ -640,9 +676,11 @@ class TestEffectDirectionColoring:
             plotter.plot_coloc(
                 gwas_data_with_effects,
                 eqtl_data_with_effects,
-                color_by_effect=True,
-                gwas_effect_col="wrong_col",
-                eqtl_effect_col="beta_eqtl",
+                config=ColocConfig(
+                    color_by_effect=True,
+                    gwas_effect_col="wrong_col",
+                    eqtl_effect_col="beta_eqtl",
+                ),
             )
 
 
@@ -657,18 +695,24 @@ class TestH4PosteriorDisplay:
 
         # Invalid: < 0
         with pytest.raises(ValueError, match="h4_posterior"):
-            plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=-0.1)
+            plotter.plot_coloc(
+                coloc_gwas_df, eqtl_data, config=ColocConfig(h4_posterior=-0.1)
+            )
 
         # Invalid: > 1
         with pytest.raises(ValueError, match="h4_posterior"):
-            plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=1.5)
+            plotter.plot_coloc(
+                coloc_gwas_df, eqtl_data, config=ColocConfig(h4_posterior=1.5)
+            )
 
     def test_h4_formatting(self, coloc_gwas_df, eqtl_data):
         """Test H4 is formatted to 3 decimal places."""
         from pylocuszoom.coloc_plotter import ColocPlotter
 
         plotter = ColocPlotter(backend="matplotlib")
-        fig = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0.95123456)
+        fig = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, config=ColocConfig(h4_posterior=0.95123456)
+        )
         # Check that text annotation exists
         axes = fig.get_axes()
         assert len(axes) >= 1
@@ -684,7 +728,9 @@ class TestH4PosteriorDisplay:
 
         plotter = ColocPlotter(backend="matplotlib")
         fig = plotter.plot_coloc(
-            coloc_gwas_df, eqtl_data, h4_posterior=0.95, show_correlation=True
+            coloc_gwas_df,
+            eqtl_data,
+            config=ColocConfig(h4_posterior=0.95, show_correlation=True),
         )
         axes = fig.get_axes()
         texts = [child.get_text() for child in axes[0].texts]
@@ -700,8 +746,12 @@ class TestH4PosteriorDisplay:
 
         plotter = ColocPlotter()
 
-        zero = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=0)
-        one = plotter.plot_coloc(coloc_gwas_df, eqtl_data, h4_posterior=1)
+        zero = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, config=ColocConfig(h4_posterior=0)
+        )
+        one = plotter.plot_coloc(
+            coloc_gwas_df, eqtl_data, config=ColocConfig(h4_posterior=1)
+        )
 
         assert "H4 PP = 0.000" in _texts(zero.get_axes()[0])
         assert "H4 PP = 1.000" in _texts(one.get_axes()[0])
@@ -730,12 +780,14 @@ class TestColocConfigIntegration:
         fig = plotter.plot_coloc(
             gwas_data_with_effects,
             eqtl_data_with_effects,
-            color_by_effect=config.color_by_effect,
-            gwas_effect_col=config.gwas_effect_col,
-            eqtl_effect_col=config.eqtl_effect_col,
-            h4_posterior=config.h4_posterior,
-            show_correlation=config.show_correlation,
-            figsize=config.figsize,
+            config=ColocConfig(
+                color_by_effect=config.color_by_effect,
+                gwas_effect_col=config.gwas_effect_col,
+                eqtl_effect_col=config.eqtl_effect_col,
+                h4_posterior=config.h4_posterior,
+                show_correlation=config.show_correlation,
+                figsize=config.figsize,
+            ),
         )
         assert fig is not None
         # Check figsize was applied
@@ -791,21 +843,23 @@ class TestLeadSelectionRules:
     def test_auto_selects_the_strongest_combined_signal_when_ld_is_present(self):
         gwas, eqtl = self._frames()
 
-        fig = ColocPlotter().plot_coloc(gwas, eqtl, ld_col="ld")
+        fig = ColocPlotter().plot_coloc(gwas, eqtl, config=ColocConfig(ld_col="ld"))
 
         assert self._lead(fig) == ([8.0], ["rs1"])
 
     def test_no_lead_without_ld_and_without_a_named_snp(self):
         gwas, eqtl = self._frames()
 
-        fig = ColocPlotter().plot_coloc(gwas, eqtl, ld_col=None)
+        fig = ColocPlotter().plot_coloc(gwas, eqtl, config=ColocConfig(ld_col=None))
 
         assert self._lead(fig) == ([], [])
 
     def test_a_named_lead_snp_beats_the_auto_selection(self):
         gwas, eqtl = self._frames()
 
-        fig = ColocPlotter().plot_coloc(gwas, eqtl, ld_col="ld", lead_snp="rs3")
+        fig = ColocPlotter().plot_coloc(
+            gwas, eqtl, config=ColocConfig(ld_col="ld", lead_snp="rs3")
+        )
 
         assert self._lead(fig) == ([pytest.approx(-np.log10(0.4))], ["rs3"])
 
@@ -814,7 +868,9 @@ class TestLeadSelectionRules:
         gwas, eqtl = gwas.drop(columns=["rs"]), eqtl.drop(columns=["rs"])
 
         with pytest.raises(ValueError, match="rs_col not found"):
-            ColocPlotter().plot_coloc(gwas, eqtl, rs_col=None, lead_snp="rs1")
+            ColocPlotter().plot_coloc(
+                gwas, eqtl, config=ColocConfig(rs_col=None, lead_snp="rs1")
+            )
 
 
 class TestColocColumnOwnership:
@@ -826,15 +882,21 @@ class TestColocColumnOwnership:
         eqtl = pd.DataFrame({"pos": [10, 20, 30], "p_eqtl": [0.2, 0.02, 0.002]})
         plotter = ColocPlotter()
         options = dict(rs_col=None, ld_col="ld" if with_ld else None)
-        expected = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        expected = (
+            plotter.plot_coloc(gwas, eqtl, config=ColocConfig(**options))
+            .axes[0]
+            .collections[0]
+        )
         actual = (
             plotter.plot_coloc(
                 gwas,
                 eqtl,
-                **options,
-                color_by_effect=False,
-                gwas_effect_col="absent_beta",
-                eqtl_effect_col="absent_slope",
+                config=ColocConfig(
+                    **options,
+                    color_by_effect=False,
+                    gwas_effect_col="absent_beta",
+                    eqtl_effect_col="absent_slope",
+                ),
             )
             .axes[0]
             .collections[0]
@@ -852,19 +914,19 @@ class TestColocColumnOwnership:
         eqtl = pd.DataFrame(
             {"pos": [10, 20, 30], "p_eqtl": [0.2, 0.02, 0.002], "effect": [-1, -1, -1]}
         )
-        options = dict(
+        config = ColocConfig(
             rs_col=None,
             color_by_effect=True,
             gwas_effect_col="beta",
             eqtl_effect_col="effect",
         )
         plotter = ColocPlotter()
-        before = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        before = plotter.plot_coloc(gwas, eqtl, config=config).axes[0].collections[0]
         if extra_column == "beta_gwas":
             gwas = gwas.assign(beta_gwas=-1)
         else:
             eqtl = eqtl.assign(neglog10_gwas=-1)
-        after = plotter.plot_coloc(gwas, eqtl, **options).axes[0].collections[0]
+        after = plotter.plot_coloc(gwas, eqtl, config=config).axes[0].collections[0]
         np.testing.assert_array_equal(after.get_facecolors(), before.get_facecolors())
         np.testing.assert_array_equal(after.get_offsets(), before.get_offsets())
 
@@ -880,4 +942,6 @@ class TestColocColumnOwnership:
             else dict(ld_col="ld")
         )
         with pytest.raises(ValueError, match="GWAS"):
-            ColocPlotter().plot_coloc(gwas, eqtl, rs_col=None, **options)
+            ColocPlotter().plot_coloc(
+                gwas, eqtl, config=ColocConfig(rs_col=None, **options)
+            )

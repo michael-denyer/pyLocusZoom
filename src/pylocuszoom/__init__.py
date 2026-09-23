@@ -63,6 +63,7 @@ from .colors import (
 
 # Configuration models the plot methods take as values
 from .config import (
+    ColocConfig,
     ColumnConfig,
     DisplayConfig,
     EqtlInput,
@@ -200,6 +201,7 @@ __all__ = [
     "LDHeatmapPlotter",
     "ColocPlotter",
     # Plot configuration
+    "ColocConfig",
     "ColumnConfig",
     "DisplayConfig",
     "GenomeWideConfig",

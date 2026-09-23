@@ -77,3 +77,17 @@ Two shapes were considered for the regional methods.
   in the model that owns them; the migration script does it mechanically.
 - Step 6 of the remediation (canonical column vocabulary) will touch
   `ColumnConfig` and `GenomeWideConfig` defaults, not the plot signatures.
+
+## Addendum: the rule covers all six plotters (5.0)
+
+The decision named the regional and genome-wide families, and
+`plot_coloc` kept the flat shape it retired: fifteen options restating
+`ColocConfig`'s fields in the signature, the docstring and the constructor
+call. In 5.0 `plot_coloc(gwas_df, eqtl_df, *, config=ColocConfig(),
+gwas_threshold=UNSET, eqtl_threshold=UNSET, title=None)` takes the model as a
+value, which `pylocuszoom` now exports. The thresholds leave `ColocConfig` and
+stay per call through `UNSET`, as in every other family, and a threshold
+outside (0, 1] still raises. `plot_phewas`, `plot_forest` and
+`plot_ld_heatmap` make every option after the frame and its identifier
+(`variant_id`, `snp_ids`) keyword-only. The migration script rewrites flat
+`plot_coloc` keywords into `config=ColocConfig(...)`.
