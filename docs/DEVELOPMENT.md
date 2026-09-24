@@ -80,6 +80,20 @@ own has the plotly.js bundle embedded. `scripts/example_diff.py` normalises
 per-run div ids and treats a changed CDN version as a real difference, because it
 changes the runtime the export loads.
 
+The generator treats any `UserWarning` as an error. pyLocusZoom reports a skipped
+layer (recombination overlay, gene track, LD colouring) as a `UserWarning` and
+draws the figure without it, so a warning means a degraded export. The generator
+fetches the canine recombination maps into the managed cache before plotting, so
+the first run needs network; after that it runs offline. To fetch the maps ahead
+of time:
+
+```bash
+uv run python -c "from pylocuszoom import download_canine_recombination_maps as d; print(d())"
+```
+
+`scripts/example_diff.sh` exits 2 when the generator fails, with or without
+`--keep`, so a degraded export is never compared or accepted.
+
 ## Code Style
 
 Formatting and linting are handled by a **single tool: [ruff](https://github.com/astral-sh/ruff)**.

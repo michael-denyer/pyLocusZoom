@@ -107,6 +107,7 @@ def main():
         command = [
             "uv",
             "run",
+            "--frozen",
             "--project",
             str(repo),
             "python",

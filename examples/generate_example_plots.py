@@ -4,7 +4,15 @@
 Generates:
 - Static PNG plots (matplotlib) for README display
 - Interactive HTML plots (plotly/bokeh) for exploration
+
+Run from the directory that should receive ``examples/{matplotlib,plotly,bokeh}/``.
+The canine recombination maps are downloaded to the managed cache on first run,
+so that run needs network. Any ``UserWarning`` aborts the run, because
+pyLocusZoom reports a skipped layer (recombination overlay, gene track, LD
+colouring) as one and would otherwise write the figure without it.
 """
+
+import warnings
 
 import matplotlib
 
@@ -26,7 +34,13 @@ from pylocuszoom import (
     MiamiPlotter,
     PanelInputs,
     StatsPlotter,
+    download_canine_recombination_maps,
 )
+
+warnings.simplefilter("error", UserWarning)
+# No-op when the managed cache already holds the maps; otherwise fails here with
+# one DataDownloadError instead of a figure without its recombination overlay.
+download_canine_recombination_maps()
 
 
 def generate_p_values(

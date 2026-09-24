@@ -119,6 +119,19 @@ def test_generator_failure_preserves_checkout(example_repo):
     assert git("status", "--porcelain") == ""
 
 
+def test_keep_never_accepts_exports_from_a_failed_generator(example_repo):
+    # The generator exits non-zero on a degraded figure after writing some
+    # exports; --keep must not copy any of them into the checkout.
+    repo, environment, git = example_repo
+    uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
+    uv.write_text("#!/bin/sh\nprintf degraded > examples/matplotlib/plot.png\nexit 1\n")
+    result = run_check(example_repo, "--keep")
+    assert result.returncode == 2
+    assert "GENERATOR FAILED" in result.stderr
+    assert (repo / "examples/matplotlib/plot.png").read_bytes() == b"baseline"
+    assert git("status", "--porcelain") == ""
+
+
 CDN_HTML = (
     '<script charset="utf-8" src="https://cdn.plot.ly/plotly-{version}.min.js">'
     '</script><div id="{uuid}"></div>'
