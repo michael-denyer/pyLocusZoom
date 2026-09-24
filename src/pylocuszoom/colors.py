@@ -345,6 +345,8 @@ RECOMB_COLOR = "#7FCDFF"  # light blue
 
 # SNP labels drawn over the association panel
 SNP_LABEL_COLOR = "#333333"
+# Leader line from a moved SNP label back to its point
+SNP_LABEL_LEADER_COLOR = "#808080"
 
 # eQTL markers when no effect sizes are available to bin
 EQTL_MARKER_COLOR = "#FF6B6B"
