@@ -1686,7 +1686,7 @@ here means a major release, with a CHANGELOG entry and a migration note.
 | Group | Names |
 |-------|-------|
 | Plotters | `LocusZoomPlotter`, `ManhattanPlotter`, `MiamiPlotter`, `StatsPlotter`, `LDHeatmapPlotter`, `ColocPlotter` |
-| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `GenomeWideStyle`, `LDConfig`, `LiftoverConfig`, `PanelInputs`, `EqtlInput`, `FinemappingInput`, `LDHeatmapInput` |
+| Plot configuration | `ColumnConfig`, `DisplayConfig`, `GenomeWideConfig`, `GenomeWideStyle`, `LDConfig`, `LiftoverConfig`, `PanelInputs`, `EqtlInput`, `FinemappingInput`, `LDHeatmapInput`, `ColocConfig` |
 | Column vocabulary | `Canonical` |
 | GWAS loaders | `load_gwas`, `load_plink_assoc`, `load_regenie`, `load_bolt_lmm`, `load_gemma`, `load_saige`, `load_gwas_catalog` |
 | eQTL loaders | `load_gtex_eqtl`, `load_eqtl_catalogue`, `load_matrixeqtl` |
@@ -1694,7 +1694,7 @@ here means a major release, with a CHANGELOG entry and a migration note.
 | Gene annotation loaders | `load_gtf`, `load_bed`, `load_ensembl_genes` |
 | Species | `Species`, `resolve_species` |
 | Logging | `enable_logging`, `disable_logging` |
-| Exceptions | `PyLocusZoomError`, `ValidationError`, `DataDownloadError`, `EmptyLDOutputError`, `EnsemblAPIError`, `OptionalDependencyMissing`, `ReferenceAPIError`, `UCSCAPIError`, `PlinkError`, `PheWASValidationError`, `ForestValidationError`, `EQTLValidationError`, `FinemappingValidationError`, `LoaderValidationError` |
+| Exceptions | `PyLocusZoomError`, `ValidationError`, `DataDownloadError`, `EmptyLDOutputError`, `EnsemblAPIError`, `OptionalDependencyMissing`, `ReferenceAPIError`, `UCSCAPIError`, `PlinkError`, `PheWASValidationError`, `ForestValidationError`, `EQTLValidationError`, `FinemappingValidationError`, `LoaderValidationError`, `LDUnavailableError`, `RecombinationMapNotFound` |
 | Metadata | `__version__` |
 
 ### Toolbox
