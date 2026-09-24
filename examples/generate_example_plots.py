@@ -1517,4 +1517,7 @@ save(fig)
 print("   Saved: examples/bokeh/colocalization_bokeh.html")
 
 print("\nAll plots generated successfully!")
-print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")
+print(
+    "\nOpen the HTML files in a browser. Regional, eQTL and fine-mapping exports"
+    " have hover tooltips; docs/USER_GUIDE.md#hover-coverage lists the rest."
+)

@@ -513,7 +513,8 @@ fig.savefig("miami.png", dpi=150)
 - Panel labels to identify datasets
 - SNP annotations independent per panel (`top_snp_annotations`, `bottom_snp_annotations`)
 - Region highlighting across both panels (`highlight_regions`)
-- Interactive hover tooltips in plotly/bokeh backends
+- Plotly hover shows each point's raw axis values (cumulative genome position and
+  −log10 p), not its chromosome, position or SNP ID; the bokeh figure has no hover
 - Full support for all three backends (matplotlib, plotly, bokeh)
 
 **Customization options:**
@@ -801,6 +802,22 @@ shows HTML files as source, so download a file (or clone the repository) and ope
 in a browser. The files load plotly.js and BokehJS from a CDN, so they need network
 access.
 
+### Hover coverage
+
+Only the regional family carries per-SNP tooltips. The other plot types show the
+raw axis values in plotly and have no hover in bokeh.
+
+| Plot | plotly hover | bokeh hover |
+|------|--------------|-------------|
+| Regional association panel (`plot`, `plot_stacked`, with or without an LD heatmap) | SNP, position, p-value, r² | SNP, position, p-value, r² |
+| eQTL panel | position, p-value, effect, gene | position, p-value, effect, gene |
+| Fine-mapping panel | position, PIP, credible set | position, PIP, credible set |
+| Manhattan, stacked Manhattan, Manhattan + QQ, Miami | raw x (cumulative genome position) and y (−log10 p) | none |
+| QQ | raw x (expected −log10 p) and y (observed −log10 p) | none |
+| Colocalization | raw x (GWAS −log10 p) and y (eQTL −log10 p) | none |
+| LD heatmap (standalone or regional panel) | plotly's default: matrix column and row index, r² | none |
+| PheWAS, forest | raw x and y | none |
+
 ### Matplotlib (Static)
 
 Default backend for publication-quality static plots.
@@ -835,7 +852,8 @@ that loads plotly.js from `cdn.plot.ly` when opened.
 
 **Unique features:**
 
-- Hover tooltips showing SNP ID, position, p-value, LD
+- Hover tooltips on regional plots showing SNP ID, position, p-value, LD (see
+  [Hover coverage](#hover-coverage) for the other plot types)
 - Pan and zoom
 - Export to PNG/SVG from browser
 
@@ -855,7 +873,7 @@ save(fig)
 
 **Unique features:**
 
-- Hover tooltips
+- Hover tooltips on regional plots only (see [Hover coverage](#hover-coverage))
 - Pan and zoom
 - Easy integration with Bokeh server applications
 
