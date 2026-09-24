@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/check-mermaid-maid.sh` strips maid's ANSI colour codes before counting errors. maid colours the word `error` even when piped, so the count was always 0 and the hook could not fail.
 - Each ADR now points to the ADRs that supersede or amend it: 0001 (superseded), 0002, 0003, 0004, 0006, 0008 and 0009 gain back-links, 0005's status says its last addendum reversed the split, and 0006 and 0007 note where their modules moved.
 
+- **A Manhattan panel and the QQ panel beside it share one y upper limit, and so do the two Miami halves.** `plot_manhattan_qq` and each row of `plot_manhattan_qq_stacked` pad the higher of the Manhattan maximum (points and threshold lines) and the QQ maximum once by `GenomeWideStyle.y_headroom` and set that limit on both panels, so the strongest SNP sits at the same height in both. Before, the Manhattan panel was padded by `y_headroom` and the QQ panel by 5%. `plot_miami` gives both halves one magnitude, so a unit of −log10 p is the same length above and below the mirror line; the 5.0.0 example ran 0–16 on top and 0–10.9 below. Standalone `plot_manhattan` and `plot_qq` keep their own limits, and the QQ x axis still fits the expected values.
+- **adjustText 1.3.0 or later is required** (was 0.8), because label placement now uses the 1.x `expand`, `target_x` and `target_y` arguments.
+
+### Fixed
+
+- **Adjusted SNP labels stay beside their points and inside the axes.** adjustText 1.x reads every label through the first label's transform, but each label was anchored in offset points at its own SNP, so every label after the first was displaced by its distance from the first SNP, some of them outside the axes (`rs14` in the 5.0.0 `regional_with_ld_heatmap.png`). The 0.x keyword `expand_points` also made adjustText fall back from drawing arrows, and the arrows were coloured `none`. Labels are now moved onto data coordinates before adjusting and are pulled toward their SNPs, and a label that moves gets a thin grey leader line back to its point.
+- **eQTL legend labels cover every effect they colour.** An effect beyond ±0.4 was drawn in the outermost bin's colour while the legend called that bin `0.3 : 0.4` or `-0.4 : -0.3`. The outermost bins are open-ended, and their labels now say so: `≥ 0.3` and `≤ -0.3`. Their `EQTLBin.max_val` and `min_val` are `inf` and `-inf`.
+- **The eQTL panel's y axis starts at 0**, like the association panel's. It set no limits, so it autoscaled and the 5.0.0 example started at 1.35. The top is the higher of the points and the threshold line, padded by 15%.
+
 ## [5.0.0] - 2026-09-23
 
 ### Breaking
