@@ -5,6 +5,14 @@
 - Supersedes: the second consequence of ADR-0002 ("future regional modes
   can submit prepared panels without duplicating axis indices or layout
   branches"), which the code did not deliver
+- Superseded in part by: [ADR-0007](0007-one-figure-plan.md) (the third
+  decision, `RegionalPlotComposer.render_panel` dispatch) and
+  [ADR-0008](0008-options-as-config-values.md) (the fourth decision,
+  `from_kwargs`). The heatmap capability gate in the third decision went with
+  the last addendum of
+  [ADR-0005](0005-heatmap-and-bar-chart-capability-protocols.md).
+- Note: the `_regional_panels.py` module named in the addendum is now the
+  `panels/` package, one module per panel type.
 
 ## Context
 

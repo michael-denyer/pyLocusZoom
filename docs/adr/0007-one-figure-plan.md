@@ -8,6 +8,11 @@
 - Superseded in part by: [ADR-0011](0011-protocol-diet-and-one-panel-body.md)
   (the Manhattan and QQ forwarders and the `manhattan_spec` and
   `categorical_spec` builders)
+- Note: module paths below are as of this decision. The `_stats_panels.py`,
+  `_coloc_panel.py`, `_ld_heatmap_panel.py` and `_miami_panels.py` modules
+  are now `panels/stats.py`, `panels/coloc.py`, `panels/ld_heatmap.py` and
+  `panels/miami.py`, and `add_significance_line` lives in
+  `panels/_shared.py`.
 
 ## Context
 
