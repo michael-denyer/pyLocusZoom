@@ -93,12 +93,12 @@ class EQTLBin(NamedTuple):
     color: str
 
 
-# eQTL bin boundary — effects beyond this are clipped to the outermost bin
-_EQTL_EFFECT_BOUNDARY = 0.4
+# The outermost bins are open-ended: every effect beyond ±0.3 lands in them,
+# however large, so their labels name no outer edge.
 
 # Positive effects (upward triangles)
 EQTL_POSITIVE_BINS: tuple[EQTLBin, ...] = (
-    EQTLBin(0.3, _EQTL_EFFECT_BOUNDARY, "0.3 : 0.4", "#8B1A1A"),  # dark red/maroon
+    EQTLBin(0.3, math.inf, "≥ 0.3", "#8B1A1A"),  # dark red/maroon
     EQTLBin(0.2, 0.3, "0.2 : 0.3", "#FF6600"),  # orange
     EQTLBin(0.1, 0.2, "0.1 : 0.2", "#FFB347"),  # light orange
     EQTLBin(0.0, 0.1, "0.0 : 0.1", "#FFDAB9"),  # peach puff (near-zero positive)
@@ -108,7 +108,7 @@ EQTL_NEGATIVE_BINS: tuple[EQTLBin, ...] = (
     EQTLBin(-0.1, 0.0, "-0.1 : 0.0", "#B0E0E6"),  # powder blue (near-zero negative)
     EQTLBin(-0.2, -0.1, "-0.2 : -0.1", "#66CDAA"),  # medium aquamarine
     EQTLBin(-0.3, -0.2, "-0.3 : -0.2", "#4682B4"),  # steel blue
-    EQTLBin(-_EQTL_EFFECT_BOUNDARY, -0.3, "-0.4 : -0.3", "#00008B"),  # dark blue
+    EQTLBin(-math.inf, -0.3, "≤ -0.3", "#00008B"),  # dark blue
 )
 
 

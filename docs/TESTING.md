@@ -116,7 +116,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | `scripts/example_diff.sh` | `tests/test_example_diff_script.py` |
 | Suite structure: fixture schemas; documentation contracts (documented commands, the CODEMAP and USER_GUIDE public-API tables) | `tests/test_fixture_hygiene.py`; `tests/test_docs_contract.py` |
 
-`tests/figure_probes.py` is the one probe object per backend (`PROBES`). It translates panel count, tick labels, legend corner and swatch edges, horizontal and vertical lines, rectangles, region highlights, colour-bar titles, scatter marker positions, point alpha, font sizes, marker symbols and hover (values, and each tooltip's fields and number formats) into one vocabulary, and it is the only place in the suite that knows matplotlib's, plotly's or bokeh's figure internals. `marker_symbols`, `has_hover`, `hover_values`, `hover_fields`, `standalone_html` and `json_payload` exist only for the interactive backends. A matplotlib-only test may read the matplotlib `Figure` directly.
+`tests/figure_probes.py` is the one probe object per backend (`PROBES`). It translates panel count, tick labels, y-axis range, legend corner and swatch edges, horizontal and vertical lines, rectangles, region highlights, colour-bar titles, scatter marker positions, point alpha, font sizes, marker symbols and hover (values, and each tooltip's fields and number formats) into one vocabulary, and it is the only place in the suite that knows matplotlib's, plotly's or bokeh's figure internals. `marker_symbols`, `has_hover`, `hover_values`, `hover_fields`, `standalone_html` and `json_payload` exist only for the interactive backends. A matplotlib-only test may read the matplotlib `Figure` directly.
 
 ### Private seams tests may touch
 

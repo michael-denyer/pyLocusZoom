@@ -21,6 +21,8 @@ Vocabulary:
   ``triangle-up``, ``triangle-down``.
 - Colours: lower-case ``#rrggbb`` hex.
 - Legend corners, as matplotlib spells ``loc``: ``"lower left"``.
+- Y ranges: ``(bottom, top)`` as set, so an inverted axis reads
+  ``(top, 0)``. Plotly and bokeh answer None for an axis left to autorange.
 - Panels: the stacked plotting areas, top first, as ``create_figure`` returned
   them. A matplotlib twin axis or colorbar is not a panel.
 - ``Box``: an axis-aligned rectangle drawn in data coordinates with
@@ -31,6 +33,7 @@ Vocabulary:
 """
 
 import json
+import math
 from typing import NamedTuple, Optional
 
 from matplotlib.colors import to_hex
@@ -123,6 +126,10 @@ class MatplotlibProbe:
         """Whether the panel labels x positions in megabases."""
         formatter = self.panels(fig)[panel].xaxis.get_major_formatter()
         return formatter(1_500_000, 0) == "1.50"
+
+    def y_range(self, fig, panel=0):
+        """The panel's y-axis limits as ``(bottom, top)``."""
+        return tuple(float(v) for v in self.panels(fig)[panel].get_ylim())
 
     def legend_corner(self, fig, panel=0):
         """The corner the panel's legend is anchored to."""
@@ -339,6 +346,11 @@ class PlotlyProbe:
         """Tick positions and labels on one panel's x-axis."""
         axis = self._xaxis(fig, panel)
         return list(axis.tickvals or []), list(axis.ticktext or [])
+
+    def y_range(self, fig, panel=0):
+        """The panel's y-axis range as ``(bottom, top)``, None if autoranged."""
+        axis_range = fig.layout[self._axis_keys(fig, "yaxis")[panel]].range
+        return None if axis_range is None else tuple(float(v) for v in axis_range)
 
     def x_axis_in_mb(self, fig, panel=0):
         """Whether the panel labels x positions in megabases."""
@@ -572,6 +584,14 @@ class BokehProbe:
         ticks = list(axis.ticker.ticks)
         overrides = axis.major_label_overrides
         return ticks, [str(overrides.get(t, t)) for t in ticks] if overrides else []
+
+    def y_range(self, fig, panel=0):
+        """The panel's y-axis range as ``(bottom, top)``, None if data-driven."""
+        y_range = self.panels(fig)[panel].y_range
+        bounds = (y_range.start, y_range.end)
+        if any(bound is None or math.isnan(bound) for bound in bounds):
+            return None
+        return tuple(float(bound) for bound in bounds)
 
     def x_axis_in_mb(self, fig, panel=0):
         """Whether the panel labels x positions in megabases."""

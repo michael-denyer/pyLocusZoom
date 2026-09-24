@@ -144,6 +144,35 @@ class TestBackendEQTLFinemapping:
         assert isinstance(fig, FIGURE_TYPES[backend])
         assert PROBES[backend].panel_count(fig) == expected_panels
 
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_eqtl_panel_y_axis_starts_at_zero_and_shows_every_point(
+        self, backend, small_regional_gwas_df
+    ):
+        """The eQTL -log10 P axis has a floor at 0 like the association panel."""
+        eqtl_df = pd.DataFrame(
+            {
+                "chr": 1,
+                "pos": [1_200_000, 1_400_000, 1_600_000],
+                "p_value": [1e-12, 1e-8, 1e-6],
+                "gene": "GENE1",
+                "effect_size": [0.5, -0.2, 0.1],
+            }
+        )
+        fig = LocusZoomPlotter(species=None, backend=backend).plot(
+            small_regional_gwas_df,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            display=DisplayConfig(show_recombination=False),
+            panels=PanelInputs(eqtl=EqtlInput(data=eqtl_df, gene="GENE1")),
+        )
+
+        y_range = PROBES[backend].y_range(fig, panel=1)
+        assert y_range is not None
+        bottom, top = y_range
+        assert bottom == 0
+        assert top > 12
+
     def test_plot_accepts_eqtl_and_finemapping_panels(
         self, small_regional_gwas_df, sample_eqtl_df, sample_finemapping_df
     ):
