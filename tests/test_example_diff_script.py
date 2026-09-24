@@ -117,3 +117,41 @@ def test_generator_failure_preserves_checkout(example_repo):
     assert "GENERATOR FAILED" in result.stderr
     assert (repo / "examples/matplotlib/plot.png").read_bytes() == b"baseline"
     assert git("status", "--porcelain") == ""
+
+
+CDN_HTML = (
+    '<script charset="utf-8" src="https://cdn.plot.ly/plotly-{version}.min.js">'
+    '</script><div id="{uuid}"></div>'
+)
+
+
+@pytest.mark.parametrize(
+    ("generated_version", "expected"),
+    [
+        ("3.5.0", "NO REAL DIFFS"),
+        ("3.6.0", "REAL DIFF: examples/plotly/plot.html"),
+    ],
+)
+def test_cdn_plotly_export_compares_by_plotly_version(
+    example_repo, generated_version, expected
+):
+    # A regeneration changes the div UUID but not the CDN tag; a plotly.js
+    # upgrade changes the runtime the export loads, so it is a real change.
+    repo, environment, git = example_repo
+    (repo / "examples/plotly").mkdir()
+    (repo / "examples/plotly/plot.html").write_text(
+        CDN_HTML.format(version="3.5.0", uuid="0" * 8 + "-0000-0000-0000-" + "0" * 12)
+        + "\n"
+    )
+    git("add", ".")
+    git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "html baseline")
+    generated = CDN_HTML.format(
+        version=generated_version, uuid="1" * 8 + "-1111-1111-1111-" + "1" * 12
+    )
+    uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
+    uv.write_text(
+        "#!/bin/sh\nprintf baseline > examples/matplotlib/plot.png\n"
+        f"cat > examples/plotly/plot.html <<'HTML'\n{generated}\nHTML\n"
+    )
+    result = run_check(example_repo)
+    assert result.stdout.strip() == expected

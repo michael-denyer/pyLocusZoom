@@ -805,6 +805,10 @@ fig.write_html("plot.html")
 fig.show()  # Opens in browser
 ```
 
+`write_html` embeds the whole plotly.js bundle (about 4.9 MB) by default, so the
+file opens offline. Pass `include_plotlyjs="cdn"` for a file of a few kilobytes
+that loads plotly.js from `cdn.plot.ly` when opened.
+
 **Unique features:**
 
 - Hover tooltips showing SNP ID, position, p-value, LD

@@ -69,6 +69,17 @@ The common development commands are:
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full pre-commit and pre-PR checklists.
 
+## Example Exports
+
+`examples/generate_example_plots.py` writes PNGs to `examples/matplotlib/` and HTML
+to `examples/plotly/` and `examples/bokeh/`, relative to the working directory.
+Both HTML backends load their JavaScript from a CDN (`include_plotlyjs="cdn"`,
+bokeh's `CDN` resources), so no export embeds a runtime. Expect `examples/plotly/`
+to total about 4.5 MB and `examples/bokeh/` about 5 MB; an export near 5 MB on its
+own has the plotly.js bundle embedded. `scripts/example_diff.py` normalises
+per-run div ids and treats a changed CDN version as a real difference, because it
+changes the runtime the export loads.
+
 ## Code Style
 
 Formatting and linting are handled by a **single tool: [ruff](https://github.com/astral-sh/ruff)**.
