@@ -24,6 +24,10 @@ for f in "$@"; do
     echo "$output" >&2
     exit 2
   fi
+  # maid colours "error" even when piped and ignores NO_COLOR, so the word
+  # arrives as "\e[31merror\e[0m" and \b never matches after the "m".
+  # Strip ANSI escapes before counting.
+  output=$(printf '%s\n' "$output" | sed $'s/\x1b\\[[0-9;]*m//g')
   # FL-STYLE-TARGET-UNKNOWN: maid false-positive on some class-diagram
   # style references; safe to filter until upstream fixes it.
   real_errors=$(printf '%s\n' "$output" | grep -v 'FL-STYLE-TARGET-UNKNOWN' | grep -cE '\berror\b') \
