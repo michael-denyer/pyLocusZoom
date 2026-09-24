@@ -1568,13 +1568,21 @@ All SNPs will be gray.
 ### Pre-computed LD
 
 ```python
-# LD already in DataFrame
-gwas_df["r2"] = [1.0, 0.8, 0.5, 0.2, 0.0]
+from pylocuszoom import LDConfig
+
+# LD already in the DataFrame: each SNP's r² with the lead
+gwas_df = pd.DataFrame({
+    "chr": [1] * 5,
+    "pos": [1000000, 1000500, 1001000, 1001500, 1002000],
+    "p_value": [0.05, 1e-4, 1e-8, 1e-6, 0.01],
+    "rs": ["rs1", "rs2", "rs3", "rs4", "rs5"],
+    "r2": [0.2, 0.6, 1.0, 0.8, 0.1],
+})
 
 fig = plotter.plot(
     gwas_df,
-    chrom=1, start=1e6, end=2e6,
-    ld=LDConfig(lead_pos=1500000, ld_col="r2"),  # Use pre-computed LD
+    chrom=1, start=999_000, end=1_003_000,
+    ld=LDConfig(lead_pos=1001000, ld_col="r2"),  # Use pre-computed LD
 )
 ```
 
