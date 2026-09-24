@@ -85,6 +85,38 @@ jobs:
           HYPOTHESIS_PROFILE: ci
         run: uv run pytest
 
+  examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Download canine recombination maps
+        run: >-
+          uv run --frozen python -c
+          "from pylocuszoom import download_canine_recombination_maps as d; print(d())"
+
+      # The generator fails on any UserWarning, so a skipped overlay fails the job.
+      - name: Generate example exports
+        run: |
+          out="$RUNNER_TEMP/example-exports"
+          mkdir -p "$out/examples/matplotlib" "$out/examples/plotly" "$out/examples/bokeh"
+          cd "$out"
+          uv run --frozen --project "$GITHUB_WORKSPACE" \
+            python "$GITHUB_WORKSPACE/examples/generate_example_plots.py"
+
+      - name: Execute notebook
+        run: uv run --frozen python scripts/execute_notebook.py examples/getting_started.ipynb
+
   build:
     runs-on: ubuntu-latest
     steps:

@@ -4,7 +4,15 @@
 Generates:
 - Static PNG plots (matplotlib) for README display
 - Interactive HTML plots (plotly/bokeh) for exploration
+
+Run from the directory that should receive ``examples/{matplotlib,plotly,bokeh}/``.
+The canine recombination maps are downloaded to the managed cache on first run,
+so that run needs network. Any ``UserWarning`` aborts the run, because
+pyLocusZoom reports a skipped layer (recombination overlay, gene track, LD
+colouring) as one and would otherwise write the figure without it.
 """
+
+import warnings
 
 import matplotlib
 
@@ -26,7 +34,13 @@ from pylocuszoom import (
     MiamiPlotter,
     PanelInputs,
     StatsPlotter,
+    download_canine_recombination_maps,
 )
+
+warnings.simplefilter("error", UserWarning)
+# No-op when the managed cache already holds the maps; otherwise fails here with
+# one DataDownloadError instead of a figure without its recombination overlay.
+download_canine_recombination_maps()
 
 
 def generate_p_values(
@@ -618,7 +632,7 @@ fig = plotly_plotter.plot(
     ld=LDConfig(lead_pos=13_000_000, ld_col="ld_r2"),
     panels=PanelInputs(genes_df=recomb_genes_df, exons_df=recomb_exons_df),
 )
-fig.write_html("examples/plotly/regional_recomb_plotly.html")
+fig.write_html("examples/plotly/regional_recomb_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/regional_recomb_plotly.html")
 
 # 8. Interactive Plotly eQTL plot
@@ -637,7 +651,7 @@ fig = plotly_plotter.plot_stacked(
         eqtl=EqtlInput(data=eqtl_df, gene="SLC25A"),
     ),
 )
-fig.write_html("examples/plotly/eqtl_plotly.html")
+fig.write_html("examples/plotly/eqtl_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/eqtl_plotly.html")
 
 # 10. Interactive Plotly fine-mapping plot
@@ -656,7 +670,7 @@ fig = plotly_plotter.plot_stacked(
         finemapping=FinemappingInput(data=finemapping_df, cs_col="cs"),
     ),
 )
-fig.write_html("examples/plotly/finemapping_plotly.html")
+fig.write_html("examples/plotly/finemapping_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/finemapping_plotly.html")
 
 # 11. Interactive Bokeh regional plot with recombination
@@ -922,7 +936,7 @@ fig = miami_plotter_plotly.plot_miami(
     figsize=(14, 8),
     title="Discovery vs Replication GWAS",
 )
-fig.write_html("examples/plotly/miami_plotly.html")
+fig.write_html("examples/plotly/miami_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/miami_plotly.html")
 
 # Interactive Bokeh Miami plot
@@ -1004,7 +1018,7 @@ fig = manhattan_plotter_plotly.plot_manhattan(
     figsize=(14, 4),
     title="Genome-wide Association Study",
 )
-fig.write_html("examples/plotly/manhattan_plotly.html")
+fig.write_html("examples/plotly/manhattan_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/manhattan_plotly.html")
 
 # Interactive Bokeh Manhattan plot
@@ -1036,7 +1050,7 @@ fig = qq_plotter_plotly.plot_qq(
     show_lambda=True,
     figsize=(5, 5),
 )
-fig.write_html("examples/plotly/qq_plotly.html")
+fig.write_html("examples/plotly/qq_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/qq_plotly.html")
 
 # Interactive Bokeh QQ plot
@@ -1106,7 +1120,7 @@ fig = manhattan_plotter_plotly.plot_manhattan_stacked(
     figsize=(14, 9),
     title="Multi-cohort GWAS Comparison",
 )
-fig.write_html("examples/plotly/manhattan_stacked_plotly.html")
+fig.write_html("examples/plotly/manhattan_stacked_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/manhattan_stacked_plotly.html")
 
 # Interactive Bokeh stacked Manhattan plot
@@ -1151,7 +1165,7 @@ fig = manhattan_plotter_plotly.plot_manhattan_qq(
     figsize=(16, 5),
     title="GWAS Summary",
 )
-fig.write_html("examples/plotly/manhattan_qq_plotly.html")
+fig.write_html("examples/plotly/manhattan_qq_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/manhattan_qq_plotly.html")
 
 # Interactive Bokeh side-by-side Manhattan + QQ plot
@@ -1199,7 +1213,9 @@ fig = manhattan_plotter_plotly.plot_manhattan_qq_stacked(
     figsize=(16, 12),
     title="Multi-cohort GWAS Summary",
 )
-fig.write_html("examples/plotly/manhattan_qq_stacked_plotly.html")
+fig.write_html(
+    "examples/plotly/manhattan_qq_stacked_plotly.html", include_plotlyjs="cdn"
+)
 print("   Saved: examples/plotly/manhattan_qq_stacked_plotly.html")
 
 # Interactive Bokeh stacked Manhattan + QQ plot
@@ -1307,7 +1323,7 @@ fig = ld_plotter_plotly.plot_ld_heatmap(
     lead_snp="rs5",
     metric="r2",
 )
-fig.write_html("examples/plotly/ld_heatmap_plotly.html")
+fig.write_html("examples/plotly/ld_heatmap_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/ld_heatmap_plotly.html")
 
 # LD heatmap - bokeh
@@ -1370,7 +1386,9 @@ fig = plotly_plotter.plot(
         ld_heatmap=LDHeatmapInput(matrix=ld_matrix_df, snp_ids=heatmap_snp_ids)
     ),
 )
-fig.write_html("examples/plotly/regional_with_ld_heatmap_plotly.html")
+fig.write_html(
+    "examples/plotly/regional_with_ld_heatmap_plotly.html", include_plotlyjs="cdn"
+)
 print("   Saved: examples/plotly/regional_with_ld_heatmap_plotly.html")
 
 # Regional plot with LD heatmap - bokeh
@@ -1481,7 +1499,7 @@ fig = coloc_plotter_plotly.plot_coloc(
     eqtl_threshold=1e-5,
     config=ColocConfig(pos_col="pos", gwas_p_col="p", eqtl_p_col="p", ld_col="ld_r2"),
 )
-fig.write_html("examples/plotly/colocalization_plotly.html")
+fig.write_html("examples/plotly/colocalization_plotly.html", include_plotlyjs="cdn")
 print("   Saved: examples/plotly/colocalization_plotly.html")
 
 # Interactive Bokeh colocalization plot
@@ -1499,4 +1517,7 @@ save(fig)
 print("   Saved: examples/bokeh/colocalization_bokeh.html")
 
 print("\nAll plots generated successfully!")
-print("\nInteractive HTML files can be opened in a browser to test hover tooltips.")
+print(
+    "\nOpen the HTML files in a browser. Regional, eQTL and fine-mapping exports"
+    " have hover tooltips; docs/USER_GUIDE.md#hover-coverage lists the rest."
+)

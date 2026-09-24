@@ -106,14 +106,55 @@ def test_identical_exports_return_success(example_repo):
     assert result.stdout.strip() == "NO REAL DIFFS"
 
 
-def test_generator_failure_preserves_checkout(example_repo):
+@pytest.mark.parametrize("args", [(), ("--keep",)])
+def test_generator_failure_preserves_checkout(example_repo, args):
+    # A generator that fails after writing some exports (as it does on a
+    # degraded figure) must leave the checkout untouched, even with --keep.
     repo, environment, git = example_repo
     uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
     uv.write_text(
         "#!/bin/sh\nprintf incomplete > examples/matplotlib/plot.png\nexit 3\n"
     )
-    result = run_check(example_repo)
+    result = run_check(example_repo, *args)
     assert result.returncode == 2
     assert "GENERATOR FAILED" in result.stderr
     assert (repo / "examples/matplotlib/plot.png").read_bytes() == b"baseline"
     assert git("status", "--porcelain") == ""
+
+
+CDN_HTML = (
+    '<script charset="utf-8" src="https://cdn.plot.ly/plotly-{version}.min.js">'
+    '</script><div id="{uuid}"></div>'
+)
+
+
+@pytest.mark.parametrize(
+    ("generated_version", "expected"),
+    [
+        ("3.5.0", "NO REAL DIFFS"),
+        ("3.6.0", "REAL DIFF: examples/plotly/plot.html"),
+    ],
+)
+def test_cdn_plotly_export_compares_by_plotly_version(
+    example_repo, generated_version, expected
+):
+    # A regeneration changes the div UUID but not the CDN tag; a plotly.js
+    # upgrade changes the runtime the export loads, so it is a real change.
+    repo, environment, git = example_repo
+    (repo / "examples/plotly").mkdir()
+    (repo / "examples/plotly/plot.html").write_text(
+        CDN_HTML.format(version="3.5.0", uuid="00000000-0000-0000-0000-000000000000")
+        + "\n"
+    )
+    git("add", ".")
+    git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "html baseline")
+    generated = CDN_HTML.format(
+        version=generated_version, uuid="11111111-1111-1111-1111-111111111111"
+    )
+    uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
+    uv.write_text(
+        "#!/bin/sh\nprintf baseline > examples/matplotlib/plot.png\n"
+        f"cat > examples/plotly/plot.html <<'HTML'\n{generated}\nHTML\n"
+    )
+    result = run_check(example_repo)
+    assert result.stdout.strip() == expected

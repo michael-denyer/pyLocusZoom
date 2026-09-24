@@ -46,8 +46,9 @@ class RecombSource:
         species: Canonical Species.key this source serves.
         url: Archive holding the published map set.
         archive_glob: Glob selecting regular map members inside the
-            archive. Deliberately loose; chrom_pattern is what decides
-            whether a matched file really is a map.
+            archive. It picks one map per chromosome when the archive
+            ships several (the canine archive has average, female and
+            male maps); chrom_pattern then names the chromosome.
         chrom_pattern: Regex anchored at the start of a matched file's stem
             whose first group is the chromosome name. A matched file this
             does not parse is a DataDownloadError, not a file to skip: the
@@ -71,7 +72,7 @@ class RecombSource:
 CANINE_SOURCE = RecombSource(
     species="canine",
     url=CANINE_RECOMB_URL,
-    archive_glob="chr*.txt",
+    archive_glob="chr*_average_*.txt",
     chrom_pattern=r"chr(\d+|X|Y|MT)(?:_|$)",
     filenames=CANINE_MAP_FILENAMES,
     native_build="canfam3",

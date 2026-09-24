@@ -69,6 +69,51 @@ The common development commands are:
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full pre-commit and pre-PR checklists.
 
+## Example Exports
+
+`examples/generate_example_plots.py` writes PNGs to `examples/matplotlib/` and HTML
+to `examples/plotly/` and `examples/bokeh/`, relative to the working directory.
+Both HTML backends load their JavaScript from a CDN (`include_plotlyjs="cdn"`,
+bokeh's `CDN` resources), so no export embeds a runtime. Expect `examples/plotly/`
+to total about 4.5 MB and `examples/bokeh/` about 5 MB; an export near 5 MB on its
+own has the plotly.js bundle embedded. `scripts/example_diff.py` normalises
+per-run div ids and treats a changed CDN version as a real difference, because it
+changes the runtime the export loads.
+
+The generator treats any `UserWarning` as an error. pyLocusZoom reports a skipped
+layer (recombination overlay, gene track, LD colouring) as a `UserWarning` and
+draws the figure without it, so a warning means a degraded export. The generator
+fetches the canine recombination maps into the managed cache before plotting, so
+the first run needs network; after that it runs offline. To fetch the maps ahead
+of time:
+
+```bash
+uv run python -c "from pylocuszoom import download_canine_recombination_maps as d; print(d())"
+```
+
+`scripts/example_diff.sh` exits 2 when the generator fails, with or without
+`--keep`, so a degraded export is never compared or accepted.
+
+## Example Notebook
+
+`examples/getting_started.ipynb` runs offline and seeds every cell that draws random
+numbers, so a top-to-bottom run gives the same figures each time. The `dev`
+dependency group provides `nbclient` and `ipykernel`. To execute the notebook
+headless and fail on the first cell error:
+
+```bash
+uv run python scripts/execute_notebook.py examples/getting_started.ipynb
+```
+
+To execute it and save the outputs into the notebook, pass the same path as `--output`:
+
+```bash
+uv run python scripts/execute_notebook.py examples/getting_started.ipynb \
+  --output examples/getting_started.ipynb
+```
+
+Commit saved outputs only when they come from a full top-to-bottom run like this one.
+
 ## Code Style
 
 Formatting and linting are handled by a **single tool: [ruff](https://github.com/astral-sh/ruff)**.
@@ -156,11 +201,13 @@ For a concrete example, see `prepare_manhattan_frames` in
    uv run python examples/generate_example_plots.py
    ```
 
-7. Push and open a PR against `main`. The CI workflow has four jobs — all must pass:
+7. Push and open a PR against `main`. The CI workflow has five jobs — all must pass:
    - `lint` — `ruff check` and `ruff format --check` (Python 3.11, pinned ruff 0.15.2).
    - `docs-lint` — markdownlint, mermaid (maid + mmdc), yamllint, lychee link check.
    - `test` — pytest matrix across Python 3.10, 3.11, and 3.12; runs
      `uv run pytest`, which takes every flag from `addopts`.
+   - `examples` — downloads the canine recombination maps, runs the example generator
+     into a temporary directory (any `UserWarning` fails it) and executes the notebook.
    - `build` — `uv build` produces wheel and sdist artifacts.
 8. There is no `.github/PULL_REQUEST_TEMPLATE.md` at time of writing — write a concise
    description covering *what* changed and *why*, and reference any related GitHub

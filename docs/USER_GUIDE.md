@@ -513,7 +513,8 @@ fig.savefig("miami.png", dpi=150)
 - Panel labels to identify datasets
 - SNP annotations independent per panel (`top_snp_annotations`, `bottom_snp_annotations`)
 - Region highlighting across both panels (`highlight_regions`)
-- Interactive hover tooltips in plotly/bokeh backends
+- Plotly hover shows each point's raw axis values (cumulative genome position and
+  −log10 p), not its chromosome, position or SNP ID; the bokeh figure has no hover
 - Full support for all three backends (matplotlib, plotly, bokeh)
 
 **Customization options:**
@@ -739,6 +740,24 @@ fig = plotter.plot_manhattan_qq(
 )
 ```
 
+### Stacked Manhattan and QQ
+
+`plot_manhattan_qq_stacked` draws one Manhattan and QQ row per GWAS, to compare
+cohorts or phenotypes.
+
+![Stacked Manhattan and QQ plots for three cohorts](../examples/matplotlib/manhattan_qq_stacked.png)
+
+```python
+fig = plotter.plot_manhattan_qq_stacked(
+    [discovery_df, replication_df, meta_df],
+    panel_labels=["Discovery", "Replication", "Meta-analysis"],
+    significance_threshold=5e-8,
+    figsize=(16, 12),
+    title="Multi-cohort GWAS Summary",
+)
+fig.savefig("manhattan_qq_stacked.png", dpi=150)
+```
+
 ### Styling genome-wide plots
 
 Every Manhattan, QQ, stacked, side-by-side and Miami method takes
@@ -777,6 +796,28 @@ pyLocusZoom supports three rendering backends for different use cases.
 | `plotly` | Interactive HTML | Web reports, exploration | No (hover instead) |
 | `bokeh` | Interactive HTML | Dashboards, web apps | No (hover instead) |
 
+**Interactive examples:** [examples/plotly/](../examples/plotly/) and
+[examples/bokeh/](../examples/bokeh/) hold HTML exports of most plot types. GitHub
+shows HTML files as source, so download a file (or clone the repository) and open it
+in a browser. The files load plotly.js and BokehJS from a CDN, so they need network
+access.
+
+### Hover coverage
+
+Only the regional family carries per-SNP tooltips. The other plot types show the
+raw axis values in plotly and have no hover in bokeh.
+
+| Plot | plotly hover | bokeh hover |
+|------|--------------|-------------|
+| Regional association panel (`plot`, `plot_stacked`, with or without an LD heatmap) | SNP, position, p-value, r² | SNP, position, p-value, r² |
+| eQTL panel | position, p-value, effect, gene | position, p-value, effect, gene |
+| Fine-mapping panel | position, PIP, credible set | position, PIP, credible set |
+| Manhattan, stacked Manhattan, Manhattan + QQ, Miami | raw x (cumulative genome position) and y (−log10 p) | none |
+| QQ | raw x (expected −log10 p) and y (observed −log10 p) | none |
+| Colocalization | raw x (GWAS −log10 p) and y (eQTL −log10 p) | none |
+| LD heatmap (standalone or regional panel) | plotly's default: matrix column and row index, r² | none |
+| PheWAS, forest | raw x and y | none |
+
 ### Matplotlib (Static)
 
 Default backend for publication-quality static plots.
@@ -805,9 +846,14 @@ fig.write_html("plot.html")
 fig.show()  # Opens in browser
 ```
 
+`write_html` embeds the whole plotly.js bundle (about 4.9 MB) by default, so the
+file opens offline. Pass `include_plotlyjs="cdn"` for a file of a few kilobytes
+that loads plotly.js from `cdn.plot.ly` when opened.
+
 **Unique features:**
 
-- Hover tooltips showing SNP ID, position, p-value, LD
+- Hover tooltips on regional plots showing SNP ID, position, p-value, LD (see
+  [Hover coverage](#hover-coverage) for the other plot types)
 - Pan and zoom
 - Export to PNG/SVG from browser
 
@@ -827,7 +873,7 @@ save(fig)
 
 **Unique features:**
 
-- Hover tooltips
+- Hover tooltips on regional plots only (see [Hover coverage](#hover-coverage))
 - Pan and zoom
 - Easy integration with Bokeh server applications
 
@@ -1411,6 +1457,10 @@ plotter = LocusZoomPlotter(species="canine")
 # CanFam4 with automatic liftover
 plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 ```
+
+Genome-wide plots lay out the species' chromosomes, here 1 to 38 and X:
+
+![Canine Manhattan and QQ plot across 38 autosomes and X](../examples/matplotlib/manhattan_qq_canine.png)
 
 Recombination maps from [Campbell et al. 2016](https://github.com/cflerin/dog_recombination)
 are automatically downloaded on first use (~50MB), into
