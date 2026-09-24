@@ -235,7 +235,7 @@ stages:
    warnings are not about a missing layer: Ensembl warns when the assembly it
    served is not the requested build, and a recombination map with
    non-numeric values logs. Two ways a layer goes missing do not reach
-   `_optional_layer`. An `ld.lead_pos` inside the region that matches no SNP
+   `_optional_layer`. An `LDConfig.lead_pos` inside the region that matches no SNP
    only logs through loguru, which is off by default, so LD colouring is
    skipped without a visible message. A recombination map with no rows in the
    region returns an empty frame, and the overlay draws nothing. Before 5.0 recombination reported a status enum instead;
