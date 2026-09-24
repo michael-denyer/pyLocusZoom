@@ -57,7 +57,8 @@ It moves flat `PanelInputs` fields into `EqtlInput`, `FinemappingInput` and
 - **The LD functions need `species`.** `calculate_ld`,
   `calculate_pairwise_ld` and the two command builders defaulted to canine.
   Pass `species="canine"` to keep the old command; `species=None` means
-  PLINK's default (human) chromosome set.
+  PLINK's default (human) chromosome set. `species`, `threads` and `metric`
+  are keyword-only, so pass `threads` and `metric` by name too.
 
 ## Inputs that now raise
 
@@ -83,6 +84,9 @@ Every input error is a `pylocuszoom.ValidationError`, which subclasses
   and `plot_manhattan_qq_stacked` checks the length of `panel_labels`.
 - Frames in the pre-4.0 `ps`/`p_wald` names are no longer read as `pos` and
   `p_value`: name them with `ColumnConfig` or `GenomeWideConfig`.
+- `to_pandas`, and so every plot method, raises `ValidationError` for an object
+  that is neither a pandas nor a Spark frame. It raised `TypeError`, so catch
+  `ValidationError` (or `ValueError`) instead.
 
 ## Removed and moved names
 
@@ -94,7 +98,9 @@ Every input error is a `pylocuszoom.ValidationError`, which subclasses
 | bare `OSError` for an unwritable map cache | `DataDownloadError` |
 | `FileNotFoundError` when PLINK is missing | `PlinkError` |
 | `utils.ASSEMBLY_SYNONYMS`, `reference_genes.ucsc_genome_for_build` and the other build tables | `genome_build.resolve_build(...)` and its `GenomeBuild` fields |
+| `utils.assembly_token` | `genome_build.assembly_token` |
 | `liftover_region(..., species=)` | `liftover_region(..., build=)` |
+| `ucsc.fetch_track_frames(ucsc_genome, ...)`, `ucsc.ucsc_source(ucsc_genome)` | the same functions taking a build: a `GenomeBuild` or any spelling of a build UCSC serves genes for (`"canFam3"`, `"CanFam3.1"`); any other build raises `ValidationError` |
 | `recombination.download_liftover_chain`, `liftover_recombination_map` and the chain-path helpers | `LiftoverConfig(chain_path=...).resolve()` and `liftover_region` |
 | `manhattan.prepare_manhattan_frames(..., chrom_col=, pos_col=, p_col=)` | `prepare_genomewide_frames(dfs, GenomeWideConfig(...), species=...)` |
 | `ensembl.ENSEMBL_*` and `ucsc.UCSC_*` retry constants | nothing: they restated the shared retry defaults (30 s timeout, 3 attempts, 1 s delay) |

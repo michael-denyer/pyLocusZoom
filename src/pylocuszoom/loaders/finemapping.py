@@ -52,10 +52,19 @@ def load_susie(
     credible set of -1 or NA (not in a set) becomes 0. See the module
     docstring for the shared fine-mapping arguments and return value.
 
+    SuSiE output carries no chromosome column, so plot it with
+    ``FinemappingInput(..., chrom_col=None)`` or add a ``chr`` column first.
+
     Example:
         >>> fm_df = load_susie("susie_results.tsv")
         >>> fig = plotter.plot_stacked(
-        ...     [gwas_df], ..., panels=PanelInputs(finemapping=FinemappingInput(data=fm_df))
+        ...     [gwas_df],
+        ...     chrom=1,
+        ...     start=1_000_000,
+        ...     end=2_000_000,
+        ...     panels=PanelInputs(
+        ...         finemapping=FinemappingInput(data=fm_df, chrom_col=None)
+        ...     ),
         ... )
     """
     return _load_tabular(filepath, _SUSIE_SPEC, cs_col=cs_col)

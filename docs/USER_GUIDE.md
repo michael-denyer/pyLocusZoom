@@ -141,12 +141,13 @@ fig = plotter.plot(
 
 **Features:**
 
-- SNPs colored by R² with lead variant (purple → red gradient)
+- SNPs coloured by R² with the lead variant in five bins: blue below 0.2, then
+  cyan, green, orange, and red from 0.8; grey where R² is unknown
 - Lead SNP shown as purple diamond
 - Gene track with intron/exon structure
 - Recombination rate overlay (blue line, right y-axis)
 - Genome-wide significance line (red dashed, default 5e-8)
-- SNP labels with RS IDs or nearest gene names (matplotlib only)
+- Top SNPs labelled with their ids from the `rs_col` column (matplotlib only)
 
 ### Stacked Plots
 
@@ -180,7 +181,7 @@ Add expression QTL data as a separate panel below GWAS results.
 ![eQTL overlay](../examples/matplotlib/eqtl_overlay.png)
 
 ```python
-from pylocuszoom import EqtlInput
+from pylocuszoom import EqtlInput, PanelInputs
 
 eqtl_df = pd.DataFrame(
     {
@@ -204,7 +205,8 @@ fig = plotter.plot_stacked(
 **Features:**
 
 - Separate panel for eQTL associations
-- Color by effect direction (red = positive, blue = negative)
+- Color by effect direction and size (warm up-triangles = positive, cool
+  down-triangles = negative)
 - Filter to specific target gene
 
 ### Fine-mapping Visualization
@@ -214,7 +216,7 @@ Visualize SuSiE or other fine-mapping results with credible set coloring.
 ![Fine-mapping plot](../examples/matplotlib/finemapping_plot.png)
 
 ```python
-from pylocuszoom import FinemappingInput
+from pylocuszoom import FinemappingInput, PanelInputs
 
 finemapping_df = pd.DataFrame(
     {
@@ -240,7 +242,7 @@ fig = plotter.plot_stacked(
 **Features:**
 
 - PIP values shown as line plot
-- Credible sets colored distinctly (CS1 = red, CS2 = blue, etc.)
+- Credible sets colored distinctly (CS1 = orange, CS2 = blue, CS3 = green, etc.)
 - Variants not in credible sets shown in gray
 
 ### LD Heatmaps
@@ -280,7 +282,7 @@ Add an LD heatmap panel below a regional association plot:
 ![Regional plot with LD heatmap](../examples/matplotlib/regional_with_ld_heatmap.png)
 
 ```python
-from pylocuszoom import LDHeatmapInput
+from pylocuszoom import LDConfig, LDHeatmapInput, LocusZoomPlotter, PanelInputs
 
 plotter = LocusZoomPlotter(species="canine")
 
@@ -339,7 +341,7 @@ fig.savefig("colocalization.png", dpi=150)
 **Features:**
 
 - Scatter plot comparing GWAS -log10(p) vs eQTL -log10(p)
-- Points colored by LD (R²) with lead SNP (purple → red gradient)
+- Points colored by LD (R²) with the lead SNP, in the regional plot's five bins
 - Lead SNP labeled on plot
 - Pearson correlation coefficient and p-value displayed
 - Significance threshold reference lines
@@ -795,6 +797,7 @@ Interactive plots optimized for dashboard integration.
 
 ```python
 from bokeh.io import output_file, save
+from pylocuszoom import LocusZoomPlotter
 
 plotter = LocusZoomPlotter(species="canine", backend="bokeh")
 fig = plotter.plot(gwas_df, chrom=1, start=1e6, end=2e6)
@@ -1119,26 +1122,31 @@ finds significant coordinate matches; it does not perform statistical colocaliza
 | `load_polyfun()` | PolyFun | PolyFun+SuSiE output |
 
 ```python
-from pylocuszoom import FinemappingInput, load_finemap, load_susie
+from pylocuszoom import FinemappingInput, PanelInputs, load_finemap, load_susie
 
 # SuSiE results (handles credible set standardization)
-fm_df = load_susie("susie_results.tsv")
-# Output: pos, pip, cs (credible set, 0 = not in CS)
+susie_df = load_susie("susie_results.tsv")
+# Output: pos, pip, cs (credible set, 0 = not in CS), rs; no chr column
 
 # FINEMAP results (preserves PIPs and any supplied credible-set membership)
-fm_df = load_finemap("finemap_output.snp")
+finemap_df = load_finemap("finemap_output.snp")
 
-# Use in plot
+# SuSiE output has no chromosome column, so select its rows by position only
 fig = plotter.plot_stacked(
     [gwas_df],
     chrom=1,
     start=1e6,
     end=2e6,
-    panels=PanelInputs(finemapping=FinemappingInput(data=fm_df)),
+    panels=PanelInputs(
+        finemapping=FinemappingInput(data=susie_df, chrom_col=None)
+    ),
 )
 ```
 
 **Output columns:** `pip`, plus `pos` and `cs` where the source supplies them.
+The fine-mapping panel selects rows by chromosome, and `load_susie` emits no
+`chr` column: add one, or pass `FinemappingInput(..., chrom_col=None)` for a
+frame that holds only the plotted chromosome.
 FINEMAP and CAVIAR loaders no longer infer credible sets from cumulative PIPs.
 Supply membership from the inference method that produced your results, or plot
 PIPs without set assignments. CAVIAR requires a SNP annotation merge to add
@@ -1154,7 +1162,7 @@ membership; it does not request inference.
 | `load_ensembl_genes()` | Ensembl | BioMart gene export |
 
 ```python
-from pylocuszoom import load_gtf, load_bed
+from pylocuszoom import PanelInputs, load_bed, load_gtf
 
 # Load genes and exons from GTF
 genes_df = load_gtf("gencode.v40.annotation.gtf.gz", feature_type="gene")
@@ -1180,7 +1188,7 @@ fig = plotter.plot(
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
-| `chr` | str or int | For genome-wide plots | Chromosome. |
+| `chr` | str or int | Yes | Chromosome. Regional plots select the region's rows by it; pass `ColumnConfig(chrom_col=None)` for a frame that holds only the plotted chromosome. |
 | `pos` | int | Yes | Genomic position (bp, 1-based). |
 | `p_value` | float | Yes | P-value (0 < p ≤ 1). |
 | `rs` | str | For LD/labels | SNP identifier. |
@@ -1203,9 +1211,10 @@ Requesting reference LD replaces an existing `R2` column in the prepared plot
 data. The caller's frame is unchanged. Regional heatmaps sort SNPs and both
 matrix axes together, and require distinct retained genomic positions.
 
-Genome-wide stacks resolve supported legacy names independently for each frame.
-QQ compositions and Miami hover read those same resolved columns. Unselected
-metadata never replaces a configured role. Requested colocalization LD columns
+Every frame of a genome-wide stack is read through the same `GenomeWideConfig`
+column names, and QQ compositions and Miami hover read those same columns. A
+frame in other names, such as the pre-4.0 `ps` and `p_wald`, raises until you
+name them. Unselected metadata never replaces a configured role. Requested colocalization LD columns
 must exist in their declared source frame. Effect columns are required in their
 declared sources only when `color_by_effect=True`.
 
@@ -1254,6 +1263,7 @@ gwas_df = pd.DataFrame({
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
+| `chr` | str or int | Yes, unless `FinemappingInput(chrom_col=None)` | Chromosome. |
 | `pos` | int | Yes | Variant position. |
 | `pip` | float | Yes | Posterior inclusion probability (0-1). |
 | `cs` | int | No | Credible set assignment (0 = not in CS). |
@@ -1262,9 +1272,10 @@ gwas_df = pd.DataFrame({
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
+| `chr` | str or int | Yes, unless `EqtlInput(chrom_col=None)` | Chromosome. |
 | `pos` | int | Yes | Variant position. |
 | `p_value` | float | Yes | Association p-value. |
-| `gene` | str | Yes | Target gene symbol. |
+| `gene` | str | With `EqtlInput(gene=...)` | Target gene symbol the panel filters on. |
 | `effect_size` | float | No | Effect size for color coding. |
 
 ### PheWAS DataFrame
@@ -1502,7 +1513,7 @@ source-build coordinates before anything is lifted, and a lead that does not
 lift is an error when `ld_reference_file` needs it.
 
 ```python
-from pylocuszoom import LiftoverConfig
+from pylocuszoom import LDConfig, LiftoverConfig, LocusZoomPlotter
 
 plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 fig = plotter.plot(
@@ -1552,6 +1563,14 @@ from pylocuszoom import enable_logging
 
 enable_logging("DEBUG")
 ```
+
+`enable_logging` adds its own stderr sink, and pyLocusZoom's records also reach
+every sink without a filter. In a script that has not touched loguru, its
+default stderr sink is still installed, so each line prints twice: once in
+loguru's default format and once as `LEVEL | pylocuszoom | message`. Call
+`logger.remove(0)` from loguru first to keep only the second, or skip
+`enable_logging` and call `logger.enable("pylocuszoom")` to route the records
+through your own sinks.
 
 ### Custom Significance Threshold
 
@@ -1646,16 +1665,13 @@ from pylocuszoom import download_canine_recombination_maps
 download_canine_recombination_maps()
 ```
 
-### Plot Not Displaying in Jupyter
+### Figures in Jupyter
 
-pyLocusZoom disables interactive display for cleaner notebook output. Save or display explicitly:
-
-```python
-fig.savefig("plot.png")
-# or
-from IPython.display import Image
-Image("plot.png")
-```
+pyLocusZoom changes no notebook display setting. A matplotlib figure is a
+pyplot figure, so the inline backend shows it when the cell ends; ending the
+cell with `fig` as well shows it a second time. A plotly figure shows as the
+cell's last expression or through `fig.show()`. A bokeh figure shows through
+`bokeh.io.show(fig)` after one `bokeh.io.output_notebook()` call.
 
 ### LD Calculation Fails
 
