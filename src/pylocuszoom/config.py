@@ -577,7 +577,9 @@ class GenomeWideStyle(_Config):
         point_edge_width: Outline width of the Manhattan and QQ points; 0
             draws no outline. None keeps the method's width.
         y_headroom: Space left above the highest Manhattan point or threshold
-            line, as a fraction of its height.
+            line, as a fraction of its height. A Manhattan panel and the QQ
+            panel beside it, and the two Miami halves, share one limit
+            padded from the higher of the two.
         manhattan_qq_width_ratio: Width of the Manhattan panel relative to the
             QQ panel in a Manhattan-QQ figure.
     """

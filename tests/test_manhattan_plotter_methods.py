@@ -481,6 +481,56 @@ class TestPlotManhattanQQStacked:
         assert PROBES[backend].panel_count(fig) == 4
 
 
+def _peaked_df(peak_p):
+    """Thirty null SNPs over three chromosomes plus one hit at ``peak_p``."""
+    p_values = np.linspace(0.01, 1.0, 30)
+    p_values[4] = peak_p
+    return pd.DataFrame(
+        {
+            "chr": np.repeat([1, 2, 3], 10),
+            "pos": np.tile(np.arange(1, 11) * 1_000_000, 3),
+            "p_value": p_values,
+        }
+    )
+
+
+class TestSharedYAxis:
+    """A Manhattan panel and its QQ neighbour share one padded y upper limit."""
+
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_manhattan_qq_panels_share_the_padded_highest_top(self, backend):
+        probe = PROBES[backend]
+        fig = ManhattanPlotter(species="human", backend=backend).plot_manhattan_qq(
+            _peaked_df(1e-12)
+        )
+
+        manhattan_top = probe.y_range(fig, panel=0)[1]
+        qq_top = probe.y_range(fig, panel=1)[1]
+        assert manhattan_top == pytest.approx(12 * 1.1)
+        assert qq_top == pytest.approx(manhattan_top)
+
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_manhattan_qq_stacked_rows_each_share_their_own_top(self, backend):
+        probe = PROBES[backend]
+        fig = ManhattanPlotter(
+            species="human", backend=backend
+        ).plot_manhattan_qq_stacked([_peaked_df(1e-12), _peaked_df(1e-9)])
+
+        tops = [probe.y_range(fig, panel=i)[1] for i in range(4)]
+        assert tops == pytest.approx([12 * 1.1, 12 * 1.1, 9 * 1.1, 9 * 1.1])
+
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_standalone_manhattan_and_qq_keep_their_own_tops(self, backend):
+        probe = PROBES[backend]
+        plotter = ManhattanPlotter(species="human", backend=backend)
+
+        manhattan = plotter.plot_manhattan(_peaked_df(1e-12))
+        qq = plotter.plot_qq(_peaked_df(1e-12))
+
+        assert probe.y_range(manhattan)[1] == pytest.approx(12 * 1.1)
+        assert probe.y_range(qq)[1] == pytest.approx(12 * 1.05)
+
+
 class TestYlimClamp:
     """Regression: Manhattan variants must never emit a degenerate ylim(0, 0).
 
@@ -702,20 +752,21 @@ class TestQQAxisLimits:
         )
 
     @staticmethod
-    def _assert_limits(ax, n):
+    def _assert_limits(ax, n, y_padding):
         expected_max = -np.log10(1 / (n + 1))
         assert ax.get_xlim()[1] == pytest.approx(expected_max * 1.05, rel=0.01)
-        assert ax.get_ylim()[1] == pytest.approx(23 * 1.05, rel=0.01)
+        assert ax.get_ylim()[1] == pytest.approx(23 * y_padding, rel=0.01)
 
     def test_plot_qq(self, strong_hit_df):
         fig = ManhattanPlotter(species="human").plot_qq(strong_hit_df)
 
-        self._assert_limits(fig.get_axes()[0], len(strong_hit_df))
+        self._assert_limits(fig.get_axes()[0], len(strong_hit_df), 1.05)
 
     def test_plot_manhattan_qq(self, strong_hit_df):
+        """The y top is shared with the Manhattan panel; x still fits expected."""
         fig = ManhattanPlotter(species="human").plot_manhattan_qq(strong_hit_df)
 
-        self._assert_limits(fig.get_axes()[1], len(strong_hit_df))
+        self._assert_limits(fig.get_axes()[1], len(strong_hit_df), 1.1)
 
     def test_diagonal_stops_at_the_x_limit(self, strong_hit_df):
         fig = ManhattanPlotter(species="human").plot_qq(strong_hit_df)

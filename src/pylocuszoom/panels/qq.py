@@ -48,6 +48,8 @@ class QQPanelSpec:
         label_fontsize: Axis label size.
         x_label: X axis label, or None for none.
         y_label: Y axis label.
+        y_max: Upper y-limit shared with the Manhattan panel beside it, or
+            None to size the axis from this panel's own points.
         style: Caller styling. A field it sets overrides the matching
             field above.
     """
@@ -59,7 +61,12 @@ class QQPanelSpec:
     label_fontsize: int = 12
     x_label: Optional[str] = r"Expected $-\log_{10}(p)$"
     y_label: str = r"Observed $-\log_{10}(p)$"
+    y_max: Optional[float] = None
     style: GenomeWideStyle = GenomeWideStyle()
+
+    def highest(self) -> float:
+        """Return the highest observed or expected value, in -log10 p."""
+        return max(self.qq_df["_observed"].max(), self.qq_df["_expected"].max())
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw this panel onto a backend axis."""
@@ -79,7 +86,9 @@ class QQPanelSpec:
         # One strong hit can sit far above every expected value, so each axis
         # follows its own data rather than sharing the larger maximum.
         x_max = qq_df["_expected"].max() * 1.05
-        y_max = max(qq_df["_observed"].max() * 1.05, x_max)
+        y_max = self.y_max
+        if y_max is None:
+            y_max = max(qq_df["_observed"].max() * 1.05, x_max)
         backend.line(
             ax,
             x=pd.Series([0, x_max]),

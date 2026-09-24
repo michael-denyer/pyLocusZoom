@@ -7,7 +7,7 @@ Manhattan plotter's plans and the Miami plan share one policy instead of
 three copies.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, List, Optional, Sequence, TypeVar
 
 import numpy as np
@@ -39,6 +39,23 @@ def padded_ymax(y_max: float, headroom: float) -> float:
     return max(y_max * (1 + headroom), 1.0) if pd.notna(y_max) else 1.0
 
 
+def share_y_max(panels: Sequence[T], headroom: float) -> List[T]:
+    """Give panels one upper y-limit: the padded highest of what each draws.
+
+    Side-by-side panels over the same p-values then put a point at the same
+    height, and mirrored Miami halves use one scale.
+
+    Args:
+        panels: Panel specs with a ``highest()`` method and a ``y_max`` field.
+        headroom: Fraction of the highest value left above it.
+
+    Returns:
+        The same panels, in order, each with ``y_max`` set.
+    """
+    y_max = padded_ymax(max(panel.highest() for panel in panels), headroom)
+    return [replace(panel, y_max=y_max) for panel in panels]
+
+
 @dataclass(frozen=True)
 class ManhattanPanelSpec:
     """One Manhattan-style panel's data and presentation policy.
@@ -64,6 +81,9 @@ class ManhattanPanelSpec:
         panel_label_y_frac: Fractional height of the corner label.
         invert_y: Draw the y axis descending, as the lower Miami panel does.
         hover: Hover column mapping, or None for no tooltips.
+        y_max: Upper y-limit shared with neighbouring panels, the magnitude
+            of the lower end when ``invert_y``. None pads this panel's own
+            highest point or line by ``style.y_headroom``.
         style: Caller styling. A field it sets overrides the matching
             field above.
     """
@@ -83,7 +103,17 @@ class ManhattanPanelSpec:
     panel_label_y_frac: float = 0.95
     invert_y: bool = False
     hover: Optional[HoverConfig] = None
+    y_max: Optional[float] = None
     style: GenomeWideStyle = GenomeWideStyle()
+
+    def highest(self) -> float:
+        """Return the highest point or threshold line, in -log10 p."""
+        line_levels = [
+            -np.log10(threshold)
+            for threshold in (self.significance_threshold, self.suggestive_threshold)
+            if threshold is not None
+        ]
+        return max([self.prepared.frame["neglog10p"].max(), *line_levels])
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
         """Draw this panel onto a backend axis."""
@@ -122,14 +152,9 @@ class ManhattanPanelSpec:
             **line_kwargs,
         )
         backend.set_xlim(ax, *layout.x_limits)
-        line_levels = [
-            -np.log10(threshold)
-            for threshold in (self.significance_threshold, self.suggestive_threshold)
-            if threshold is not None
-        ]
-        y_max = padded_ymax(
-            max([df["neglog10p"].max(), *line_levels]), style.y_headroom
-        )
+        y_max = self.y_max
+        if y_max is None:
+            y_max = padded_ymax(self.highest(), style.y_headroom)
         if self.invert_y:
             backend.set_ylim(ax, y_max, 0)
         else:

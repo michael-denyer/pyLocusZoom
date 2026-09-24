@@ -989,7 +989,7 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `line_width` | float | 1.0 | Width of the same lines. |
 | `title_fontweight` | str | `"bold"` | Weight of the figure title and panel titles: `"bold"` or `"normal"`. |
 | `point_edge_width` | float | None | Outline width of Manhattan and QQ points; `0` draws no outline. `None` keeps 0.1 on Manhattan points and 0.02 on QQ points. |
-| `y_headroom` | float | 0.1 | Space left above the highest Manhattan point or threshold line, as a fraction of its height. |
+| `y_headroom` | float | 0.1 | Space left above the highest Manhattan point or threshold line, as a fraction of its height. A Manhattan panel and the QQ panel beside it, and the two Miami halves, share one limit padded from the higher of the two. |
 | `manhattan_qq_width_ratio` | float | 2.5 | Width of the Manhattan panel relative to the QQ panel in a Manhattan-QQ figure. |
 
 All three backends apply every field. Corner panel labels and Miami SNP

@@ -8,7 +8,7 @@ from ..backends.base import PlotBackend
 from ..backends.hover import HoverConfig
 from ..config import GenomeWideStyle
 from ..manhattan import PreparedManhattan
-from .manhattan import ManhattanPanelSpec
+from .manhattan import ManhattanPanelSpec, share_y_max
 
 
 @dataclass(frozen=True)
@@ -70,30 +70,31 @@ class MiamiPanel:
 
 def miami_plan(req: MiamiRequest) -> FigurePlan:
     """Lay out the two mirrored panels and the highlights spanning both."""
-    top = MiamiPanel(
-        spec=ManhattanPanelSpec(
-            req.top,
-            significance_threshold=req.top_threshold,
-            panel_label=req.top_label,
-            hover=req.hover,
-            style=req.style,
-        ),
-        rs_col=req.rs_col,
-        annotations=req.top_annotations,
+    top_spec, bottom_spec = share_y_max(
+        [
+            ManhattanPanelSpec(
+                req.top,
+                significance_threshold=req.top_threshold,
+                panel_label=req.top_label,
+                hover=req.hover,
+                style=req.style,
+            ),
+            ManhattanPanelSpec(
+                req.bottom,
+                significance_threshold=req.bottom_threshold,
+                x_label="Chromosome",
+                panel_label=req.bottom_label,
+                panel_label_y_frac=0.05,
+                invert_y=True,
+                hover=req.hover,
+                style=req.style,
+            ),
+        ],
+        req.style.y_headroom,
     )
+    top = MiamiPanel(spec=top_spec, rs_col=req.rs_col, annotations=req.top_annotations)
     bottom = MiamiPanel(
-        spec=ManhattanPanelSpec(
-            req.bottom,
-            significance_threshold=req.bottom_threshold,
-            x_label="Chromosome",
-            panel_label=req.bottom_label,
-            panel_label_y_frac=0.05,
-            invert_y=True,
-            hover=req.hover,
-            style=req.style,
-        ),
-        rs_col=req.rs_col,
-        annotations=req.bottom_annotations,
+        spec=bottom_spec, rs_col=req.rs_col, annotations=req.bottom_annotations
     )
     offsets = req.top.layout.offsets
     highlights = [

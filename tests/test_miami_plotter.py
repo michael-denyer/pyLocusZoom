@@ -178,6 +178,34 @@ class TestMiamiPlotter:
         )
 
 
+class TestMiamiSharedScale:
+    """Both halves use one magnitude, so a unit of -log10 p is one length."""
+
+    @staticmethod
+    def _peaked_df(peak_p):
+        p_values = np.linspace(0.01, 1.0, 30)
+        p_values[4] = peak_p
+        return pd.DataFrame(
+            {
+                "chr": np.repeat([1, 2, 3], 10),
+                "pos": np.tile(np.arange(1, 11) * 1_000_000, 3),
+                "p_value": p_values,
+            }
+        )
+
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_halves_share_the_padded_highest_magnitude(self, backend):
+        probe = PROBES[backend]
+        fig = MiamiPlotter(species="human", backend=backend).plot_miami(
+            self._peaked_df(1e-12), self._peaked_df(1e-9)
+        )
+
+        top = probe.y_range(fig, panel=0)
+        bottom = probe.y_range(fig, panel=1)
+        assert top == pytest.approx((0, 12 * 1.1))
+        assert bottom == pytest.approx((12 * 1.1, 0))
+
+
 class TestMiamiPlotterOptions:
     """Tests for MiamiPlotter configuration options."""
 
