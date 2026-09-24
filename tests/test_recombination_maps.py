@@ -79,7 +79,7 @@ class TestDownloadCanineRecombinationMaps:
         TestStageArchive._tar(
             dest,
             {
-                f"chr{i}.txt": f"chr\tpos\trate\tcM\n{i}\t1\t1\t0\n"
+                f"chr{i}_average_canFam3.1.txt": f"chr\tpos\trate\tcM\n{i}\t1\t1\t0\n"
                 for i in range(1, 39)
             },
         )
@@ -154,7 +154,7 @@ class TestStageArchive:
         self._tar(
             archive,
             {
-                "nested/chr1.txt": "1\t1000\t0.5\t0.1\n",
+                "nested/chr1_average_canFam3.1.txt": "1\t1000\t0.5\t0.1\n",
                 "chr7_average_canFam3.1.txt": "chr\tpos\trate\tcM\n7\t1000\t0.5\t0.1\n",
                 "README.txt": "ignored",
             },
@@ -172,6 +172,27 @@ class TestStageArchive:
         assert (
             staging / "chr7_recomb.tsv"
         ).read_text() == "chr\tpos\trate\tcM\n7\t1000\t0.5\t0.1\n"
+
+    def test_stages_the_sex_averaged_map_from_the_upstream_layout(self, tmp_path):
+        # The Campbell et al. archive ships average, female and male maps for
+        # every chromosome; only the sex-averaged one is the recombination map.
+        archive = tmp_path / "maps.tar.gz"
+        self._tar(
+            archive,
+            {
+                f"dog_genetic_maps/chr1_{variant}_canFam3.1.txt": (
+                    f"chr\tpos\trate\tcM\n1\t1000\t{rate}\t0.1\n"
+                )
+                for variant, rate in (("average", 0.5), ("female", 0.7), ("male", 0.3))
+            },
+        )
+        staging = tmp_path / "out"
+        staging.mkdir()
+        _stage_archive(archive, CANINE_SOURCE, staging)
+        assert {p.name for p in staging.iterdir()} == {"chr1_recomb.tsv"}
+        assert (staging / "chr1_recomb.tsv").read_text() == (
+            "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
+        )
 
     def test_rejects_traversal_without_writing_outside_staging(self, tmp_path):
         archive = tmp_path / "maps.tar.gz"
@@ -191,7 +212,9 @@ class TestStageArchive:
 
     def test_a_filename_without_a_chromosome_is_an_error(self, tmp_path):
         archive = tmp_path / "maps.tar.gz"
-        self._tar(archive, {"chr_notes.txt": "chr\tpos\trate\tcM\n1\t1\t1\t1\n"})
+        self._tar(
+            archive, {"chr_average_notes.txt": "chr\tpos\trate\tcM\n1\t1\t1\t1\n"}
+        )
         staging = tmp_path / "out"
         staging.mkdir()
         with pytest.raises(DataDownloadError, match="does not name a chromosome"):
@@ -499,7 +522,7 @@ class TestDownloadCanineRecombHeaderDetection:
         def side_effect(url, dest_path, desc=None):
             with tarfile.open(dest_path, "w:gz") as tar:
                 for chrom in map(str, range(1, 39)):
-                    map_filename = f"chr{chrom}.txt"
+                    map_filename = f"chr{chrom}_average_canFam3.1.txt"
                     map_content = (
                         content
                         if map_filename == filename
@@ -516,7 +539,9 @@ class TestDownloadCanineRecombHeaderDetection:
     def test_raises_on_html_corrupted_body(self, mock_download, tmp_path):
         """An HTML error body masquerading as a map is a download failure."""
         html_content = "<html><body>502 Bad Gateway</body></html>\n"
-        mock_download.side_effect = self._fake_download("chr1.txt", html_content)
+        mock_download.side_effect = self._fake_download(
+            "chr1_average_canFam3.1.txt", html_content
+        )
 
         with pytest.raises(DataDownloadError, match="Unrecognised first token"):
             download_canine_recombination_maps(tmp_path / "out")
@@ -529,7 +554,9 @@ class TestDownloadCanineRecombHeaderDetection:
         from pylocuszoom import LocusZoomPlotter
 
         html_content = "<html><body>502 Bad Gateway</body></html>\n"
-        mock_download.side_effect = self._fake_download("chr1.txt", html_content)
+        mock_download.side_effect = self._fake_download(
+            "chr1_average_canFam3.1.txt", html_content
+        )
         monkeypatch.setattr(
             "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path / "out"
         )
@@ -553,7 +580,9 @@ class TestDownloadCanineRecombHeaderDetection:
     def test_accepts_lowercase_chr_header(self, mock_download, tmp_path):
         """Pre-existing canonical header form must still be accepted."""
         content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
-        mock_download.side_effect = self._fake_download("chr1.txt", content)
+        mock_download.side_effect = self._fake_download(
+            "chr1_average_canFam3.1.txt", content
+        )
 
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
@@ -562,7 +591,9 @@ class TestDownloadCanineRecombHeaderDetection:
     def test_accepts_capitalised_chromosome_header(self, mock_download, tmp_path):
         """'Chromosome' is used by several mirrors; must pass."""
         content = "Chromosome\tPosition\tRate\tcM\n1\t1000\t0.5\t0.1\n"
-        mock_download.side_effect = self._fake_download("chr1.txt", content)
+        mock_download.side_effect = self._fake_download(
+            "chr1_average_canFam3.1.txt", content
+        )
 
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
@@ -571,7 +602,9 @@ class TestDownloadCanineRecombHeaderDetection:
     def test_accepts_hash_prefixed_header(self, mock_download, tmp_path):
         """Some maps use '#chr' as a commented header; must pass."""
         content = "#chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
-        mock_download.side_effect = self._fake_download("chr1.txt", content)
+        mock_download.side_effect = self._fake_download(
+            "chr1_average_canFam3.1.txt", content
+        )
 
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
@@ -580,7 +613,9 @@ class TestDownloadCanineRecombHeaderDetection:
     def test_accepts_numeric_first_token_prepends_header(self, mock_download, tmp_path):
         """Numeric first token means no header; one is prepended."""
         content = "1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
-        mock_download.side_effect = self._fake_download("chr1.txt", content)
+        mock_download.side_effect = self._fake_download(
+            "chr1_average_canFam3.1.txt", content
+        )
 
         result = download_canine_recombination_maps(tmp_path / "out")
         out_file = result / "chr1_recomb.tsv"
@@ -623,7 +658,7 @@ def test_archive_rejects_duplicate_chromosome_maps(tmp_path, monkeypatch):
     def download(url, dest, desc):
         with tarfile.open(dest, "w:gz") as archive:
             for chrom in list(range(1, 39)) + [1]:
-                member = tarfile.TarInfo(f"chr{chrom}.txt")
+                member = tarfile.TarInfo(f"chr{chrom}_average_canFam3.1.txt")
                 data = f"{chrom}\t150\t1\t0.1\n".encode()
                 member.size = len(data)
                 archive.addfile(member, io.BytesIO(data))
