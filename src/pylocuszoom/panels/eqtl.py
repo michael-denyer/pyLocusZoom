@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Optional
 
+import numpy as np
 import pandas as pd
 
 from ..backends.base import PlotBackend
@@ -123,3 +124,6 @@ class EqtlPanel:
                 )
         backend.set_ylabel(ax, r"$-\log_{10}$ P (eQTL)")
         add_significance_line(backend, ax, self.threshold, alpha=REGIONAL_LINE_ALPHA)
+        y_max = max(data["neglog10p"].max(), -np.log10(self.threshold))
+        if pd.notna(y_max) and y_max > 0:
+            backend.set_ylim(ax, 0, y_max * 1.15)

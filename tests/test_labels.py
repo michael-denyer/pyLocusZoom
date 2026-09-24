@@ -512,3 +512,80 @@ class TestNearLeadFilterBackfill:
         assert "lead" in label_strs
         # Near neighbors are excluded; only lead is eligible.
         assert len(texts) == 1
+
+
+class TestAdjustedLabelPlacement:
+    """Adjusted labels stay in the axes and beside, or visibly tied to, their SNP."""
+
+    NEAR_POINTS = 40
+
+    @pytest.fixture
+    def crowded_labels(self):
+        """Render a regional plot with three labels within 20 kb and one at the edge."""
+        from matplotlib.patches import FancyArrowPatch
+
+        from pylocuszoom import DisplayConfig, LocusZoomPlotter
+
+        frame = pd.DataFrame(
+            {
+                "chr": 1,
+                "pos": [1_100_000, 1_500_000, 1_560_000, 1_570_000, 1_580_000]
+                + [1_590_000, 1_970_000],
+                "p_value": [1e-3, 1e-10, 1e-9, 1e-9, 1e-8, 1e-7, 1e-8],
+                "rs": [f"rs{i}" for i in range(7)],
+            }
+        )
+        fig = LocusZoomPlotter(species=None).plot(
+            frame,
+            chrom=1,
+            start=1_000_000,
+            end=2_000_000,
+            display=DisplayConfig(show_recombination=False, label_top_n=5),
+        )
+        fig.canvas.draw()
+        ax = fig.axes[0]
+        labels = [text for text in ax.texts if text.get_text().startswith("rs")]
+        leaders = [
+            patch
+            for patch in ax.patches
+            if isinstance(patch, FancyArrowPatch)
+            and patch.get_linewidth() > 0
+            and patch.get_edgecolor()[3] > 0
+        ]
+        return fig, ax, labels, leaders
+
+    def test_every_label_bbox_is_inside_the_axes(self, crowded_labels):
+        fig, ax, labels, _ = crowded_labels
+        renderer = fig.canvas.get_renderer()
+        axes_box = ax.get_window_extent(renderer)
+
+        assert len(labels) == 5
+        for label in labels:
+            box = label.get_window_extent(renderer)
+            assert axes_box.x0 <= box.x0 and box.x1 <= axes_box.x1, label.get_text()
+            assert axes_box.y0 <= box.y0 and box.y1 <= axes_box.y1, label.get_text()
+
+    def test_every_label_is_near_its_snp_or_joined_by_a_visible_leader(
+        self, crowded_labels
+    ):
+        import numpy as np
+
+        fig, ax, labels, leaders = crowded_labels
+        renderer = fig.canvas.get_renderer()
+        to_points = 72 / fig.dpi
+        leader_ends = [patch.get_path().vertices for patch in leaders]
+
+        for label in labels:
+            snp = ax.transData.transform(label.xy)
+            box = label.get_window_extent(renderer)
+            gap = np.hypot(
+                max(box.x0 - snp[0], 0, snp[0] - box.x1),
+                max(box.y0 - snp[1], 0, snp[1] - box.y1),
+            )
+            joined = any(
+                np.hypot(*(ends - snp).T).min() * to_points < 5 for ends in leader_ends
+            )
+            assert gap * to_points < self.NEAR_POINTS or joined, (
+                f"{label.get_text()} is {gap * to_points:.0f} pt from its SNP "
+                "with no visible leader line"
+            )

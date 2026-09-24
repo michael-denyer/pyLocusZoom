@@ -23,7 +23,11 @@ from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
 from .manhattan import prepare_categorical_data, prepare_genomewide_frames
 from .panels._shared import MANHATTAN_CATEGORICAL_POINT_SIZE
-from .panels.manhattan import ManhattanPanelSpec, stacked_manhattan_specs
+from .panels.manhattan import (
+    ManhattanPanelSpec,
+    share_y_max,
+    stacked_manhattan_specs,
+)
 from .panels.qq import QQPanelSpec, qq_title
 from .qq import prepare_qq_data
 from .schemas import Canonical
@@ -355,29 +359,30 @@ class ManhattanPlotter:
             [df], config, species=self.species, style=style
         )[0]
         qq = prepare_qq_data(manhattan.frame)
+        panels = [
+            ManhattanPanelSpec(
+                manhattan,
+                significance_threshold=significance_threshold,
+                suggestive_threshold=suggestive_threshold,
+                x_label="Chromosome",
+                style=style,
+            ),
+            QQPanelSpec(
+                qq_df=qq.frame,
+                show_confidence_band=show_confidence_band,
+                title=qq_title(
+                    qq.lambda_gc if lambda_gc is None else lambda_gc,
+                    show_lambda=show_lambda,
+                    compact=True,
+                ),
+                title_fontsize=12,
+                style=style,
+            ),
+        ]
         return render_figure(
             self._backend,
             FigurePlan(
-                panels=[
-                    ManhattanPanelSpec(
-                        manhattan,
-                        significance_threshold=significance_threshold,
-                        suggestive_threshold=suggestive_threshold,
-                        x_label="Chromosome",
-                        style=style,
-                    ),
-                    QQPanelSpec(
-                        qq_df=qq.frame,
-                        show_confidence_band=show_confidence_band,
-                        title=qq_title(
-                            qq.lambda_gc if lambda_gc is None else lambda_gc,
-                            show_lambda=show_lambda,
-                            compact=True,
-                        ),
-                        title_fontsize=12,
-                        style=style,
-                    ),
-                ],
+                panels=share_y_max(panels, style.y_headroom),
                 figsize=figsize,
                 n_cols=2,
                 width_ratios=[style.manhattan_qq_width_ratio, 1],
@@ -450,20 +455,16 @@ class ManhattanPlotter:
         panels = []
         for index, (spec, prepared) in enumerate(zip(specs, manhattans)):
             qq = prepare_qq_data(prepared.frame)
-            panels.append(spec)
-            panels.append(
-                QQPanelSpec(
-                    qq_df=qq.frame,
-                    show_confidence_band=show_confidence_band,
-                    title=qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=True),
-                    title_fontsize=10,
-                    label_fontsize=10,
-                    x_label="Expected $-\\log_{10}(p)$"
-                    if index == n_gwas - 1
-                    else None,
-                    style=style,
-                )
+            qq_spec = QQPanelSpec(
+                qq_df=qq.frame,
+                show_confidence_band=show_confidence_band,
+                title=qq_title(qq.lambda_gc, show_lambda=show_lambda, compact=True),
+                title_fontsize=10,
+                label_fontsize=10,
+                x_label="Expected $-\\log_{10}(p)$" if index == n_gwas - 1 else None,
+                style=style,
             )
+            panels.extend(share_y_max([spec, qq_spec], style.y_headroom))
         return render_figure(
             self._backend,
             FigurePlan(

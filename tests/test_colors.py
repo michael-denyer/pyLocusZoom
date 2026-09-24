@@ -166,13 +166,13 @@ class TestEqtlBins:
 
     def test_positive_effect_bins(self):
         """Positive effects should return correct bin labels."""
-        assert _find_eqtl_bin(0.35).label == "0.3 : 0.4"
+        assert _find_eqtl_bin(0.35).label == "≥ 0.3"
         assert _find_eqtl_bin(0.25).label == "0.2 : 0.3"
         assert _find_eqtl_bin(0.15).label == "0.1 : 0.2"
 
     def test_negative_effect_bins(self):
         """Negative effects should return correct bin labels."""
-        assert _find_eqtl_bin(-0.35).label == "-0.4 : -0.3"
+        assert _find_eqtl_bin(-0.35).label == "≤ -0.3"
         assert _find_eqtl_bin(-0.25).label == "-0.3 : -0.2"
         assert _find_eqtl_bin(-0.15).label == "-0.2 : -0.1"
 
@@ -181,12 +181,26 @@ class TestEqtlBins:
         assert _find_eqtl_bin(0.05).label == "0.0 : 0.1"
         assert _find_eqtl_bin(-0.05).label == "-0.1 : 0.0"
 
-    def test_effects_beyond_the_boundary_land_in_the_outermost_bin(self):
-        """An effect past the outermost edge takes that edge's bin."""
-        assert _find_eqtl_bin(0.4).label == "0.3 : 0.4"
-        assert _find_eqtl_bin(5.0).label == "0.3 : 0.4"
-        assert _find_eqtl_bin(-0.4).label == "-0.4 : -0.3"
-        assert _find_eqtl_bin(-5.0).label == "-0.4 : -0.3"
+    def test_effects_beyond_the_inner_edges_land_in_the_open_outer_bins(self):
+        """The outermost bins are open-ended and their labels say so."""
+        assert _find_eqtl_bin(0.3).label == "≥ 0.3"
+        assert _find_eqtl_bin(0.65).label == "≥ 0.3"
+        assert _find_eqtl_bin(5.0).label == "≥ 0.3"
+        assert _find_eqtl_bin(-0.3).label == "≤ -0.3"
+        assert _find_eqtl_bin(-0.65).label == "≤ -0.3"
+        assert _find_eqtl_bin(-5.0).label == "≤ -0.3"
+
+    @given(st.floats(min_value=-10.0, max_value=10.0, allow_nan=False))
+    def test_every_effect_lies_in_the_range_its_legend_label_names(self, effect):
+        """The legend label of an effect's bin names a range holding the effect."""
+        label = _find_eqtl_bin(effect).label
+        if label.startswith("≥"):
+            assert effect >= float(label.removeprefix("≥ "))
+        elif label.startswith("≤"):
+            assert effect <= float(label.removeprefix("≤ "))
+        else:
+            low, high = (float(edge) for edge in label.split(" : "))
+            assert low <= effect <= high
 
 
 class TestCredibleSetColors:
@@ -443,16 +457,16 @@ class TestEQTLBinNamedTuple:
         """EQTLBin fields should be accessible by name."""
         first_pos = EQTL_POSITIVE_BINS[0]
         assert first_pos.min_val == 0.3
-        assert first_pos.max_val == 0.4
-        assert first_pos.label == "0.3 : 0.4"
+        assert first_pos.max_val == math.inf
+        assert first_pos.label == "≥ 0.3"
         assert first_pos.color == "#8B1A1A"
 
     def test_eqtlbin_backward_compatible_with_unpacking(self):
         """EQTLBin should still work with tuple unpacking."""
         min_val, max_val, label, color = EQTL_POSITIVE_BINS[0]
         assert min_val == 0.3
-        assert max_val == 0.4
-        assert label == "0.3 : 0.4"
+        assert max_val == math.inf
+        assert label == "≥ 0.3"
         assert color == "#8B1A1A"
 
 

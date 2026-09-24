@@ -12,7 +12,7 @@ from matplotlib.axes import Axes
 from matplotlib.text import Annotation
 
 from pylocuszoom._label_data import select_label_candidates
-from pylocuszoom.colors import SNP_LABEL_COLOR
+from pylocuszoom.colors import SNP_LABEL_COLOR, SNP_LABEL_LEADER_COLOR
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.logging import logger
 from pylocuszoom.schemas import Canonical
@@ -130,6 +130,9 @@ def add_snp_labels(
 def adjust_snp_labels(ax: Axes, texts: List[Annotation]) -> None:
     """Adjust SNP label positions to avoid overlaps.
 
+    Labels stay inside the axes, and a label moved away from its SNP gets a
+    thin grey leader line back to it.
+
     This function should be called AFTER all axis limits have been set,
     as adjustText needs to know the final plot bounds to position labels
     correctly within the visible area.
@@ -149,15 +152,31 @@ def adjust_snp_labels(ax: Axes, texts: List[Annotation]) -> None:
 
     try:
         from adjustText import adjust_text
-
-        adjust_text(
-            texts,
-            ax=ax,
-            arrowprops=dict(arrowstyle="-", color="none", lw=0),
-            expand_points=(1.5, 1.5),
-        )
     except ImportError:
         logger.warning(
             "adjustText not installed - SNP labels may overlap. "
             "Install with: pip install adjustText"
         )
+        return
+
+    # adjustText reads every position through the first text's transform, but
+    # each label's offset-points transform is anchored at its own SNP, so move
+    # them all onto the data transform before handing them over.
+    ax.figure.draw_without_rendering()
+    for text in texts:
+        display_xy = text.get_transform().transform(text.get_position())
+        text.anncoords = "data"
+        text.set_position(ax.transData.inverted().transform(display_xy))
+
+    snp_x = [text.xy[0] for text in texts]
+    snp_y = [text.xy[1] for text in texts]
+    adjust_text(
+        texts,
+        ax=ax,
+        x=snp_x,
+        y=snp_y,
+        target_x=snp_x,
+        target_y=snp_y,
+        expand=(1.5, 1.5),
+        arrowprops=dict(arrowstyle="-", color=SNP_LABEL_LEADER_COLOR, lw=0.5),
+    )
