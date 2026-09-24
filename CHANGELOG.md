@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The 5.0.0 entry on import and loguru sinks now matches the logging entry under Breaking.
 - The getting-started notebook's markdown names the 5.0 `FinemappingInput` and `LDHeatmapInput` panels.
 - CONFIGURATION covers only caches and environment variables. Its cache table named removed functions and gave the wrong macOS, Windows and Databricks paths and no UCSC folder; it is now one base directory per platform plus the `recombination_maps/`, `liftover/`, `ensembl/` and `ucsc/` subfolders. Its config-model tables, which listed `label_top_n` as defaulting to 5 and omitted `auto_genes`, are replaced by links to USER_GUIDE, which gains `ColocConfig` and the recombination map file format.
+- README keeps the pitch, installation, quick start, a figure gallery and links; the per-plot code, reference tables, data formats and backend notes it repeated from USER_GUIDE move there or become links. This drops README's broken `LDHeatmapPlotter().plot` snippet, its undefined `phewas_df`, its Requirements list (which said `plotly>=5.0.0` where `pyproject.toml` requires 5.15) and the obsolete "Breaking in 2.0" backend note. README links are absolute so they work on PyPI. USER_GUIDE gains the categorical Manhattan example, a Custom Backends section and the source of the canine maps.
 
 ## [5.0.0] - 2026-09-23
 

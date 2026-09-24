@@ -26,6 +26,7 @@ Comprehensive documentation for pyLocusZoom - regional association plots for GWA
   - [Matplotlib (Static)](#matplotlib-static)
   - [Plotly (Interactive)](#plotly-interactive)
   - [Bokeh (Dashboard)](#bokeh-dashboard)
+  - [Custom Backends](#custom-backends)
 - [Plotter Reference](#plotter-reference)
   - [LocusZoomPlotter](#locuszoomplotter)
   - [plot() Method](#plot-method)
@@ -619,6 +620,25 @@ fig.savefig("manhattan.png", dpi=150)
 - Automatic cumulative position calculation
 - Chromosome labels on x-axis
 
+**Categorical Manhattan plots** (PheWAS-style) put a category on the x axis
+instead of genomic position:
+
+```python
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+
+phewas_df = pd.DataFrame({
+    "phenotype": ["Height", "BMI", "T2D", "CAD", "HDL"],
+    "pvalue": [1e-15, 0.05, 1e-8, 1e-3, 1e-10],
+    "phenotype_category": ["Anthropometric", "Anthropometric", "Metabolic", "Cardiovascular", "Lipids"],
+})
+
+fig = ManhattanPlotter().plot_manhattan(
+    phewas_df,
+    category_col="phenotype_category",
+    config=GenomeWideConfig(p_col="pvalue"),
+)
+```
+
 ### QQ Plots
 
 Quantile-quantile plots for assessing p-value distribution and detecting systematic bias.
@@ -810,6 +830,18 @@ save(fig)
 - Hover tooltips
 - Pan and zoom
 - Easy integration with Bokeh server applications
+
+### Custom Backends
+
+A custom backend implements the `PlotBackend` protocol in
+`pylocuszoom/backends/base.py`, which carries drawing primitives only: legends
+and the recombination overlay are composed above it in
+`backends/composition.py`. `SupportsSNPLabels` (matplotlib-style repositioned
+labels) is the one optional capability, negotiated with a `@runtime_checkable`
+protocol: a backend opts in by implementing `add_snp_labels` and out by
+omitting it, and still renders every plot family without it. 5.0 changed the
+protocol; [MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends) lists each
+signature change, and [ARCHITECTURE.md](ARCHITECTURE.md) describes the seam.
 
 ---
 
@@ -1380,7 +1412,8 @@ plotter = LocusZoomPlotter(species="canine")
 plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 ```
 
-Recombination maps are automatically downloaded on first use (~50MB), into
+Recombination maps from [Campbell et al. 2016](https://github.com/cflerin/dog_recombination)
+are automatically downloaded on first use (~50MB), into
 `recombination_maps` under the platform cache. The CanFam3.1 to CanFam4
 liftover chain downloads into a `liftover` directory beside it, so replacing a
 map set never touches the chain; [CONFIGURATION.md](CONFIGURATION.md#cache-location)
