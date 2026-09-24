@@ -201,11 +201,13 @@ For a concrete example, see `prepare_manhattan_frames` in
    uv run python examples/generate_example_plots.py
    ```
 
-7. Push and open a PR against `main`. The CI workflow has four jobs — all must pass:
+7. Push and open a PR against `main`. The CI workflow has five jobs — all must pass:
    - `lint` — `ruff check` and `ruff format --check` (Python 3.11, pinned ruff 0.15.2).
    - `docs-lint` — markdownlint, mermaid (maid + mmdc), yamllint, lychee link check.
    - `test` — pytest matrix across Python 3.10, 3.11, and 3.12; runs
      `uv run pytest`, which takes every flag from `addopts`.
+   - `examples` — downloads the canine recombination maps, runs the example generator
+     into a temporary directory (any `UserWarning` fails it) and executes the notebook.
    - `build` — `uv build` produces wheel and sdist artifacts.
 8. There is no `.github/PULL_REQUEST_TEMPLATE.md` at time of writing — write a concise
    description covering *what* changed and *why*, and reference any related GitHub
