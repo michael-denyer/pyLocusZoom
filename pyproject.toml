@@ -99,5 +99,7 @@ ignore = ["E501"]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.0",
+    "nbclient>=0.10.0",
     "nbformat>=5.10.4",
 ]

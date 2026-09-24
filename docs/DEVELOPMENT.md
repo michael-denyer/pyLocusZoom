@@ -94,6 +94,26 @@ uv run python -c "from pylocuszoom import download_canine_recombination_maps as 
 `scripts/example_diff.sh` exits 2 when the generator fails, with or without
 `--keep`, so a degraded export is never compared or accepted.
 
+## Example Notebook
+
+`examples/getting_started.ipynb` runs offline and seeds every cell that draws random
+numbers, so a top-to-bottom run gives the same figures each time. The `dev`
+dependency group provides `nbclient` and `ipykernel`. To execute the notebook
+headless and fail on the first cell error:
+
+```bash
+uv run python scripts/execute_notebook.py examples/getting_started.ipynb
+```
+
+To execute it and save the outputs into the notebook, pass the same path as `--output`:
+
+```bash
+uv run python scripts/execute_notebook.py examples/getting_started.ipynb \
+  --output examples/getting_started.ipynb
+```
+
+Commit saved outputs only when they come from a full top-to-bottom run like this one.
+
 ## Code Style
 
 Formatting and linting are handled by a **single tool: [ruff](https://github.com/astral-sh/ruff)**.
