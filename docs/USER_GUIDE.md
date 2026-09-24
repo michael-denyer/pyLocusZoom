@@ -739,6 +739,24 @@ fig = plotter.plot_manhattan_qq(
 )
 ```
 
+### Stacked Manhattan and QQ
+
+`plot_manhattan_qq_stacked` draws one Manhattan and QQ row per GWAS, to compare
+cohorts or phenotypes.
+
+![Stacked Manhattan and QQ plots for three cohorts](../examples/matplotlib/manhattan_qq_stacked.png)
+
+```python
+fig = plotter.plot_manhattan_qq_stacked(
+    [discovery_df, replication_df, meta_df],
+    panel_labels=["Discovery", "Replication", "Meta-analysis"],
+    significance_threshold=5e-8,
+    figsize=(16, 12),
+    title="Multi-cohort GWAS Summary",
+)
+fig.savefig("manhattan_qq_stacked.png", dpi=150)
+```
+
 ### Styling genome-wide plots
 
 Every Manhattan, QQ, stacked, side-by-side and Miami method takes
@@ -776,6 +794,12 @@ pyLocusZoom supports three rendering backends for different use cases.
 | `matplotlib` | PNG, PDF, SVG | Publications, presentations | Yes (adjustText) |
 | `plotly` | Interactive HTML | Web reports, exploration | No (hover instead) |
 | `bokeh` | Interactive HTML | Dashboards, web apps | No (hover instead) |
+
+**Interactive examples:** [examples/plotly/](../examples/plotly/) and
+[examples/bokeh/](../examples/bokeh/) hold HTML exports of most plot types. GitHub
+shows HTML files as source, so download a file (or clone the repository) and open it
+in a browser. The files load plotly.js and BokehJS from a CDN, so they need network
+access.
 
 ### Matplotlib (Static)
 
@@ -1415,6 +1439,10 @@ plotter = LocusZoomPlotter(species="canine")
 # CanFam4 with automatic liftover
 plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 ```
+
+Genome-wide plots lay out the species' chromosomes, here 1 to 38 and X:
+
+![Canine Manhattan and QQ plot across 38 autosomes and X](../examples/matplotlib/manhattan_qq_canine.png)
 
 Recombination maps from [Campbell et al. 2016](https://github.com/cflerin/dog_recombination)
 are automatically downloaded on first use (~50MB), into
