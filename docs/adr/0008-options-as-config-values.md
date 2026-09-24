@@ -4,6 +4,8 @@
 - Date: 2026-09-02
 - Supersedes: the fourth decision of ADR-0006 ("One generic `from_kwargs`
   routes each keyword to the nested model that declares it")
+- Amended by: [ADR-0010](0010-strict-intake-boundary.md) (`PanelInputs`
+  nests one model per optional panel)
 
 ## Context
 

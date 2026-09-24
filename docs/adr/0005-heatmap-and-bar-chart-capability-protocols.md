@@ -1,6 +1,9 @@
 # ADR 0005: Move Heatmap and Bar-Chart Drawing to Capability Protocols
 
-- Status: accepted; `add_colorbar` and the rejected fold are superseded by
+- Status: accepted, then reversed in part by this ADR's own last addendum
+  ("four of the five protocols are folded back in"): heatmaps, error bars,
+  the secondary axis and the region highlight are required `PlotBackend`
+  methods again. `add_colorbar` and the rejected fold are superseded by
   [ADR-0011](0011-protocol-diet-and-one-panel-body.md)
 - Date: 2026-07-25
 - Target: 2.1 (additive change to the `PlotBackend` extension contract)

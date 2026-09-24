@@ -3,7 +3,7 @@
 Guidance for contributors working on pyLocusZoom locally. For first-run install and
 quickstart, see [GETTING-STARTED.md](GETTING-STARTED.md) or the
 [README](../README.md). For system architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
-For environment variables and configuration, see [CONFIGURATION.md](CONFIGURATION.md).
+For environment variables and cache locations, see [CONFIGURATION.md](CONFIGURATION.md).
 
 ## Local Setup
 
@@ -125,9 +125,10 @@ For a concrete example, see `prepare_manhattan_frames` in
 
 - The default branch is **`main`**. CI runs on `push` to `main` and on all pull requests
   targeting `main` (`.github/workflows/ci.yml`).
-- Feature branches follow the pattern shown in [CONTRIBUTING.md](../CONTRIBUTING.md#pull-request-process):
-  `git checkout -b feature/your-feature`. Use `fix/…` for bug fixes and `chore/…` for
-  maintenance tasks. No stricter convention is enforced.
+- Feature branches are named `feature/your-feature` (`git checkout -b feature/your-feature`).
+  Use `fix/…` for bug fixes and `chore/…` for maintenance tasks. No stricter convention
+  is enforced. [CONTRIBUTING.md](../CONTRIBUTING.md#pull-request-guidelines) covers what a
+  pull request needs.
 - **Always commit and push before ending a session.** Do not leave `uv.lock` or other
   regenerated files uncommitted after a dependency bump.
 

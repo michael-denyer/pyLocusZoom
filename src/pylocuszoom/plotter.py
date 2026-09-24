@@ -99,8 +99,11 @@ class LocusZoomPlotter:
 
     Args:
         species: Species name, alias or record ('canine', 'dog', 'feline',
-            'human', ..., or None for custom). An unknown name raises
-            ValidationError. Canine has built-in recombination maps.
+            'human', ..., or None for custom). A name the species table
+            does not carry becomes an Ensembl-only record: the gene track
+            works for any Ensembl species, but LD needs a record with PLINK
+            flags. An empty name raises ValidationError. Canine has built-in
+            recombination maps.
         genome_build: Genome build for coordinate system. For canine:
             "canfam3.1" (default) or "canfam4". If "canfam4", recombination
             maps are automatically lifted over from CanFam3.1.
@@ -113,13 +116,9 @@ class LocusZoomPlotter:
         genomewide_threshold: P-value threshold for significance line.
 
     Example:
-        >>> # Static plot (default)
-        >>> plotter = LocusZoomPlotter(species="canine")
-        >>>
-        >>> # Interactive plot with plotly
-        >>> plotter = LocusZoomPlotter(species="canine", backend="plotly")
-        >>>
         >>> from pylocuszoom import LDConfig
+        >>> # Static plot (default matplotlib backend)
+        >>> plotter = LocusZoomPlotter(species="canine")
         >>> fig = plotter.plot(
         ...     gwas_df,
         ...     chrom=1,
@@ -127,8 +126,12 @@ class LocusZoomPlotter:
         ...     end=2000000,
         ...     ld=LDConfig(lead_pos=1500000),
         ... )
-        >>> fig.savefig("regional_plot.png", dpi=150)  # matplotlib
-        >>> # or fig.save("plot.html")  # plotly/bokeh
+        >>> fig.savefig("regional_plot.png", dpi=150)
+        >>>
+        >>> # Interactive plot with plotly
+        >>> plotter = LocusZoomPlotter(species="canine", backend="plotly")
+        >>> fig = plotter.plot(gwas_df, chrom=1, start=1000000, end=2000000)
+        >>> fig.write_html("regional_plot.html")
     """
 
     def __init__(

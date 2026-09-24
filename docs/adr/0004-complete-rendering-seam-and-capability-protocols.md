@@ -2,6 +2,12 @@
 
 - Status: accepted; the `supports_hover` decision is superseded by
   [ADR-0011](0011-protocol-diet-and-one-panel-body.md)
+- Amended by: the last addendum of
+  [ADR-0005](0005-heatmap-and-bar-chart-capability-protocols.md), which folds
+  `SupportsSecondaryAxis` and `SupportsRegionHighlight` back into
+  `PlotBackend`, leaving `SupportsSNPLabels` the one optional protocol; and
+  [ADR-0011](0011-protocol-diet-and-one-panel-body.md), which removes
+  `add_legend`'s `loc`
 - Date: 2026-07-21
 - Target: 2.0 (breaking change to the `PlotBackend` extension contract)
 

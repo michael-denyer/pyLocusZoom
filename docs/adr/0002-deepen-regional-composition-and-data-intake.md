@@ -2,6 +2,12 @@
 
 - Status: accepted
 - Date: 2026-07-20
+- Superseded in part by: [ADR-0006](0006-one-regional-pipeline.md) (the
+  second consequence, which the code did not deliver) and
+  [ADR-0007](0007-one-figure-plan.md) (`RegionalPlotComposer` is deleted;
+  `FigurePlan` and `render_figure` own figure creation and layout)
+- Amended by: [ADR-0010](0010-strict-intake-boundary.md) (the p-value intake
+  gains an explicit invalid-row policy)
 
 ## Context
 

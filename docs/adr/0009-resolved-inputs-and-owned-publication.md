@@ -1,6 +1,8 @@
 # ADR 0009: Resolve data roles before rendering and publish only owned state
 
-Status: Accepted
+- Status: accepted
+- Amended by: [ADR-0010](0010-strict-intake-boundary.md) (a regional frame's
+  chromosome is a resolved column role, not a fallback)
 
 ## Context
 

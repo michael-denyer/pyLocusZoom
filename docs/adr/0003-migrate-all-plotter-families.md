@@ -2,6 +2,10 @@
 
 - Status: accepted
 - Date: 2026-07-20
+- Superseded in part by: [ADR-0007](0007-one-figure-plan.md) (the semantic
+  renderers named here, such as `ManhattanQQRenderer` and the
+  `_*_renderer.py` modules, are deleted; each family is a panel value drawn
+  by `render_figure`)
 
 ## Context
 
