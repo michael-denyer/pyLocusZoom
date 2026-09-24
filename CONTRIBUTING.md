@@ -7,9 +7,9 @@ a pull request merged.
 ## Development setup
 
 See the [README](README.md) for installation instructions and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a tour of the codebase. For
-configuration knobs (species flags, recombination caches, LD reference files),
-see [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a tour of the codebase. For cache
+locations and the environment variables that move them, see
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Short version for contributors:
 

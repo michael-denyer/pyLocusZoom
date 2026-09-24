@@ -110,7 +110,7 @@ Generated PNGs land in `examples/matplotlib/`, `examples/plotly/`, and `examples
 ## Next Steps
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — How the plotter, backends, and reference data fit together.
-- [CONFIGURATION.md](CONFIGURATION.md) — Plotter options, species config, recombination/LD cache locations.
+- [CONFIGURATION.md](CONFIGURATION.md) — Cache locations for recombination maps, liftover chains and gene annotations, and the environment variables that move them.
 - [USER_GUIDE.md](USER_GUIDE.md) — Task-oriented walkthroughs (Manhattan, PheWAS, fine-mapping, forest plots).
 - [CODEMAP.md](CODEMAP.md) — File-by-file tour of `src/pylocuszoom/`.
 - `examples/getting_started.ipynb` — Interactive notebook covering the regional plot workflow.

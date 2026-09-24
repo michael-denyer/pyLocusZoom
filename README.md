@@ -844,7 +844,7 @@ Optional:
 
 - [Getting Started](docs/GETTING-STARTED.md) - Installation and first plot
 - [User Guide](docs/USER_GUIDE.md) - Comprehensive documentation with API reference
-- [Configuration](docs/CONFIGURATION.md) - Species flags, recombination caches, LD reference files
+- [Configuration](docs/CONFIGURATION.md) - Cache locations and the environment variables that move them
 - [Architecture](docs/ARCHITECTURE.md) - Design decisions and component overview
 - [Code Map](docs/CODEMAP.md) - Architecture diagram with source code links
 - [Development](docs/DEVELOPMENT.md) - Dev setup, pre-commit hooks, contributing workflow

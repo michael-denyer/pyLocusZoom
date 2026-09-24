@@ -1,205 +1,76 @@
 # Configuration
 
-pyLocusZoom is a Python library, so most "configuration" is done through
-keyword arguments passed to the plotting API rather than through environment
-variables or config files. This document covers the three places where
-behavior can be configured:
+pyLocusZoom is a Python library, so plot options are keyword arguments and
+frozen config models passed to each plot call. Those are documented once, in
+the [User Guide](USER_GUIDE.md#plotter-reference):
+[`ColumnConfig`](USER_GUIDE.md#columnconfig),
+[`DisplayConfig`](USER_GUIDE.md#displayconfig),
+[`LDConfig`](USER_GUIDE.md#ldconfig),
+[`LiftoverConfig`](USER_GUIDE.md#liftoverconfig),
+[`PanelInputs`](USER_GUIDE.md#panelinputs),
+[`GenomeWideConfig`](USER_GUIDE.md#genomewideconfig),
+[`GenomeWideStyle`](USER_GUIDE.md#genomewidestyle) and
+[`ColocConfig`](USER_GUIDE.md#colocconfig).
 
-1. **Environment variables** that control on-disk cache locations.
-2. **Programmatic configuration** via the Pydantic models in
-   [`src/pylocuszoom/config.py`](../src/pylocuszoom/config.py).
-3. **Project-level configuration** declared in
-   [`pyproject.toml`](../pyproject.toml) (for developers working on the
-   package itself).
+This page covers what is configured outside a plot call: the on-disk caches for
+reference data, and the environment variables that move them.
 
 There is no `.env` file and no runtime configuration file. The library does
 not read any `PYLOCUSZOOM_*` environment variables.
 
+## Cache Location
+
+Recombination maps, liftover chains and gene annotations download once and are
+cached under one base directory:
+
+| Platform | Cache base directory |
+| -------- | -------------------- |
+| Linux, macOS | `$XDG_CACHE_HOME/pylocuszoom`, or `~/.cache/pylocuszoom` when `XDG_CACHE_HOME` is unset |
+| Windows | `%LOCALAPPDATA%\pylocuszoom`, or `~\AppData\Local\pylocuszoom` when `LOCALAPPDATA` is unset |
+| Databricks (any machine where `/dbfs` exists) | `/dbfs/FileStore/reference_data`, whatever `XDG_CACHE_HOME` says |
+
+Each kind of data has its own subfolder of the base:
+
+| Subfolder | Contents |
+| --------- | -------- |
+| `recombination_maps/` | The managed recombination maps, downloaded on the first plot that needs them (canine only) |
+| `liftover/` | Liftover chain files, such as the CanFam3.1 to CanFam4 chain the recombination maps are lifted through |
+| `ensembl/{ensembl_species}/` | Genes and exons fetched from Ensembl, one ZIP per region; the folder is Ensembl's species name, such as `homo_sapiens` |
+| `ucsc/{ucsc_genome}/` | Genes and exons fetched from UCSC for CanFam3.1, CanFam4 and FelCat9, such as `ucsc/canFam3/` |
+
+Replacing the map set never touches the chains, and a region fetched from
+Ensembl never collides with the same region fetched from UCSC.
+`clear_gene_cache("ensembl")` or `clear_gene_cache("ucsc")` empties one gene
+cache; see [Automatic Gene Annotations](USER_GUIDE.md#automatic-gene-annotations-from-ensembl).
+
+The base directory is resolved in one place,
+[`utils._platform_cache_base()`](../src/pylocuszoom/utils.py).
+[`recombination.get_default_data_dir()`](../src/pylocuszoom/recombination.py)
+returns the map folder, and
+[`_gene_cache.cache_root()`](../src/pylocuszoom/_gene_cache.py) the gene folders.
+
 ## Environment Variables
 
-pyLocusZoom honours a small number of standard OS-level environment
-variables that control where cached reference data (recombination maps,
-Ensembl gene annotations) is stored. These are the only environment
-variables the library reads.
+These are the only environment variables the library reads:
 
-| Variable          | Required | Default                                                                                  | Description                                                                                                                                                 |
-| ----------------- | -------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `XDG_CACHE_HOME`  | Optional | `~/.cache` (Linux) / `~/.cache` (macOS)                                                  | Base directory for the cache on Linux. When set, caches are placed under `$XDG_CACHE_HOME/pylocuszoom/`. Not consulted on macOS by `ensembl.get_ensembl_cache_dir()`. |
-| `LOCALAPPDATA`    | Optional | `%USERPROFILE%` (recombination) / `%USERPROFILE%\AppData\Local` (ensembl)                | Base directory for the cache on Windows. Caches are placed under `%LOCALAPPDATA%\pylocuszoom\`.                                                             |
+| Variable | Platform | Effect |
+| -------- | -------- | ------ |
+| `XDG_CACHE_HOME` | Linux, macOS | Moves the cache base to `$XDG_CACHE_HOME/pylocuszoom`. Ignored on Windows and on Databricks. |
+| `LOCALAPPDATA` | Windows | Moves the cache base to `%LOCALAPPDATA%\pylocuszoom`. |
 
-Resolved cache paths by platform:
-
-| Platform   | Recombination maps                                                                        | Ensembl gene cache                                       |
-| ---------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| macOS      | `~/.cache/pylocuszoom/recombination_maps` (or `$XDG_CACHE_HOME/pylocuszoom/recombination_maps`) | `~/.cache/pylocuszoom/ensembl`                           |
-| Linux      | `$XDG_CACHE_HOME/pylocuszoom/recombination_maps` or `~/.cache/pylocuszoom/recombination_maps` | `$XDG_CACHE_HOME/pylocuszoom/ensembl` or `~/.cache/pylocuszoom/ensembl` |
-| Windows    | `%LOCALAPPDATA%\pylocuszoom\recombination_maps`                                           | `%LOCALAPPDATA%\pylocuszoom\ensembl`                     |
-| Databricks | `/dbfs/FileStore/reference_data/recombination_maps` (auto-detected when `/dbfs` exists)   | Falls through to the Linux/XDG path                      |
-
-Implementation:
-
-- [`recombination.get_default_data_dir()`](../src/pylocuszoom/recombination.py)
-- [`recombination.get_chain_dir()`](../src/pylocuszoom/recombination.py), the
-  `liftover` leaf holding downloaded chain files
-- [`_gene_cache.cache_root()`](../src/pylocuszoom/_gene_cache.py)
+## Your Own Recombination Maps
 
 To pre-download maps into a chosen directory, call
 `download_canine_recombination_maps(output_dir="/path/to/maps")`. The directory
 must be new, empty or hold only a previous map set; one holding other files
 raises `ValidationError` and is left untouched.
+
 Passing `recomb_data_dir` to the plotter, or `data_dir` to the map helpers,
 selects a read-only caller directory. It never downloads or replaces files there,
 and its coordinates must already use the requested build. With no directory,
 `ensure_recomb_maps()` manages the platform cache and may download built-in maps.
-
-## Programmatic Configuration (Pydantic Models)
-
-The plotting methods take frozen Pydantic values such as `ColumnConfig`,
-`DisplayConfig`, `LDConfig` and `PanelInputs`, defined in
-[`src/pylocuszoom/config.py`](../src/pylocuszoom/config.py). Region coordinates
-and per-panel overrides remain keyword arguments. The public values can be
-reused across calls; each call resolves its effective options before rendering.
-
-### `RegionConfig` — genomic region (required)
-
-| Field   | Type          | Default  | Validation                                     |
-| ------- | ------------- | -------- | ---------------------------------------------- |
-| `chrom` | `int \| str`  | required | Integer `>= 1`, or non-empty string            |
-| `start` | `int`         | required | `>= 1` (1-based coordinates)                   |
-| `end`   | `int`         | required | `> 0` and strictly greater than `start`        |
-
-### `ColumnConfig` — GWAS DataFrame column names
-
-| Field       | Type          | Default     | Description           |
-| ----------- | ------------- | ----------- | --------------------- |
-| `chrom_col` | `str \| None` | `"chr"`     | Chromosome column name; must exist unless `None`, which selects by position only |
-| `pos_col`   | `str`         | `"pos"`     | Position column name  |
-| `p_col`     | `str`         | `"p_value"` | P-value column name   |
-| `rs_col`    | `str`         | `"rs"`      | SNP identifier column |
-
-### `DisplayConfig` — visual options
-
-| Field                | Type                     | Default       | Description                           |
-| -------------------- | ------------------------ | ------------- | ------------------------------------- |
-| `snp_labels`         | `bool`                   | `True`        | Draw SNP labels                       |
-| `label_top_n`        | `int` (`>= 0`)           | `5`           | Number of top SNPs to label           |
-| `show_recombination` | `bool`                   | `True`        | Overlay recombination rate track      |
-| `figsize`            | `tuple[float, float]`    | `(12.0, 8.0)` | Figure size in inches (width, height) |
-
-### `LDConfig` — linkage disequilibrium
-
-| Field               | Type              | Default | Description                                |
-| ------------------- | ----------------- | ------- | ------------------------------------------ |
-| `lead_pos`          | `int \| None`     | `None`  | Position of lead SNP (`>= 1` when set)     |
-| `ld_reference_file` | `str \| None`     | `None`  | Path to PLINK binary fileset               |
-| `ld_col`            | `str \| None`     | `None`  | Column with pre-computed R² values         |
-
-Cross-field rules:
-
-- `ld_col` and `ld_reference_file` are mutually exclusive.
-- If `ld_reference_file` is set, `lead_pos` is required (enforced on
-  `PlotConfig`). On `StackedPlotConfig` every panel computing LD from a
-  fileset, broadcast or from `ld_reference_files`, needs a lead from
-  `lead_positions` or the broadcast `lead_pos`.
-- Every lead, `lead_pos` or a `lead_positions` entry, must lie inside the
-  region, `start` to `end` inclusive (enforced on `PlotConfig` and
-  `StackedPlotConfig`).
-
-### `PanelInputs` — optional panels beneath the association track
-
-Every frame field also accepts a PySpark DataFrame, collected with
-`toPandas()`.
-
-| Field         | Type                        | Default | Description                                   |
-| ------------- | --------------------------- | ------- | --------------------------------------------- |
-| `genes_df`    | `DataFrame \| None`         | `None`  | Gene annotations for the gene track           |
-| `exons_df`    | `DataFrame \| None`         | `None`  | Exon structure drawn within the gene track    |
-| `recomb_df`   | `DataFrame \| None`         | `None`  | Recombination rates, replacing the map lookup |
-| `eqtl`        | `EqtlInput \| None`         | `None`  | The eQTL panel                                |
-| `finemapping` | `FinemappingInput \| None`  | `None`  | The fine-mapping (PIP) panel                  |
-| `ld_heatmap`  | `LDHeatmapInput \| None`    | `None`  | The LD heatmap panel                          |
-
-`EqtlInput`:
-
-| Field       | Type            | Default  | Description                                                   |
-| ----------- | --------------- | -------- | ------------------------------------------------------------- |
-| `data`      | `DataFrame`     | required | eQTL results with `pos` and `p_value`                         |
-| `gene`      | `str \| None`   | `None`   | Keep only this gene (exact match on the `gene` column)        |
-| `threshold` | `float`         | `1e-5`   | Significance line, in (0, 1]                                  |
-| `chrom_col` | `str \| None`   | `"chr"`  | Chromosome column; `None` selects by position only            |
-
-`FinemappingInput`:
-
-| Field       | Type            | Default  | Description                                                   |
-| ----------- | --------------- | -------- | ------------------------------------------------------------- |
-| `data`      | `DataFrame`     | required | Fine-mapping results with `pos` and `pip`                     |
-| `cs_col`    | `str \| None`   | `"cs"`   | Credible-set column; the default may be absent, another name must exist, `None` for no colouring |
-| `chrom_col` | `str \| None`   | `"chr"`  | Chromosome column; `None` selects by position only            |
-
-`LDHeatmapInput`:
-
-| Field     | Type                      | Default  | Description                                   |
-| --------- | ------------------------- | -------- | --------------------------------------------- |
-| `matrix`  | `DataFrame`               | required | Square LD matrix                              |
-| `snp_ids` | `list[str]`               | required | Row and column SNP ids of the matrix          |
-| `height`  | `float`                   | `0.25`   | Height against the association panel, `> 0`   |
-| `metric`  | `"r2"` or `"dprime"`      | `"r2"`   | Colour-bar label                              |
-
-### Composite configs
-
-- `PlotConfig` composes `RegionConfig`, `ColumnConfig`, `DisplayConfig`,
-  `LDConfig`, and `PanelInputs`. `plot()` builds one from its arguments and
-  the cross-model rules (a PLINK fileset needs a lead) live on it; callers
-  pass the four nested models to `plot()` and never build the composite.
-- `StackedPlotConfig` extends the pattern with `n_panels` and the list-valued
-  `lead_positions`, `panel_labels`, and `ld_reference_files` fields for
-  multi-panel plots. Each list, when set, must hold exactly `n_panels`
-  entries.
-- `ColocConfig` is the value `plot_coloc(gwas_df, eqtl_df, config=...)` takes:
-  the column names of both frames, the lead SNP, effect or LD colouring, the
-  correlation and H4 annotations, and the figure size. The two thresholds are
-  per-call arguments of `plot_coloc`, not config fields.
-
-All config models are `frozen=True` — construct a new instance rather than
-mutating an existing one.
-
-## Required vs Optional Settings
-
-Because configuration is passed at call time, "required" here means
-"must be supplied when calling `plot()` / `plot_stacked()`".
-
-| Setting                  | Required?                              | Notes                                                      |
-| ------------------------ | -------------------------------------- | ---------------------------------------------------------- |
-| `chrom`, `start`, `end`  | Required                               | Validation error if missing or if `start >= end`.          |
-| `chrom_col`              | Optional                               | Defaults to `"chr"`, which the frame must carry; `None` selects by position only. |
-| `pos_col`, `p_col`, `rs_col` | Optional                           | Default to the canonical `"pos"`, `"p_value"`, `"rs"`.     |
-| `lead_pos`               | Required *if* `ld_reference_file` set  | Otherwise optional.                                        |
-| `ld_reference_file`      | Optional                               | Mutually exclusive with `ld_col`.                          |
-| `ld_col`                 | Optional                               | Mutually exclusive with `ld_reference_file`.               |
-| `snp_labels`, `label_top_n`, `show_recombination`, `figsize` | Optional | Sensible defaults (see table above).      |
-
-Validation failures raise `pylocuszoom.ValidationError` at call time, naming
-each failing field. It subclasses `PyLocusZoomError` and `ValueError`, not
-pydantic's own `ValidationError`.
-
-## Defaults Summary
-
-Defaults defined in source (see
-[`config.py`](../src/pylocuszoom/config.py)):
-
-```text
-chrom_col          = "chr"
-pos_col            = "pos"
-p_col              = "p_value"
-rs_col             = "rs"
-snp_labels         = True
-label_top_n        = 5
-show_recombination = True
-figsize            = (12.0, 8.0)
-lead_pos           = None
-ld_reference_file  = None
-ld_col             = None
-```
+The file format is in
+[Recombination Map Files](USER_GUIDE.md#recombination-map-files).
 
 ## Per-Environment Overrides
 
@@ -214,22 +85,8 @@ If you need per-environment behaviour, do it at the caller level, e.g.:
 - Pre-download canine maps with `download_canine_recombination_maps(output_dir=...)`,
   then pass that directory as `recomb_data_dir` to the plotter. Caller maps must
   already use the requested genome build.
-- On Databricks, the `/dbfs/FileStore/reference_data/recombination_maps`
-  path is selected automatically.
+- On Databricks, the `/dbfs/FileStore/reference_data` base is selected
+  automatically.
 
-## Project / Developer Configuration
-
-The following settings live in [`pyproject.toml`](../pyproject.toml) and
-only affect contributors working on pyLocusZoom itself (not library users):
-
-| Setting                           | Value                                                                   |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `requires-python`                 | `>= 3.10`                                                               |
-| `build-system.requires`           | `hatchling==1.29.0`                                                     |
-| `tool.pytest.ini_options.addopts` | Parallel workers, per-test timeout, coverage, verbose, integration deselected. See [`pyproject.toml`](../pyproject.toml) for the exact string. |
-| `tool.ruff.line-length`           | `88`                                                                    |
-| `tool.ruff.target-version`        | `py310`                                                                 |
-| `tool.ruff.lint.select`           | `["E", "F", "I", "W"]`                                                  |
-| `tool.ruff.lint.ignore`           | `["E501"]`                                                              |
-
-Optional dependency groups: `dev`, `spark`, `all` (see `pyproject.toml`).
+The settings in `pyproject.toml` (pytest, ruff, coverage) affect only
+contributors; [DEVELOPMENT.md](DEVELOPMENT.md) covers them.

@@ -3,7 +3,7 @@
 Guidance for contributors working on pyLocusZoom locally. For first-run install and
 quickstart, see [GETTING-STARTED.md](GETTING-STARTED.md) or the
 [README](../README.md). For system architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
-For environment variables and configuration, see [CONFIGURATION.md](CONFIGURATION.md).
+For environment variables and cache locations, see [CONFIGURATION.md](CONFIGURATION.md).
 
 ## Local Setup
 

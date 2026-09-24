@@ -977,7 +977,7 @@ annotations keep their own sizes.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `lead_pos` | int | None | Lead SNP position to highlight. Auto-detected as the strongest in-region p-value when omitted. |
+| `lead_pos` | int | None | Lead SNP position to highlight, inside the region (`start` to `end` inclusive). Auto-detected as the strongest in-region p-value when omitted. |
 | `ld_reference_file` | str | None | PLINK fileset (without extension) for LD calculation. Requires a lead. |
 | `ld_col` | str | None | Column name if LD is pre-computed in gwas_df. Mutually exclusive with `ld_reference_file`. |
 
@@ -1002,6 +1002,12 @@ annotations keep their own sizes.
 
 Every frame, including the ones inside the three panel models, also accepts a
 PySpark DataFrame.
+
+All config models are frozen: build a new instance rather than changing one.
+`plot()` and `plot_stacked()` combine them into one internal `PlotConfig` or
+`StackedPlotConfig`, which holds the rules across models (a PLINK fileset needs
+a lead, every lead lies inside the region), so an invalid combination raises
+`ValidationError` before anything is drawn.
 
 ### plot_stacked() Method
 
@@ -1040,6 +1046,26 @@ fig = plotter.plot_stacked(
 | `ld_reference_files` | list | None | PLINK filesets, one per panel, replacing the broadcast `ld.ld_reference_file`. |
 | `significance_threshold` | float or None | plotter's `genomewide_threshold` | As on `plot()`. |
 | `liftover` | `LiftoverConfig` | `LiftoverConfig()` | As on `plot()`, applied to every frame; the window spans the lifted SNPs of all panels. |
+
+#### ColocConfig
+
+The value `ColocPlotter.plot_coloc(gwas_df, eqtl_df, config=...)` takes. The
+two thresholds and the title are per-call arguments of `plot_coloc`, not
+fields.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `gwas_p_col` | str | `"p_gwas"` | GWAS p-value column. |
+| `eqtl_p_col` | str | `"p_eqtl"` | eQTL p-value column. |
+| `pos_col` | str | `"pos"` | Position column, shared by both frames. |
+| `rs_col` | str or None | `"rs"` | SNP id column; the default may be absent. |
+| `ld_col` | str or None | None | Pre-computed LD column in `gwas_df`, which colours the points. |
+| `lead_snp` | str or None | None | SNP id of the lead to highlight and label. |
+| `show_correlation` | bool | True | Show the Pearson correlation. |
+| `color_by_effect` | bool | False | Colour by effect-direction agreement; needs both effect columns. |
+| `gwas_effect_col`, `eqtl_effect_col` | str or None | None | Effect-size columns. |
+| `h4_posterior` | float or None | None | COLOC H4 posterior probability to display, in [0, 1]. |
+| `figsize` | tuple | `(8, 8)` | Figure size in inches. |
 
 ### Parameter Naming Conventions
 
@@ -1259,6 +1285,25 @@ gwas_df = pd.DataFrame({
 | `pos` | int | Yes | Position (bp). |
 | `rate` | float | Yes | Recombination rate (cM/Mb). |
 
+### Recombination Map Files
+
+A `recomb_data_dir` holds one tab-separated file per chromosome, named
+`chr{N}_recomb.tsv` (`chr1_recomb.tsv`, `chrX_recomb.tsv`), with a header row:
+
+| Column | Description |
+|--------|-------------|
+| `chr` | Chromosome number (without "chr" prefix) |
+| `pos` | Position in base pairs |
+| `rate` | Recombination rate (cM/Mb) |
+| `cM` | Cumulative genetic distance (optional, not used for plotting) |
+
+```text
+chr     pos     rate    cM
+1       10000   0.5     0.005
+1       20000   1.2     0.017
+1       30000   0.8     0.025
+```
+
 ### Fine-mapping DataFrame
 
 | Column | Type | Required | Description |
@@ -1338,7 +1383,8 @@ plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 Recombination maps are automatically downloaded on first use (~50MB), into
 `recombination_maps` under the platform cache. The CanFam3.1 to CanFam4
 liftover chain downloads into a `liftover` directory beside it, so replacing a
-map set never touches the chain. Managed maps requested in another assembly
+map set never touches the chain; [CONFIGURATION.md](CONFIGURATION.md#cache-location)
+lists every cache folder. Managed maps requested in another assembly
 without a registered conversion are skipped with a build-unavailable warning.
 
 An explicit `recomb_data_dir` is caller-owned, read-only and already in the
@@ -1429,13 +1475,12 @@ UCSC's `ncbiRefSeq` is a transcript-level track, so transcripts sharing a symbol
 
 **Error Handling:** A source failure raises `EnsemblAPIError` or `UCSCAPIError`, both catchable as `ReferenceAPIError`. Under `auto_genes=True` the plotter catches it, warns, and draws the plot without the gene track.
 
-**Cache Location:** each source caches under its own leaf, so a region fetched from Ensembl and the same region fetched from UCSC never collide.
-
-- Linux/macOS: `~/.cache/pylocuszoom/ensembl/{ensembl_species}/` and `~/.cache/pylocuszoom/ucsc/{ucsc_genome}/`
-- Windows: `%LOCALAPPDATA%/pylocuszoom/ensembl/{ensembl_species}/` and `%LOCALAPPDATA%/pylocuszoom/ucsc/{ucsc_genome}/`
-
-A CanFam3.1 or FelCat9 plot caches under `ucsc/canFam3/` or `ucsc/felCat9/`, not under `ensembl/`.
-Each entry atomically publishes one ZIP containing both gene and exon CSVs.
+**Cache Location:** each source caches under its own folder of the platform
+cache, `ensembl/{ensembl_species}/` or `ucsc/{ucsc_genome}/`, so a region
+fetched from Ensembl and the same region fetched from UCSC never collide; see
+[CONFIGURATION.md](CONFIGURATION.md#cache-location) for the base directory on
+each platform. A CanFam3.1 or FelCat9 plot caches under `ucsc/canFam3/` or
+`ucsc/felCat9/`, not under `ensembl/`. Each entry atomically publishes one ZIP containing both gene and exon CSVs.
 Older separate CSV pairs become cache misses and are fetched again; clearing the
 cache removes both formats. The returned count is files removed, one per new entry.
 

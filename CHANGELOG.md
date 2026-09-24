@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Documentation
+### Changed
 
 - The USER_GUIDE API Stability core table lists `ColocConfig`, `LDUnavailableError` and `RecombinationMapNotFound`, and `tests/test_docs_contract.py` now fails when either table drifts from the two tiers of `__all__`.
 - USER_GUIDE corrections: SuSiE output needs `FinemappingInput(chrom_col=None)` (also in the `load_susie` docstring); `chr` is required in the GWAS, eQTL and fine-mapping tables, and eQTL `gene` only with `EqtlInput(gene=)`; the removed legacy column-name fallback is no longer described; LD points use five colour bins, CS1 is orange, labels show SNP ids; the notebook-display troubleshooting entry described behaviour the library does not have; `enable_logging()` prints each record twice while loguru's default sink is installed; nine code blocks import every name they use.
@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MIGRATING-5.0 lists four more changes: `threads` and `metric` are keyword-only on the LD functions, `ucsc.fetch_track_frames` and `ucsc_source` take a build, `assembly_token` moved to `genome_build`, and `to_pandas` raises `ValidationError`.
 - The 5.0.0 entry on import and loguru sinks now matches the logging entry under Breaking.
 - The getting-started notebook's markdown names the 5.0 `FinemappingInput` and `LDHeatmapInput` panels.
+- CONFIGURATION covers only caches and environment variables. Its cache table named removed functions and gave the wrong macOS, Windows and Databricks paths and no UCSC folder; it is now one base directory per platform plus the `recombination_maps/`, `liftover/`, `ensembl/` and `ucsc/` subfolders. Its config-model tables, which listed `label_top_n` as defaulting to 5 and omitted `auto_genes`, are replaced by links to USER_GUIDE, which gains `ColocConfig` and the recombination map file format.
 
 ## [5.0.0] - 2026-09-23
 
