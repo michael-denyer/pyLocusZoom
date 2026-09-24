@@ -4,6 +4,11 @@ Navigation between the architecture diagram and source code. Each component has 
 
 ## System Overview
 
+An arrow from one component to another means the first imports the second.
+Dotted arrows are protocol realisations, which need no import. Exceptions
+[5a] and logging [5b] are imported by nearly every module, so their arrows are
+left out.
+
 ```mermaid
 flowchart TB
     subgraph Layer1["🚀 Entry Points"]
@@ -19,20 +24,20 @@ flowchart TB
     subgraph Layer2["⚙️ Validation"]
         VD["ColumnSpec + check()<br/><small>2a</small>"]
         SCH["schemas: ColumnSpec contracts<br/><small>2b</small>"]
-        CFG["Pydantic PlotConfig<br/><small>2c</small>"]
+        CFG["Pydantic config models<br/><small>2c</small>"]
     end
 
     subgraph Layer3["🧠 Core Processing"]
-        LDP["calculate_ld / PLINK<br/><small>3a</small>"]
+        LDP["calculate_ld / PLINK, species<br/><small>3a</small>"]
         COL["colors (LD/eQTL/CS)<br/><small>3b</small>"]
         GT["gene_track layout<br/><small>3c</small>"]
         RC["recombination<br/><small>3d</small>"]
         MHP["manhattan prep<br/><small>3e</small>"]
         QQP["qq prep<br/><small>3f</small>"]
         FM["finemapping<br/><small>3g</small>"]
-        GS["_gene_source.GeneSource<br/><small>3h</small>"]
-        HTTP["_http downloads<br/><small>5d</small>"]
-        REND["Family panels<br/><small>3i</small>"]
+        GS["gene sources: reference_genes,<br/>ensembl, ucsc, cache<br/><small>3h</small>"]
+        REND["panels/ + FigurePlan<br/><small>3i</small>"]
+        SH["shared helpers: _data, _ld_enrichment,<br/>_liftover, labels, eqtl<br/><small>3j</small>"]
     end
 
     subgraph Layer4["🎨 Backends"]
@@ -42,55 +47,74 @@ flowchart TB
         BB["BokehBackend<br/><small>4d</small>"]
         HV["hover builders<br/><small>4e</small>"]
         CMP["composition<br/><small>4f</small>"]
+        CO["_coerce<br/><small>4g</small>"]
+        PL["plotly_layout<br/><small>4h</small>"]
     end
 
     subgraph Layer5["🔧 Infrastructure"]
         EX["Exceptions<br/><small>5a</small>"]
         LG["logging wrapper<br/><small>5b</small>"]
         UT["utils (to_pandas…)<br/><small>5c</small>"]
+        HTTP["_http downloads<br/><small>5d</small>"]
     end
 
-    LZ --> VD
-    MH --> VD
-    MI --> VD
+    LZ --> CFG
+    LZ --> REND
+    LZ --> SH
+    LZ --> LDP
+    LZ --> RC
+    LZ --> GS
+    LZ --> UT
+    MH --> CFG
+    MH --> SCH
+    MH --> MHP
+    MH --> QQP
+    MH --> REND
+    MI --> CFG
+    MI --> MHP
+    MI --> REND
     ST --> VD
-    HM --> VD
-    CP --> VD
+    ST --> REND
+    HM --> CFG
+    HM --> REND
+    CP --> CFG
+    CP --> REND
+    LD_IN --> VD
     LD_IN --> SCH
-    VD --> SCH
-    SCH --> CFG
 
-    CFG --> LDP
-    CFG --> COL
-    CFG --> GT
-    CFG --> RC
-    CFG --> MHP
-    CFG --> QQP
-    CFG --> FM
-    GT --> GS
+    CFG --> SCH
+    SCH --> VD
+    MHP --> CFG
+    MHP --> SCH
+
+    REND --> CFG
+    REND --> SH
+    REND --> COL
+    REND --> GT
+    REND --> FM
+    REND --> MHP
+    REND --> BP
+    REND --> CMP
+    REND --> HV
+    SH --> LDP
+    SH --> COL
+    RC --> SH
+    RC --> HTTP
     GS --> HTTP
 
-    LDP --> BP
-    COL --> BP
-    GT --> BP
-    RC --> BP
-    MHP --> BP
-    FM --> BP
-    LZ --> REND
-    MH --> REND
-    MI --> REND
-    ST --> REND
-    HM --> REND
-    CP --> REND
-    REND --> CMP
     CMP --> BP
-    REND --> BP
-
-    BP --> MB
-    BP --> PB
-    BP --> BB
+    BP -.-> MB
+    BP -.-> PB
+    BP -.-> BB
+    MB --> CMP
+    PB --> CMP
+    BB --> CMP
+    MB --> HV
     PB --> HV
     BB --> HV
+    PB --> CO
+    BB --> CO
+    PB --> PL
 
     %% Entry points — blue
     style LZ fill:#1565c0,stroke:#42a5f5,color:#ffffff
@@ -115,6 +139,8 @@ flowchart TB
     style QQP fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style FM fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style GS fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style REND fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style SH fill:#2e7d32,stroke:#66bb6a,color:#ffffff
 
     %% Backends — pink
     style BP fill:#ad1457,stroke:#f06292,color:#ffffff
@@ -123,6 +149,8 @@ flowchart TB
     style BB fill:#ad1457,stroke:#f06292,color:#ffffff
     style HV fill:#ad1457,stroke:#f06292,color:#ffffff
     style CMP fill:#ad1457,stroke:#f06292,color:#ffffff
+    style CO fill:#ad1457,stroke:#f06292,color:#ffffff
+    style PL fill:#ad1457,stroke:#f06292,color:#ffffff
 
     %% Infrastructure — purple
     style EX fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
@@ -150,7 +178,7 @@ User-facing plotter classes and data loaders. Each plotter owns a single plot fa
 
 ### File Loaders [1g]
 
-Each static format is a `LoaderSpec` constant plus a thin public wrapper. `load_gtf`, `load_bed`, and `load_caviar` stay bespoke where the table did not fit.
+Each static format is a `LoaderSpec` constant plus a thin public wrapper, `load_bed` and `load_caviar` included. Only `load_gtf` stays bespoke, because GTF attributes do not fit the table.
 
 | Domain | Formats | Entry points |
 |--------|---------|--------------|
@@ -212,7 +240,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3h | ensembl_source, fetch_overlap_frames | Ensembl REST client | [ensembl.py](../src/pylocuszoom/ensembl.py) |
 | 3h | ucsc_source, fetch_track_frames | UCSC track client, used for CanFam3.1, CanFam4 and FelCat9 | [ucsc.py](../src/pylocuszoom/ucsc.py) |
 | 3h | gene cache | Atomic gene/exon archive cache shared by both gene sources | [_gene_cache.py](../src/pylocuszoom/_gene_cache.py) |
-| 3j | _AssociationInput | Region-selected data and resolved per-panel options | [plotter.py](../src/pylocuszoom/plotter.py) |
+| 3j | AssociationInput | Validates a caller's GWAS frame, selects the region's rows and resolves the lead (`prepare`) | [panels/association.py](../src/pylocuszoom/panels/association.py) |
 | 3j | enrich_with_ld | Calls PLINK for lead-SNP R² and assigns values by SNP ID while preserving selected rows | [_ld_enrichment.py](../src/pylocuszoom/_ld_enrichment.py) |
 | 3j | prepare_pvalue_data | Shared p-value intake: numeric conversion, filtering, zero-value mode, finite `-log10` | [_data.py](../src/pylocuszoom/_data.py) |
 | 3j | prepare_eqtl_for_plotting | eQTL panel prep | [eqtl.py](../src/pylocuszoom/eqtl.py) |
@@ -236,12 +264,12 @@ Data transformation between validated input and backend-ready primitives.
 
 ```python
 # from src/pylocuszoom/colors.py
-LD_BINS = (
-    (0.8, "0.8 - 1.0", "#FF0000"),
-    (0.6, "0.6 - 0.8", "#FFA500"),
-    (0.4, "0.4 - 0.6", "#00CD00"),
-    (0.2, "0.2 - 0.4", "#00EEEE"),
-    (0.0, "0.0 - 0.2", "#4169E1"),
+LD_BINS: tuple[LDBin, ...] = (
+    LDBin(0.8, "0.8 - 1.0", "#FF0000"),  # red
+    LDBin(0.6, "0.6 - 0.8", "#FFA500"),  # orange
+    LDBin(0.4, "0.4 - 0.6", "#00CD00"),  # green3
+    LDBin(0.2, "0.2 - 0.4", "#00EEEE"),  # cyan2
+    LDBin(0.0, "0.0 - 0.2", "#4169E1"),  # royalblue
 )
 LEAD_SNP_COLOR = "#7D26CD"
 ```
@@ -250,7 +278,7 @@ LEAD_SNP_COLOR = "#7D26CD"
 
 ## [4] Backends
 
-Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`). As of 2.0 the protocol carries drawing primitives only; legend and recombination-overlay composition sits above it in `composition.py`, and optional capabilities are negotiated with `@runtime_checkable` protocols.
+Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`). As of 2.0 the protocol carries drawing primitives only; legend and recombination-overlay composition sits above it in `composition.py`, and the one optional capability, `SupportsSNPLabels`, is negotiated with a `@runtime_checkable` protocol.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
@@ -282,7 +310,7 @@ of `create_twin_axis`. Static export and hover are
 backend properties rather than capabilities (matplotlib writes PNG/PDF/SVG and
 has no hover; plotly and bokeh write HTML and do). A custom backend opts in by
 implementing the methods and out by omitting them; see
-[ARCHITECTURE.md](ARCHITECTURE.md#optional-capabilities-in-21).
+[ARCHITECTURE.md](ARCHITECTURE.md#one-optional-capability).
 
 ---
 
@@ -326,44 +354,56 @@ PyLocusZoomError
 sequenceDiagram
     box rgb(21, 101, 192) Entry
         participant U as User
-        participant P as LocusZoomPlotter (1a)
+        participant P as LocusZoomPlotter [1a]
     end
     box rgb(216, 67, 21) Validation
-        participant V as validation.check (2a)
-        participant C as PlotConfig (2c)
+        participant C as PlotConfig [2c]
+        participant V as validation.check [2a]
     end
     box rgb(46, 125, 50) Core
-        participant L as calculate_ld (3a)
-        participant G as panels (3i)
+        participant A as AssociationInput [3j]
+        participant E as enrich_with_ld [3j]
+        participant L as calculate_ld [3a]
+        participant R as render_figure [3i]
+        participant G as panels [3i]
     end
     box rgb(173, 20, 87) Backend
-        participant O as composition (4f)
-        participant B as Backend (4a-d)
+        participant O as composition [4f]
+        participant B as Backend [4a-d]
     end
 
     U->>P: plot(gwas_df, chrom, start, end, columns, display, ld, panels)
     P->>C: compose the config values
     C-->>P: PlotConfig
-    P->>V: required columns present?
-    V-->>P: OK
+    P->>A: AssociationInput.prepare(gwas_df, region, columns, ld)
+    A->>V: check(gwas_df, gwas_plot_spec)
+    V-->>A: OK
+    A-->>P: selected rows and resolved lead
 
-    opt LD requested
-        P->>L: calculate_ld(lead_pos)
-        L-->>P: R² DataFrame
+    opt LD from a PLINK fileset
+        P->>E: enrich_with_ld(rows, lead)
+        E->>L: calculate_ld(lead_snp)
+        L-->>E: R² DataFrame
+        E-->>P: rows with R2 assigned by SNP id
     end
 
-    P->>B: create_figure()
+    P->>G: AssociationPanel.from_input(), GenePanel.from_genes(), ...
+    G-->>P: panel values
+    P->>R: render_figure(backend, FigurePlan)
+    R->>B: create_figure()
     activate B
-    P->>G: AssociationPanel.draw(backend, ax)
-    G->>B: scatter(pos, -log10p, colors)
-    P->>G: GenePanel.draw(backend, ax)
-    G->>B: add_rectangle(), add_polygon(), add_text()
+    loop each panel
+        R->>G: panel.draw(backend, ax)
+        G->>B: scatter(), add_rectangle(), add_text(), ...
+    end
     opt Recombination
-        P->>O: render_recombination_overlay()
+        G->>O: render_recombination_overlay()
         O->>B: create_twin_axis(), fill_between(), line()
     end
-    B-->>U: figure
+    R->>B: finalize_layout()
     deactivate B
+    R-->>P: figure
+    P-->>U: figure
 ```
 
 ---
@@ -402,10 +442,10 @@ classDiagram
         +plotly_hovertemplate()
         +bokeh_tooltips()
     }
-    class gene_track {
-        <<module>>
-        +assign_gene_positions()
-        +compute_arrow_geometry()
+    class GenePanel {
+        <<panel>>
+        +from_genes()
+        +draw()
     }
     class MatplotlibBackend
     class PlotlyBackend
@@ -415,19 +455,10 @@ classDiagram
     PlotBackend <|.. PlotlyBackend
     PlotBackend <|.. BokehBackend
     SupportsSNPLabels <|.. MatplotlibBackend
-    composition ..> PlotBackend : drives primitives
-    gene_track ..> PlotBackend : drives primitives
+    composition ..> PlotBackend : draws
+    GenePanel ..> PlotBackend : draws
     PlotlyBackend ..> hover : uses
     BokehBackend ..> hover : uses
-
-    style PlotBackend fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style SupportsSNPLabels fill:#0277bd,stroke:#4fc3f7,color:#ffffff
-    style MatplotlibBackend fill:#ad1457,stroke:#f06292,color:#ffffff
-    style PlotlyBackend fill:#ad1457,stroke:#f06292,color:#ffffff
-    style BokehBackend fill:#ad1457,stroke:#f06292,color:#ffffff
-    style composition fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
-    style hover fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
-    style gene_track fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
 ```
 
 ---

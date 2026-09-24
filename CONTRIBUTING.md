@@ -16,7 +16,7 @@ Short version for contributors:
 ```bash
 git clone https://github.com/michael-denyer/pyLocusZoom.git
 cd pyLocusZoom
-uv sync
+uv sync --extra dev                     # the test tools (pytest plugins, hypothesis) are the dev extra
 uv tool install prek && prek install   # Rust pre-commit, ~10x faster than pre-commit
 uv run python -m pytest tests/
 ```

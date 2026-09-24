@@ -18,8 +18,9 @@ Regional preparation resolves each panel's columns and LD options, selects its
 rows once and carries the selected lead onward. Genome-wide preparation projects
 configured roles to canonical columns before sharing layout with QQ and Miami.
 Colocalization projects each source before merging, so caller metadata cannot
-rename internal fields. The backends use the shared `cell_edges` geometry for
-heatmap cells and highlights.
+rename internal fields. The matplotlib and bokeh backends and
+`backends/composition.py` use the shared `cell_edges` geometry for heatmap cells
+and highlights; the plotly backend places its heatmap without it.
 
 Reference-data ownership is explicit. Caller map directories are read-only;
 managed caches alone may download and install map sets. Download writers have
@@ -33,6 +34,12 @@ on the same files without moving anything aside. See
 
 ## Component Diagram
 
+An arrow from one component to another means the first calls the second, and
+every arrow between two modules is an import in `src/pylocuszoom`. The dotted
+arrows are protocol realisations, which Python checks structurally without an
+import. `exceptions.py`, `logging.py` and `config.py` are imported almost
+everywhere and are left out.
+
 ```mermaid
 graph TD
     subgraph Input["Input Layer"]
@@ -43,29 +50,29 @@ graph TD
 
     subgraph Validate["Validation Layer"]
         SCHEMA[schemas.py / validation.py]
-        EQTLV[eqtl.py / finemapping.py]
-        UTILS[utils.py: to_pandas, PySpark support]
+        UTILS[utils.py: to_pandas, region filter]
     end
 
     subgraph Prepare["Data Preparation"]
         DATA[_data.py: shared p-value intake]
-        REGIONAL["plotter.py: selected regional inputs and resolved leads"]
-        CACHE["_gene_cache.py: atomic gene and exon archive"]
+        ASSOC["panels/association.py:<br/>AssociationInput selects rows<br/>and resolves the lead"]
+        LDENR["_ld_enrichment.py:<br/>LD by SNP id"]
         LD[ld.py: PLINK wrapper]
-        RECOMB[recombination.py: maps + CanFam4 liftover]
+        RECOMB["recombination.py: maps<br/>(lifted by _liftover.py)"]
         ENSEMBL["reference_genes.py:<br/>gene fetch by build<br/>(ensembl.py, ucsc.py)"]
+        CACHE["_gene_cache.py: atomic gene and exon archive"]
+        GWPREP["manhattan.py / qq.py:<br/>genome-wide layout"]
+        EQTLV[eqtl.py / finemapping.py]
         COLORS[colors.py: LD bins, eQTL, credible sets]
     end
 
     subgraph Plotters["Plotter Classes"]
         LZ[LocusZoomPlotter]
+        GWP[ManhattanPlotter / MiamiPlotter]
+        STC[StatsPlotter / ColocPlotter]
+        LDH[LDHeatmapPlotter]
         PANELS["panels/: one module per panel type, each drawing itself"]
         FIGURE["_figure.py: FigurePlan + render_figure"]
-        MP[ManhattanPlotter]
-        SP[StatsPlotter]
-        MIAMI[MiamiPlotter]
-        LDH[LDHeatmapPlotter]
-        CP[ColocPlotter]
     end
 
     subgraph Backends["Backend Protocol"]
@@ -81,38 +88,46 @@ graph TD
     end
 
     GWAS --> LOAD
-    LOAD --> SCHEMA
-    GWAS --> SCHEMA
     GWAS --> UTILS
-    GWAS --> DATA
     REF --> ENSEMBL
     REF --> LD
     REF --> RECOMB
-    SCHEMA --> EQTLV
-    EQTLV --> COLORS
-    LD --> COLORS
-    COLORS --> PANELS
-    DATA --> REGIONAL
-    LZ --> REGIONAL
-    REGIONAL --> LD
-    REGIONAL --> PANELS
-    ENSEMBL --> CACHE
-    COLORS --> MP
-    COLORS --> SP
-    COLORS --> MIAMI
-    COLORS --> LDH
-    COLORS --> CP
-    RECOMB --> LZ
+    LOAD --> SCHEMA
+    LOAD --> DATA
+    SCHEMA --> DATA
+
+    LZ --> UTILS
+    LZ --> ASSOC
+    LZ --> LDENR
+    LZ --> RECOMB
+    LZ --> ENSEMBL
     LZ --> PANELS
-    MP --> PANELS
-    SP --> PANELS
-    MIAMI --> PANELS
+    LZ --> FIGURE
+    GWP --> UTILS
+    GWP --> GWPREP
+    GWP --> PANELS
+    GWP --> FIGURE
+    STC --> UTILS
+    STC --> PANELS
+    STC --> FIGURE
     LDH --> PANELS
-    CP --> PANELS
+    LDH --> FIGURE
+
+    ASSOC --> SCHEMA
+    ASSOC --> DATA
+    LDENR --> LD
+    ENSEMBL --> CACHE
+    GWPREP --> SCHEMA
+    GWPREP --> DATA
+    EQTLV --> SCHEMA
+    PANELS --> EQTLV
+    PANELS --> GWPREP
+    PANELS --> COLORS
     PANELS --> PROTO
-    PROTO --> MPL
-    PROTO --> PLOTLY
-    PROTO --> BOKEH
+    FIGURE --> PROTO
+    PROTO -.-> MPL
+    PROTO -.-> PLOTLY
+    PROTO -.-> BOKEH
     MPL --> STATIC
     PLOTLY --> HTML
     BOKEH --> HTML
@@ -123,22 +138,25 @@ graph TD
     style LOAD fill:#6a1b9a,stroke:#ab47bc,color:#ffffff
 
     style SCHEMA fill:#d84315,stroke:#ff7043,color:#ffffff
-    style EQTLV fill:#d84315,stroke:#ff7043,color:#ffffff
     style UTILS fill:#d84315,stroke:#ff7043,color:#ffffff
 
     style DATA fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style ASSOC fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style LDENR fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style LD fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style RECOMB fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style ENSEMBL fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style CACHE fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style GWPREP fill:#2e7d32,stroke:#66bb6a,color:#ffffff
+    style EQTLV fill:#2e7d32,stroke:#66bb6a,color:#ffffff
     style COLORS fill:#2e7d32,stroke:#66bb6a,color:#ffffff
 
     style LZ fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style PANELS fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style MP fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style SP fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style MIAMI fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style GWP fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style STC fill:#1565c0,stroke:#42a5f5,color:#ffffff
     style LDH fill:#1565c0,stroke:#42a5f5,color:#ffffff
-    style CP fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style PANELS fill:#1565c0,stroke:#42a5f5,color:#ffffff
+    style FIGURE fill:#1565c0,stroke:#42a5f5,color:#ffffff
 
     style PROTO fill:#ad1457,stroke:#f06292,color:#ffffff
     style MPL fill:#ad1457,stroke:#f06292,color:#ffffff
@@ -163,12 +181,15 @@ stages:
    chromosome-set flags, the default genome build, the recombination source,
    the Ensembl species name, the whole-genome chromosome order) reads that one
    record, so an alias cannot mean one species to one subsystem and another to
-   the next. An unknown name raises `ValidationError` here rather than
-   degrading silently three layers down.
-2. **Validation and intake.** Every public plot method opens by collecting the
-   frames it was given through `utils.to_pandas()`, so a PySpark DataFrame is
+   the next. A name the species table does not carry becomes an Ensembl-only
+   record (`Species(key=name, ensembl_name=name)`): the gene track works for
+   any Ensembl species, while LD raises for want of PLINK flags and there are
+   no managed recombination maps. Only an empty name raises `ValidationError`.
+2. **Validation and intake.** Every public plot method that takes a frame opens
+   by collecting it through `utils.to_pandas()`, so a PySpark DataFrame is
    accepted anywhere a pandas one is and nothing below the entry point sees
-   anything but pandas; the frame fields of the config models collect theirs
+   anything but pandas. The exception is `LDHeatmapPlotter.plot_ld_heatmap`,
+   whose matrix must be a pandas DataFrame or a NumPy array; the frame fields of the config models collect theirs
    the same way when the model is built. The frame is then validated against
    expected columns. `schemas.py` holds each contract as a `ColumnSpec` value,
    or a builder over the caller's column names, and `validation.check` runs
@@ -204,27 +225,35 @@ stages:
    exon structure. Recombination rates come from
    `recombination.get_recombination_rate_for_region`, which handles download
    of bundled canine maps and CanFam3.1 → CanFam4 liftover through the chain
-   the `GenomeBuild` registers. Neither lookup warns. Each raises a typed
-   `PyLocusZoomError` saying why there is nothing to draw (`ReferenceAPIError`
-   for genes; `DataDownloadError`, `RecombinationMapNotFound`,
-   `OptionalDependencyMissing` or `ValidationError` for recombination), as
-   LD enrichment does. The plotter's one `_optional_layer` helper turns those
-   into one `UserWarning` pointing at the caller's own line and draws the
-   figure without the layer, so every reason a layer is missing reaches the
-   user the same way. Before 5.0 recombination reported a status enum instead;
+   the `GenomeBuild` registers. Neither lookup warns that it has nothing to
+   return. Each raises a typed `PyLocusZoomError` saying why
+   (`ReferenceAPIError` for genes; `DataDownloadError`,
+   `RecombinationMapNotFound`, `OptionalDependencyMissing` or
+   `ValidationError` for recombination), as LD enrichment does. The plotter's
+   one `_optional_layer` helper turns those into one `UserWarning` pointing
+   at the caller's own line and draws the figure without the layer. Other
+   warnings are not about a missing layer: Ensembl warns when the assembly it
+   served is not the requested build, and a recombination map with
+   non-numeric values logs. Two ways a layer goes missing do not reach
+   `_optional_layer`. An `ld.lead_pos` inside the region that matches no SNP
+   only logs through loguru, which is off by default, so LD colouring is
+   skipped without a visible message. A recombination map with no rows in the
+   region returns an empty frame, and the overlay draws nothing. Before 5.0 recombination reported a status enum instead;
    it was a second error taxonomy kept in sync by hand beside the exception
    hierarchy, and a chain failure that escaped it crashed `plot()`.
 6. **Regional composition and backend dispatch.** `plot()` and
-   `plot_stacked()` take the region plus four frozen config values
-   (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`), so each
+   `plot_stacked()` take the region plus five frozen config values
+   (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`,
+   `LiftoverConfig`) and a per-call `significance_threshold`, so each
    option is declared once, on the model that owns it. They compose those
-   into a `PlotConfig`, which holds the cross-model rules, then
-   share one private pipeline, `_render_regional`. It resolves the gene
-   and recombination layers (`_resolve_annotations`), builds the
-   fine-mapping, eQTL and gene panels (`panels.optional_panels`) before
-   PLINK runs, colours each association frame by LD
-   (`_association_panels`), adds the LD heatmap
-   (`panels.ld_heatmap_panels`), and builds every panel through its own
+   into a `PlotConfig`, which holds the cross-model rules, select each
+   frame's rows with `AssociationInput.prepare`, then share one private
+   pipeline, `_render_regional`. It builds the LD heatmap panel
+   (`panels.ld_heatmap_panels`), resolves the gene and recombination layers
+   (`_resolve_annotations`), builds the fine-mapping, eQTL and gene panels
+   (`panels.optional_panels`) before PLINK runs, and colours each
+   association frame by LD (`_association_panels`), building every panel
+   through its own
    constructor (`AssociationPanel.from_input`, `FinemappingPanel.from_frame`,
    `EqtlPanel.from_frame`, `GenePanel.from_genes`,
    `HeatmapPanel.from_matrix`). It puts them on a
@@ -289,7 +318,7 @@ stages:
 | `PlotBackend` | Protocol | `src/pylocuszoom/backends/base.py` | Structural-typing contract every backend must satisfy: drawing primitives only (figure creation, scatter/line/fill, heatmaps, error bars, the secondary axis, the region highlight, neutral `add_legend`). `add_snp_labels` is the one method left outside it |
 | `backends/composition.py` | Internal module | `src/pylocuszoom/backends/composition.py` | Pure functions that compose legends and the recombination overlay above the primitive seam; owns `LegendEntry`, `render_recombination_overlay`, `lower_triangle`, and `mb_tick_positions` |
 | `backends/_coerce.py` | Internal module | `src/pylocuszoom/backends/_coerce.py` | Pure coercions out of `PlotBackend`'s matplotlib vocabulary (inches to pixels, marker area to diameter, scalar broadcast) that plotly and bokeh both need |
-| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands the panels and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `configure_legend`, `panel_y`, and `x_range` |
+| `backends/plotly_layout.py` | Internal module | `src/pylocuszoom/backends/plotly_layout.py` | Plotly subplot geometry as value types plus pure functions: `_Panel` is the panel handle the Plotly backend hands the panels and owns the linear subplot-index axis naming, `_SecondaryAxis` is the twin-axis handle, alongside `secondary_axis_key`, `panel_top`, `panel_right`, `configure_legend` and `x_range` |
 | `SupportsSNPLabels` | Optional protocol | `src/pylocuszoom/backends/base.py` | The one `@runtime_checkable` capability a backend opts into by implementing `add_snp_labels`; detected with `isinstance` |
 | `ManhattanPanelSpec` | Internal module | `src/pylocuszoom/panels/manhattan.py` | The one Manhattan-panel policy. A frozen spec over a `PreparedManhattan` names what the standard, categorical and mirrored Miami panels vary on, and its `draw` draws any of them onto a backend axis; `stacked_manhattan_specs` builds the specs for a stack |
 | `QQPanelSpec` | Internal module | `src/pylocuszoom/panels/qq.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
@@ -316,6 +345,7 @@ pyLocusZoom/
 ├── src/pylocuszoom/           # The installable package
 │   ├── __init__.py            # Public API re-exports (stable surface)
 │   ├── plotter.py             # LocusZoomPlotter — regional plot orchestration
+│   ├── species.py             # Species records and resolve_species, the one species parser
 │   ├── manhattan_plotter.py   # Manhattan/QQ plotter class
 │   ├── manhattan.py           # GenomeLayout and Manhattan frame preparation
 │   ├── qq.py                  # QQ plot primitives
@@ -326,6 +356,8 @@ pyLocusZoom/
 │   ├── _data.py               # Shared p-value intake and transformation policy
 │   ├── _plotter_utils.py      # Threshold defaults, UNSET and resolve_threshold
 │   ├── _figure.py             # FigurePlan and render_figure, the one figure model
+│   ├── _label_data.py         # Lead-proximity label eligibility, shared by both label paths
+│   ├── _ld_matrix.py          # Square LD matrix and SNP-id validation for both heatmaps
 │   ├── panels/                # One module per panel type: the value, its constructor, its draw
 │   │   ├── __init__.py        # The regional panels, RegionalPanel, optional_panels
 │   │   ├── _shared.py         # Drawing constants and add_significance_line, shared by panels
@@ -353,7 +385,7 @@ pyLocusZoom/
 │   ├── colors.py              # LD bins, eQTL, credible-set, PheWAS palettes
 │   ├── ld.py                  # PLINK wrapper for R² calculation
 │   ├── _ld_enrichment.py      # LD intake and merge for the regional plot
-│   ├── recombination.py       # Recomb map loading + CanFam4 liftover
+│   ├── recombination.py       # Recomb map download and loading; lifts through _liftover
 │   ├── _liftover.py           # The one chain loader, region and window liftover
 │   ├── genome_build.py        # GenomeBuild records: synonyms, UCSC genome, chains
 │   ├── gene_track.py          # Gene region filter, row layout, strand-arrow geometry
@@ -367,6 +399,7 @@ pyLocusZoom/
 │   ├── eqtl.py                # eQTL validation and filtering
 │   ├── finemapping.py         # SuSiE / fine-mapping validation, filtering, credible sets
 │   ├── loaders/               # Format adapters, one module per family
+│   │   ├── __init__.py        # Re-exports every loader
 │   │   ├── _engine.py         # LoaderSpec table and the one _load_tabular engine
 │   │   ├── gwas.py            # PLINK, REGENIE, BOLT-LMM, GEMMA, SAIGE, GWAS Catalog, load_gwas
 │   │   ├── eqtl.py            # GTEx, eQTL Catalogue, MatrixEQTL
@@ -420,11 +453,13 @@ entry's `edgecolor`, falling back to black when it is `None`. (2.0 also took a
 primitive takes a label, so `add_legend` is the only route to legend content.
 
 **2. `add_recombination_overlay` is gone.** The overlay is composed from
-primitives by `composition.render_recombination_overlay()`. A backend that wants
-the overlay implements `SupportsSecondaryAxis`: `create_twin_axis(ax)` returns
-a per-backend handle, `set_secondary_ylim` and `set_secondary_ylabel` take that
-handle, and `line` and `fill_between` accept it in place of a panel to draw
-against the secondary scale.
+primitives by `composition.render_recombination_overlay()`. In 2.0 a backend
+that wanted the overlay implemented the optional `SupportsSecondaryAxis`; since
+the fold-back described under "One optional capability" below, its methods are
+required `PlotBackend` members. `create_twin_axis(ax)` returns a per-backend
+handle, `set_secondary_ylim` and `set_secondary_ylabel` take that handle, and
+`line` and `fill_between` accept it in place of a panel to draw against the
+secondary scale.
 
 **3. Capabilities are protocols, not booleans.** The `supports_snp_labels` and
 `supports_secondary_axis` properties are removed. Optional capabilities are
