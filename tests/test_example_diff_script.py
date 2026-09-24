@@ -106,26 +106,16 @@ def test_identical_exports_return_success(example_repo):
     assert result.stdout.strip() == "NO REAL DIFFS"
 
 
-def test_generator_failure_preserves_checkout(example_repo):
+@pytest.mark.parametrize("args", [(), ("--keep",)])
+def test_generator_failure_preserves_checkout(example_repo, args):
+    # A generator that fails after writing some exports (as it does on a
+    # degraded figure) must leave the checkout untouched, even with --keep.
     repo, environment, git = example_repo
     uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
     uv.write_text(
         "#!/bin/sh\nprintf incomplete > examples/matplotlib/plot.png\nexit 3\n"
     )
-    result = run_check(example_repo)
-    assert result.returncode == 2
-    assert "GENERATOR FAILED" in result.stderr
-    assert (repo / "examples/matplotlib/plot.png").read_bytes() == b"baseline"
-    assert git("status", "--porcelain") == ""
-
-
-def test_keep_never_accepts_exports_from_a_failed_generator(example_repo):
-    # The generator exits non-zero on a degraded figure after writing some
-    # exports; --keep must not copy any of them into the checkout.
-    repo, environment, git = example_repo
-    uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
-    uv.write_text("#!/bin/sh\nprintf degraded > examples/matplotlib/plot.png\nexit 1\n")
-    result = run_check(example_repo, "--keep")
+    result = run_check(example_repo, *args)
     assert result.returncode == 2
     assert "GENERATOR FAILED" in result.stderr
     assert (repo / "examples/matplotlib/plot.png").read_bytes() == b"baseline"
@@ -153,13 +143,13 @@ def test_cdn_plotly_export_compares_by_plotly_version(
     repo, environment, git = example_repo
     (repo / "examples/plotly").mkdir()
     (repo / "examples/plotly/plot.html").write_text(
-        CDN_HTML.format(version="3.5.0", uuid="0" * 8 + "-0000-0000-0000-" + "0" * 12)
+        CDN_HTML.format(version="3.5.0", uuid="00000000-0000-0000-0000-000000000000")
         + "\n"
     )
     git("add", ".")
     git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "html baseline")
     generated = CDN_HTML.format(
-        version=generated_version, uuid="1" * 8 + "-1111-1111-1111-" + "1" * 12
+        version=generated_version, uuid="11111111-1111-1111-1111-111111111111"
     )
     uv = Path(environment["PATH"].split(os.pathsep)[0]) / "uv"
     uv.write_text(
