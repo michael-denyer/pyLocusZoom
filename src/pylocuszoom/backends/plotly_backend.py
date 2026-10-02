@@ -60,6 +60,33 @@ _RIGHT_MARGIN = 0.95
 _BOTTOM_MARGIN = 0.1
 
 
+def _legend_glyph(entry: LegendEntry) -> dict:
+    """Scatter properties that draw one legend entry's swatch."""
+    if entry.marker == "line":
+        return dict(
+            mode="lines",
+            line=dict(
+                color=entry.color,
+                dash=_DASH_MAP.get(entry.linestyle, "dash"),
+                width=entry.linewidth,
+            ),
+        )
+    symbol = (
+        "square"
+        if entry.marker == "patch"
+        else _MARKER_SYMBOLS.get(entry.marker, "circle")
+    )
+    return dict(
+        mode="markers",
+        marker=dict(
+            symbol=symbol,
+            size=10,
+            color=entry.color,
+            line=dict(color=entry.edgecolor or "black", width=0.5),
+        ),
+    )
+
+
 @register_backend("plotly")
 class PlotlyBackend:
     """Plotly backend for interactive plot generation.
@@ -564,36 +591,6 @@ class PlotlyBackend:
             }
         )
 
-    def _add_legend_item(
-        self,
-        ax: _Panel,
-        name: str,
-        color: str,
-        symbol: str,
-        size: int,
-        legend_group: str,
-        edgecolor: str = "black",
-    ) -> None:
-        """Add an invisible scatter trace for a legend entry."""
-        ax.fig.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                mode="markers",
-                marker=dict(
-                    symbol=symbol,
-                    size=size,
-                    color=color,
-                    line=dict(color=edgecolor, width=0.5),
-                ),
-                name=name,
-                showlegend=True,
-                legend=legend_group,
-            ),
-            row=ax.row,
-            col=ax.col,
-        )
-
     def add_panel_label(
         self,
         ax: _Panel,
@@ -635,38 +632,17 @@ class PlotlyBackend:
         count = len(existing) + 1
         legend_key = "legend" if count == 1 else f"legend{count}"
         for entry in entries:
-            if entry.marker == "line":
-                fig.add_trace(
-                    go.Scatter(
-                        x=[None],
-                        y=[None],
-                        mode="lines",
-                        line=dict(
-                            color=entry.color,
-                            dash=_DASH_MAP.get(entry.linestyle, "dash"),
-                            width=entry.linewidth,
-                        ),
-                        name=entry.label,
-                        showlegend=True,
-                        legend=legend_key,
-                    ),
-                    row=ax.row,
-                    col=ax.col,
-                )
-                continue
-            symbol = (
-                "square"
-                if entry.marker == "patch"
-                else _MARKER_SYMBOLS.get(entry.marker, "circle")
-            )
-            self._add_legend_item(
-                ax,
-                entry.label,
-                entry.color,
-                symbol,
-                10,
-                legend_key,
-                entry.edgecolor or "black",
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    name=entry.label,
+                    showlegend=True,
+                    legend=legend_key,
+                    **_legend_glyph(entry),
+                ),
+                row=ax.row,
+                col=ax.col,
             )
         configure_legend(
             ax,

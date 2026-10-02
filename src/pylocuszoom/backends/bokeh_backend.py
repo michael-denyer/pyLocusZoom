@@ -93,6 +93,28 @@ def _draw_target(ax: Union[figure, _SecondaryAxis]) -> Tuple[figure, str]:
     return ax, _DEFAULT_RANGE
 
 
+def _legend_renderer(ax: figure, entry: LegendEntry, proxy: dict) -> Any:
+    """Draw the glyph for one legend entry's swatch on the proxy data."""
+    if entry.marker == "line":
+        return ax.line(
+            line_color=entry.color,
+            line_dash=_DASH_MAP.get(entry.linestyle, "dashed"),
+            line_width=entry.linewidth,
+            **proxy,
+        )
+    marker = (
+        "square" if entry.marker == "patch" else _MARKER_MAP.get(entry.marker, "circle")
+    )
+    return ax.scatter(
+        marker=marker,
+        size=14,
+        fill_color=entry.color,
+        line_color=entry.edgecolor or "black",
+        line_width=0.5,
+        **proxy,
+    )
+
+
 @register_backend("bokeh")
 class BokehBackend:
     """Bokeh backend for interactive plot generation.
@@ -546,31 +568,6 @@ class BokehBackend:
             ax.extra_y_ranges["legend_range"] = Range1d(start=0, end=1)
         return ColumnDataSource(data={"x": [0], "y": [0]})
 
-    def _add_legend_item(
-        self,
-        ax: figure,
-        source: Any,
-        label: str,
-        color: str,
-        marker: str,
-        size: int = 14,
-        edgecolor: str = "black",
-    ) -> Any:
-        """Create an invisible scatter renderer for a legend entry."""
-        renderer = ax.scatter(
-            x="x",
-            y="y",
-            source=source,
-            marker=marker,
-            size=size,
-            fill_color=color,
-            line_color=edgecolor,
-            line_width=0.5,
-            y_range_name="legend_range",
-            visible=False,
-        )
-        return LegendItem(label=label, renderers=[renderer])
-
     def _create_legend(
         self,
         ax: figure,
@@ -610,37 +607,19 @@ class BokehBackend:
         horizontal: bool = False,
     ) -> None:
         """Render legend entries as a Bokeh legend using invisible glyphs."""
-        source = self._ensure_legend_range(ax)
-        items = []
-        for entry in entries:
-            if entry.marker == "line":
-                renderer = ax.line(
-                    x="x",
-                    y="y",
-                    source=source,
-                    line_color=entry.color,
-                    line_dash=_DASH_MAP.get(entry.linestyle, "dashed"),
-                    line_width=entry.linewidth,
-                    y_range_name="legend_range",
-                    visible=False,
-                )
-                items.append(LegendItem(label=entry.label, renderers=[renderer]))
-                continue
-            marker = (
-                "square"
-                if entry.marker == "patch"
-                else _MARKER_MAP.get(entry.marker, "circle")
+        proxy = dict(
+            x="x",
+            y="y",
+            source=self._ensure_legend_range(ax),
+            y_range_name="legend_range",
+            visible=False,
+        )
+        items = [
+            LegendItem(
+                label=entry.label, renderers=[_legend_renderer(ax, entry, proxy)]
             )
-            items.append(
-                self._add_legend_item(
-                    ax,
-                    source,
-                    entry.label,
-                    entry.color,
-                    marker,
-                    edgecolor=entry.edgecolor or "black",
-                )
-            )
+            for entry in entries
+        ]
         self._create_legend(ax, items, title or "", location, horizontal)
 
     def hide_yaxis(self, ax: figure) -> None:
