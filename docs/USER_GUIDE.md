@@ -512,7 +512,12 @@ fig.savefig("miami.png", dpi=150)
 - Per-panel significance thresholds (`top_threshold`, `bottom_threshold`)
 - Panel labels to identify datasets
 - SNP annotations independent per panel (`top_snp_annotations`, `bottom_snp_annotations`)
-- Region highlighting across both panels (`highlight_regions`)
+- Region highlighting across both panels (`highlight_regions`). Each entry is
+  `(chrom, start, end)` in 1-based positions with `1 <= start <= end`, or
+  `plot_miami` raises `ValidationError`; `1`, `"1"` and `"chr1"` name the same
+  chromosome. The x axis sizes each chromosome by its largest plotted position,
+  so a band stops there, and a region on a chromosome with no data, or starting
+  past its last plotted position, is skipped with a `UserWarning`
 - Plotly hover shows each point's raw axis values (cumulative genome position and
   −log10 p), not its chromosome, position or SNP ID; the bokeh figure has no hover
 - Full support for all three backends (matplotlib, plotly, bokeh)

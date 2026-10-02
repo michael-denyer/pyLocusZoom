@@ -88,6 +88,8 @@ class GenomeLayout:
             carry. A chromosome's colour is its position in this list.
         offsets: X coordinate of each chromosome's first base. Only the
             chromosomes the frames carry appear.
+        max_positions: Largest plotted position on each chromosome in
+            ``offsets``, which is where its extent on the axis ends.
         colors: Hex colour per chromosome in ``order``.
         centers: Mean x of the points on each chromosome, its tick position.
         x_limits: Padded x span covering every point in every frame.
@@ -96,6 +98,7 @@ class GenomeLayout:
 
     order: Tuple[str, ...]
     offsets: Mapping[str, int]
+    max_positions: Mapping[str, int]
     colors: Mapping[str, str]
     centers: Mapping[str, float]
     x_limits: Tuple[float, float]
@@ -150,12 +153,14 @@ class GenomeLayout:
         max_by_chrom = pooled.groupby("_chrom_str", sort=False)["_pos"].max()
 
         offsets: dict[str, int] = {}
+        max_positions: dict[str, int] = {}
         cumulative = 0
         unknown = sorted(set(max_by_chrom.index) - set(order))
         for chrom in list(order) + unknown:
             if chrom in max_by_chrom.index:
                 offsets[chrom] = cumulative
-                cumulative += int(max_by_chrom[chrom]) + gap
+                max_positions[chrom] = int(max_by_chrom[chrom])
+                cumulative += max_positions[chrom] + gap
 
         full_order = tuple(order) + tuple(unknown)
         chrom_to_idx = {chrom: i for i, chrom in enumerate(full_order)}
@@ -173,6 +178,7 @@ class GenomeLayout:
         return cls(
             order=full_order,
             offsets=offsets,
+            max_positions=max_positions,
             colors=dict(
                 zip(full_order, get_chromosome_colors(len(full_order), palette))
             ),

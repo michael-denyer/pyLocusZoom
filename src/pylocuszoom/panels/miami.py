@@ -1,13 +1,15 @@
 """Miami figure: the request, the two mirrored panels, and the plan builder."""
 
+import warnings
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 
 from .._figure import FigurePlan, RegionHighlight
 from ..backends.base import PlotBackend
 from ..backends.hover import HoverConfig
 from ..config import GenomeWideStyle
 from ..manhattan import PreparedManhattan
+from ..utils import normalize_chrom
 from .manhattan import ManhattanPanelSpec, share_y_max
 
 
@@ -17,7 +19,8 @@ class MiamiRequest:
 
     ``top`` and ``bottom`` are prepared against one shared ``GenomeLayout``.
     ``rs_col`` names the id column the annotations index into and is set
-    whenever either annotation tuple is non-empty.
+    whenever either annotation tuple is non-empty. Each ``highlights`` entry
+    is ``(chrom, start, end)`` with ``1 <= start <= end``.
     """
 
     top: PreparedManhattan
@@ -30,7 +33,7 @@ class MiamiRequest:
     bottom_label: Optional[str]
     top_annotations: Tuple[str, ...]
     bottom_annotations: Tuple[str, ...]
-    highlights: Tuple[Tuple[str, int, int], ...]
+    highlights: Tuple[Tuple[Union[int, str], int, int], ...]
     highlight_color: str
     highlight_alpha: float
     figsize: Tuple[float, float]
@@ -69,7 +72,13 @@ class MiamiPanel:
 
 
 def miami_plan(req: MiamiRequest) -> FigurePlan:
-    """Lay out the two mirrored panels and the highlights spanning both."""
+    """Lay out the two mirrored panels and the highlights spanning both.
+
+    A highlight stops at the last plotted position of its chromosome, where
+    that chromosome's extent on the shared axis ends. One with nothing plotted
+    under it (no data on the chromosome, or a start past its last plotted
+    position) is skipped with a ``UserWarning`` naming the region.
+    """
     top_spec, bottom_spec = share_y_max(
         [
             ManhattanPanelSpec(
@@ -96,17 +105,35 @@ def miami_plan(req: MiamiRequest) -> FigurePlan:
     bottom = MiamiPanel(
         spec=bottom_spec, rs_col=req.rs_col, annotations=req.bottom_annotations
     )
-    offsets = req.top.layout.offsets
-    highlights = [
-        RegionHighlight(
-            offsets[str(chrom)] + start,
-            offsets[str(chrom)] + end,
-            req.highlight_color,
-            req.highlight_alpha,
+    layout = req.top.layout
+    highlights = []
+    # A plain loop: the stacklevel below counts ``miami_plan`` and
+    # ``plot_miami``, and a comprehension adds a frame on Python 3.10 and 3.11.
+    for chrom, start, end in req.highlights:
+        name = normalize_chrom(chrom)
+        max_pos = layout.max_positions.get(name)
+        if max_pos is not None and start <= max_pos:
+            highlights.append(
+                RegionHighlight(
+                    layout.offsets[name] + start,
+                    layout.offsets[name] + min(end, max_pos),
+                    req.highlight_color,
+                    req.highlight_alpha,
+                )
+            )
+            continue
+        if max_pos is None:
+            why = f"chromosome {name} has no plotted data"
+        else:
+            why = (
+                f"it starts past the last plotted position on chromosome {name} "
+                f"({max_pos})"
+            )
+        warnings.warn(
+            f"Highlight region {chrom}:{start}-{end} skipped; {why}",
+            UserWarning,
+            stacklevel=3,
         )
-        for chrom, start, end in req.highlights
-        if str(chrom) in offsets
-    ]
     return FigurePlan(
         panels=[top, bottom],
         figsize=req.figsize,
