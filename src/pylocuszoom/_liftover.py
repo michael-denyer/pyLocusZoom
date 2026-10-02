@@ -332,6 +332,63 @@ def describe_drops(result: RegionLiftResult, chrom: Union[int, str]) -> str:
     )
 
 
+def _build_name(build: Union[str, GenomeBuild, None]) -> str:
+    """Name a target build in a message, by its assembly where it is known."""
+    target = resolve_build(build)
+    return target.assembly_name if target else (build or "the target build")
+
+
+class LeadDrop(Enum):
+    """Why a requested lead cannot be used in the target build."""
+
+    UNLIFTED = "did not lift to {build}"
+    ON_ANOTHER_SNP = (
+        "is not a SNP of the data and lifted onto another SNP's position in {build}"
+    )
+    OUTSIDE_WINDOW = "lifted outside the window of the region's SNPs in {build}"
+
+    def describe(
+        self,
+        chrom: Union[int, str],
+        lead_pos: int,
+        build: Union[str, GenomeBuild, None],
+    ) -> str:
+        """Say what happened to the source-build lead, without what follows from it."""
+        return (
+            f"Lead SNP at chr{chrom}:{lead_pos} "
+            f"{self.value.format(build=_build_name(build))}"
+        )
+
+
+def _lead_drop(
+    requested: Optional[int],
+    lifted: Optional[int],
+    source_pos: pd.Series,
+    lifted_pos: pd.Series,
+    window: Tuple[int, int],
+) -> Optional[LeadDrop]:
+    """Say why one frame's lifted lead cannot be used, or None when it can.
+
+    Args:
+        requested: Source-build lead, or None for none.
+        lifted: The lead lifted on its own, or None if it did not lift.
+        source_pos: Source-build positions of the frame's lifted rows.
+        lifted_pos: Target-build positions of the same rows.
+        window: Target-build window of every frame, inclusive.
+    """
+    if requested is None:
+        return None
+    if lifted is None:
+        return LeadDrop.UNLIFTED
+    # The lead lifts on its own, so one that is no lifted row can land on a
+    # row's position and would make that SNP the lead.
+    if not (source_pos == requested).any() and (lifted_pos == lifted).any():
+        return LeadDrop.ON_ANOTHER_SNP
+    if not window[0] <= lifted <= window[1]:
+        return LeadDrop.OUTSIDE_WINDOW
+    return None
+
+
 @dataclass(frozen=True)
 class LiftedWindow:
     """Regional frames lifted to the target build, and the window around them.
@@ -343,16 +400,18 @@ class LiftedWindow:
         end: Window end in the target build, keeping the requested margin
             after the last lifted SNP of any frame.
         lead_positions: Each requested lead lifted, or None where there was
-            none, it did not lift, it lifted outside the window, or it is no
-            row of its frame and lifted onto a row's position.
-        notes: Sentences the caller should pass on to the user: a lead that
-            was dropped, or a region rearranged between builds.
+            none or ``lead_drops`` says why it cannot be used.
+        lead_drops: Why each requested lead was dropped, or None where it was
+            kept or there was none.
+        notes: Sentences the caller should pass on to the user: a region
+            rearranged between builds.
     """
 
     frames: List[pd.DataFrame]
     start: int
     end: int
     lead_positions: List[Optional[int]]
+    lead_drops: List[Optional[LeadDrop]]
     notes: Tuple[str, ...]
 
 
@@ -391,9 +450,8 @@ def lift_window(
         ValidationError: If no SNP of a frame's region lifts.
     """
     target = resolve_build(build)
-    target_name = target.assembly_name if target else (build or "the target build")
     where = f"chr{chrom}:{start}-{end}"
-    lifted_frames, leads, starts, ends, notes = [], [], [], [], []
+    lifts, sources, starts, ends, notes = [], [], [], [], []
     for frame, lead_pos in zip(frames, lead_positions):
         selected = filter_by_region(
             frame, region=(chrom, start, end), chrom_col=chrom_col, pos_col=pos_col
@@ -408,7 +466,7 @@ def lift_window(
         )
         if lift.lifted_df.empty:
             raise ValidationError(
-                f"No SNP in {where} lifted to {target_name}: "
+                f"No SNP in {where} lifted to {_build_name(build)}: "
                 f"{describe_drops(lift, chrom)}"
             )
         if lift.n_dropped:
@@ -424,44 +482,24 @@ def lift_window(
                 f"{where} is rearranged between builds; the regional plot's "
                 "left-to-right order may misrepresent it"
             )
-        if lead_pos is not None and lift.lead_pos is None:
-            notes.append(
-                f"Lead SNP at chr{chrom}:{lead_pos} did not lift to "
-                f"{target_name}; the lead is auto-detected instead"
-            )
         source_pos = selected.loc[lift.lifted_df.index, pos_col]
-        lead = lift.lead_pos
-        # The lead lifts on its own, so one that is no lifted row can land on
-        # a row's position and would make that SNP the lead.
-        if (
-            lead is not None
-            and not (source_pos == lead_pos).any()
-            and (lift.lifted_df[pos_col] == lead).any()
-        ):
-            notes.append(
-                f"Lead SNP at chr{chrom}:{lead_pos} is not a SNP of the data "
-                f"and lifted onto another SNP's position in {target_name}; "
-                "the lead is auto-detected instead"
-            )
-            lead = None
         window_start = max(1, lift.start - int(source_pos.min() - start))
         starts.append(window_start)
         ends.append(max(lift.end + int(end - source_pos.max()), window_start + 1))
-        lifted_frames.append(lift.lifted_df)
-        leads.append(lead)
-    window_start, window_end = min(starts), max(ends)
-    for index, lead in enumerate(leads):
-        if lead is not None and not window_start <= lead <= window_end:
-            notes.append(
-                f"Lead SNP at chr{chrom}:{lead_positions[index]} lifted outside "
-                f"the window of the region's SNPs in {target_name}; the lead is "
-                "auto-detected instead"
-            )
-            leads[index] = None
+        lifts.append(lift)
+        sources.append(source_pos)
+    window = min(starts), max(ends)
+    drops = [
+        _lead_drop(lead_pos, lift.lead_pos, source_pos, lift.lifted_df[pos_col], window)
+        for lead_pos, lift, source_pos in zip(lead_positions, lifts, sources)
+    ]
     return LiftedWindow(
-        frames=lifted_frames,
-        start=window_start,
-        end=window_end,
-        lead_positions=leads,
+        frames=[lift.lifted_df for lift in lifts],
+        start=window[0],
+        end=window[1],
+        lead_positions=[
+            None if drop else lift.lead_pos for lift, drop in zip(lifts, drops)
+        ],
+        lead_drops=drops,
         notes=tuple(dict.fromkeys(notes)),
     )
