@@ -161,15 +161,67 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
 ## Model Checking
 
-`specs/tla/RecombPublish.tla` models concurrent writers and a reader of the recombination map cache, one filesystem call per step, and checks the claims in the `_publish_map_generation` docstring. It is not run in CI. After changing `_publish_map_generation` or its callers, update the spec to match and run both configurations with TLC ([`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later):
+`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the source lines each action follows. It is not run in CI. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run the matrix with `tlc-matrix.sh` from the `agent-formal-verify` plugin, which needs [`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later:
 
 ```bash
-cd specs/tla
-java -cp tla2tools.jar tlc2.TLC -config RecombPublish.cfg RecombPublish.tla
-java -cp tla2tools.jar tlc2.TLC -config RecombPublishNoGap.cfg RecombPublish.tla
+JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/RecombPublish.matrix
 ```
 
-Each run ends with `Model checking completed. No error has been found.` A violation prints the interleaving that breaks the claim; replay it against the real function with a test that patches the check the model split from its action, as `test_a_writer_that_loses_the_legacy_symlink_race_still_succeeds` does.
+The runner prints one `PASS` or `FAIL` line per run with its distinct state count, and every run in `RecombPublish.matrix` passes. A second argument runs only the labels that contain it, for example `strict` or `expected-failure`.
+
+The matrix checks these properties:
+
+| Property | Claim |
+| -------- | ----- |
+| `TypeOK` | Every variable stays in its domain. |
+| `StagingOwned`, `NoLeak`, `SinglePublisher` | A staged file exists only inside its writer's live temporary directory, no writer returns with that directory still in the cache parent, and at most one staging directory becomes the cache. |
+| `WriterSucceeds`, `FailsOnlyWhenInjected` | Publication raises only for a regular file at the cache path or a legacy symlink the writer may not remove, and a download raises only where the run injects a failure. |
+| `Converges` | Once every call has returned and one succeeded, the cache holds exactly the map set. |
+| `NeverWritesThroughSymlink`, `CheckedNeverClobbers` | No writer replaces files through a legacy symlink, and a writer given `output_dir` never runs the per-file fallback over a directory that holds anything else. |
+| `NoGap`, `StaysComplete` | A reader that saw a complete cache finds its map, and the cache stays complete from the first successful return. |
+| `NoUndocumentedError`, `ValidationJustified` | Only documented exceptions leave `download_canine_recombination_maps`, and `ValidationError` is raised only for a path that held something else. |
+| `Termination` | Every call returns, under weak fairness on each process. |
+
+The runs cover one, two and three processes and map sets of one, two and three names. The shipped canine set has 38 names; the files are interchangeable and each is installed by its own `os.replace`, so two names already separate the map a reader wants from the rest. The cache path starts absent, as a regular file, as a directory holding any subset of the map set with or without a stray `chr*_recomb.tsv` and a foreign entry, as a symlink to such a directory, or as a dangling symlink. `FailAt` makes a writer's download or extraction raise, `ShortAt` gives it an incomplete archive, `Sticky` denies removing the symlink, and `ExtSteps` lets an external actor delete cache entries and the emptied directory.
+
+The `strict` runs check every property from starts without a symlink. The `legacy` runs start from the symlink older releases published behind, where `NoGap`, `StaysComplete`, `NoUndocumentedError` and `ValidationJustified` hold only until a writer removes it. Those runs check the `...UnlessSwapped` forms instead: each claim can break only after that removal, and the cache is incomplete only between the removal and the rename that follows. The `external` runs claim only ownership, cleanup and termination.
+
+`specs/tla/RecombPublishLegacySymlink.tla` keeps the three failures behind those weaker forms as passing runs, labelled `expected-failure`. Each pins one interleaving of `RecombPublish` steps as a schedule and checks `Witnessed`, that the schedule ends in the failure: a reader finding no map after a cache hit, `FileNotFoundError` from `_holds_only_maps`, and a `ValidationError` for a path that held only maps. A change that closes the window between removing the symlink and the rename makes these runs fail; the claim then belongs in the `legacy` runs in its strict form, and the witness is deleted.
+
+A violation prints the interleaving that breaks the claim; replay it against the real function with a test that patches the check the model split from its action, as `test_a_writer_that_loses_the_legacy_symlink_race_still_succeeds` does.
+
+### Staged cache writer
+
+`specs/tla/StagedCache.tla` and `specs/tla/StagedGeneCache.tla` model the temp-file-then-replace writer (`_http.staged_path`) as the liftover-chain cache (`_liftover.chain_lifter`) and the gene-annotation cache (`_gene_cache`) use it, with separate processes sharing one cache directory and one model step per filesystem call. `StagedCache.matrix` runs both:
+
+```bash
+JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/StagedCache.matrix
+```
+
+The runs check that every `.part` sibling is owned by exactly one writer and is replaced or removed by the time its call ends, that the destination and every reader only see complete files, that `chain_lifter` never returns a lifter built from a partial file, that `clear_cache` never removes an in-flight sibling, and that every call terminates. They cover one, two and three concurrent callers, one and two calls per process, failures at file creation, streaming and replace, and gene-cache readers and writers racing one or two `clear_cache` calls. The header of each spec names the source lines it follows and the claims its boundary runs leave out.
+
+Two TLC processes started at the same moment can fail with `Parsing or semantic analysis failed`, because each unpacks the standard modules into the shared Java temporary directory. Give each its own with `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=<dir>`.
+
+### Lean models
+
+`specs/lean/` holds one Lean 4 project per piece of sequential arithmetic. Each `Model.lean` transcribes the Python functions it names in its header, runs a bounded exhaustive search as `#guard` lines, and proves its properties for every input size. The hypotheses a theorem needs, and what the model leaves out, are listed in that header.
+
+| Project | Source | Proved |
+| ------- | ------ | ------ |
+| `GeneRows` | `gene_track.assign_gene_positions` | Genes sharing a row never collide, rows have no gaps, and each gene takes the lowest free row. |
+| `GenomeLayout` | `manhattan.GenomeLayout.from_frames`, `panels/miami.py` highlights | Points keep chromosome order, get distinct x and stay a gap apart for 1-based positions and a non-negative gap. |
+| `HeatmapCells` | `backends/composition.py` highlight cells and cell edges | The highlight covers exactly the rendered cells of one SNP's row and column, and every cell has positive size for strictly ascending coordinates. |
+| `LiftWindow` | `_liftover.lift_window` and the 0/1-based conversion | The lifted window satisfies `1 <= start < end`, contains every SNP that lifts, and keeps the requested margins where no clamp binds. |
+| `PlotlyAxes` | `backends/plotly_layout.py` axis names, `backends/_coerce.split_pixels` | The subplot index is a bijection on the grid, and secondary axis names avoid primary names up to 99 subplots. |
+| `RetryLoop` | `_http._with_retries` | At most `max(1, max_retries)` attempts are made, the backoff doubles with no sleep after the last attempt, and the error raised is the last attempt's. |
+
+After changing one of those functions, update its model and run the checker from the `agent-formal-verify` plugin on the project:
+
+```bash
+bash /path/to/formal-verify/scripts/lean-check.sh specs/lean/GeneRows
+```
+
+The checker builds every `.lean` file and fails on a build error, a failing `#guard`, a `sorry`, or a declaration that rests on an axiom beyond `propext`, `Classical.choice` and `Quot.sound`. It needs [elan](https://github.com/leanprover/elan) and the toolchain named in the project's `lean-toolchain`. Coordinates are modelled as unbounded integers, so float rounding is outside every proof.
 
 ## Coverage Requirements
 
