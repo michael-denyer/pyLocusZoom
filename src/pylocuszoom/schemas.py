@@ -8,6 +8,7 @@ plotter applies to a frame the caller assembled. The split is deliberate:
 tightening the plot tier would reject input that plots correctly today.
 """
 
+from dataclasses import replace
 from typing import Optional
 
 from .exceptions import (
@@ -110,11 +111,7 @@ GENES_PLOT = ColumnSpec(
     ordering=(("start", "end"),),
 )
 
-EXONS_PLOT = ColumnSpec(
-    name="exons_df",
-    required=(Canonical.CHROM, "start", "end", "gene_name"),
-    ordering=(("start", "end"),),
-)
+EXONS_PLOT = replace(GENES_PLOT, name="exons_df")
 
 EQTL_LOAD = ColumnSpec(
     name="eQTL",

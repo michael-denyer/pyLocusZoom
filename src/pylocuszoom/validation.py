@@ -52,7 +52,9 @@ class ColumnSpec:
             ``"loader"`` row of ``_data.P_VALUE_POLICY`` says; do not list it
             under ``numeric`` or ``not_null`` as well.
         ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
-            The error names the first five offending index labels.
+            Both columns are compared as numbers whatever their dtype, and a
+            value that is no number is rejected. The error names the first
+            five offending index labels.
         non_empty: Reject a frame with no rows, before any column rule runs.
         error_class: Exception raised on failure.
     """
@@ -183,7 +185,20 @@ def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
             for col in (lower_col, upper_col)
         ):
             continue
-        inverted = df.index[df[lower_col] > df[upper_col]]
+        # Coerced because a spec may order columns it never declared numeric:
+        # strings would compare lexicographically, mixed types raise TypeError.
+        coerced = {
+            col: pd.to_numeric(df[col], errors="coerce")
+            for col in (lower_col, upper_col)
+        }
+        for col, values in coerced.items():
+            unparsed = (values.isna() & df[col].notna()).sum()
+            if unparsed > 0:
+                errors.append(f"Column '{col}' has {unparsed} non-numeric values")
+                non_numeric.add(col)
+        if non_numeric.intersection(coerced):
+            continue
+        inverted = df.index[coerced[lower_col] > coerced[upper_col]]
         if len(inverted) > 0:
             labels = ", ".join(map(str, inverted[:5]))
             if len(inverted) > 5:
