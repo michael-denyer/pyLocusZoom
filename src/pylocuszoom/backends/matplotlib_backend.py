@@ -433,31 +433,29 @@ class MatplotlibBackend:
                     )
                 )
         if horizontal:
-            ax.legend(
-                handles=handles,
-                loc=location,
-                title=title,
-                fontsize=9,
+            style = dict(
                 frameon=False,
-                title_fontsize=10,
                 ncol=len(handles),
                 handlelength=2.5,
                 columnspacing=1.2,
                 borderpad=0,
                 borderaxespad=0.2,
             )
-            return
+        else:
+            style = dict(
+                frameon=True,
+                framealpha=0.9,
+                handlelength=1.5,
+                handleheight=1.0,
+                labelspacing=0.4,
+            )
         ax.legend(
             handles=handles,
             loc=location,
             title=title,
             fontsize=9,
-            frameon=True,
-            framealpha=0.9,
             title_fontsize=10,
-            handlelength=1.5,
-            handleheight=1.0,
-            labelspacing=0.4,
+            **style,
         )
 
     def hide_yaxis(self, ax: Axes) -> None:
