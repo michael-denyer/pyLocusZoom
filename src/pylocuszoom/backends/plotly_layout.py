@@ -46,8 +46,9 @@ class _Panel(NamedTuple):
         """Trace-level reference for this subplot's secondary y-axis.
 
         Offset by 100 so the name cannot collide with the primary axes, which
-        Plotly numbers yaxis, yaxis2, ..., yaxisN for N subplots. That supports
-        up to 99 subplot rows.
+        Plotly numbers yaxis, yaxis2, ..., yaxisN for N subplots. That holds
+        for up to 99 subplots, counting every cell of a grid; past that
+        ``create_twin_axis`` refuses a name a subplot already has.
 
         Returns:
             The secondary axis reference, such as ``"y100"``.

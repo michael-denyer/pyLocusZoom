@@ -2,9 +2,12 @@
 
 import pandas as pd
 import pytest
+from plotly.subplots import make_subplots
 
 from pylocuszoom.backends.composition import LegendEntry, mb_tick_positions
 from pylocuszoom.backends.plotly_backend import PlotlyBackend
+from pylocuszoom.backends.plotly_layout import _Panel
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 
 
@@ -339,6 +342,43 @@ class TestPlotlyMegabaseTicksFollowTheAxisRange:
         backend.format_xaxis_mb(panels[0])
 
         assert fig.layout.xaxis.tickvals is None
+
+
+class TestPlotlySecondaryAxisNeverTakesASubplotAxis:
+    """A secondary axis is refused when its name belongs to a subplot.
+
+    Secondary axes are named from ``y100`` up, and subplot 100's own y-axis is
+    ``yaxis100``. Writing the secondary axis there turned subplot 100's axis
+    into an overlay of subplot 1.
+    """
+
+    @pytest.mark.parametrize(("rows", "cols"), [(100, 1), (50, 2)])
+    def test_the_hundredth_subplot_keeps_its_y_axis(self, rows, cols):
+        """The limit is 99 subplots, whether they are rows or grid cells."""
+        fig = make_subplots(rows=rows, cols=cols, vertical_spacing=0.005)
+        before = fig.layout.yaxis100.to_plotly_json()
+
+        with pytest.raises(ValidationError, match="yaxis100"):
+            PlotlyBackend().create_twin_axis(_Panel(fig, 1, 1, cols))
+
+        assert fig.layout.yaxis100.to_plotly_json() == before
+
+    def test_ninety_nine_subplots_keep_the_y100_name(self):
+        """Under the limit the first panel's secondary axis is still y100."""
+        fig = make_subplots(rows=99, cols=1, vertical_spacing=0.005)
+
+        secondary = PlotlyBackend().create_twin_axis(_Panel(fig, 1))
+
+        assert secondary.yref == "y100"
+        assert fig.layout.yaxis100.overlaying == "y"
+
+    def test_a_panel_can_be_given_its_secondary_axis_twice(self):
+        """A secondary axis the backend made earlier is not a subplot axis."""
+        backend = PlotlyBackend()
+        fig, panels = backend.create_figure(height_ratios=[1.0], figsize=(6, 4))
+        backend.create_twin_axis(panels[0])
+
+        assert backend.create_twin_axis(panels[0]).yref == "y100"
 
 
 @pytest.mark.parametrize(

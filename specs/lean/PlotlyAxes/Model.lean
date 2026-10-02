@@ -3,12 +3,12 @@
 
 Model of the integer arithmetic in
 
-* `src/pylocuszoom/backends/plotly_layout.py:15-77` (`_Panel.subplot_idx`,
-  `axis`, `ref`, `secondary_ref`) and `:101-112` (`secondary_axis_key`);
-* `src/pylocuszoom/backends/plotly_backend.py:99-105` and `:136-150` (which
+* `src/pylocuszoom/backends/plotly_layout.py:15-78` (`_Panel.subplot_idx`,
+  `axis`, `ref`, `secondary_ref`) and `:102-113` (`secondary_axis_key`);
+* `src/pylocuszoom/backends/plotly_backend.py:100-106` and `:137-151` (which
   `row`, `col`, `n_cols` values `create_figure` / `create_figure_grid` build)
-  and `:506-522` (`create_twin_axis`, where `secondary_ref` becomes a layout
-  key);
+  and `:507-536` (`create_twin_axis`, where `secondary_ref` becomes a layout
+  key unless a subplot already has that key);
 * `src/pylocuszoom/backends/_coerce.py:49-63` (`split_pixels`).
 
 Modelling choices:
@@ -23,12 +23,18 @@ Modelling choices:
 * `secondary_axis_key` only swaps the prefix `"y"` for `"yaxis"`, so a
   secondary reference and a primary layout key collide exactly when their
   suffixes are equal.
+* A figure is its subplot count `N`: its layout holds the primary keys
+  `yaxis`, `yaxis2`, ..., `yaxisN` and nothing else that `create_twin_axis`
+  could mistake for one. The guard's `overlaying is None` clause, which tells
+  a subplot's own axis from a secondary axis written by an earlier call, is
+  assumed to do that and is not modelled.
 * `split_pixels` has a float arm. The even arm (`total // n`) is modelled
   exactly: `Int` `/` is floor division for a positive divisor, as `//` is.
   The ratio arm is modelled only for non-negative integer ratios and a
   non-negative total, where `int(total * r / denominator)` is
   `total * r / denominator` in `Nat`; float rounding is outside the model.
-* `none` stands for the Python exception (`ZeroDivisionError`).
+* `none` stands for the Python exception (`ZeroDivisionError` in
+  `split_pixels`, `ValidationError` in `create_twin_axis`).
 -/
 
 namespace PlotlyAxes
@@ -43,18 +49,26 @@ def subplot_idx (row col n_cols : Int) : Int := (row - 1) * n_cols + col
 `none` is the unsuffixed layout key. -/
 def axis (idx : Int) : Option Int := if idx > 1 then some idx else none
 
-/-- `_Panel.ref`, `plotly_layout.py:66-67`: the same rule as `axis`. -/
+/-- `_Panel.ref`, `plotly_layout.py:67-68`: the same rule as `axis`. -/
 def ref (idx : Int) : Option Int := if idx > 1 then some idx else none
 
-/-- `_Panel.secondary_ref`, `plotly_layout.py:55`: `f"y{100 + self.subplot_idx - 1}"`.
-Always suffixed. `secondary_axis_key` (`plotly_layout.py:110-111`) keeps the
+/-- `_Panel.secondary_ref`, `plotly_layout.py:56`: `f"y{100 + self.subplot_idx - 1}"`.
+Always suffixed. `secondary_axis_key` (`plotly_layout.py:111-112`) keeps the
 suffix, so this is also the suffix of the layout key `create_twin_axis` writes
-(`plotly_backend.py:508-511`). -/
+(`plotly_backend.py:514-525`). -/
 def secondary_ref (idx : Int) : Option Int := some (100 + idx - 1)
 
+/-- `PlotlyBackend.create_twin_axis`, `plotly_backend.py:514-536`, on a figure
+of `N` subplots: the suffix of the secondary axis it creates. `none` is the
+`ValidationError` of `plotly_backend.py:517-522`, raised when the key is in
+the layout as a subplot's own y-axis. The secondary key is always suffixed, so
+it is one of `yaxis2 .. yaxisN` exactly when its suffix is in `2 .. N`. -/
+def twin_axis (N idx : Int) : Option Int :=
+  if 1 < 100 + idx - 1 ∧ 100 + idx - 1 ≤ N then none else some (100 + idx - 1)
+
 /-- The cell is inside an `n_rows` by `n_cols` grid, 1-based. These are the
-only cells `create_figure` (`plotly_backend.py:99-105`, `n_cols = 1`) and
-`create_figure_grid` (`plotly_backend.py:136-150`) build. -/
+only cells `create_figure` (`plotly_backend.py:100-106`, `n_cols = 1`) and
+`create_figure_grid` (`plotly_backend.py:137-151`) build. -/
 def InGrid (n_rows n_cols row col : Int) : Prop :=
   1 ≤ row ∧ row ≤ n_rows ∧ 1 ≤ col ∧ col ≤ n_cols
 
@@ -77,7 +91,7 @@ def split_pixels_ratio (total : Nat) (ratios : List Nat) : Option (List Nat) :=
 /-! ## Bounded exhaustive checks -/
 
 /-- Cells in the order `create_figure_grid` returns them
-(`plotly_backend.py:146-150`): row-major, 1-based. -/
+(`plotly_backend.py:147-151`): row-major, 1-based. -/
 def cells (n_rows n_cols : Nat) : List (Int × Int) :=
   (List.range n_rows).flatMap fun (r : Nat) =>
     (List.range n_cols).map fun (c : Nat) => ((r : Int) + 1, (c : Int) + 1)
@@ -113,6 +127,19 @@ axis of panel `q`. Worst case: every panel is given a secondary axis. -/
 def crossHits (n_rows n_cols : Nat) : List ((Int × Int) × (Int × Int)) :=
   cellPairs n_rows n_cols fun i j => secondary_ref i == axis j
 
+/-- `(p, q)`: `create_twin_axis` accepts panel `p` and the axis it creates
+has the name of the primary axis of panel `q`. Empty means the guard holds. -/
+def acceptedHits (n_rows n_cols : Nat) : List ((Int × Int) × (Int × Int)) :=
+  cellPairs n_rows n_cols fun i j =>
+    match twin_axis ((n_rows * n_cols : Nat) : Int) i with
+    | none => false
+    | some s => some s == axis j
+
+/-- Panels of one grid that `create_twin_axis` refuses. -/
+def refusedCells (n_rows n_cols : Nat) : List (Int × Int) :=
+  (cells n_rows n_cols).filter fun p =>
+    (twin_axis ((n_rows * n_cols : Nat) : Int) (idxOf n_cols p)).isNone
+
 /-- Grids up to `maxR` by `maxC` with any axis-name collision. -/
 def collidingGrids (maxR maxC : Nat) : List (Nat × Nat) :=
   (List.range (maxR + 1)).flatMap fun r =>
@@ -145,6 +172,19 @@ def collidingGrids (maxR maxC : Nat) : List (Nat × Nat) :=
 #guard (crossHits 99 1).isEmpty
 #guard (crossHits 33 3).isEmpty
 #guard secondary_ref 1 = some 100
+
+-- The guard refuses exactly the panels whose secondary name is taken, and
+-- leaves every other panel its `secondary_ref` name.
+#eval refusedCells 100 1   -- [(1, 1)]
+#guard twin_axis 100 1 = none
+#guard twin_axis 100 2 = some 101
+#guard twin_axis 99 1 = some 100
+#guard refusedCells 100 1 = [(1, 1)]
+#guard refusedCells 50 2 = [(1, 1)]
+#guard (refusedCells 26 5).length = 31
+#guard ((List.range 27).all fun r => (List.range 6).all fun c =>
+  (acceptedHits r c).isEmpty &&
+    refusedCells r c == (crossHits r c).map Prod.fst)
 
 -- Outside the grid two panels share an index (`col = n_cols + 1`, `col = 0`).
 #eval (subplot_idx 1 3 2, subplot_idx 2 1 2)   -- (3, 3)
@@ -358,7 +398,67 @@ theorem grid_50x2_collides :
     InGrid 50 2 1 1 ∧ InGrid 50 2 50 2 ∧
       secondary_ref (subplot_idx 1 1 2) = axis (subplot_idx 50 2 2) := by decide
 
-/-! ## (d) `split_pixels` -/
+/-! ## (d) the `create_twin_axis` guard -/
+
+/-- The guard refuses exactly when some subplot of the figure has the name. -/
+theorem twin_axis_refuses_iff (N i : Int) :
+    twin_axis N i = none ↔ ∃ j, 1 ≤ j ∧ j ≤ N ∧ secondary_ref i = axis j := by
+  unfold twin_axis secondary_ref axis
+  constructor
+  · intro h
+    split at h
+    · refine ⟨100 + i - 1, by omega, by omega, ?_⟩
+      have : 100 + i - 1 > 1 := by omega
+      simp [this]
+    · simp at h
+  · intro ⟨j, hj1, hjN, h⟩
+    split at h
+    · simp at h
+      have : 1 < 100 + i - 1 ∧ 100 + i - 1 ≤ N := by omega
+      simp [this]
+    · simp at h
+
+/-- An accepted secondary axis keeps the `secondary_ref` name. -/
+theorem twin_axis_accepted_name (N i s : Int) (h : twin_axis N i = some s) :
+    secondary_ref i = some s := by
+  unfold twin_axis at h
+  unfold secondary_ref
+  split at h
+  · simp at h
+  · exact h
+
+/-- No accepted secondary axis has the name of a subplot's primary axis, for
+any figure size and any index. -/
+theorem twin_axis_accepted_no_collision (N i s j : Int) (h : twin_axis N i = some s)
+    (hj : 1 ≤ j ∧ j ≤ N) : some s ≠ axis j := by
+  unfold twin_axis at h
+  unfold axis
+  split at h
+  · simp at h
+  · simp at h
+    intro heq
+    split at heq
+    · simp at heq
+      omega
+    · simp at heq
+
+/-- With at most 99 subplots the guard refuses nothing, so the names are the
+ones `secondary_ref` gave before the guard existed. -/
+theorem twin_axis_unchanged_upto_99 (N i : Int) (hN : N ≤ 99) (hi : 1 ≤ i) :
+    twin_axis N i = secondary_ref i := by
+  unfold twin_axis secondary_ref
+  have : ¬(1 < 100 + i - 1 ∧ 100 + i - 1 ≤ N) := by omega
+  simp [this]
+
+/-- The same for a grid of any size: an accepted secondary axis is no grid
+cell's primary axis. -/
+theorem grid_twin_axis_no_collision (n_rows n_cols row₁ col₁ row₂ col₂ s : Int)
+    (h : twin_axis (n_rows * n_cols) (subplot_idx row₁ col₁ n_cols) = some s)
+    (h₂ : InGrid n_rows n_cols row₂ col₂) :
+    some s ≠ axis (subplot_idx row₂ col₂ n_cols) :=
+  twin_axis_accepted_no_collision _ _ _ _ h (subplot_idx_in_range _ _ _ _ h₂)
+
+/-! ## (e) `split_pixels` -/
 
 private theorem sum_replicate (n : Nat) (x : Int) :
     (List.replicate n x).sum = (n : Int) * x := by
