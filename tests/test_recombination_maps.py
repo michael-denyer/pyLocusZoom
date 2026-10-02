@@ -1,6 +1,7 @@
 """Fetching, unpacking and publishing the managed recombination map set."""
 
 import io
+import os
 import tarfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -135,6 +136,99 @@ class TestDownloadCanineRecombinationMaps:
         download_canine_recombination_maps(output_dir=str(tmp_path), force=True)
 
         assert (tmp_path / "chr1_recomb.tsv").read_text().startswith("chr\tpos")
+
+    def test_an_output_dir_that_is_a_regular_file_is_rejected(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        output = tmp_path / "maps"
+        output.write_text("precious")
+
+        with pytest.raises(ValidationError, match="maps"):
+            download_canine_recombination_maps(output_dir=str(output), force=True)
+
+        assert output.read_text() == "precious"
+
+    @staticmethod
+    def _rival_removes_symlink_after(monkeypatch, output, check):
+        """Unlink output once, straight after the named check of it returns.
+
+        A rival writer's unlink() of the legacy symlink lands there, before its
+        rename. "listing" is the directory read, whichever os call performs it.
+        """
+        targets = {
+            "exists": [(Path, "exists")],
+            "is_dir": [(Path, "is_dir")],
+            "listing": [(os, "scandir"), (os, "listdir")],
+        }[check]
+        pending = [True]
+
+        def wrap(real):
+            def checked(path, *args, **kwargs):
+                result = real(path, *args, **kwargs)
+                if (
+                    pending
+                    and isinstance(path, (str, Path))
+                    and Path(path) == output
+                    and output.is_symlink()
+                ):
+                    pending.clear()
+                    output.unlink()
+                return result
+
+            return checked
+
+        for owner, name in targets:
+            monkeypatch.setattr(owner, name, wrap(getattr(owner, name)))
+
+    @pytest.mark.parametrize("check", ["exists", "is_dir", "listing"])
+    def test_a_legacy_symlink_removed_during_the_output_dir_check_is_not_an_error(
+        self, tmp_path, monkeypatch, check
+    ):
+        """A rival force writer unlinks the legacy symlink between two looks at
+        output_dir; specs/tla/RecombPublish.tla found a FileNotFoundError and a
+        ValidationError for a path that held only maps."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        generation = tmp_path / ".maps.generation-old"
+        write_canine_map_set(generation, "old")
+        output = tmp_path / "maps"
+        output.symlink_to(generation.name, target_is_directory=True)
+        self._rival_removes_symlink_after(monkeypatch, output, check)
+
+        result = download_canine_recombination_maps(output_dir=str(output), force=True)
+
+        assert result == output
+        assert not output.is_symlink()
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+        assert (generation / "chr1_recomb.tsv").read_text() == "old"
+
+    def test_maps_that_vanish_after_the_listing_are_not_foreign_files(
+        self, tmp_path, monkeypatch
+    ):
+        """Symlinked maps need a second lookup after the listing, and the rival
+        has removed the path by then: nothing is left there to discard."""
+        monkeypatch.setattr(
+            "pylocuszoom.recombination.download_file", self._fake_archive
+        )
+        store = tmp_path / "store"
+        write_canine_map_set(store, "old")
+        generation = tmp_path / ".maps.generation-old"
+        generation.mkdir()
+        for name in CANINE_SOURCE.filenames:
+            (generation / name).symlink_to(store / name)
+        output = tmp_path / "maps"
+        output.symlink_to(generation.name, target_is_directory=True)
+        self._rival_removes_symlink_after(monkeypatch, output, "listing")
+
+        result = download_canine_recombination_maps(output_dir=str(output), force=True)
+
+        assert result == output
+        assert {p.name for p in output.iterdir()} == CANINE_SOURCE.filenames
+        assert (store / "chr1_recomb.tsv").read_text() == "old"
 
 
 class TestStageArchive:

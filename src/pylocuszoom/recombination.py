@@ -153,12 +153,24 @@ def _has_complete_maps(path: Path, source: RecombSource) -> bool:
 
 
 def _holds_only_maps(path: Path, source: RecombSource) -> bool:
-    """Return whether replacing path wholesale would discard only this source's maps."""
-    if not path.exists():
+    """Return whether replacing path wholesale would discard only this source's maps.
+
+    The answer comes from one listing of the directory, so a concurrent writer
+    replacing a legacy symlink cannot change it part-way. A path or an entry
+    that is gone has nothing left to discard; a path that is not a directory
+    never holds only maps.
+    """
+    try:
+        with os.scandir(path) as entries:
+            return all(
+                entry.name in source.filenames
+                and (entry.is_file() or not os.path.lexists(entry.path))
+                for entry in entries
+            )
+    except FileNotFoundError:
         return True
-    return path.is_dir() and all(
-        entry.is_file() and entry.name in source.filenames for entry in path.iterdir()
-    )
+    except NotADirectoryError:
+        return False
 
 
 def _publish_map_generation(

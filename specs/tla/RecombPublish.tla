@@ -4,14 +4,14 @@
 (*                                                                         *)
 (* Source: src/pylocuszoom/recombination.py                                *)
 (*   _has_complete_maps                    l.147-152                       *)
-(*   _holds_only_maps                      l.155-161                       *)
-(*   _publish_map_generation               l.164-206                       *)
-(*   _stage_archive                        l.209-257                       *)
-(*   download_recombination_maps           l.260-301                       *)
-(*   download_canine_recombination_maps    l.304-341                       *)
-(*   load_recombination_map                l.344-413                       *)
-(*   get_recombination_rate_for_region     l.416-512                       *)
-(*   ensure_recomb_maps                    l.515-550                       *)
+(*   _holds_only_maps                      l.155-173                       *)
+(*   _publish_map_generation               l.176-218                       *)
+(*   _stage_archive                        l.221-269                       *)
+(*   download_recombination_maps           l.272-313                       *)
+(*   download_canine_recombination_maps    l.316-353                       *)
+(*   load_recombination_map                l.356-425                       *)
+(*   get_recombination_rate_for_region     l.428-524                       *)
+(*   ensure_recomb_maps                    l.527-562                       *)
 (* and src/pylocuszoom/_http.py download_file l.152-192, staged_path       *)
 (* l.71-87, whose .part file lives inside the writer's private temporary   *)
 (* directory and is covered by that directory's cleanup.                   *)
@@ -22,8 +22,9 @@
 (* never blocked, and TLC's deadlock check together with Termination       *)
 (* covers "every call returns". The shared state is the filesystem. Each   *)
 (* filesystem call is one atomic step under POSIX rename semantics, and a  *)
-(* check (exists, is_dir, is_symlink, glob, iterdir) and the call it       *)
-(* guards are separate steps, as they are in the code.                     *)
+(* check (exists, is_dir, is_symlink, glob) and the call it guards are     *)
+(* separate steps, as they are in the code. _holds_only_maps answers from  *)
+(* one directory listing, so it is one step.                               *)
 (*                                                                         *)
 (* A writer runs one of four entry points, chosen by mode:                 *)
 (*   "ensure"        ensure_recomb_maps(), or                              *)
@@ -81,7 +82,7 @@ VARIABLES
     stgAt,     \* its staging directory: "none", "tmp" (inside tmp) or "out"
     stg,       \* map files still inside its staging directory
     todo,      \* names the fallback loop has still to os.replace
-    seen,      \* entries a listing returned (iterdir at l.160, glob at l.203)
+    seen,      \* entries a listing returned (glob at l.215)
     rname,     \* the map a reader loads
     swapped,   \* history: a writer has unlinked the legacy symlink
     foreign0,  \* history: the path started as a file or held a non-map entry
@@ -120,14 +121,14 @@ Init ==
     /\ ext = 0
 
 Goto(w, label) == pc' = [pc EXCEPT ![w] = label]
-\* Leave the with block at l.285: the exit runs before the caller sees o.
+\* Leave the with block at l.297: the exit runs before the caller sees o.
 Leave(w, o) == /\ Goto(w, "cleanup")
                /\ outcome' = [outcome EXCEPT ![w] = o]
 
-AfterMiss(w) == IF Checked(w) THEN "hexists" ELSE "mktmp"
+AfterMiss(w) == IF Checked(w) THEN "hsnap" ELSE "mktmp"
 AfterHit(w) == IF w \in Readers THEN "rexists" ELSE "hit"
 
-\* l.333 `not force and ...` / l.546.
+\* l.345 `not force and ...` / l.558.
 Start(w) ==
     /\ pc[w] = "start"
     /\ Goto(w, IF Force(w) THEN AfterMiss(w) ELSE "cexists")
@@ -148,44 +149,21 @@ CGlob(w) ==
     /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, seen, rname,
                    swapped, foreign0, ext>>
 
-\* _holds_only_maps l.157: path.exists().
-HExists(w) ==
-    /\ pc[w] = "hexists"
-    /\ Goto(w, IF Exists THEN "hisdir" ELSE "mktmp")
-    /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, seen, rname,
-                   swapped, foreign0, ext>>
-
-\* _holds_only_maps l.159: path.is_dir(); False raises ValidationError (l.336).
-HIsDir(w) ==
-    /\ pc[w] = "hisdir"
-    /\ Goto(w, IF IsDir THEN "hlist" ELSE "invalid")
-    /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, seen, rname,
-                   swapped, foreign0, ext>>
-
-\* _holds_only_maps l.160: path.iterdir(). On a path that is no longer a
-\* directory it raises FileNotFoundError or NotADirectoryError, which nothing
-\* between here and the caller catches.
-HList(w) ==
-    /\ pc[w] = "hlist"
-    /\ IF IsDir
-         THEN /\ Goto(w, "hstat")
-              /\ seen' = [seen EXCEPT ![w] = out.files]
-         ELSE /\ Goto(w, "crashed")
-              /\ UNCHANGED seen
-    /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, rname, swapped,
-                   foreign0, ext>>
-
-\* _holds_only_maps l.160: entry.is_file() and the name test for the listed
-\* entries. An entry that has vanished since the listing is not a file.
-HStat(w) ==
-    /\ pc[w] = "hstat"
-    /\ Goto(w, IF seen[w] \subseteq Names /\ seen[w] \subseteq Visible
+\* _holds_only_maps l.163-173: os.scandir(path) and the names and types it
+\* lists, one snapshot of the directory. FileNotFoundError (an absent path or
+\* a dangling symlink) means there is nothing to discard. NotADirectoryError
+\* (a regular file) and a listed entry outside the map set raise
+\* ValidationError (l.348). An entry whose type the listing does not carry is
+\* looked up again, and one that is gone by then counts as absent, which is
+\* the answer the snapshot gives for a map file.
+HSnapshot(w) ==
+    /\ pc[w] = "hsnap"
+    /\ Goto(w, IF ~Exists \/ (IsDir /\ out.files \subseteq Names)
                  THEN "mktmp" ELSE "invalid")
-    /\ seen' = [seen EXCEPT ![w] = {}]
-    /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, rname, swapped,
-                   foreign0, ext>>
+    /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, seen, rname,
+                   swapped, foreign0, ext>>
 
-\* download_recombination_maps l.284-285: TemporaryDirectory(dir=parent).
+\* download_recombination_maps l.296-297: TemporaryDirectory(dir=parent).
 MkTmp(w) ==
     /\ pc[w] = "mktmp"
     /\ tmp' = [tmp EXCEPT ![w] = "live"]
@@ -193,7 +171,7 @@ MkTmp(w) ==
     /\ UNCHANGED <<out, mode, outcome, stgAt, stg, todo, seen, rname, swapped,
                    foreign0, ext>>
 
-\* l.288 download_file: raises DataDownloadError for a writer in FailAt,
+\* l.300 download_file: raises DataDownloadError for a writer in FailAt,
 \* which may instead fail later, inside _stage_archive.
 Download(w) ==
     /\ pc[w] = "download"
@@ -204,7 +182,7 @@ Download(w) ==
     /\ UNCHANGED <<out, mode, tmp, stgAt, stg, todo, seen, rname, swapped,
                    foreign0, ext>>
 
-\* l.291-293: staging.mkdir() and _stage_archive. A FailAt writer raises
+\* l.303-305: staging.mkdir() and _stage_archive. A FailAt writer raises
 \* part-way, leaving any subset of the maps in its staging directory.
 Stage(w) ==
     /\ pc[w] = "stage"
@@ -220,7 +198,7 @@ Stage(w) ==
               /\ UNCHANGED outcome
     /\ UNCHANGED <<out, mode, tmp, todo, seen, rname, swapped, foreign0, ext>>
 
-\* _publish_map_generation l.180: _has_complete_maps(staging_dir). The
+\* _publish_map_generation l.192: _has_complete_maps(staging_dir). The
 \* staging directory is private, so its exists() and glob are one step.
 PubCheck(w) ==
     /\ pc[w] = "pubcheck"
@@ -230,14 +208,14 @@ PubCheck(w) ==
     /\ UNCHANGED <<out, mode, tmp, stgAt, stg, todo, seen, rname, swapped,
                    foreign0, ext>>
 
-\* l.187: if output_path.is_symlink():
+\* l.199: if output_path.is_symlink():
 SymCheck(w) ==
     /\ pc[w] = "symcheck"
     /\ Goto(w, IF out.kind \in {"symlink", "dangling"} THEN "unlink" ELSE "rename")
     /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, seen, rname,
                    swapped, foreign0, ext>>
 
-\* l.190 output_path.unlink(): FileNotFoundError once the link is gone,
+\* l.202 output_path.unlink(): FileNotFoundError once the link is gone,
 \* EPERM or EISDIR on a directory, EPERM on a link Sticky protects.
 Unlink(w) ==
     /\ pc[w] = "unlink"
@@ -250,7 +228,7 @@ Unlink(w) ==
     /\ UNCHANGED <<mode, outcome, tmp, stgAt, stg, todo, seen, rname,
                    foreign0, ext>>
 
-\* l.193-194: except OSError: if output_path.is_symlink(): raise
+\* l.205-206: except OSError: if output_path.is_symlink(): raise
 Recheck(w) ==
     /\ pc[w] = "recheck"
     /\ IF out.kind \in {"symlink", "dangling"}
@@ -259,7 +237,7 @@ Recheck(w) ==
     /\ UNCHANGED <<out, mode, tmp, stgAt, stg, todo, seen, rname, swapped,
                    foreign0, ext>>
 
-\* l.196 os.rename(staging_dir, output_path): succeeds onto nothing or an
+\* l.208 os.rename(staging_dir, output_path): succeeds onto nothing or an
 \* empty directory, and the staging directory becomes the cache. It fails
 \* onto a non-empty directory, a file or a symlink.
 Rename(w) ==
@@ -273,7 +251,7 @@ Rename(w) ==
               /\ UNCHANGED <<out, stg, stgAt, outcome>>
     /\ UNCHANGED <<mode, tmp, todo, seen, rname, swapped, foreign0, ext>>
 
-\* l.199-200: except OSError: if not output_path.is_dir(): raise
+\* l.211-212: except OSError: if not output_path.is_dir(): raise
 IsDirCheck(w) ==
     /\ pc[w] = "isdir"
     /\ IF IsDir
@@ -285,7 +263,7 @@ IsDirCheck(w) ==
     /\ UNCHANGED <<out, mode, tmp, stgAt, stg, seen, rname, swapped,
                    foreign0, ext>>
 
-\* l.201-202: os.replace(staging_dir / name, output_path / name) in sorted
+\* l.213-214: os.replace(staging_dir / name, output_path / name) in sorted
 \* order, one file per step. It raises when the source is missing or the
 \* target directory is gone.
 Replace(w) ==
@@ -303,7 +281,7 @@ Replace(w) ==
                      /\ UNCHANGED <<out, stg, todo>>
     /\ UNCHANGED <<mode, tmp, stgAt, seen, rname, swapped, foreign0, ext>>
 
-\* l.203-204: output_path.glob("chr*_recomb.tsv") filtered to non-map names.
+\* l.215-216: output_path.glob("chr*_recomb.tsv") filtered to non-map names.
 \* A glob of a missing directory yields nothing.
 StrayGlob(w) ==
     /\ pc[w] = "sglob"
@@ -316,7 +294,7 @@ StrayGlob(w) ==
     /\ UNCHANGED <<out, mode, tmp, stgAt, stg, todo, rname, swapped,
                    foreign0, ext>>
 
-\* l.205: stray.unlink(missing_ok=True).
+\* l.217: stray.unlink(missing_ok=True).
 StrayUnlink(w) ==
     /\ pc[w] = "sunlink"
     /\ out' = IF IsDir THEN [out EXCEPT !.files = @ \ seen[w]] ELSE out
@@ -324,7 +302,7 @@ StrayUnlink(w) ==
     /\ Leave(w, "done")
     /\ UNCHANGED <<mode, tmp, stgAt, stg, todo, rname, swapped, foreign0, ext>>
 
-\* TemporaryDirectory.__exit__ at l.285, on return and on every exception:
+\* TemporaryDirectory.__exit__ at l.297, on return and on every exception:
 \* removes the archive and whatever is left of the staging directory. After
 \* a successful rename the staging directory is no longer inside it.
 Cleanup(w) ==
@@ -335,14 +313,14 @@ Cleanup(w) ==
     /\ UNCHANGED <<out, mode, outcome, stgAt, todo, seen, rname, swapped,
                    foreign0, ext>>
 
-\* load_recombination_map l.370: map_file.exists().
+\* load_recombination_map l.382: map_file.exists().
 ReadExists(w) ==
     /\ pc[w] = "rexists"
     /\ Goto(w, IF rname[w] \in Visible THEN "ropen" ELSE "notfound")
     /\ UNCHANGED <<out, mode, outcome, tmp, stgAt, stg, todo, seen, rname,
                    swapped, foreign0, ext>>
 
-\* load_recombination_map l.383: pd.read_csv opens the file.
+\* load_recombination_map l.395: pd.read_csv opens the file.
 ReadOpen(w) ==
     /\ pc[w] = "ropen"
     /\ Goto(w, IF rname[w] \in Visible THEN "read" ELSE "unreadable")
@@ -351,7 +329,7 @@ ReadOpen(w) ==
 
 Proc(w) ==
     \/ Start(w) \/ CExists(w) \/ CGlob(w)
-    \/ HExists(w) \/ HIsDir(w) \/ HList(w) \/ HStat(w)
+    \/ HSnapshot(w)
     \/ MkTmp(w) \/ Download(w) \/ Stage(w) \/ PubCheck(w)
     \/ SymCheck(w) \/ Unlink(w) \/ Recheck(w) \/ Rename(w) \/ IsDirCheck(w)
     \/ Replace(w) \/ StrayGlob(w) \/ StrayUnlink(w) \/ Cleanup(w)
@@ -387,11 +365,10 @@ TypeOK ==
     /\ out.kind \in {"absent", "file", "dangling"} => out.files = {}
     /\ mode \in [Writers -> AllModes]
     /\ pc \in [Writers -> TerminalPcs \cup
-                 {"start", "cexists", "cglob", "hexists", "hisdir", "hlist",
-                  "hstat", "mktmp", "download", "stage", "pubcheck",
-                  "symcheck", "unlink", "recheck", "rename", "isdir",
-                  "replace", "sglob", "sunlink", "cleanup", "rexists",
-                  "ropen"}]
+                 {"start", "cexists", "cglob", "hsnap", "mktmp", "download",
+                  "stage", "pubcheck", "symcheck", "unlink", "recheck",
+                  "rename", "isdir", "replace", "sglob", "sunlink", "cleanup",
+                  "rexists", "ropen"}]
     /\ outcome \in [Writers -> {"none", "done", "failed", "dlfailed"}]
     /\ tmp \in [Writers -> {"none", "live", "cleaned"}]
     /\ stgAt \in [Writers -> {"none", "tmp", "out"}]
@@ -459,6 +436,14 @@ CheckedNeverClobbers ==
         Checked(w) /\ pc[w] \in {"replace", "sglob", "sunlink"}
             => Visible \cap {Stray, Other} = {}
 
+\* Only the documented exceptions leave download_canine_recombination_maps.
+\* No action reaches "crashed"; it stays a terminal pc so that a model of
+\* _holds_only_maps with a step that can raise has a state to violate this.
+NoUndocumentedError == \A w \in Writers : pc[w] # "crashed"
+
+\* ValidationError is raised only for a path that held something else.
+ValidationJustified == \A w \in Writers : pc[w] = "invalid" => foreign0
+
 \* Strict claims. They hold when the cache path does not start as a legacy
 \* symlink.
 
@@ -468,13 +453,7 @@ NoGap == \A w \in Writers : pc[w] \notin {"notfound", "unreadable"}
 \* From the first successful return on, the cache stays complete.
 StaysComplete == (\E w \in Writers : Succeeded(w)) => Complete
 
-\* Only the documented exceptions leave download_canine_recombination_maps.
-NoUndocumentedError == \A w \in Writers : pc[w] # "crashed"
-
-\* ValidationError is raised only for a path that held something else.
-ValidationJustified == \A w \in Writers : pc[w] = "invalid" => foreign0
-
-\* The same four claims with the documented exception: each can break only
+\* The same two claims with the documented exception: each can break only
 \* after a writer has unlinked a legacy symlink, and the cache is incomplete
 \* only in the window between that unlink and the rename that follows it.
 NoGapUnlessSwapped ==
@@ -482,10 +461,6 @@ NoGapUnlessSwapped ==
 StaysCompleteUnlessSwapping ==
     (\E w \in Writers : Succeeded(w))
         => Complete \/ (swapped /\ out.kind = "absent")
-NoUndocumentedErrorUnlessSwapped ==
-    \A w \in Writers : pc[w] = "crashed" => swapped
-ValidationJustifiedUnlessSwapped ==
-    \A w \in Writers : pc[w] = "invalid" => foreign0 \/ swapped
 
 \* Every call returns: each writer reaches a terminal pc and each reader
 \* finishes its load.
