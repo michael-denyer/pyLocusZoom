@@ -10,6 +10,7 @@ from matplotlib.patches import Polygon, Rectangle
 
 from pylocuszoom.colors import STRAND_COLORS
 from pylocuszoom.config import RegionConfig
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.gene_track import (
     assign_gene_positions,
     filter_genes_by_region,
@@ -220,6 +221,81 @@ def _strand_drawing(ax, start, end):
         if isinstance(p, Polygon) and start <= p.get_xy()[:, 0].min() < end
     ]
     return bodies, len(arrows)
+
+
+class TestReversedCoordinates:
+    """A row with end < start is rejected where the gene frames are validated.
+
+    The row layout reads such a gene as starting at ``start`` while the band is
+    painted from ``end`` to ``start``, so genes (1, 500) and (600, 100) shared
+    row 0 and overlapped from 100 to 500.
+    """
+
+    REGION = RegionConfig(chrom="1", start=1, end=1001)
+
+    def test_reversed_gene_row_is_rejected_by_index(self):
+        """A gene with end < start raises, naming the frame and the row."""
+        genes_df = pd.DataFrame(
+            {
+                "chr": [1, 1],
+                "start": [1, 600],
+                "end": [500, 100],
+                "gene_name": ["GENE_A", "GENE_B"],
+            }
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            GenePanel.from_genes(genes_df, self.REGION, None)
+
+        message = str(exc_info.value)
+        assert "genes_df" in message
+        assert "1 rows have start > end (index 1)" in message
+
+    def test_reversed_exon_row_is_rejected_by_index(self):
+        """An exon with end < start raises, naming the frame and the row."""
+        genes_df = pd.DataFrame(
+            {"chr": [1], "start": [100], "end": [900], "gene_name": ["GENE_A"]}
+        )
+        exons_df = pd.DataFrame(
+            {
+                "chr": [1, 1],
+                "start": [300, 700],
+                "end": [200, 800],
+                "gene_name": ["GENE_A", "GENE_A"],
+            }
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            GenePanel.from_genes(genes_df, self.REGION, exons_df)
+
+        message = str(exc_info.value)
+        assert "exons_df" in message
+        assert "1 rows have start > end (index 0)" in message
+
+    def test_overlapping_genes_take_separate_rows_and_disjoint_bands(self):
+        """The same two genes with start <= end are stacked, not overdrawn."""
+        from pylocuszoom.backends.matplotlib_backend import MatplotlibBackend
+
+        genes_df = pd.DataFrame(
+            {
+                "chr": [1, 1],
+                "start": [1, 100],
+                "end": [500, 600],
+                "gene_name": ["GENE_A", "GENE_B"],
+            }
+        )
+
+        panel = GenePanel.from_genes(genes_df, self.REGION, None)
+        fig, ax = plt.subplots()
+        panel.draw(MatplotlibBackend(), ax)
+
+        assert panel.rows == [0, 1]
+        bands = [p for p in ax.patches if isinstance(p, Rectangle)]
+        assert [(p.get_x(), p.get_x() + p.get_width()) for p in bands] == [
+            (1, 500),
+            (100, 600),
+        ]
+        assert bands[0].get_y() != bands[1].get_y()
 
 
 class TestStrandColors:

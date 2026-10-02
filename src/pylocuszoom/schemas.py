@@ -102,12 +102,18 @@ GENES_LOAD = ColumnSpec(
     error_class=LoaderValidationError,
 )
 
+# A row with end < start is rejected, not swapped: the gene row layout and the
+# band drawing read it differently, and it signals a wrong column mapping.
 GENES_PLOT = ColumnSpec(
-    name="genes_df", required=(Canonical.CHROM, "start", "end", "gene_name")
+    name="genes_df",
+    required=(Canonical.CHROM, "start", "end", "gene_name"),
+    ordering=(("start", "end"),),
 )
 
 EXONS_PLOT = ColumnSpec(
-    name="exons_df", required=(Canonical.CHROM, "start", "end", "gene_name")
+    name="exons_df",
+    required=(Canonical.CHROM, "start", "end", "gene_name"),
+    ordering=(("start", "end"),),
 )
 
 EQTL_LOAD = ColumnSpec(

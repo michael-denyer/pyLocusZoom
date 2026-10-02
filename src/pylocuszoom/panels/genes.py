@@ -46,7 +46,7 @@ class GenePanel:
 
         Raises:
             ValidationError: If either frame lacks a chr, start, end or
-                gene_name column.
+                gene_name column, or has a row with end before start.
         """
         check(genes_df, GENES_PLOT)
         if exons_df is not None and not exons_df.empty:
