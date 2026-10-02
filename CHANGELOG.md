@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Genome-wide plots reject a position that is null, non-numeric or below 1.** `plot_manhattan`, `plot_manhattan_stacked`, `plot_manhattan_qq`, `plot_manhattan_qq_stacked` and `plot_miami` raise `ValidationError` naming the position column, the way the loaders already reject `pos <= 0`. This is a behaviour change: a 0-based frame, which drew before, now raises, so add 1 to its positions; a row with a null position and a valid p-value, which was silently left off the plot, also raises. Rows dropped for an invalid p-value are not checked, and regional `plot()` and `plot_stacked()` are unchanged.
+
 ### Fixed
 
 - `LDHeatmapPlotter.plot_ld_heatmap` raises `ValidationError` ("ld_matrix must contain at least one SNP") for a 0x0 matrix. matplotlib and bokeh raised a bare `IndexError` from `cell_edges` and plotly returned an empty figure. The check sits in `prepare_ld_matrix`, so an empty `LDHeatmapInput(matrix=...)` in a regional plot now reports the same message instead of "No SNPs from LD heatmap overlap with region".
 - **`GenomeWideConfig(custom_chrom_order=...)` rejects an order that lists a chromosome twice.** A leading `chr` is ignored when comparing, so `["1", "2", "chr1"]` and `["1", "1", "2"]` both raise a `ValidationError` naming the repeated chromosome. Before, the layout gave the chromosome the offset of its last occurrence and counted its length once per occurrence: `["1", "2", "chr1"]` drew chromosome 1 after chromosome 2, left an empty stretch one chromosome wide at the start of the axis and repeated the chromosome 1 tick.
+- **A genome-wide point can no longer land on or left of the previous chromosome's points.** The x axis adds each position to its chromosome's offset, so with `GenomeWideStyle(chrom_gap=0)` a position 0 on chromosome 2 was drawn on top of chromosome 1's last point, a negative position to its left, and a fractional position below 1 before it. A chromosome whose positions were all null raised `ValueError: cannot convert float NaN to integer`, and string positions raised `TypeError`.
 
 ## [5.0.1] - 2026-09-24
 

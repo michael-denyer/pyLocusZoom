@@ -11,7 +11,7 @@ from ._data import prepare_pvalue_data
 from ._plotter_utils import CHROMOSOME_GAP
 from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
-from .schemas import Canonical, gwas_plot_spec
+from .schemas import Canonical, genomewide_position_spec, gwas_plot_spec
 from .species import Species, resolve_species
 from .utils import normalize_chrom, normalize_chrom_series
 from .validation import check
@@ -244,7 +244,8 @@ def prepare_genomewide_frames(
     The boundary for the genome-wide families: every frame is checked for
     the chromosome, position and p-value columns the config names (and
     ``rs_col`` when given) before any of them is laid out, and projected onto
-    the canonical columns with its chromosome names normalised.
+    the canonical columns with its chromosome names normalised. The rows that
+    survive p-value filtering must then carry numeric positions of 1 or more.
 
     Args:
         dfs: GWAS results DataFrames, in panel order.
@@ -255,7 +256,8 @@ def prepare_genomewide_frames(
         style: Supplies the chromosome gap and palette of the layout.
 
     Raises:
-        ValidationError: If a frame is empty or lacks a named column.
+        ValidationError: If a frame is empty or lacks a named column, or a
+            plottable row has a null, non-numeric or below-1 position.
     """
     normalized = []
     for df in dfs:
@@ -282,6 +284,7 @@ def prepare_genomewide_frames(
         else [normalize_chrom(chrom) for chrom in custom_order],
         gap=style.chrom_gap,
         palette=style.palette,
+        pos_name=config.pos_col,
     )
 
 
@@ -292,6 +295,7 @@ def prepare_manhattan_frames(
     custom_order: list[str] | None = None,
     gap: int = CHROMOSOME_GAP,
     palette: Sequence[str] | None = None,
+    pos_name: str = Canonical.POS,
 ) -> list[PreparedManhattan]:
     """Lay out canonical GWAS frames against one shared genome layout.
 
@@ -307,6 +311,8 @@ def prepare_manhattan_frames(
         custom_order: Custom chromosome order.
         gap: Base pairs between one chromosome's end and the next's start.
         palette: Chromosome colours, or None for the default palette.
+        pos_name: The caller's name for the position column, for the error
+            message.
 
     Returns:
         One prepared value per input, in the same order, each carrying the
@@ -314,7 +320,8 @@ def prepare_manhattan_frames(
         ``neglog10p`` and ``_color``.
 
     Raises:
-        ValidationError: If no p-value in a frame survives, or if neither
+        ValidationError: If no p-value in a frame survives, if a surviving
+            row has a null, non-numeric or below-1 position, or if neither
             species nor custom_order names a chromosome order.
     """
     chrom_col, pos_col, p_col = Canonical.CHROM, Canonical.POS, Canonical.P
@@ -328,6 +335,13 @@ def prepare_manhattan_frames(
         )
         for df in dfs
     ]
+    # Rows dropped for their p-value are never laid out, so only the
+    # survivors' positions are checked.
+    for frame in filtered:
+        check(
+            frame[[pos_col]].rename(columns={pos_col: pos_name}),
+            genomewide_position_spec(pos_name),
+        )
     layout = GenomeLayout.from_frames(
         filtered,
         chrom_col=chrom_col,

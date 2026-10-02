@@ -73,6 +73,25 @@ def gwas_plot_spec(
     )
 
 
+def genomewide_position_spec(pos_col: str = Canonical.POS) -> ColumnSpec:
+    """Return the position contract for the rows a genome-wide plot draws.
+
+    Stricter than the rest of the plot tier because the genome axis adds each
+    position to its chromosome's offset: a position below 1 can land on or
+    left of the previous chromosome's last point, and a null one has no x.
+
+    Args:
+        pos_col: Column name for position.
+    """
+    return ColumnSpec(
+        name="gwas_df",
+        required=(pos_col,),
+        numeric=(pos_col,),
+        not_null=(pos_col,),
+        ranges=(RangeRule(pos_col, min_val=1),),
+    )
+
+
 GENES_LOAD = ColumnSpec(
     name="Gene annotation",
     required=(Canonical.CHROM, "start", "end", "gene_name"),

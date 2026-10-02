@@ -4,7 +4,10 @@
 Source: `src/pylocuszoom/manhattan.py`
 * `GenomeLayout.from_frames`, l.114-184: per-chromosome maximum l.150, the
   offset loop l.152-158, cumulative x l.166, `total_length` l.183.
-* `_apply_genome_layout`, l.350-367: `map(layout.offsets) + pos` at l.363-365.
+* `_apply_genome_layout`, l.364-381: `map(layout.offsets) + pos` at l.377-379.
+* `prepare_manhattan_frames`, l.340-344: every row that survives p-value
+  filtering is checked against `schemas.genomewide_position_spec`
+  (`schemas.py:76-92`), which rejects a null, non-numeric or below-1 position.
 * `src/pylocuszoom/panels/miami.py` l.99-109: a highlight region is drawn from
   `offsets[chrom] + start` to `offsets[chrom] + end`.
 * `CHROMOSOME_GAP = 1_000_000` (`_plotter_utils.py:47`), user-settable as
@@ -13,9 +16,11 @@ Source: `src/pylocuszoom/manhattan.py`
 Model. The input is the list of *present* chromosomes in display order, each
 with the positions the pooled frames carry for it. The loop at l.155-158 skips
 a chromosome with no rows, so dropping absent chromosomes loses nothing.
-Positions, the gap and the offsets are `Int`: Python `int` is unbounded and the
-plot-time contract (`schemas.gwas_plot_spec`, l.54-73) puts no lower bound on a
-position, so 0 and negative values are representable on purpose.
+Positions, the gap and the offsets are `Int`: Python `int` is unbounded. The
+intake check at `manhattan.py:340-344` now enforces `1 ≤ pos`, the hypothesis
+of `order_strict` and `injective`, before the layout is built. 0 and negative
+values stay representable so the counter-examples below show why the check is
+needed; they are no longer reachable through `prepare_manhattan_frames`.
 
 Outside the model (assumptions, see the report):
 * the display order has no duplicate names (a duplicate would overwrite
@@ -61,7 +66,7 @@ def from_frames (chroms : List (List Int)) (gap : Int) : GenomeLayout :=
   let maxes := chroms.map max_by_chrom
   { offsets := offsetsFrom gap 0 maxes, total_length := totalFrom gap 0 maxes }
 
-/-- `_cumulative_pos`, `manhattan.py:166` and `:363-365`:
+/-- `_cumulative_pos`, `manhattan.py:166` and `:377-379`:
 `map(layout.offsets) + pos`. `none` is the NaN pandas gives a chromosome the
 layout has no offset for. -/
 def cumulative_pos (L : GenomeLayout) (c : Nat) (p : Int) : Option Int :=
@@ -202,6 +207,8 @@ def allOK (k : Case) : Bool :=
 
 -- COUNTER-EXAMPLE 1 (positions ≥ 1 dropped): gap = 0 with a position 0.
 -- chroms = [[1], [0]]: x(chrom 0, pos 1) = 1 = x(chrom 1, pos 0).
+-- Unreachable since the intake check (`manhattan.py:340-344`) rejects a
+-- position below 1; kept to show the layout alone does not exclude it.
 #eval (badPairs (fun k => decide (InjectiveOK k)) 0 0 0 1 2 1).take 2
 #guard !(badPairs (fun k => decide (InjectiveOK k)) 0 0 0 1 2 1).isEmpty
 #guard !(badPairs (fun k => decide (OrderOK k)) 0 0 0 1 2 1).isEmpty
@@ -441,11 +448,13 @@ theorem maxes_nonneg (chroms : List (List Int)) (gap : Int) (hgap : 0 ≤ gap)
 
 Named hypotheses:
 * `hgap`  : `0 ≤ gap`. Enforced by `GenomeWideStyle.chrom_gap` (`ge=0`).
-* `hpos`  : every plotted position is `≥ 0`. NOT enforced at plot time.
+* `hpos`  : every plotted position is `≥ 0`. Implied by the intake check
+            `1 ≤ pos` (`manhattan.py:340-344`, `schemas.py:91`).
 * `hone`  : `1 ≤ gap + q` for every plotted position `q`, that is positions
             `≥ 1` (1-based coordinates), or positions `≥ 0` with `gap ≥ 1`.
+            Follows from `hgap` and the same intake check.
 * `hci`/`hp` : the point belongs to a frame the layout was built from, which
-            `prepare_manhattan_frames` (l.331-347) guarantees.
+            `prepare_manhattan_frames` (l.345-361) guarantees.
 -/
 
 /-- Core of (a), (b), (c): a point of a later chromosome is at least
