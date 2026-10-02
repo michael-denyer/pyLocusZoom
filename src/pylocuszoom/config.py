@@ -49,7 +49,7 @@ from ._plotter_utils import (
 )
 from .exceptions import ValidationError
 from .schemas import Canonical
-from .utils import to_pandas
+from .utils import normalize_chrom, to_pandas
 
 PValueThreshold = Annotated[float, Field(gt=0, le=1)]
 LDMetric = Literal["r2", "dprime"]
@@ -516,7 +516,8 @@ class GenomeWideConfig(_Config):
         pos_col: Column name for genomic position.
         p_col: Column name for p-value.
         custom_chrom_order: Chromosome order along the axis, overriding the
-            plotter's species order.
+            plotter's species order. Each chromosome is listed once; a leading
+            ``chr`` is ignored, so ``"1"`` and ``"chr1"`` are the same name.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -529,6 +530,22 @@ class GenomeWideConfig(_Config):
     custom_chrom_order: Optional[List[str]] = Field(
         default=None, description="Chromosome order overriding the species"
     )
+
+    @field_validator("custom_chrom_order")
+    @classmethod
+    def validate_custom_chrom_order(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Reject an order that names a chromosome twice once 'chr' is removed."""
+        if v is None:
+            return v
+        names = [normalize_chrom(chrom) for chrom in v]
+        repeated = [name for name in dict.fromkeys(names) if names.count(name) > 1]
+        if repeated:
+            raise ValueError(
+                "each chromosome may be listed once (a leading 'chr' is "
+                "ignored), but these are listed more than once: "
+                + ", ".join(repr(name) for name in repeated)
+            )
+        return v
 
 
 PositiveFontSize = Annotated[int, Field(gt=0)]

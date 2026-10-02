@@ -1010,7 +1010,7 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `chrom_col` | str | `"chr"` | Chromosome column name. |
 | `pos_col` | str | `"pos"` | Position column name. |
 | `p_col` | str | `"p_value"` | P-value column name. |
-| `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
+| `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. Each chromosome is listed once; a leading `chr` is ignored, so listing both `1` and `chr1` raises a `ValidationError`. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
 
 #### GenomeWideStyle
 

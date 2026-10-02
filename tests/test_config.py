@@ -13,6 +13,7 @@ import pytest
 from pylocuszoom import DisplayConfig, LDConfig, LDHeatmapInput
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.plotter import LocusZoomPlotter
+from pylocuszoom.species import SPECIES
 from tests.figure_probes import PROBES
 
 
@@ -865,3 +866,43 @@ class TestUnknownFields:
 
         with pytest.raises(ValidationError, match=field):
             getattr(pylocuszoom, model)(**{field: "x"})
+
+
+class TestGenomeWideConfigChromOrder:
+    """``custom_chrom_order`` names each chromosome once."""
+
+    @pytest.mark.parametrize(
+        ("order", "duplicated"),
+        [
+            (["1", "2", "chr1"], "'1'"),
+            (["1", "1", "2"], "'1'"),
+            (["chrX", "2", "CHRX"], "'X'"),
+            (["2", "1", "2", "1"], "'2', '1'"),
+        ],
+    )
+    def test_repeated_chromosome_raises_naming_it(self, order, duplicated):
+        from pylocuszoom import GenomeWideConfig
+
+        with pytest.raises(ValidationError) as excinfo:
+            GenomeWideConfig(custom_chrom_order=order)
+
+        message = str(excinfo.value)
+        assert "custom_chrom_order" in message
+        assert f"more than once: {duplicated}" in message
+
+    def test_distinct_chromosomes_are_kept_as_given(self):
+        from pylocuszoom import GenomeWideConfig
+
+        config = GenomeWideConfig(custom_chrom_order=["chr2", "chr1", "X"])
+
+        assert config.custom_chrom_order == ["chr2", "chr1", "X"]
+
+    @pytest.mark.parametrize(
+        "species", [key for key, record in SPECIES.items() if record.chromosomes]
+    )
+    def test_built_in_species_order_is_accepted(self, species):
+        from pylocuszoom import GenomeWideConfig
+
+        order = list(SPECIES[species].chromosomes)
+
+        assert GenomeWideConfig(custom_chrom_order=order).custom_chrom_order == order
