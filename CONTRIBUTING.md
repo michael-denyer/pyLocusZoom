@@ -54,7 +54,9 @@ Python 3.10, 3.11, and 3.12 are all supported and tested in CI.
   ` ```mermaid ` blocks.
 - **Markdown:** `markdownlint-cli2` runs on every `.md` file in CI.
 - **Links:** `lychee` checks every link in committed markdown; broken links
-  fail the build.
+  fail the build. Absolute links to this repository's own files on `main` are
+  resolved against the checkout by `tests/test_docs_contract.py`, not over
+  the network.
 
 CI enforces all of the above on every pull request via
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). A PR with lint, format,

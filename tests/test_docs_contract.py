@@ -4,7 +4,9 @@ Each check exists because prose cannot be trusted to track a value that lives
 somewhere else. The first pins every pytest command line in the docs to what
 ``addopts`` already supplies. The second pins the public-surface table in
 CODEMAP.md to ``pylocuszoom.__all__``. The third pins the USER_GUIDE API
-Stability tables to the core and toolbox tiers of ``__all__``.
+Stability tables to the core and toolbox tiers of ``__all__``. The fourth
+resolves the links to this repository's own files, which the link checker
+skips.
 """
 
 import re
@@ -125,3 +127,41 @@ def test_user_guide_api_stability_tables_match_all_tiers():
         f"Toolbox tier missing from USER_GUIDE: {sorted(toolbox - guide_toolbox)}; "
         f"listed but not toolbox: {sorted(guide_toolbox - toolbox)}"
     )
+
+
+OWN_BLOB_LINK = re.compile(
+    r"https://github\.com/michael-denyer/pyLocusZoom/blob/main/([^\s)#]+)(?:#([^\s)]+))?"
+)
+
+
+def _heading_anchors(markdown: str) -> set[str]:
+    """Return the anchors GitHub gives the headings of a markdown file."""
+    prose = re.sub(r"^```.*?^```", "", markdown, flags=re.M | re.S)
+    headings = re.findall(r"^#+\s+(.+?)\s*$", prose, flags=re.M)
+    return {
+        re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+        for heading in headings
+    }
+
+
+def test_links_to_this_repository_name_files_and_headings_that_exist():
+    """An absolute link to a file on main resolves in this checkout.
+
+    lychee.toml excludes these links from the network check, because
+    github.com answers 503 for them when several CI runs are queued, so this
+    is the only check they get.
+    """
+    broken = []
+    links = 0
+
+    for path in sorted(REPO_ROOT.glob("*.md")) + sorted(REPO_ROOT.glob("docs/**/*.md")):
+        for target, anchor in OWN_BLOB_LINK.findall(path.read_text()):
+            links += 1
+            file = REPO_ROOT / target
+            if not file.is_file():
+                broken.append(f"{path.name}: {target} does not exist")
+            elif anchor and anchor not in _heading_anchors(file.read_text()):
+                broken.append(f"{path.name}: {target} has no heading #{anchor}")
+
+    assert links, "no link to this repository found; has the URL form changed?"
+    assert not broken, "\n".join(broken)
