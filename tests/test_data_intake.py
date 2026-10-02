@@ -6,11 +6,11 @@ import pytest
 from hypothesis import given
 from hypothesis import settings as hyp_settings
 
-from pylocuszoom import DisplayConfig, EqtlInput
+from pylocuszoom import DisplayConfig, EqtlInput, GenomeWideConfig
 from pylocuszoom._data import prepare_pvalue_data
 from pylocuszoom.colors import LEAD_SNP_COLOR
 from pylocuszoom.eqtl import prepare_eqtl_for_plotting
-from pylocuszoom.manhattan import prepare_categorical_data, prepare_manhattan_frames
+from pylocuszoom.manhattan import prepare_categorical_data, prepare_genomewide_frames
 from pylocuszoom.plotter import LocusZoomPlotter
 from pylocuszoom.qq import prepare_qq_data
 from tests.figure_probes import PROBES
@@ -46,7 +46,11 @@ def test_eqtl_preparation_uses_the_shared_policy():
     ("entry_point", "family"),
     [
         (
-            lambda df: prepare_manhattan_frames([df], species="human")[0].frame,
+            lambda df: (
+                prepare_genomewide_frames([df], GenomeWideConfig(), species="human")[
+                    0
+                ].frame
+            ),
             "genome-wide",
         ),
         (lambda df: prepare_categorical_data(df, "category").frame, "genome-wide"),
@@ -77,7 +81,9 @@ def test_qq_excludes_exact_zero_pvalues():
     ("entry_point", "message"),
     [
         (
-            lambda df: prepare_manhattan_frames([df], species="human"),
+            lambda df: prepare_genomewide_frames(
+                [df], GenomeWideConfig(), species="human"
+            ),
             "All rows have invalid p-values",
         ),
         (

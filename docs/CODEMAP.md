@@ -230,8 +230,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3d | get_recombination_rate_for_region | Region-filtered recomb rate, downloading and lifting managed maps; every reason there is none is a typed `PyLocusZoomError` | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_recombination_maps, RecombSource | Species-generic download, canonical member streaming and publication; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
-| 3e | prepare_genomewide_frames | Per-input column projection before genome-wide layout and composition | [manhattan.py](../src/pylocuszoom/manhattan.py) |
-| 3e | prepare_manhattan_frames | Cumulative-position Manhattan prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
+| 3e | prepare_genomewide_frames | Genome-wide intake: column, p-value and position checks on the caller's names, then projection and cumulative-position prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3e | GenomeLayout | Chromosome order, offsets, colours, ticks, and x limits for every panel of a figure | [manhattan.py](../src/pylocuszoom/manhattan.py) |
 | 3f | prepare_qq_data | Observed vs expected QQ data | [qq.py](../src/pylocuszoom/qq.py) |
 | 3g | prepare_finemapping_for_plotting | PIP/credible-set prep | [finemapping.py](../src/pylocuszoom/finemapping.py) |

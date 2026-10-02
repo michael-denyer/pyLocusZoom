@@ -213,7 +213,7 @@ def stacked_manhattan_specs(
     one x axis.
 
     Args:
-        prepared: Values from ``prepare_manhattan_frames``, top to bottom.
+        prepared: Values from ``prepare_genomewide_frames``, top to bottom.
         significance_threshold: P-value for the significance line, or None.
         panel_labels: Corner label per panel, or None.
         style: Caller styling, shared by every panel.

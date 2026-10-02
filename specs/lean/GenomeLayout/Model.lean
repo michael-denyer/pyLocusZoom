@@ -6,7 +6,7 @@ Source: `src/pylocuszoom/manhattan.py`
   offset loop l.155-163 (which also fills `max_positions`, l.162), cumulative x
   l.171, `total_length` l.189.
 * `_apply_genome_layout`, l.370-387: `map(layout.offsets) + pos` at l.383-385.
-* `prepare_manhattan_frames`, l.346-350: every row that survives p-value
+* `prepare_genomewide_frames`: every row that survives p-value
   filtering is checked against `schemas.genomewide_position_spec`
   (`schemas.py:76-92`), which rejects a null, non-numeric or below-1 position.
 * `src/pylocuszoom/panels/miami.py` l.108-136: a highlight region is drawn from
@@ -24,7 +24,7 @@ Positions, the gap and the offsets are `Int`: Python `int` is unbounded. The
 intake check at `manhattan.py:340-344` now enforces `1 ≤ pos`, the hypothesis
 of `order_strict` and `injective`, before the layout is built. 0 and negative
 values stay representable so the counter-examples below show why the check is
-needed; they are no longer reachable through `prepare_manhattan_frames`.
+needed; they are no longer reachable through `prepare_genomewide_frames`.
 
 Outside the model (assumptions, see the report):
 * the display order has no duplicate names (a duplicate would overwrite
@@ -479,7 +479,7 @@ Named hypotheses:
             `≥ 1` (1-based coordinates), or positions `≥ 0` with `gap ≥ 1`.
             Follows from `hgap` and the same intake check.
 * `hci`/`hp` : the point belongs to a frame the layout was built from, which
-            `prepare_manhattan_frames` (l.351-367) guarantees.
+            `prepare_genomewide_frames` guarantees.
 * `hs`/`hle` : a highlight region has `1 ≤ start ≤ stop`. Enforced by
             `plot_miami` (`miami_plotter.py:138-148`).
 -/

@@ -281,7 +281,9 @@ stages:
    families guard the boundary the way `plot()` does. The rows that survive
    p-value filtering are then checked against `genomewide_position_spec`
    (numeric, not null, 1 or more), which the cumulative x axis needs and the
-   regional path does not. `ManhattanPlotter`
+   regional path does not. Both checks and the p-value filter run on the
+   caller's column names, so their errors name them; the frame is projected
+   onto the canonical columns only afterwards. `ManhattanPlotter`
    builds `ManhattanPanelSpec` values directly from the `PreparedManhattan`
    each preparation returns (which names its own x and group columns), or
    through `stacked_manhattan_specs` for a stack, builds `QQPanelSpec` values,
@@ -325,7 +327,7 @@ stages:
 | `SupportsSNPLabels` | Optional protocol | `src/pylocuszoom/backends/base.py` | The one `@runtime_checkable` capability a backend opts into by implementing `add_snp_labels`; detected with `isinstance` |
 | `ManhattanPanelSpec` | Internal module | `src/pylocuszoom/panels/manhattan.py` | The one Manhattan-panel policy. A frozen spec over a `PreparedManhattan` names what the standard, categorical and mirrored Miami panels vary on, and its `draw` draws any of them onto a backend axis; `stacked_manhattan_specs` builds the specs for a stack |
 | `QQPanelSpec` | Internal module | `src/pylocuszoom/panels/qq.py` | The one QQ-panel policy, beside `ManhattanPanelSpec`. A frozen spec names what the standalone, side-by-side and stacked QQ panels vary on, and the pure `qq_title` builds the three title variants |
-| `GenomeLayout`, `CategoryLayout`, `PreparedManhattan` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_manhattan_frames` computes one layout from every frame of a figure and returns each frame paired with it as a `PreparedManhattan`, so Miami and stacked panels share offsets and ticks instead of deriving their own. `qq.PreparedQQ` is the same shape for a QQ panel: the quantile frame with its `lambda_gc` and `n_variants` |
+| `GenomeLayout`, `CategoryLayout`, `PreparedManhattan` | Internal values | `src/pylocuszoom/manhattan.py` | Where each chromosome or category sits on the x axis: order, offsets, colours, tick centres, and limits. `prepare_genomewide_frames` computes one layout from every frame of a figure and returns each frame paired with it as a `PreparedManhattan`, so Miami and stacked panels share offsets and ticks instead of deriving their own. `qq.PreparedQQ` is the same shape for a QQ panel: the quantile frame with its `lambda_gc` and `n_variants` |
 | `prepare_pvalue_data`, `P_VALUE_POLICY` | Internal function and table | `src/pylocuszoom/_data.py` | Shared p-value intake policy. `P_VALUE_POLICY` states per family whether zero is valid and whether an invalid p-value drops its row or raises; `prepare_pvalue_data` applies a family's row and takes the finite `-log10`, and `validation.check` applies the loader row. Every family routes through it, and the transformed column is `neglog10p` everywhere except colocalization, which needs two of them and names them `neglog10_gwas` and `neglog10_eqtl` |
 | `@register_backend` | Decorator | `src/pylocuszoom/backends/__init__.py` | Registers a backend class into `_BACKENDS`; enables adding custom backends without touching core code |
 | `BUILTIN_BACKENDS` | Constant | `src/pylocuszoom/backends/__init__.py` | The backend names shipped with the library, derived from `BackendType` so the two cannot drift; contract tests parametrize over it |

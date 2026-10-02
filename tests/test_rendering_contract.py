@@ -5,10 +5,11 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+from pylocuszoom import GenomeWideConfig
 from pylocuszoom._figure import FigurePlan, render_figure
 from pylocuszoom.backends import BUILTIN_BACKENDS, get_backend
 from pylocuszoom.colors import LEAD_SNP_HIGHLIGHT_COLOR, SECONDARY_HIGHLIGHT_COLOR
-from pylocuszoom.manhattan import prepare_manhattan_frames
+from pylocuszoom.manhattan import prepare_genomewide_frames
 from pylocuszoom.panels.manhattan import ManhattanPanelSpec
 from pylocuszoom.panels.miami import MiamiRequest, miami_plan
 from pylocuszoom.panels.qq import QQPanelSpec, qq_title
@@ -127,7 +128,7 @@ def prepared_data():
         }
     )
     return (
-        prepare_manhattan_frames([df], species="human")[0],
+        prepare_genomewide_frames([df], GenomeWideConfig(), species="human")[0],
         prepare_qq_data(df),
     )
 
