@@ -3,11 +3,13 @@
 (* The expected failure of RecombPublish, kept as a passing witness.        *)
 (*                                                                         *)
 (* When the cache path starts as the symlink older releases published      *)
-(* behind, a force writer unlinks it (recombination.py l.202) and renames  *)
-(* its staging directory into place (l.208) in two steps. Between them the *)
-(* path is absent, and one strict claim of RecombPublish breaks:           *)
-(*   "gap"       NoGap: a reader that saw a complete cache (l.558) finds   *)
-(*               no map at load_recombination_map's exists() (l.382).      *)
+(* behind, a force writer unlinks it and renames its staging directory     *)
+(* into place in two steps (output_path.unlink() and os.rename in          *)
+(* recombination.py::_publish_map_generation). Between them the path is    *)
+(* absent, and one strict claim of RecombPublish breaks:                   *)
+(*   "gap"       NoGap: a reader that saw a complete cache (in             *)
+(*               ensure_recomb_maps) finds no map at                       *)
+(*               load_recombination_map's exists().                        *)
 (*                                                                         *)
 (* An invariant cannot state that a bad state is reachable, so the         *)
 (* failure is pinned as a schedule instead: step i is a RecombPublish      *)
@@ -33,9 +35,10 @@ wvars == <<out, mode, pc, outcome, tmp, stgAt, stg, todo, seen, rname, swapped,
            foreign0, ext, i>>
 
 \* W2 is the force writer that replaces the symlink; W1 is the reader.
-\* W2: l.345 force. W1: l.558 exists, glob, cache hit.
-\* W2: l.297 mkdtemp, l.300 download, l.305 stage, l.192, l.199,
-\* l.202 unlink. W1: l.382 exists() finds nothing.
+\* W2: download_canine_recombination_maps with force. W1: ensure_recomb_maps
+\* exists, glob, cache hit. W2: mkdtemp, download, stage, then in
+\* _publish_map_generation the completeness check, is_symlink() and unlink().
+\* W1: load_recombination_map's exists() finds nothing.
 Schedule == <<W2, W1, W1, W1, W2, W2, W2, W2, W2, W2, W1>>
 
 Reached == pc[W1] = "notfound"

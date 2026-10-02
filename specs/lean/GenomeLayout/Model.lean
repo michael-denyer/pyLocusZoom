@@ -2,62 +2,64 @@
 # Cumulative chromosome offsets on the shared Manhattan x axis
 
 Source: `src/pylocuszoom/manhattan.py`
-* `GenomeLayout.from_frames`, l.118-190: per-chromosome maximum l.153, the
-  offset loop l.155-163 (which also fills `max_positions`, l.162), cumulative x
-  l.171, `total_length` l.189.
-* `_apply_genome_layout`, l.370-387: `map(layout.offsets) + pos` at l.383-385.
-* `prepare_genomewide_frames`: every row that survives p-value
-  filtering is checked against `schemas.genomewide_position_spec`
-  (`schemas.py:76-92`), which rejects a null, non-numeric or below-1 position.
-* `src/pylocuszoom/panels/miami.py` l.108-136: a highlight region is drawn from
-  `offsets[chrom] + start` to `offsets[chrom] + min(end, max_positions[chrom])`
+* `manhattan.py::GenomeLayout.from_frames`: the per-chromosome maximum
+  `max_by_chrom`, the offset loop `for chrom in list(order) + unknown` (which
+  also fills `max_positions`), the cumulative x `pooled["_cumulative_pos"]`,
+  and `total_length=cumulative`.
+* `manhattan.py::_apply_genome_layout`: `map(layout.offsets) + pos`.
+* `manhattan.py::prepare_genomewide_frames`: every row that survives p-value
+  filtering is checked against `schemas.py::genomewide_position_spec`, which
+  rejects a null, non-numeric or below-1 position.
+* `src/pylocuszoom/panels/miami.py::miami_plan`: a highlight region is drawn
+  from `offsets[chrom] + start` to `offsets[chrom] + min(end, max_positions[chrom])`
   and skipped when `start > max_positions[chrom]`.
-* `src/pylocuszoom/miami_plotter.py` l.138-148: `plot_miami` rejects a region
+* `src/pylocuszoom/miami_plotter.py::MiamiPlotter.plot_miami` rejects a region
   with `start < 1` or `start > end`.
-* `CHROMOSOME_GAP = 1_000_000` (`_plotter_utils.py:47`), user-settable as
-  `GenomeWideStyle.chrom_gap` with `ge=0` (`config.py:629-631`).
+* `_plotter_utils.py::CHROMOSOME_GAP` is `1_000_000`, user-settable as
+  `config.py::GenomeWideStyle.chrom_gap` with `ge=0`.
 
 Model. The input is the list of *present* chromosomes in display order, each
-with the positions the pooled frames carry for it. The loop at l.159-163 skips
+with the positions the pooled frames carry for it. The offset loop skips
 a chromosome with no rows, so dropping absent chromosomes loses nothing.
 Positions, the gap and the offsets are `Int`: Python `int` is unbounded. The
-intake check at `manhattan.py:340-344` now enforces `1 ≤ pos`, the hypothesis
+intake check in `prepare_genomewide_frames` now enforces `1 ≤ pos`, the hypothesis
 of `order_strict` and `injective`, before the layout is built. 0 and negative
 values stay representable so the counter-examples below show why the check is
 needed; they are no longer reachable through `prepare_genomewide_frames`.
 
 Outside the model (assumptions, see the report):
 * the display order has no duplicate names (a duplicate would overwrite
-  `offsets[chrom]` at l.161 and add its length twice at l.163). Enforced for a
-  user order by `GenomeWideConfig.validate_custom_chrom_order`
-  (`config.py:534-548`), which rejects a name repeated after normalisation;
-  the built-in species orders (`species.py:31-64`) carry none;
-* positions are integers (l.162 truncates a float maximum with `int()`);
+  `offsets[chrom]` and add its length to `cumulative` twice). Enforced for a
+  user order by `config.py::GenomeWideConfig.validate_custom_chrom_order`,
+  which rejects a name repeated after normalisation; the built-in species
+  orders (`species.py::CANINE_CHROMOSOMES`, `FELINE_CHROMOSOMES`,
+  `HUMAN_CHROMOSOMES`) carry none;
+* positions are integers (`int(max_by_chrom[chrom])` truncates a float maximum);
 * every x fits int64, the dtype pandas gives `map(offsets) + pos`
   (`totalFrom_le` bounds the largest x by `n * (M + gap)`).
 -/
 
 /-! ## Transcription -/
 
-/-- `pooled.groupby("_chrom_str")["_pos"].max()`, `manhattan.py:153`. A group
+/-- `pooled.groupby("_chrom_str")["_pos"].max()` in `from_frames`. A group
 always has a row; the empty list is given 0 only to make the function total. -/
 def max_by_chrom : List Int → Int
   | [] => 0
   | q :: qs => qs.foldl max q
 
-/-- The offset loop, `manhattan.py:155-163`: `offsets[chrom] = cumulative`
+/-- The offset loop of `from_frames`: `offsets[chrom] = cumulative`
 then `cumulative += int(max_by_chrom[chrom]) + gap`. -/
 def offsetsFrom (gap : Int) : Int → List Int → List Int
   | _, [] => []
   | cumulative, m :: rest => cumulative :: offsetsFrom gap (cumulative + (m + gap)) rest
 
-/-- The value `cumulative` holds when the loop at `manhattan.py:159-163` ends,
-returned as `total_length` at l.189. -/
+/-- The value `cumulative` holds when the offset loop of `from_frames` ends,
+returned as `total_length=cumulative`. -/
 def totalFrom (gap : Int) : Int → List Int → Int
   | cumulative, [] => cumulative
   | cumulative, m :: rest => totalFrom gap (cumulative + (m + gap)) rest
 
-/-- The arithmetic fields of `GenomeLayout`, `manhattan.py:99-105`. `offsets`
+/-- The arithmetic fields of `manhattan.py::GenomeLayout`. `offsets`
 and `max_positions` are indexed by a present chromosome's rank in display
 order. -/
 structure GenomeLayout where
@@ -66,14 +68,14 @@ structure GenomeLayout where
   total_length : Int
 deriving Repr
 
-/-- `GenomeLayout.from_frames`, `manhattan.py:118-190`. `chroms` holds the
+/-- `GenomeLayout.from_frames` in `manhattan.py`. `chroms` holds the
 pooled positions of each present chromosome, in display order. -/
 def from_frames (chroms : List (List Int)) (gap : Int) : GenomeLayout :=
   let maxes := chroms.map max_by_chrom
   { offsets := offsetsFrom gap 0 maxes, max_positions := maxes,
     total_length := totalFrom gap 0 maxes }
 
-/-- `_cumulative_pos`, `manhattan.py:171` and `:383-385`:
+/-- `_cumulative_pos`, as `from_frames` and `_apply_genome_layout` compute it:
 `map(layout.offsets) + pos`. `none` is the NaN pandas gives a chromosome the
 layout has no offset for. -/
 def cumulative_pos (L : GenomeLayout) (c : Nat) (p : Int) : Option Int :=
@@ -81,10 +83,10 @@ def cumulative_pos (L : GenomeLayout) (c : Nat) (p : Int) : Option Int :=
   | some o => some (o + p)
   | none => none
 
-/-- A Miami highlight, `panels/miami.py:112-136`: `(offsets[chrom] + start,
-offsets[chrom] + min(end, max_positions[chrom]))` (l.118-119), skipped when the
+/-- A Miami highlight in `miami_plan`: `(offsets[chrom] + start,
+offsets[chrom] + min(end, max_positions[chrom]))`, skipped when the
 chromosome carries no data or the region starts past its last plotted position
-(the test at l.115). -/
+(the test `max_pos is not None and start <= max_pos`). -/
 def highlight (L : GenomeLayout) (c : Nat) (start stop : Int) : Option (Int × Int) :=
   match L.offsets[c]?, L.max_positions[c]? with
   | some o, some m => if m < start then none else some (o + start, o + min stop m)
@@ -192,7 +194,7 @@ def badPairs (ok : Case → Bool) (gapLo gapHi posLo posHi : Int) (nChrom nPos :
           if ok k then none else some k
 
 /-- Every highlight `(i, start, stop)` with `1 ≤ start ≤ stop ≤ stopHi`, the
-regions `plot_miami` accepts (`miami_plotter.py:138-148`), that fails
+regions `plot_miami` accepts, that fails
 `HighlightOK`. -/
 def badRegions (gapLo gapHi posLo posHi stopHi : Int) (nChrom nPos : Nat) :
     List Region :=
@@ -220,7 +222,7 @@ def allOK (k : Case) : Bool :=
 
 -- COUNTER-EXAMPLE 1 (positions ≥ 1 dropped): gap = 0 with a position 0.
 -- chroms = [[1], [0]]: x(chrom 0, pos 1) = 1 = x(chrom 1, pos 0).
--- Unreachable since the intake check (`manhattan.py:340-344`) rejects a
+-- Unreachable since the intake check in `prepare_genomewide_frames` rejects a
 -- position below 1; kept to show the layout alone does not exclude it.
 #eval (badPairs (fun k => decide (InjectiveOK k)) 0 0 0 1 2 1).take 2
 #guard !(badPairs (fun k => decide (InjectiveOK k)) 0 0 0 1 2 1).isEmpty
@@ -244,7 +246,7 @@ def allOK (k : Case) : Bool :=
 
 -- The former COUNTER-EXAMPLE 3: gap = 1, chroms = [[1], [1]], region
 -- (0, 1, 3). Unclipped, its span 1..3 covered x = 3, the point of chromosome
--- 1. The clip at `miami.py:119` stops it at x = 1, its own last point.
+-- 1. The clip `min(end, max_pos)` in `miami_plan` stops it at x = 1, its own last point.
 #guard decide (HighlightOK ⟨1, [[1], [1]], 0, 1, 3⟩)
 #guard (⟨1, [[1], [1]], 0, 1, 3⟩ : Region).span = (1, 1)
 -- A region wholly past the data is skipped, not drawn on the next chromosome.
@@ -474,14 +476,14 @@ theorem maxes_nonneg (chroms : List (List Int)) (gap : Int) (hgap : 0 ≤ gap)
 Named hypotheses:
 * `hgap`  : `0 ≤ gap`. Enforced by `GenomeWideStyle.chrom_gap` (`ge=0`).
 * `hpos`  : every plotted position is `≥ 0`. Implied by the intake check
-            `1 ≤ pos` (`manhattan.py:340-344`, `schemas.py:91`).
+            `1 ≤ pos` (`prepare_genomewide_frames`, `genomewide_position_spec`).
 * `hone`  : `1 ≤ gap + q` for every plotted position `q`, that is positions
             `≥ 1` (1-based coordinates), or positions `≥ 0` with `gap ≥ 1`.
             Follows from `hgap` and the same intake check.
 * `hci`/`hp` : the point belongs to a frame the layout was built from, which
             `prepare_genomewide_frames` guarantees.
 * `hs`/`hle` : a highlight region has `1 ≤ start ≤ stop`. Enforced by
-            `plot_miami` (`miami_plotter.py:138-148`).
+            `plot_miami`.
 -/
 
 /-- Core of (a), (b), (c): a point of a later chromosome is at least

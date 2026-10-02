@@ -2,17 +2,22 @@
 # Lifted-window arithmetic and 0/1-based conversion in liftover
 
 Source: `src/pylocuszoom/_liftover.py`
-* `_lift_one`        l.170-181  (`pos - 1` in, `+ 1` out)
-* `liftover_region`  l.235-302  (`start`/`end` = min/max of lifted positions, l.295-296;
-                                 the lead is lifted on its own, l.291-293)
-* `lift_window`      l.342-450  (window arithmetic l.415-432, aggregation l.435;
-                                 lead checks l.416-429 and l.436-443)
-* `filter_by_region` `src/pylocuszoom/utils.py` l.208 (inclusive bounds)
+* `_liftover.py::_lift_one` (`pos - 1` in, `+ 1` out)
+* `_liftover.py::liftover_region` (`start`/`end` = min/max of lifted positions,
+  `new_kept.min()` / `new_kept.max()`; the lead is lifted on its own by the
+  `lead_pos=` argument's `_lift_one` call)
+* `_liftover.py::lift_window` (window arithmetic from `source_pos` to
+  `ends.append(...)`, aggregation `min(starts), max(ends)`)
+* `_liftover.py::_lead_drop` (the two lead checks, run on each frame once the
+  window is final: the stray-lead check `not (source_pos == requested).any() and
+  (lifted_pos == lifted).any()`, then the final-window check
+  `not window[0] <= lifted <= window[1]`)
+* `src/pylocuszoom/utils.py::filter_by_region` (inclusive bounds)
 
-Callers: `LocusZoomPlotter._lift`, `src/pylocuszoom/plotter.py` l.288-331, reached from
-`plot()` (l.272) and `plot_stacked()` (l.405). `RegionConfig`
-(`src/pylocuszoom/config.py` l.104-122) guarantees `1 ≤ start < end`;
-`_require_lead_in_region` (config.py l.405-411) guarantees `start ≤ lead_pos ≤ end`.
+Callers: `src/pylocuszoom/plotter.py::LocusZoomPlotter._lift`, reached from
+`plot()` and `plot_stacked()`. `src/pylocuszoom/config.py::RegionConfig`
+guarantees `1 ≤ start < end`; `config.py::_require_lead_in_region` guarantees
+`start ≤ lead_pos ≤ end`.
 
 Types: Python ints are unbounded, so every position is an `Int`. Positions are
 1-based; the lifter speaks 0-based on both sides. A frame is the list of its
@@ -24,7 +29,7 @@ What is proved for every size (no bound): `lift_window_ordered` (a),
 `liftOne_shift` / `liftOne_ge_one` (d), `lift_window_lead_inside` (e: every
 lead `lift_window` returns lies in the returned window, row of its frame or
 not), `lead_in_frame_inside_window` (a lead that is a row lifts inside the
-window, so the check of l.436-443 does not drop it) and `stray_lead_off_rows`
+window, so the final-window check does not drop it) and `stray_lead_off_rows`
 (a lead that is no kept row never shares a kept row's lifted position). What
 is a concrete example: `lead_not_a_row_is_dropped` and
 `stray_lead_on_a_row_is_dropped` (the two leads the checks drop) and
@@ -34,7 +39,7 @@ this file is a bounded search.
 
 /-! ## Transcription -/
 
-/-- `_Outcome`, `_liftover.py` l.163-167. -/
+/-- `_liftover.py::_Outcome`. -/
 inductive Outcome where
   | lifted
   | unmapped
@@ -43,59 +48,62 @@ inductive Outcome where
 deriving Repr, DecidableEq
 
 /-- `CoordinateLifter.convert_coordinate` for one fixed chromosome
-(`_liftover.py` l.39-45): a 0-based query gives a list of hits, each
+(`_liftover.py::CoordinateLifter`): a 0-based query gives a list of hits, each
 `(hit is on the query chromosome, 0-based target position)`. Python's `None`
-(chromosome unknown) and `[]` are both falsy at l.175, so both are `[]`. -/
+(chromosome unknown) and `[]` are both falsy at `if not hits`, so both are `[]`. -/
 abbrev Lifter := Int → List (Bool × Int)
 
-/-- `_lift_one`, `_liftover.py` l.170-181. -/
+/-- `_lift_one` in `_liftover.py`. -/
 def liftOne (lifter : Lifter) (pos : Int) : Outcome × Option Int :=
-  match lifter (pos - 1) with                       -- l.174
-  | [] => (.unmapped, none)                         -- l.175-176
+  match lifter (pos - 1) with                       -- `convert_coordinate(chrom, int(pos) - 1)`
+  | [] => (.unmapped, none)                         -- `not hits`
   | [(same, p)] =>
-    if same then (.lifted, some (p + 1))            -- l.181
-    else (.crossChrom, none)                        -- l.179-180
-  | _ :: _ :: _ => (.multiMapped, none)             -- l.177-178
+    if same then (.lifted, some (p + 1))            -- `int(hits[0][1]) + 1`
+    else (.crossChrom, none)                        -- `hits[0][0] != chrom`
+  | _ :: _ :: _ => (.multiMapped, none)             -- `len(hits) > 1`
 
-/-- `filter_by_region`, `utils.py` l.208: `(pos >= start) & (pos <= end)`. -/
+/-- `filter_by_region` in `utils.py`: `(pos >= start) & (pos <= end)`. -/
 def filterByRegion (start end_ : Int) (frame : List Int) : List Int :=
   frame.filter fun p => decide (start ≤ p) && decide (p ≤ end_)
 
-/-- The kept rows of `liftover_region`, `_liftover.py` l.273-280, as
+/-- The kept rows of `liftover_region`, as
 `(source position, lifted position)` pairs in input order. -/
 def liftoverRegion (lifter : Lifter) (selected : List Int) : List (Int × Int) :=
   selected.filterMap fun p => (liftOne lifter p).2.map fun q => (p, q)
 
-/-- `min` of a non-empty column, head first (`.min()`, l.295, l.430, l.435). -/
+/-- `min` of a non-empty column, head first (`new_kept.min()`, `source_pos.min()`,
+`min(starts)`). -/
 def minOf (a : Int) (l : List Int) : Int := l.foldl min a
 
-/-- `max` of a non-empty column, head first (`.max()`, l.296, l.432, l.435). -/
+/-- `max` of a non-empty column, head first (`new_kept.max()`, `source_pos.max()`,
+`max(ends)`). -/
 def maxOf (a : Int) (l : List Int) : Int := l.foldl max a
 
-/-- `_liftover.py` l.430: `max(1, lift.start - int(source_pos.min() - start))`. -/
+/-- `window_start` in `lift_window`:
+`max(1, lift.start - int(source_pos.min() - start))`. -/
 def windowStart (start srcMin liftStart : Int) : Int :=
   max 1 (liftStart - (srcMin - start))
 
-/-- `_liftover.py` l.432:
+/-- The window end `lift_window` appends to `ends`:
 `max(lift.end + int(end - source_pos.max()), window_start + 1)`. -/
 def windowEnd (end_ srcMax liftEnd ws : Int) : Int :=
   max (liftEnd + (end_ - srcMax)) (ws + 1)
 
-/-- One iteration of the loop in `lift_window`, `_liftover.py` l.392-432, from
-the kept rows. `none` is the `ValidationError` of l.392-396. `source_pos`
-(l.415) is the source column of the kept rows; `lift.start` / `lift.end`
-(l.295-296) are the min / max of their lifted column. -/
+/-- One iteration of the loop in `lift_window`, from the kept rows. `none` is
+the `ValidationError` of `if lift.lifted_df.empty`. `source_pos` is the source
+column of the kept rows; `lift.start` / `lift.end` (set by `liftover_region`)
+are the min / max of their lifted column. -/
 def frameWindow (start end_ : Int) : List (Int × Int) → Option (Int × Int)
   | [] => none
   | (p, q) :: t =>
     let ws := windowStart start (minOf p (t.map Prod.fst)) (minOf q (t.map Prod.snd))
     some (ws, windowEnd end_ (maxOf p (t.map Prod.fst)) (maxOf q (t.map Prod.snd)) ws)
 
-/-- Filter, lift and window one frame: `_liftover.py` l.381-432. -/
+/-- Filter, lift and window one frame: the loop body of `lift_window`. -/
 def panelWindow (lifter : Lifter) (start end_ : Int) (frame : List Int) : Option (Int × Int) :=
   frameWindow start end_ (liftoverRegion lifter (filterByRegion start end_ frame))
 
-/-- The `starts` / `ends` lists of `lift_window`, l.379-434; `none` as soon as
+/-- The `starts` / `ends` lists of `lift_window`; `none` as soon as
 one frame raises. -/
 def frameWindows (lifter : Lifter) (start end_ : Int) : List (List Int) → Option (List (Int × Int))
   | [] => some []
@@ -104,36 +112,38 @@ def frameWindows (lifter : Lifter) (start end_ : Int) : List (List Int) → Opti
     | some w, some ws => some (w :: ws)
     | _, _ => none
 
-/-- `lift_window`, `_liftover.py` l.342-450, returning `(start, end)`:
-`(min(starts), max(ends))`, l.435. An empty frame list is `none`, since
+/-- `lift_window` in `_liftover.py`, returning `(start, end)`:
+`min(starts), max(ends)`. An empty frame list is `none`, since
 `min([])` raises. -/
 def liftWindow (lifter : Lifter) (start end_ : Int) (frames : List (List Int)) : Option (Int × Int) :=
   match frameWindows lifter start end_ frames with
   | some (w :: ws) => some (minOf w.1 (ws.map Prod.fst), maxOf w.2 (ws.map Prod.snd))
   | _ => none
 
-/-- The lifted lead of `liftover_region`, `_liftover.py` l.291-293: lifted by
+/-- The lifted lead of `liftover_region` (its `lead_pos=` argument): lifted by
 its own `_lift_one` call, whether or not it is a row of the frame. -/
 def liftLead (lifter : Lifter) (lead : Option Int) : Option Int :=
   lead.bind fun p => (liftOne lifter p).2
 
-/-- The lead one frame hands on, `_liftover.py` l.416-429: the lifted lead,
-dropped when its source position is no kept row of the frame yet its lifted
-position is a kept row's. `kept` is the `(source, lifted)` pairs of l.415. -/
+/-- The lead one frame hands on, after the stray-lead check of `_lead_drop`: the
+lifted lead, dropped when its source position is no kept row of the frame yet
+its lifted position is a kept row's. `kept` is the `(source, lifted)` pairs
+behind `source_pos`. -/
 def frameLead (kept : List (Int × Int)) (lifter : Lifter) (p : Int) : Option Int :=
   match (liftOne lifter p).2 with
   | some q =>
     if p ∉ kept.map Prod.fst ∧ q ∈ kept.map Prod.snd then none else some q
   | none => none
 
-/-- `_liftover.py` l.436-443: a lead outside the final window is dropped. -/
+/-- The final-window check of `_lead_drop`: a lead outside the final window
+is dropped. -/
 def keepInside (w : Int × Int) : Option Int → Option Int
   | some q => if w.1 ≤ q ∧ q ≤ w.2 then some q else none
   | none => none
 
-/-- `lift_window`, `_liftover.py` l.342-450, returning
-`((start, end), lead_positions)`. Frames and leads are paired by `zip`
-(l.380). -/
+/-- `lift_window` in `_liftover.py`, returning
+`((start, end), lead_positions)`. Frames and leads are paired by
+`zip(frames, lead_positions)`. -/
 def liftWindowLeads (lifter : Lifter) (start end_ : Int) (frames : List (List Int))
     (leads : List (Option Int)) : Option ((Int × Int) × List (Option Int)) :=
   match liftWindow lifter start end_ frames with
@@ -375,8 +385,8 @@ theorem frame_window_ordered (start end_ : Int) (kept : List (Int × Int)) (w : 
     omega
 
 /-- (b), per frame. Hypothesis `hk`: every kept row has its source position in
-`[start, end]` (the region filter, `utils.py` l.208) and a lifted position
-`≥ 1` (a non-negative lifter plus the `+ 1` of l.181). -/
+`[start, end]` (the region filter, `filter_by_region`) and a lifted position
+`≥ 1` (a non-negative lifter plus the `+ 1` of `_lift_one`). -/
 theorem frame_window_contains (start end_ : Int) (kept : List (Int × Int)) (w : Int × Int)
     (hk : ∀ pq ∈ kept, start ≤ pq.1 ∧ pq.1 ≤ end_ ∧ 1 ≤ pq.2)
     (h : frameWindow start end_ kept = some w) :
@@ -506,8 +516,8 @@ theorem liftOne_ge_one (lifter : Lifter) (hNonneg : NonnegLifter lifter) (pos q 
   · cases h
 
 /-- (d) 1-based round trip: under the 0-based shift lifter `x ↦ x + k`,
-`_lift_one` returns exactly `pos + k`; the `- 1` of l.174 and the `+ 1` of
-l.181 cancel. `k = 0` is the identity lifter. -/
+`_lift_one` returns exactly `pos + k`; its `- 1` on the way in and its `+ 1`
+on the way out cancel. `k = 0` is the identity lifter. -/
 theorem liftOne_shift (lifter : Lifter) (k : Int) (hShift : ∀ x, lifter x = [(true, x + k)])
     (pos : Int) : liftOne lifter pos = (.lifted, some (pos + k)) := by
   unfold liftOne
@@ -558,7 +568,7 @@ theorem lift_window_contains (lifter : Lifter) (hNonneg : NonnegLifter lifter)
   simp only [Inside] at hin ⊢
   omega
 
-/-- (c) Left margin. `hNoClamp`: the `max(1, …)` of l.430 does not bind. Then
+/-- (c) Left margin. `hNoClamp`: the `max(1, …)` of `window_start` does not bind. Then
 the gap before the first lifted row equals the source gap `src_min - start`. -/
 theorem window_start_margin (start srcMin liftStart : Int)
     (hNoClamp : 1 ≤ liftStart - (srcMin - start)) :
@@ -566,8 +576,8 @@ theorem window_start_margin (start srcMin liftStart : Int)
   simp only [windowStart]
   omega
 
-/-- (c) Right margin. `hNoFloor`: the `window_start + 1` floor of l.432 does
-not bind. Then the gap after the last lifted row equals `end - src_max`. -/
+/-- (c) Right margin. `hNoFloor`: the `window_start + 1` floor of the window end
+does not bind. Then the gap after the last lifted row equals `end - src_max`. -/
 theorem window_end_margin (end_ srcMax liftEnd ws : Int)
     (hNoFloor : ws + 1 ≤ liftEnd + (end_ - srcMax)) :
     windowEnd end_ srcMax liftEnd ws - liftEnd = end_ - srcMax := by
@@ -575,7 +585,7 @@ theorem window_end_margin (end_ srcMax liftEnd ws : Int)
   omega
 
 /-- A lead that is a row of its own frame, inside `[start, end]`, and that
-lifts, lies in the window, so the check of l.436-443 keeps it. It is (b)
+lifts, lies in the window, so the final-window check keeps it. It is (b)
 applied to the lead's row. -/
 theorem lead_in_frame_inside_window (lifter : Lifter) (hNonneg : NonnegLifter lifter)
     (start end_ : Int) (frames : List (List Int)) (w : Int × Int)
@@ -601,7 +611,7 @@ theorem keepInside_inside (w : Int × Int) (lead : Option Int) (q : Int)
 /-- (e) Every lead `lift_window` returns lies in the window it returns. No
 hypothesis on the lifter, the frames or the leads: a lead need not be a row of
 its frame, nor inside `[start, end]`, and the lifter may return anything. The
-check of l.436-443 is what gives it. -/
+final-window check is what gives it. -/
 theorem lift_window_lead_inside (lifter : Lifter) (start end_ : Int)
     (frames : List (List Int)) (leads : List (Option Int))
     (w : Int × Int) (out : List (Option Int))
@@ -615,7 +625,7 @@ theorem lift_window_lead_inside (lifter : Lifter) (start end_ : Int)
   · cases h
 
 /-- A lead that is no kept row of its frame is never handed on at a kept row's
-lifted position (l.416-429), so it cannot make that row's SNP the lead. -/
+lifted position (the stray-lead check), so it cannot make that row's SNP the lead. -/
 theorem stray_lead_off_rows (kept : List (Int × Int)) (lifter : Lifter) (p q : Int)
     (hStray : p ∉ kept.map Prod.fst) (h : frameLead kept lifter p = some q) :
     q ∉ kept.map Prod.snd := by
@@ -638,10 +648,10 @@ def escapeLifter : Lifter := fun x =>
   else if x = 199 then [(true, 199)]
   else []
 
-/-- Why (e) needs the check of l.436-443: `start = 50 ≤ lead = 150 ≤ end = 250`,
+/-- Why (e) needs the final-window check: `start = 50 ≤ lead = 150 ≤ end = 250`,
 the lifter is non-negative, the window is `(50, 250)` and the lead lifts to
-`5000`, because it is lifted on its own (`_liftover.py` l.291-293) and never
-enters `lift.start` / `lift.end` (l.295-296). `lift_window` returns no lead
+`5000`, because it is lifted on its own (by `liftover_region`) and never
+enters `lift.start` / `lift.end`. `lift_window` returns no lead
 for it. -/
 theorem lead_not_a_row_is_dropped :
     liftLead escapeLifter (some 150) = some 5000 ∧
@@ -658,7 +668,7 @@ def collideLifter : Lifter := fun x =>
   else if x = 199 then [(true, 299)]
   else []
 
-/-- Why the check of l.416-429 exists: lead 150 lifts to `300`, inside the
+/-- Why the stray-lead check exists: lead 150 lifts to `300`, inside the
 window `(50, 350)` and on the lifted position of row 200, which a lookup by
 position would take for the lead. `lift_window` returns no lead for it, and
 still returns `300` when the lead is row 200 itself. -/
@@ -672,7 +682,7 @@ theorem stray_lead_on_a_row_is_dropped :
   decide
 
 /-- (b) needs `NonnegLifter`: a hit at 0-based `-5` lifts row 3 to `-4`, and
-the `max(1, …)` clamp of l.430 puts the window start at 1, right of it. -/
+the `max(1, …)` clamp of `window_start` puts the window start at 1, right of it. -/
 theorem negative_lifter_escapes :
     liftWindow (fun _ => [(true, -5)]) 1 5 [[3]] = some (1, 2) ∧
       (liftOne (fun _ => [(true, -5)]) 3).2 = some (-4) ∧

@@ -1,19 +1,19 @@
 /-!
 # Greedy gene-row assignment
 
-Model of `assign_gene_positions`, `src/pylocuszoom/gene_track.py:26-59`, as
-called by `GenePanel.from_genes`, `src/pylocuszoom/panels/genes.py:54-57`.
+Model of `src/pylocuszoom/gene_track.py::assign_gene_positions`, as called by
+`src/pylocuszoom/panels/genes.py::GenePanel.from_genes`.
 
 Modelling decisions:
 
 * Coordinates are Python unbounded ints, so `Int`. Rows are `Nat`.
-* `label_buffer = region_width * 0.08` (`gene_track.py:44`) is a float. The
+* `label_buffer = region_width * 0.08` is a float. The
   model uses the exact rational 2/25 scaled by 25: the loop test
-  `row_ends[row] > gene_start - label_buffer` (`gene_track.py:52`) becomes
+  `row_ends[row] > gene_start - label_buffer` becomes
   `25 * rowEnd > 25 * geneStart - 2 * regionWidth`. The float product can
   differ from the exact value by a rounding error; that gap is measured from
   Python and reported separately, it is not part of this model.
-* `row_ends: dict[int, int]` (`gene_track.py:42`) is a `List Int` indexed by
+* `row_ends: dict[int, int]` is a `List Int` indexed by
   row. The loop only ever inserts at the first row that is absent, so the key
   set is always `{0, .., k-1}`; `row in row_ends` is `row < rowEnds.length`.
 * The frame is a `List Gene` in iteration order. Nothing is assumed about
@@ -28,40 +28,40 @@ structure Gene where
   stop : Int
 deriving Repr, DecidableEq
 
-/-- `gene_start = max(gene["start"], start)`, `gene_track.py:47`. -/
+/-- `gene_start = max(gene["start"], start)` in `assign_gene_positions`. -/
 def clipStart (S : Int) (g : Gene) : Int := max g.start S
 
-/-- `gene_end = min(gene["end"], end)`, `gene_track.py:48`. -/
+/-- `gene_end = min(gene["end"], end)` in `assign_gene_positions`. -/
 def clipEnd (E : Int) (g : Gene) : Int := min g.stop E
 
-/-- `row_ends[row] > gene_start - label_buffer`, `gene_track.py:52`, with
-`label_buffer = W * 0.08` (`gene_track.py:44`) scaled by 25. -/
+/-- `row_ends[row] > gene_start - label_buffer`, the `while` test of
+`assign_gene_positions`, with `label_buffer = W * 0.08` scaled by 25. -/
 def Collides (W rowEnd geneStart : Int) : Prop := 25 * rowEnd > 25 * geneStart - 2 * W
 
 instance (W rowEnd geneStart : Int) : Decidable (Collides W rowEnd geneStart) := by
   unfold Collides; infer_instance
 
-/-- The `while` loop, `gene_track.py:51-53`: first row that is absent or whose
+/-- The `while` loop of `assign_gene_positions`: first row that is absent or whose
 recorded end does not collide. -/
 def findRow (W geneStart : Int) : List Int → Nat
   | [] => 0
   | e :: es => if Collides W e geneStart then findRow W geneStart es + 1 else 0
 
-/-- `row_ends[row] = gene_end`, `gene_track.py:57`: overwrite, or append when
-the row is new. -/
+/-- `row_ends[row] = gene_end` in `assign_gene_positions`: overwrite, or append
+when the row is new. -/
 def setRow : List Int → Nat → Int → List Int
   | [], _, v => [v]
   | _ :: es, 0, v => v :: es
   | e :: es, r + 1, v => e :: setRow es r v
 
-/-- The `for` loop body, `gene_track.py:46-57`, threaded over `row_ends`. -/
+/-- The `for` loop body of `assign_gene_positions`, threaded over `row_ends`. -/
 def go (S E : Int) : List Int → List Gene → List Nat
   | _, [] => []
   | rowEnds, g :: rest =>
     findRow (E - S) (clipStart S g) rowEnds ::
       go S E (setRow rowEnds (findRow (E - S) (clipStart S g) rowEnds) (clipEnd E g)) rest
 
-/-- `assign_gene_positions(genes_df, start, end)`, `gene_track.py:26-59`. -/
+/-- `assign_gene_positions(genes_df, start, end)` in `gene_track.py`. -/
 def assign_gene_positions (genes : List Gene) (S E : Int) : List Nat := go S E [] genes
 
 /-! ## Properties -/
@@ -120,10 +120,10 @@ instance (S E : Int) (g : Gene) : Decidable (NoShrink S E g) := by
   unfold NoShrink; infer_instance
 
 /-- What the real caller supplies: `start ≤ end` per gene, enforced by the
-`ordering` rule of `GENES_PLOT` (`schemas.py:91`) that `GenePanel.from_genes`
-checks before the row assignment (`panels/genes.py:51`, rule run at
-`validation.py:180-193`), and the gene intersects the region
-(`filter_genes_by_region`, `gene_track.py:101-105`). -/
+`ordering` rule of `schemas.py::GENES_PLOT` that `GenePanel.from_genes` checks
+before the row assignment (`check(genes_df, GENES_PLOT)`, rule run by
+`validation.py::check`), and the gene intersects the region
+(`gene_track.py::filter_genes_by_region`). -/
 def WellFormed (S E : Int) (g : Gene) : Prop :=
   g.start ≤ g.stop ∧ S ≤ g.stop ∧ g.start ≤ E
 
@@ -131,15 +131,15 @@ instance (S E : Int) (g : Gene) : Decidable (WellFormed S E g) := by
   unfold WellFormed; infer_instance
 
 /-- Alternative hypothesis of (a): the frame is sorted by `start`, as
-`GenePanel.from_genes` does with `.sort_values("start")`, `panels/genes.py:56`. -/
+`GenePanel.from_genes` does with `.sort_values("start")`. -/
 def SortedByStart (genes : List Gene) : Prop := genes.Pairwise fun a b => a.start ≤ b.start
 
 instance (genes : List Gene) : Decidable (SortedByStart genes) := by
   unfold SortedByStart; infer_instance
 
 /-- The x-extent `GenePanel.draw` paints for a gene: a rectangle anchored at
-`gene_start` with width `gene_end - gene_start` (`panels/genes.py:101-102`,
-`167-173`), so it covers `[min, max]` of the two clipped ends. Two glyphs in
+`gene_start` with width `gene_end - gene_start` (`panels/genes.py::_gene_band`),
+so it covers `[min, max]` of the two clipped ends. Two glyphs in
 one row are disjoint when the earlier one's right edge is at or left of the
 later one's left edge. -/
 def GlyphClear (S E : Int) (p q : Nat × Gene) : Prop :=
@@ -222,10 +222,10 @@ def postTight (S E : Int) (genes : List Gene) (rows : List Nat) : Bool :=
 
 -- (a) is a statement about (clipStart, clipEnd). `GenePanel.draw` paints the
 -- rectangle from `gene_start` with width `gene_end - gene_start`
--- (`panels/genes.py:167-173`), which for a gene with `end < start` covers
+-- (`panels/genes.py::_gene_band`), which for a gene with `end < start` covers
 -- `[gene_end, gene_start]`. Sorted input: (1,500) and (600,100) share row 0,
 -- (a) holds, and the glyphs 1..500 and 100..600 overlap. `GenePanel.from_genes`
--- now rejects this frame (`panels/genes.py:51`, `schemas.py:91`).
+-- now rejects this frame (the `ordering` rule of `GENES_PLOT`).
 #guard assign_gene_positions [⟨1, 500⟩, ⟨600, 100⟩] 1 1001 = [0, 0]
 #guard decide (NonOverlap 1 1001 [⟨1, 500⟩, ⟨600, 100⟩] [0, 0])
 #guard !decide (GlyphsDisjoint 1 1001 [⟨1, 500⟩, ⟨600, 100⟩] [0, 0])

@@ -162,7 +162,7 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
 ## Model Checking
 
-`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the source lines each action follows. The `models` job in CI runs it. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run the matrix with `tlc-matrix.sh` from the `agent-formal-verify` plugin, which needs [`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later:
+`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the functions it models as `file.py::symbol`, and each action's comment names the call it follows. The `models` job in CI runs it. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run the matrix with `tlc-matrix.sh` from the `agent-formal-verify` plugin, which needs [`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later:
 
 ```bash
 JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/RecombPublish.matrix
@@ -199,13 +199,13 @@ A violation prints the interleaving that breaks the claim; replay it against the
 JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/StagedCache.matrix
 ```
 
-The runs check that every `.part` sibling is owned by exactly one writer and is replaced or removed by the time its call ends, that the destination and every reader only see complete files, that `chain_lifter` never returns a lifter built from a partial file, that `clear_cache` never removes an in-flight sibling, and that every call terminates. They cover one, two and three concurrent callers, one and two calls per process, failures at file creation, streaming and replace, and gene-cache readers and writers racing one or two `clear_cache` calls. The header of each spec names the source lines it follows and the claims its boundary runs leave out.
+The runs check that every `.part` sibling is owned by exactly one writer and is replaced or removed by the time its call ends, that the destination and every reader only see complete files, that `chain_lifter` never returns a lifter built from a partial file, that `clear_cache` never removes an in-flight sibling, and that every call terminates. They cover one, two and three concurrent callers, one and two calls per process, failures at file creation, streaming and replace, and gene-cache readers and writers racing one or two `clear_cache` calls. The header of each spec names the functions it follows and the claims its boundary runs leave out.
 
 Two TLC processes started at the same moment can fail with `Parsing or semantic analysis failed`, because each unpacks the standard modules into the shared Java temporary directory. Give each its own with `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=<dir>`.
 
 ### Lean models
 
-`specs/lean/` holds one Lean 4 project per piece of sequential arithmetic. Each `Model.lean` transcribes the Python functions it names in its header, runs a bounded exhaustive search as `#guard` lines, and proves its properties for every input size. The hypotheses a theorem needs, and what the model leaves out, are listed in that header.
+`specs/lean/` holds one Lean 4 project per piece of sequential arithmetic. Each `Model.lean` transcribes the Python functions it names in its header as `file.py::symbol`, runs a bounded exhaustive search as `#guard` lines, and proves its properties for every input size. The hypotheses a theorem needs, and what the model leaves out, are listed in that header.
 
 | Project | Source | Proved |
 | ------- | ------ | ------ |
