@@ -39,6 +39,8 @@ Outside the model (assumptions, see the report):
   (`totalFrom_le` bounds the largest x by `n * (M + gap)`).
 -/
 
+namespace GenomeLayout
+
 /-! ## Transcription -/
 
 /-- `pooled.groupby("_chrom_str")["_pos"].max()` in `from_frames`. A group
@@ -649,3 +651,5 @@ theorem highlight_in_range (chroms : List (List Int)) (gap : Int)
   have hmin : min stop (max_by_chrom pi) = stop := by omega
   have hnot : ¬ max_by_chrom pi < start := by omega
   simp [highlight, from_frames, hoi, hci, hnot, hmin]
+
+end GenomeLayout

@@ -171,7 +171,5 @@ jobs:
 
       - name: Check the Lean models
         run: |
-          for project in specs/lean/*/; do
-            bash .formal-verify/skills/formal-verify/scripts/setup.sh lean "$PWD/$project"
-            bash .formal-verify/skills/formal-verify/scripts/lean-check.sh "$PWD/$project"
-          done
+          bash .formal-verify/skills/formal-verify/scripts/setup.sh lean "$PWD/specs/lean"
+          bash .formal-verify/skills/formal-verify/scripts/lean-check.sh "$PWD/specs/lean"

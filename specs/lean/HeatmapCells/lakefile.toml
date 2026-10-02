@@ -1,5 +1,0 @@
-name = "model"
-defaultTargets = ["Model"]
-
-[[lean_lib]]
-name = "Model"

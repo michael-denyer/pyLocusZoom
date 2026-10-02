@@ -21,6 +21,8 @@ Modelling decisions:
   hypotheses it needs. The caller does enforce `start ≤ end`: see `WellFormed`.
 -/
 
+namespace GeneRows
+
 /-- One row of `genes_df`: the `start` and `end` columns (`end` is a Lean
 keyword, hence `stop`). -/
 structure Gene where
@@ -515,3 +517,5 @@ recorded end it clears. No hypothesis. -/
 theorem assign_greedy (S E : Int) (genes : List Gene) :
     Greedy S E [] ((assign_gene_positions genes S E).zip genes) :=
   go_greedy S E genes [] [] (by intro r e h; simp at h)
+
+end GeneRows
