@@ -109,7 +109,7 @@ class TestRecombinationDownloadErrors:
     @staticmethod
     def _download_failed():
         return patch(
-            "pylocuszoom.recombination.download_file",
+            "pylocuszoom.recombination.stream_file",
             side_effect=DataDownloadError("could not download maps"),
         )
 

@@ -156,7 +156,7 @@ class TestRegionLookupFailures:
     @staticmethod
     def _failing_download(exc):
         return patch(
-            "pylocuszoom.recombination.download_file",
+            "pylocuszoom.recombination.stream_file",
             Mock(side_effect=exc),
         )
 
@@ -215,7 +215,7 @@ def test_custom_maps_are_read_only_and_need_no_complete_bundle(
     def unexpected_download(*args, **kwargs):
         raise AssertionError("custom maps must not download")
 
-    monkeypatch.setattr("pylocuszoom.recombination.download_file", unexpected_download)
+    monkeypatch.setattr("pylocuszoom.recombination.stream_file", unexpected_download)
     before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
     frame = get_recombination_rate_for_region(
         1, 100, 200, species=species, data_dir=str(tmp_path)

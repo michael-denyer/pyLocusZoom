@@ -4,10 +4,11 @@ import io
 import os
 import tarfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
+import requests
 
 from pylocuszoom.exceptions import DataDownloadError, ValidationError
 from pylocuszoom.recombination import (
@@ -61,7 +62,7 @@ class TestDownloadCanineRecombinationMaps:
         result = download_canine_recombination_maps(force=False)
         assert result == tmp_path
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_rejects_wrong_39_file_manifest(self, mock_download, tmp_path, monkeypatch):
         """A count of 39 files is not proof that the canine set is complete."""
         monkeypatch.setattr(
@@ -87,9 +88,7 @@ class TestDownloadCanineRecombinationMaps:
 
     def test_caller_files_in_output_dir_survive(self, tmp_path, monkeypatch):
         """output_dir is the caller's; the library never moves or deletes it."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         caller_dir = tmp_path / "my_project_data"
         caller_dir.mkdir()
         (caller_dir / "genotypes.bed").write_text("precious")
@@ -102,9 +101,7 @@ class TestDownloadCanineRecombinationMaps:
 
     def test_a_custom_map_beside_a_complete_set_survives(self, tmp_path, monkeypatch):
         """An extra caller map makes the set inexact; it must not be wiped."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         for i in range(1, 39):
             (tmp_path / f"chr{i}_recomb.tsv").write_text("old")
         (tmp_path / "chrX_recomb.tsv").write_text("custom")
@@ -115,9 +112,7 @@ class TestDownloadCanineRecombinationMaps:
         assert (tmp_path / "chrX_recomb.tsv").read_text() == "custom"
 
     def test_new_output_dir_receives_the_maps(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         output = tmp_path / "maps"
 
         download_canine_recombination_maps(output_dir=str(output))
@@ -127,9 +122,7 @@ class TestDownloadCanineRecombinationMaps:
     def test_force_refreshes_an_output_dir_holding_only_maps(
         self, tmp_path, monkeypatch
     ):
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         for i in range(1, 39):
             (tmp_path / f"chr{i}_recomb.tsv").write_text("old")
 
@@ -140,9 +133,7 @@ class TestDownloadCanineRecombinationMaps:
     def test_an_output_dir_that_is_a_regular_file_is_rejected(
         self, tmp_path, monkeypatch
     ):
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         output = tmp_path / "maps"
         output.write_text("precious")
 
@@ -190,9 +181,7 @@ class TestDownloadCanineRecombinationMaps:
         """A rival force writer unlinks the legacy symlink between two looks at
         output_dir; specs/tla/RecombPublish.tla found a FileNotFoundError and a
         ValidationError for a path that held only maps."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         generation = tmp_path / ".maps.generation-old"
         write_canine_map_set(generation, "old")
         output = tmp_path / "maps"
@@ -211,9 +200,7 @@ class TestDownloadCanineRecombinationMaps:
     ):
         """Symlinked maps need a second lookup after the listing, and the rival
         has removed the path by then: nothing is left there to discard."""
-        monkeypatch.setattr(
-            "pylocuszoom.recombination.download_file", self._fake_archive
-        )
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", self._fake_archive)
         store = tmp_path / "store"
         write_canine_map_set(store, "old")
         generation = tmp_path / ".maps.generation-old"
@@ -567,7 +554,7 @@ class TestEnsureRecombMaps:
 class TestEnsureRecombMapsCorruptArchive:
     """A corrupt archive is a typed download error, not a crash."""
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_a_corrupt_archive_is_a_download_error(
         self, mock_download, tmp_path, monkeypatch
     ):
@@ -589,10 +576,33 @@ class TestArchiveWithoutMaps:
         def download(url, dest, desc):
             TestStageArchive._tar(dest, {"README.txt": "notes"})
 
-        monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+        monkeypatch.setattr("pylocuszoom.recombination.stream_file", download)
         with pytest.raises(DataDownloadError, match="Could not find chromosome"):
             download_canine_recombination_maps(tmp_path / "output")
         assert not (tmp_path / "output").exists()
+
+
+def test_an_interrupted_map_download_publishes_nothing_and_leaves_nothing(tmp_path):
+    """The archive streams into the private temporary directory, which removes it."""
+
+    def interrupted(*_args, **_kwargs):
+        def chunks():
+            yield b"start of an archive"
+            raise requests.ConnectionError("connection reset")
+
+        response = MagicMock()
+        response.headers = {}
+        response.iter_content.return_value = chunks()
+        return response
+
+    with (
+        patch("pylocuszoom._http.time.sleep"),
+        patch("pylocuszoom._http.requests.get", side_effect=interrupted),
+        pytest.raises(DataDownloadError, match="after 3 attempts"),
+    ):
+        download_canine_recombination_maps(tmp_path / "output")
+
+    assert list(tmp_path.iterdir()) == []
 
 
 class TestDownloadCanineRecombHeaderDetection:
@@ -611,7 +621,7 @@ class TestDownloadCanineRecombHeaderDetection:
             tar.addfile(info, io.BytesIO(data))
 
     def _fake_download(self, filename: str, content: str):
-        """Return a download_file mock that writes our fake tarball."""
+        """Return a stream_file mock that writes our fake tarball."""
 
         def side_effect(url, dest_path, desc=None):
             with tarfile.open(dest_path, "w:gz") as tar:
@@ -629,7 +639,7 @@ class TestDownloadCanineRecombHeaderDetection:
 
         return side_effect
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_raises_on_html_corrupted_body(self, mock_download, tmp_path):
         """An HTML error body masquerading as a map is a download failure."""
         html_content = "<html><body>502 Bad Gateway</body></html>\n"
@@ -640,7 +650,7 @@ class TestDownloadCanineRecombHeaderDetection:
         with pytest.raises(DataDownloadError, match="Unrecognised first token"):
             download_canine_recombination_maps(tmp_path / "out")
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_plot_warns_and_renders_without_overlay_on_corrupt_archive(
         self, mock_download, tmp_path, monkeypatch
     ):
@@ -670,7 +680,7 @@ class TestDownloadCanineRecombHeaderDetection:
         assert fig is not None
         assert not (tmp_path / "out").exists()
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_accepts_lowercase_chr_header(self, mock_download, tmp_path):
         """Pre-existing canonical header form must still be accepted."""
         content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
@@ -681,7 +691,7 @@ class TestDownloadCanineRecombHeaderDetection:
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_accepts_capitalised_chromosome_header(self, mock_download, tmp_path):
         """'Chromosome' is used by several mirrors; must pass."""
         content = "Chromosome\tPosition\tRate\tcM\n1\t1000\t0.5\t0.1\n"
@@ -692,7 +702,7 @@ class TestDownloadCanineRecombHeaderDetection:
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_accepts_hash_prefixed_header(self, mock_download, tmp_path):
         """Some maps use '#chr' as a commented header; must pass."""
         content = "#chr\tpos\trate\tcM\n1\t1000\t0.5\t0.1\n"
@@ -703,7 +713,7 @@ class TestDownloadCanineRecombHeaderDetection:
         result = download_canine_recombination_maps(tmp_path / "out")
         assert (result / "chr1_recomb.tsv").exists()
 
-    @patch("pylocuszoom.recombination.download_file")
+    @patch("pylocuszoom.recombination.stream_file")
     def test_accepts_numeric_first_token_prepends_header(self, mock_download, tmp_path):
         """Numeric first token means no header; one is prepended."""
         content = "1\t1000\t0.5\t0.1\n1\t2000\t0.6\t0.2\n"
@@ -741,7 +751,7 @@ def test_archive_rejects_links_and_special_files_before_publication(
                 member.size = len(body)
                 archive.addfile(member, io.BytesIO(body))
 
-    monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+    monkeypatch.setattr("pylocuszoom.recombination.stream_file", download)
     with pytest.raises(DataDownloadError, match="regular file|unsafe member"):
         download_canine_recombination_maps(output)
     assert list(escaped.iterdir()) == []
@@ -757,7 +767,7 @@ def test_archive_rejects_duplicate_chromosome_maps(tmp_path, monkeypatch):
                 member.size = len(data)
                 archive.addfile(member, io.BytesIO(data))
 
-    monkeypatch.setattr("pylocuszoom.recombination.download_file", download)
+    monkeypatch.setattr("pylocuszoom.recombination.stream_file", download)
     with pytest.raises(DataDownloadError, match="Duplicate"):
         download_canine_recombination_maps(tmp_path / "maps")
     assert not (tmp_path / "maps").exists()

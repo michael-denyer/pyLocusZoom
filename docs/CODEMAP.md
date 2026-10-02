@@ -323,7 +323,7 @@ implementing the methods and out by omitting them; see
 | 5c | to_pandas | PySpark → pandas bridge, called by every public plot method on the frames it is given | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom | Chromosome string normaliser | [utils.py](../src/pylocuszoom/utils.py) |
 | 5c | normalize_chrom_series | Column-level chromosome normaliser | [utils.py](../src/pylocuszoom/utils.py) |
-| 5d | download_file | The one HTTP download path: retries, atomic writes, progress | [_http.py](../src/pylocuszoom/_http.py) |
+| 5d | stream_file, staged_path | The one HTTP download (retries, progress) into a path the caller keeps private, and the one temp-file-then-replace writer a caller publishes a single file through | [_http.py](../src/pylocuszoom/_http.py) |
 
 ### Exception Hierarchy [5a]
 
