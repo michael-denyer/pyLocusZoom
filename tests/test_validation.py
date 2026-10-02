@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 
 from pylocuszoom.exceptions import ValidationError
-from pylocuszoom.schemas import GENES_PLOT, gwas_plot_spec
+from pylocuszoom.schemas import EXONS_PLOT, GENES_PLOT, gwas_plot_spec
 from pylocuszoom.validation import ColumnSpec, RangeRule, check
 from tests.strategies import gwas_dataframes, pvalues, pvalues_invalid
 
@@ -323,6 +323,61 @@ class TestOrdering:
         error_msg = str(exc_info.value)
         assert "must be numeric" in error_msg
         assert "rows have" not in error_msg
+
+    @pytest.mark.parametrize("spec", [GENES_PLOT, EXONS_PLOT], ids=["genes", "exons"])
+    @pytest.mark.parametrize(
+        ("start", "end"),
+        [
+            (["600"], ["1000"]),
+            (["600"], [1000]),
+            ([600], ["1000"]),
+            (pd.Series([600], dtype=object), pd.Series([1000], dtype=object)),
+        ],
+        ids=["both-strings", "string-start", "string-end", "object-ints"],
+    )
+    def test_ordered_coordinates_pass_whatever_their_dtype(self, spec, start, end):
+        """Coordinates no rule declared numeric are compared as numbers."""
+        df = pd.DataFrame({"chr": [1], "start": start, "end": end, "gene_name": ["G"]})
+        check(df, spec)
+
+    @pytest.mark.parametrize(
+        ("start", "end"),
+        [(["600"], ["100"]), (["600"], [100]), ([600], ["100"])],
+        ids=["both-strings", "string-start", "string-end"],
+    )
+    def test_reversed_string_coordinates_are_rejected(self, start, end):
+        """A reversed pair is reported the same way whatever its dtype."""
+        df = pd.DataFrame({"chr": [1], "start": start, "end": end, "gene_name": ["G"]})
+
+        with pytest.raises(ValidationError) as exc_info:
+            check(df, GENES_PLOT)
+
+        assert "1 rows have start > end (index 0)" in str(exc_info.value)
+
+    def test_unparseable_coordinate_is_named_not_compared(self):
+        """A value that is no number is reported by column, with no comparison."""
+        df = pd.DataFrame(
+            {
+                "chr": [1, 1],
+                "start": [100, "abc"],
+                "end": [50, 900],
+                "gene_name": ["G", "H"],
+            }
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            check(df, GENES_PLOT)
+
+        error_msg = str(exc_info.value)
+        assert "Column 'start' has 1 non-numeric values" in error_msg
+        assert "rows have" not in error_msg
+
+    def test_null_bound_is_not_an_inversion(self):
+        """A null coordinate is left to the plot tier, not reported here."""
+        df = pd.DataFrame(
+            {"chr": [1], "start": [100], "end": [None], "gene_name": ["G"]}
+        )
+        check(df, GENES_PLOT)
 
 
 class TestPValueDomain:
