@@ -106,6 +106,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | UCSC gene source and the build-to-source router | `tests/test_ucsc.py` |
 | The gene and exon cache | `tests/test_gene_cache.py` |
 | The retrying HTTP transport | `tests/test_http.py` |
+| The formal models' citations and `#guard` vectors against the Python | `tests/test_model_conformance.py` |
 | Genome-build records and name folding | `tests/test_genome_build.py` |
 | Exception hierarchy | `tests/test_exceptions.py` |
 | Package exports | `tests/test_init.py` |
@@ -217,6 +218,8 @@ Two TLC processes started at the same moment can fail with `Parsing or semantic 
 | `LiftWindow` | `_liftover.lift_window` and the 0/1-based conversion | The lifted window satisfies `1 <= start < end`, contains every SNP that lifts, and keeps the requested margins where no clamp binds. |
 | `PlotlyAxes` | `backends/plotly_layout.py` axis names, `backends/_coerce.split_pixels` | The subplot index is a bijection on the grid, and secondary axis names avoid primary names up to 99 subplots. |
 | `RetryLoop` | `_http._with_retries` | At most `max(1, max_retries)` attempts are made, the backoff doubles with no sleep after the last attempt, and the error raised is the last attempt's. |
+
+`tests/test_model_conformance.py` ties the models to the Python on every test run. It fails when a spec cites a line number or a `file.py::symbol` that no longer exists, and it runs the Python on the concrete vectors the Lean models pin as `#guard` lines, so a change that moves a modelled value fails before the model is touched. Its table quotes each `#guard` it covers, and a quoted guard that is no longer in the model, or a new vector guard without a row, fails too. `LiftWindow` pins no concrete vector; the hypothesis tests in `tests/test_liftover.py` cover it. The guard in `PlotlyBackend.create_twin_axis` is a layout lookup, so it is tested in `tests/test_plotly_backend.py` and not modelled.
 
 After changing one of those functions, update its model and run the checker on the package, which builds all six models:
 

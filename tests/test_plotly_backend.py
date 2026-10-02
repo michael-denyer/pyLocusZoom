@@ -380,6 +380,25 @@ class TestPlotlySecondaryAxisNeverTakesASubplotAxis:
 
         assert backend.create_twin_axis(panels[0]).yref == "y100"
 
+    def test_only_the_panels_whose_name_is_taken_are_refused(self):
+        """In 130 subplots, panels 1 to 31 would take yaxis100 to yaxis130."""
+        rows, cols = 26, 5
+        fig = make_subplots(rows=rows, cols=cols, vertical_spacing=0.005)
+        primary = {i: fig.layout[f"yaxis{i}"].to_plotly_json() for i in range(2, 131)}
+        backend = PlotlyBackend()
+        refused, yrefs = [], []
+        for row in range(1, rows + 1):
+            for col in range(1, cols + 1):
+                panel = _Panel(fig, row, col, cols)
+                try:
+                    yrefs.append(backend.create_twin_axis(panel).yref)
+                except ValidationError:
+                    refused.append(panel.subplot_idx)
+
+        assert refused == list(range(1, 32))
+        assert yrefs == [f"y{i}" for i in range(131, 230)]
+        assert {i: fig.layout[f"yaxis{i}"].to_plotly_json() for i in primary} == primary
+
 
 @pytest.mark.parametrize(
     "weight, expected", [("bold", "<b>Study</b>"), ("normal", "Study")]
