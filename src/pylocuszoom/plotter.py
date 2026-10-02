@@ -296,10 +296,10 @@ class LocusZoomPlotter:
         """Lift validated source-build panels to the plotter's build.
 
         Returns the lifted frames, the lifted window and each panel's LD
-        config with its lead lifted. A lead that does not lift is
-        auto-detected instead, unless the panel computes LD from a fileset,
-        which needs the lead; that is an error rather than a warning the
-        next check would contradict.
+        config with its lead lifted. A lead the lift drops is auto-detected
+        instead, unless the panel computes LD from a fileset, which needs
+        the lead; that is an error rather than a warning the next check
+        would contradict.
         """
         window = lift_window(
             frames,
@@ -312,14 +312,18 @@ class LocusZoomPlotter:
             lifter=lifter,
             build=self.genome_build,
         )
-        for ld, lead in zip(lds, window.lead_positions):
-            if ld.lead_pos is not None and lead is None and ld.ld_reference_file:
+        notes = list(window.notes)
+        for ld, drop in zip(lds, window.lead_drops):
+            if drop is None:
+                continue
+            dropped = drop.describe(region.chrom, ld.lead_pos, self.genome_build)
+            if ld.ld_reference_file:
                 raise ValidationError(
-                    f"Lead SNP at chr{region.chrom}:{ld.lead_pos} did not lift to "
-                    f"{self.genome_build}, and LD from ld_reference_file needs a "
-                    "lead; pass a lead that lifts or drop ld_reference_file"
+                    f"{dropped}, and LD from ld_reference_file needs a lead; "
+                    "pass another lead or drop ld_reference_file"
                 )
-        for note in window.notes:
+            notes.append(f"{dropped}; the lead is auto-detected instead")
+        for note in dict.fromkeys(notes):
             warnings.warn(note, stacklevel=3)
         return (
             window.frames,

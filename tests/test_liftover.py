@@ -24,7 +24,7 @@ from pylocuszoom import (
     LocusZoomPlotter,
     liftover_region,
 )
-from pylocuszoom._liftover import InMemoryLifter, chain_lifter, lift_window
+from pylocuszoom._liftover import InMemoryLifter, LeadDrop, chain_lifter, lift_window
 from pylocuszoom.exceptions import (
     DataDownloadError,
     OptionalDependencyMissing,
@@ -510,16 +510,26 @@ class TestPlotAcrossBuilds:
                 liftover=LiftoverConfig(lifter=lifter),
             )
 
-    @pytest.mark.parametrize("lifted_lead", [99_999, 11_999])
+    @pytest.mark.parametrize(
+        "lifted_lead, reason",
+        [
+            (99_999, "lifted outside the window of the region's SNPs"),
+            (11_999, "is not a SNP of the data and lifted onto another SNP's position"),
+        ],
+    )
     def test_an_unusable_lifted_lead_is_an_error_with_ld_reference_file(
-        self, plotter, source_gwas_df, lifted_lead
+        self, plotter, source_gwas_df, lifted_lead, reason
     ):
         """Outside the window or on another SNP, PLINK is not run for a wrong lead."""
         lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): lifted_lead})
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            with pytest.raises(ValidationError, match="chr1:2500 .* needs a lead"):
+            with pytest.raises(
+                ValidationError,
+                match=f"Lead SNP at chr1:2500 {reason}.*, and LD from "
+                "ld_reference_file needs a lead",
+            ):
                 plotter.plot(
                     source_gwas_df,
                     chrom=1,
@@ -572,7 +582,10 @@ class TestPlotAcrossBuilds:
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            with pytest.raises(ValidationError, match="needs a lead"):
+            with pytest.raises(
+                ValidationError,
+                match="chr1:1000 did not lift to .*, and LD .* needs a lead",
+            ):
                 plotter.plot(
                     source_gwas_df,
                     chrom=1,
@@ -764,9 +777,11 @@ class TestLiftWindowProperties:
         for frame in window.frames:
             assert window.start <= frame["pos"].min()
             assert frame["pos"].max() <= window.end
-        for source, lifted, source_lead, lead in zip(
-            frames, window.frames, leads, window.lead_positions
+        for source, lifted, source_lead, lead, drop in zip(
+            frames, window.frames, leads, window.lead_positions, window.lead_drops
         ):
+            # A requested lead is handed on or carries the reason it was not.
+            assert (drop is None) == (source_lead is None or lead is not None)
             if lead is None:
                 continue
             assert window.start <= lead <= window.end
@@ -803,10 +818,8 @@ class TestLiftWindowLeads:
 
         assert (window.start, window.end) == (50, 250)
         assert window.lead_positions == [None]
-        assert window.notes == (
-            "Lead SNP at chr1:150 lifted outside the window of the region's "
-            "SNPs in the target build; the lead is auto-detected instead",
-        )
+        assert window.lead_drops == [LeadDrop.OUTSIDE_WINDOW]
+        assert window.notes == ()
 
     def test_a_lead_that_is_no_row_lifting_onto_a_snp_is_dropped_with_a_note(
         self, frame
@@ -819,11 +832,25 @@ class TestLiftWindowLeads:
 
         assert window.frames[0]["pos"].tolist() == [100, 300]
         assert window.lead_positions == [None]
-        assert window.notes == (
+        assert window.lead_drops == [LeadDrop.ON_ANOTHER_SNP]
+        assert window.notes == ()
+
+    def test_a_lead_that_does_not_lift_is_dropped_with_its_reason(self, frame):
+        lifter = InMemoryLifter({("chr1", 99): 99, ("chr1", 199): 199})
+
+        window = _lift(50, 250, [frame], [150], lifter)
+
+        assert window.lead_positions == [None]
+        assert window.lead_drops == [LeadDrop.UNLIFTED]
+
+    def test_each_reason_reads_as_a_sentence_about_the_lead(self):
+        assert [drop.describe(1, 150, None) for drop in LeadDrop] == [
+            "Lead SNP at chr1:150 did not lift to the target build",
             "Lead SNP at chr1:150 is not a SNP of the data and lifted onto "
-            "another SNP's position in the target build; the lead is "
-            "auto-detected instead",
-        )
+            "another SNP's position in the target build",
+            "Lead SNP at chr1:150 lifted outside the window of the region's "
+            "SNPs in the target build",
+        ]
 
     def test_a_lead_that_is_a_row_keeps_its_lifted_position(self, frame):
         lifter = InMemoryLifter({("chr1", 99): 99, ("chr1", 199): 299})
@@ -831,4 +858,5 @@ class TestLiftWindowLeads:
         window = _lift(50, 250, [frame], [200], lifter)
 
         assert window.lead_positions == [300]
+        assert window.lead_drops == [None]
         assert window.notes == ()
