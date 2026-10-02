@@ -27,12 +27,13 @@ run strict shortat=one | Writers={w1,w2} Readers={w2} Names={1,2} Stray=s Other=
 run strict writers=3 failat=one shortat=one | Writers={w1,w2,w3} Readers={w3} Names={1,2} Stray=s Other=o InitKinds={"absent","file","dir"} Modes={"ensure","force"} FailAt={w1} ShortAt={w2} Sticky=FALSE ExtSteps=0
 
 # Legacy symlink starts: a symlink to a directory with any contents, or a
-# dangling symlink. The four strict claims of the group above hold here only
-# until a writer unlinks the symlink, so their *Unless* forms are checked.
-# RecombPublishLegacySymlink.tla below pins the failures themselves.
+# dangling symlink. NoUndocumentedError and ValidationJustified hold as they
+# do above. NoGap and StaysComplete hold here only until a writer unlinks the
+# symlink, so their *Unless* forms are checked.
+# RecombPublishLegacySymlink.tla below pins the failure itself.
 spec RecombPublish.tla
 check INVARIANTS TypeOK StagingOwned NoLeak SinglePublisher WriterSucceeds FailsOnlyWhenInjected Converges NeverWritesThroughSymlink CheckedNeverClobbers
-check INVARIANTS NoGapUnlessSwapped StaysCompleteUnlessSwapping NoUndocumentedErrorUnlessSwapped ValidationJustifiedUnlessSwapped
+check INVARIANTS NoGapUnlessSwapped StaysCompleteUnlessSwapping NoUndocumentedError ValidationJustified
 check PROPERTIES Termination
 run legacy writers=1 names=2 | Writers={w1} Readers={w1} Names={1,2} Stray=s Other=o InitKinds={"symlink","dangling"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=0
 run legacy writers=2 names=1 | Writers={w1,w2} Readers={w1} Names={1} Stray=s Other=o InitKinds={"absent","file","dir","symlink","dangling"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=0
@@ -51,11 +52,9 @@ check PROPERTIES Termination
 run external steps=2 names=1 | Writers={w1,w2} Readers={w1} Names={1} Stray=s Other=o InitKinds={"absent","dir"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=2
 run external steps=3 names=2 | Writers={w1,w2} Readers={w1} Names={1,2} Stray=s Other=o InitKinds={"absent","dir"} Modes={"ensure","force"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=3
 
-# Expected failures, pinned as witnesses. Each run passes while the named
+# Expected failure, pinned as a witness. The run passes while the named
 # failure of a strict claim is still reachable from a legacy symlink start.
 spec RecombPublishLegacySymlink.tla
 check INVARIANTS TypeOK
 check PROPERTIES Witnessed
-run expected-failure gap NoGap | Writers={w1,w2} Readers={w1} W1=w1 W2=w2 Witness="gap" Names={1,2} Stray=s Other=o InitKinds={"symlink"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=0
-run expected-failure crash NoUndocumentedError | Writers={w1,w2} Readers={} W1=w1 W2=w2 Witness="crash" Names={1,2} Stray=s Other=o InitKinds={"symlink"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=0
-run expected-failure spurious ValidationJustified | Writers={w1,w2} Readers={} W1=w1 W2=w2 Witness="spurious" Names={1,2} Stray=s Other=o InitKinds={"symlink"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=0
+run expected-failure gap NoGap | Writers={w1,w2} Readers={w1} W1=w1 W2=w2 Names={1,2} Stray=s Other=o InitKinds={"symlink"} Modes={"ensure","force","checked","forcechecked"} FailAt={} ShortAt={} Sticky=FALSE ExtSteps=0

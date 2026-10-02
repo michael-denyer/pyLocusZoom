@@ -1,21 +1,15 @@
 ----------------------- MODULE RecombPublishLegacySymlink -----------------------
 (***************************************************************************)
-(* The expected failures of RecombPublish, kept as passing witnesses.       *)
+(* The expected failure of RecombPublish, kept as a passing witness.        *)
 (*                                                                         *)
 (* When the cache path starts as the symlink older releases published      *)
-(* behind, a force writer unlinks it (recombination.py l.190) and renames  *)
-(* its staging directory into place (l.196) in two steps. Between them the *)
-(* path is absent, and three strict claims of RecombPublish break:         *)
-(*   "gap"       NoGap: a reader that saw a complete cache (l.546) finds   *)
-(*               no map at load_recombination_map's exists() (l.370).      *)
-(*   "crash"     NoUndocumentedError: _holds_only_maps saw a directory     *)
-(*               (l.159) and iterdir (l.160) raises FileNotFoundError.     *)
-(*   "spurious"  ValidationJustified: _holds_only_maps saw the path exist  *)
-(*               (l.157), is_dir (l.159) is now False, and the caller      *)
-(*               raises ValidationError (l.336) for a path that held only  *)
-(*               maps.                                                     *)
+(* behind, a force writer unlinks it (recombination.py l.202) and renames  *)
+(* its staging directory into place (l.208) in two steps. Between them the *)
+(* path is absent, and one strict claim of RecombPublish breaks:           *)
+(*   "gap"       NoGap: a reader that saw a complete cache (l.558) finds   *)
+(*               no map at load_recombination_map's exists() (l.382).      *)
 (*                                                                         *)
-(* An invariant cannot state that a bad state is reachable, so each        *)
+(* An invariant cannot state that a bad state is reachable, so the         *)
 (* failure is pinned as a schedule instead: step i is a RecombPublish      *)
 (* process step of writer Schedule[i], from one fixed initial state. Every *)
 (* behaviour of this spec is therefore a behaviour of RecombPublish, and   *)
@@ -27,8 +21,7 @@ EXTENDS Naturals, Sequences
 
 CONSTANTS Writers, Readers, Names, Stray, Other, InitKinds, Modes, FailAt,
           ShortAt, Sticky, ExtSteps,
-          W1, W2,    \* the two writers of the schedule
-          Witness    \* "gap", "crash" or "spurious"
+          W1, W2     \* the two writers of the schedule
 
 VARIABLES out, mode, pc, outcome, tmp, stgAt, stg, todo, seen, rname, swapped,
           foreign0, ext,
@@ -39,34 +32,18 @@ M == INSTANCE RecombPublish
 wvars == <<out, mode, pc, outcome, tmp, stgAt, stg, todo, seen, rname, swapped,
            foreign0, ext, i>>
 
-\* W1 is the force writer that replaces the symlink.
-W1Mode == IF Witness = "gap" THEN "ensure" ELSE "force"
-W2Mode == IF Witness = "gap" THEN "force" ELSE "forcechecked"
+\* W2 is the force writer that replaces the symlink; W1 is the reader.
+\* W2: l.345 force. W1: l.558 exists, glob, cache hit.
+\* W2: l.297 mkdtemp, l.300 download, l.305 stage, l.192, l.199,
+\* l.202 unlink. W1: l.382 exists() finds nothing.
+Schedule == <<W2, W1, W1, W1, W2, W2, W2, W2, W2, W2, W1>>
 
-Schedule ==
-    CASE Witness = "gap" ->
-           \* W2: l.333 force. W1: l.546 exists, glob, cache hit.
-           \* W2: l.285 mkdtemp, l.288 download, l.293 stage, l.180, l.187,
-           \* l.190 unlink. W1: l.370 exists() finds nothing.
-           <<W2, W1, W1, W1, W2, W2, W2, W2, W2, W2, W1>>
-      [] Witness = "crash" ->
-           \* W1: l.333, l.285, l.288, l.293. W2: l.333, l.157 exists,
-           \* l.159 is_dir. W1: l.180, l.187, l.190 unlink. W2: l.160 iterdir.
-           <<W1, W1, W1, W1, W2, W2, W2, W1, W1, W1, W2>>
-      [] Witness = "spurious" ->
-           \* W1: l.333, l.285, l.288, l.293. W2: l.333, l.157 exists.
-           \* W1: l.180, l.187, l.190 unlink. W2: l.159 is_dir is False.
-           <<W1, W1, W1, W1, W2, W2, W1, W1, W1, W2>>
-
-Reached ==
-    CASE Witness = "gap" -> pc[W1] = "notfound"
-      [] Witness = "crash" -> pc[W2] = "crashed"
-      [] Witness = "spurious" -> pc[W2] = "invalid" /\ ~foreign0
+Reached == pc[W1] = "notfound"
 
 Init ==
     /\ M!Init
     /\ out = [kind |-> "symlink", files |-> Names]
-    /\ mode = [w \in Writers |-> IF w = W1 THEN W1Mode ELSE W2Mode]
+    /\ mode = [w \in Writers |-> IF w = W1 THEN "ensure" ELSE "force"]
     /\ rname = [w \in Writers |-> M!Min(Names)]
     /\ i = 1
 
