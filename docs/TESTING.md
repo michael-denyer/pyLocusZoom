@@ -161,7 +161,7 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
 ## Model Checking
 
-`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the source lines each action follows. It is not run in CI. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run the matrix with `tlc-matrix.sh` from the `agent-formal-verify` plugin, which needs [`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later:
+`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the source lines each action follows. The `models` job in CI runs it. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run the matrix with `tlc-matrix.sh` from the `agent-formal-verify` plugin, which needs [`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later:
 
 ```bash
 JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/RecombPublish.matrix
@@ -247,6 +247,6 @@ Steps:
 4. `uv sync --extra dev --extra all` to install dev and PySpark dependencies.
 5. `uv run pytest` to run the suite. Every flag comes from `addopts`, including the marker expression that deselects the integration tests, which hit the live Ensembl API.
 
-Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), example regeneration and notebook execution (the `examples` job), and package building (`uv build`). A test failure, lint failure, or doc-lint failure will block the PR.
+Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), example regeneration and notebook execution (the `examples` job), package building (`uv build`), and the formal models (the `models` job, which runs every `specs/tla/*.matrix` through TLC and every `specs/lean/` project through the Lean checker, using the helper scripts of the `agent-formal-verify` plugin at a pinned commit). A test failure, lint failure, or doc-lint failure will block the PR.
 
 Because `pytest-xdist` and `pytest-randomly` are active, every CI run reports the worker count and the random seed in the header — use `pytest --randomly-seed=<seed>` locally to reproduce a failure.

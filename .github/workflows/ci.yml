@@ -133,3 +133,45 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ELAN_VERSION: v4.2.4
+      ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # The matrix runner and the Lean checker live in the plugin, not in this repo.
+      - name: Check out the formal-verify helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: michael-denyer/agent-formal-verify
+          ref: 3893a0cf40192b8e08bb15625b796ca33e86e08d  # 0.1.11
+          path: .formal-verify
+
+      - name: Install TLC
+        run: bash .formal-verify/skills/formal-verify/scripts/setup.sh tla
+
+      - name: Check the TLA+ models
+        run: |
+          for matrix in specs/tla/*.matrix; do
+            bash .formal-verify/skills/formal-verify/scripts/tlc-matrix.sh "$PWD/$matrix"
+          done
+
+      - name: Install elan
+        run: |
+          curl --fail --location --output "$RUNNER_TEMP/elan.tar.gz" \
+            "https://github.com/leanprover/elan/releases/download/$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$ELAN_SHA256  $RUNNER_TEMP/elan.tar.gz" | sha256sum --check
+          tar --extract --gzip --file "$RUNNER_TEMP/elan.tar.gz" --directory "$RUNNER_TEMP"
+          "$RUNNER_TEMP/elan-init" -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Check the Lean models
+        run: |
+          for project in specs/lean/*/; do
+            bash .formal-verify/skills/formal-verify/scripts/setup.sh lean "$PWD/$project"
+            bash .formal-verify/skills/formal-verify/scripts/lean-check.sh "$PWD/$project"
+          done
