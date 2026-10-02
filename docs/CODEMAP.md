@@ -277,7 +277,7 @@ LEAD_SNP_COLOR = "#7D26CD"
 
 ## [4] Backends
 
-Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`). As of 2.0 the protocol carries drawing primitives only; legend and recombination-overlay composition sits above it in `composition.py`, and the one optional capability, `SupportsSNPLabels`, is negotiated with a `@runtime_checkable` protocol.
+Rendering protocol plus three concrete implementations. Backends are discovered via a registry (`backends/__init__.py`). The protocol carries drawing primitives only; legend and recombination-overlay composition sits above it in `composition.py`, and the one optional capability, `SupportsSNPLabels`, is negotiated with a `@runtime_checkable` protocol.
 
 | ID | Component | Description | File |
 |----|-----------|-------------|-----------|
@@ -303,7 +303,7 @@ Rendering protocol plus three concrete implementations. Backends are discovered 
 
 It needs adjustText, which has no plotly or bokeh equivalent. Every other
 capability is a required `PlotBackend` method, because all three backends
-implemented all four of the protocols that used to hold them. The recombination
+implement it. The recombination
 overlay is not a protocol: it composes above the seam in `composition.py` on top
 of `create_twin_axis`. Static export and hover are
 backend properties rather than capabilities (matplotlib writes PNG/PDF/SVG and

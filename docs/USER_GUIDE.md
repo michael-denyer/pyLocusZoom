@@ -769,7 +769,7 @@ fig.savefig("manhattan_qq_stacked.png", dpi=150)
 
 Every Manhattan, QQ, stacked, side-by-side and Miami method takes
 `style=GenomeWideStyle(...)` for the chromosome palette, points, font sizes
-and chromosome axis. Fields you leave unset keep the method's current look;
+and chromosome axis. Fields you leave unset keep the method's own look;
 see [GenomeWideStyle](#genomewidestyle) for each field.
 
 ```python
@@ -922,9 +922,9 @@ and the recombination overlay are composed above it in
 `backends/composition.py`. `SupportsSNPLabels` (matplotlib-style repositioned
 labels) is the one optional capability, negotiated with a `@runtime_checkable`
 protocol: a backend opts in by implementing `add_snp_labels` and out by
-omitting it, and still renders every plot family without it. 5.0 changed the
-protocol; [MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends) lists each
-signature change, and [ARCHITECTURE.md](ARCHITECTURE.md) describes the seam.
+omitting it, and still renders every plot family without it.
+[MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends) lists what a backend
+written for 4.x must change, and [ARCHITECTURE.md](ARCHITECTURE.md) describes the seam.
 
 ---
 
@@ -1052,7 +1052,7 @@ their stacked and side-by-side variants, and `plot_miami`).
 #### GenomeWideStyle
 
 Styling for the genome-wide families, passed as `style=`. `None` keeps the
-value each method draws with today, which differs by method: chromosome ticks
+value each method draws with by default, which differs by method: chromosome ticks
 are 8 pt on a genomic axis and 10 pt on a category axis, categorical points
 are larger, and stacked figures use smaller panel titles and axis labels.
 
@@ -1248,7 +1248,7 @@ only relative `tss_distance` is rejected because it does not locate a variant.
 
 `calculate_colocalization_overlap(gwas_df, eqtl_df)` matches canonical chromosome
 and absolute position, without allele harmonization. Custom names use
-`gwas_chrom_col`, `eqtl_chrom_col` and the existing position/p-value arguments.
+`gwas_chrom_col`, `eqtl_chrom_col` and the position/p-value arguments.
 If both inputs are already scoped to one chromosome and omit `chr`, pass
 `common_chrom=1` explicitly. Any supplied chromosome values must agree with it.
 The result has `chr`, `pos`, `p_value_gwas` and `p_value_eqtl` columns. This helper
@@ -1289,7 +1289,7 @@ fig = plotter.plot_stacked(
 The fine-mapping panel selects rows by chromosome, and `load_susie` emits no
 `chr` column: add one, or pass `FinemappingInput(..., chrom_col=None)` for a
 frame that holds only the plotted chromosome.
-FINEMAP and CAVIAR loaders no longer infer credible sets from cumulative PIPs.
+FINEMAP and CAVIAR loaders do not infer credible sets from cumulative PIPs.
 Supply membership from the inference method that produced your results, or plot
 PIPs without set assignments. CAVIAR requires a SNP annotation merge to add
 absolute positions before plotting. `cs_col` chooses the output name for supplied
@@ -1337,7 +1337,7 @@ fig = plotter.plot(
 
 These are the canonical column names: every `load_*` function emits them and
 every plotter defaults to them, so a loaded frame plots without renaming.
-Other names, including the pre-4.0 `ps` and `p_wald`, are named through
+Other names, including GEMMA's own `ps` and `p_wald`, are named through
 `ColumnConfig` and `GenomeWideConfig`.
 
 Regional plots select chromosome and inclusive position bounds before choosing a
@@ -1355,7 +1355,7 @@ matrix axes together, and require distinct retained genomic positions.
 
 Every frame of a genome-wide stack is read through the same `GenomeWideConfig`
 column names, and QQ compositions and Miami hover read those same columns. A
-frame in other names, such as the pre-4.0 `ps` and `p_wald`, raises until you
+frame in other names, such as GEMMA's own `ps` and `p_wald`, raises until you
 name them. Manhattan, stacked, Manhattan + QQ and Miami plots require a numeric
 position of 1 or more on every row they draw: a null, non-numeric, zero or
 negative position raises `ValidationError`, so shift 0-based coordinates by one
@@ -1799,13 +1799,6 @@ plotter.plot_manhattan(df, significance_threshold=None)   # no line
 miami = MiamiPlotter(genomewide_threshold=1e-5)
 miami.plot_miami(top_df, bottom_df, top_threshold=5e-8, bottom_threshold=None)
 ```
-
-> **Changed:** before this release, `ManhattanPlotter`, `MiamiPlotter`, and
-> `StatsPlotter` accepted `genomewide_threshold` and then ignored it, always
-> drawing at 5e-8. If you passed it and worked around the old behaviour by also
-> passing the per-call argument, that still works and still wins.
-> `ColocPlotter` had no constructor threshold at all and its two per-call
-> arguments were plain floats, so there was no way to ask it for no line.
 
 ### Large Datasets with PySpark
 
