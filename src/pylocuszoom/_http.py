@@ -190,16 +190,51 @@ def download_file(
         DataDownloadError: If the download ultimately fails.
     """
     with staged_path(dest_path) as partial_path:
-        try:
-            _with_retries(
-                lambda: _stream_to(url, partial_path, desc, timeout),
-                what=f"Download of {url}",
-                max_retries=max_retries,
-                retry_delay=retry_delay,
-            )
-        except requests.RequestException as e:
-            after = f" after {e.attempts} attempts" if _retryable(e) else ""
-            raise DataDownloadError(f"Failed to download {url}{after}: {e}") from e
+        stream_file(
+            url,
+            partial_path,
+            desc,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+        )
+
+
+def stream_file(
+    url: str,
+    partial_path: Path,
+    desc: str = "Downloading",
+    *,
+    timeout: float = 60,
+    max_retries: int = 3,
+    retry_delay: float = 1.0,
+) -> None:
+    """Stream a file into a path the caller has staged, retrying like request_json.
+
+    The download half of ``download_file``, for a caller that holds its own
+    ``staged_path`` and checks the content before it is published.
+
+    Args:
+        url: URL to download from.
+        partial_path: Private file to write; a retry rewrites it from the start.
+        desc: Description for the progress bar.
+        timeout: Per-request timeout in seconds.
+        max_retries: Attempts before giving up on a retryable error.
+        retry_delay: Initial backoff in seconds; doubles on each retry.
+
+    Raises:
+        DataDownloadError: If the download ultimately fails.
+    """
+    try:
+        _with_retries(
+            lambda: _stream_to(url, partial_path, desc, timeout),
+            what=f"Download of {url}",
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+        )
+    except requests.RequestException as e:
+        after = f" after {e.attempts} attempts" if _retryable(e) else ""
+        raise DataDownloadError(f"Failed to download {url}{after}: {e}") from e
 
 
 def _stream_to(url: str, partial_path: Path, desc: str, timeout: float) -> None:

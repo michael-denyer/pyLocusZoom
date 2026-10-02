@@ -275,7 +275,7 @@ class TestLiftoverChainFailures:
 
     def test_a_chain_download_failure_is_a_download_error(self, chain_dir, monkeypatch):
         monkeypatch.setattr(
-            "pylocuszoom._liftover.download_file",
+            "pylocuszoom._liftover.stream_file",
             Mock(side_effect=DataDownloadError("simulated chain 404")),
         )
 
@@ -294,7 +294,7 @@ class TestLiftoverChainFailures:
             Path(dest).write_bytes(gzip.compress(self.CHAIN.encode()))
 
         fetch = Mock(side_effect=download)
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", fetch)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", fetch)
 
         frame = get_recombination_rate_for_region(
             1, 1, 5000, species="canine", genome_build="canfam4"
@@ -309,7 +309,7 @@ class TestLiftoverChainFailures:
         def download(url, dest, desc=None):
             Path(dest).write_bytes(b"<html>502</html>")
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
 
         with pytest.raises(DataDownloadError, match="unreadable"):
             get_recombination_rate_for_region(

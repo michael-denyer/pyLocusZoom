@@ -186,7 +186,7 @@ class TestChainLifter:
             content = SPLIT_CHAIN.encode()
             dest.write_bytes(gzip.compress(content) if url.endswith(".gz") else content)
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
         return urls
 
     def test_downloads_a_missing_chain_into_the_cache(self, cache_home, downloads):
@@ -229,11 +229,33 @@ class TestChainLifter:
         def download(url, dest, desc=None):
             dest.write_bytes(b"<html>502</html>")
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
 
-        with pytest.raises(DataDownloadError, match="unreadable"):
+        with pytest.raises(DataDownloadError, match="unreadable") as raised:
             chain_lifter(self.CANFAM3, self.CANFAM4)
         assert not (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").exists()
+        # The staged file is gone by now, so the message names the URL once.
+        message = str(raised.value)
+        assert self.CANFAM3.chain_url(self.CANFAM4) in message
+        assert ".part" not in message
+        assert message.count("is unreadable") == 1
+
+    def test_a_chain_download_is_staged_once(self, cache_home, monkeypatch):
+        """The download is written straight into the sibling that gets parsed."""
+        written = []
+
+        def stream(url, partial, desc=None):
+            written.append(sorted(p.name for p in partial.parent.iterdir()))
+            partial.write_bytes(gzip.compress(SPLIT_CHAIN.encode()))
+
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", stream)
+
+        chain_lifter(self.CANFAM3, self.CANFAM4)
+
+        assert len(written) == 1 and len(written[0]) == 1
+        assert [p.name for p in (cache_home / "liftover").iterdir()] == [
+            "canFam3ToCanFam4.over.chain.gz"
+        ]
 
     CORRUPT = b"<html>captive portal</html>"
 
@@ -254,7 +276,7 @@ class TestChainLifter:
                     raise body
                 dest.write_bytes(body)
 
-            monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+            monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
 
         return serve
 

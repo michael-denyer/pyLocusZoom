@@ -20,7 +20,7 @@ from typing import List, Optional, Protocol, Tuple, Union, runtime_checkable
 
 import pandas as pd
 
-from ._http import download_file, staged_path
+from ._http import staged_path, stream_file
 from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
 from .genome_build import GenomeBuild, resolve_build, ucsc_chrom
 from .logging import logger
@@ -89,12 +89,16 @@ def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
     return _parse_chain(path, gzipped=path.suffix == ".gz")
 
 
-def _parse_chain(path: Path, *, gzipped: bool) -> CoordinateLifter:
+def _parse_chain(
+    path: Path, *, gzipped: bool, source: Optional[str] = None
+) -> CoordinateLifter:
     """Parse one chain file, gzipped or plain whatever its name says.
 
     A download is parsed under a ``.part`` name before it is published, so the
-    file's own suffix cannot choose the opener.
+    file's own suffix cannot choose the opener, and errors name ``source``
+    (the URL) in place of a file that is about to be removed.
     """
+    name = source or path
     try:
         from pyliftover import LiftOver
     except ImportError as e:
@@ -110,9 +114,9 @@ def _parse_chain(path: Path, *, gzipped: bool) -> CoordinateLifter:
         with opener(path, "rb") as stream:
             lifter = LiftOver(stream)
     except Exception as e:
-        raise ValidationError(f"Liftover chain {path} is unreadable: {e}") from e
+        raise ValidationError(f"Liftover chain {name} is unreadable: {e}") from e
     if not lifter.chain_file.chains:
-        raise ValidationError(f"Liftover chain {path} contains no mappings")
+        raise ValidationError(f"Liftover chain {name} contains no mappings")
     return lifter
 
 
@@ -164,12 +168,12 @@ def _download_chain(url: str, path: Path) -> CoordinateLifter:
         path.parent.mkdir(parents=True, exist_ok=True)
         logger.info(f"Downloading liftover chain {url}")
         with staged_path(path) as partial:
-            download_file(url, partial, desc="Liftover chain")
-            lifter = _parse_chain(partial, gzipped=path.suffix == ".gz")
+            stream_file(url, partial, desc="Liftover chain")
+            lifter = _parse_chain(partial, gzipped=path.suffix == ".gz", source=url)
     except OSError as e:
         raise DataDownloadError(f"Could not write liftover chain {path}: {e}") from e
     except ValidationError as e:
-        raise DataDownloadError(f"Liftover chain from {url} is unreadable: {e}") from e
+        raise DataDownloadError(str(e)) from e
     return lifter
 
 
