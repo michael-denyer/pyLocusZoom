@@ -278,7 +278,10 @@ stages:
    own default. The method hands its frames to
    `manhattan.prepare_genomewide_frames`, which checks `gwas_plot_spec`
    against those names before any frame is laid out, so the genome-wide
-   families guard the boundary the way `plot()` does. `ManhattanPlotter`
+   families guard the boundary the way `plot()` does. The rows that survive
+   p-value filtering are then checked against `genomewide_position_spec`
+   (numeric, not null, 1 or more), which the cumulative x axis needs and the
+   regional path does not. `ManhattanPlotter`
    builds `ManhattanPanelSpec` values directly from the `PreparedManhattan`
    each preparation returns (which names its own x and group columns), or
    through `stacked_manhattan_specs` for a stack, builds `QQPanelSpec` values,

@@ -1318,7 +1318,11 @@ matrix axes together, and require distinct retained genomic positions.
 Every frame of a genome-wide stack is read through the same `GenomeWideConfig`
 column names, and QQ compositions and Miami hover read those same columns. A
 frame in other names, such as the pre-4.0 `ps` and `p_wald`, raises until you
-name them. Unselected metadata never replaces a configured role. Requested colocalization LD columns
+name them. Manhattan, stacked, Manhattan + QQ and Miami plots require a numeric
+position of 1 or more on every row they draw: a null, non-numeric, zero or
+negative position raises `ValidationError`, so shift 0-based coordinates by one
+first. Rows already dropped for an invalid p-value are not checked.
+Unselected metadata never replaces a configured role. Requested colocalization LD columns
 must exist in their declared source frame. Effect columns are required in their
 declared sources only when `color_by_effect=True`.
 

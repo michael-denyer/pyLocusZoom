@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylocuszoom import GenomeWideConfig
+from pylocuszoom import GenomeWideConfig, GenomeWideStyle
 from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from tests.figure_probes import PROBES
@@ -289,6 +289,52 @@ class TestGenomeWideBoundary:
         bad = manhattan_chrom_df.drop(columns=["pos"])
         with pytest.raises(ValidationError, match="pos"):
             plotter.plot_manhattan_stacked([manhattan_chrom_df, bad])
+
+    @pytest.mark.parametrize(
+        ("positions", "fault"),
+        [
+            ([100, 0], "Column 'pos': 1 values < 1"),
+            ([100, -5], "Column 'pos': 1 values < 1"),
+            ([100.9, 0.5], "Column 'pos': 1 values < 1"),
+            ([100, np.nan], "Column 'pos' has 1 null values"),
+            (["100", "200"], "Column 'pos' must be numeric"),
+        ],
+    )
+    def test_position_below_one_null_or_non_numeric_is_a_validation_error(
+        self, plotter, positions, fault
+    ):
+        df = pd.DataFrame({"chr": ["1", "2"], "pos": positions, "p_value": [1e-5, 0.1]})
+        with pytest.raises(ValidationError, match=fault):
+            plotter.plot_manhattan(df, style=GenomeWideStyle(chrom_gap=0))
+
+    def test_position_fault_names_the_configured_column(self, plotter):
+        df = pd.DataFrame({"CHR": ["1", "2"], "BP": [100, 0], "P": [0.5, 0.1]})
+        config = GenomeWideConfig(chrom_col="CHR", pos_col="BP", p_col="P")
+        with pytest.raises(ValidationError, match="Column 'BP': 1 values < 1"):
+            plotter.plot_manhattan(df, config=config)
+
+    def test_every_stacked_frame_has_its_positions_checked(
+        self, plotter, manhattan_chrom_df
+    ):
+        bad = manhattan_chrom_df.assign(pos=[100, 200, 0, 200])
+        with pytest.raises(ValidationError, match="Column 'pos': 1 values < 1"):
+            plotter.plot_manhattan_stacked([manhattan_chrom_df, bad])
+
+    @pytest.mark.parametrize("position", [0, np.nan])
+    def test_position_on_a_row_dropped_for_its_p_value_is_not_checked(
+        self, plotter, position
+    ):
+        df = pd.DataFrame(
+            {
+                "chr": ["1", "2", "2"],
+                "pos": [100, 50, position],
+                "p_value": [1e-5, 1e-6, np.nan],
+            }
+        )
+        fig = plotter.plot_manhattan(df, style=GenomeWideStyle(chrom_gap=0))
+
+        x = sorted(x for coll in fig.axes[0].collections for x, _ in coll.get_offsets())
+        assert x == [100, 150]
 
     def test_options_are_keyword_only(self, plotter, manhattan_chrom_df):
         with pytest.raises(TypeError):

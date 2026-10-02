@@ -201,7 +201,7 @@ One validation engine, driven declaratively. `validation.py` holds the rule voca
 | 2a | resolve_column | Resolves a column the caller named, raising if the frame lacks it; only the canonical `rs`, `cs` and `category` defaults may be absent | [validation.py](../src/pylocuszoom/validation.py) |
 | 2b | Canonical | The column names every loader emits and every plotter defaults to | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | gwas_load_spec, GENES_LOAD, EQTL_LOAD, FINEMAPPING_LOAD | The strict contracts the loaders apply | [schemas.py](../src/pylocuszoom/schemas.py) |
-| 2b | gwas_plot_spec, GENES_PLOT, EXONS_PLOT, eqtl_plot_spec, finemapping_plot_spec | The plot-time contracts for the regional and genome-wide frames | [schemas.py](../src/pylocuszoom/schemas.py) |
+| 2b | gwas_plot_spec, genomewide_position_spec, GENES_PLOT, EXONS_PLOT, eqtl_plot_spec, finemapping_plot_spec | The plot-time contracts for the regional and genome-wide frames | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | phewas_plot_spec, forest_plot_spec, coloc_plot_spec | The plot-time contracts for the statistical families | [schemas.py](../src/pylocuszoom/schemas.py) |
 | 2b | P_VALUE_POLICY | Per family: whether zero is a valid p-value, and whether an invalid one drops its row or raises | [_data.py](../src/pylocuszoom/_data.py) |
 | 2c | ColumnConfig, DisplayConfig, LDConfig, LiftoverConfig, PanelInputs, EqtlInput, FinemappingInput, LDHeatmapInput, ColocConfig | The values `plot()`, `plot_stacked()` and `plot_coloc()` take; each option is declared once, on the model that owns it | [config.py](../src/pylocuszoom/config.py) |
