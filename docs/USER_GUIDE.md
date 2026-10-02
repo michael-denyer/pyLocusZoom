@@ -509,7 +509,8 @@ fig.savefig("miami.png", dpi=150)
 **Features:**
 
 - Mirrored panels with shared x-axis and consistent chromosome colors
-- Per-panel significance thresholds (`top_threshold`, `bottom_threshold`)
+- Per-panel significance thresholds (`top_threshold`, `bottom_threshold`), each
+  with its own [threshold key](#threshold-key)
 - Panel labels to identify datasets
 - SNP annotations independent per panel (`top_snp_annotations`, `bottom_snp_annotations`)
 - Region highlighting across both panels (`highlight_regions`). Each entry is
@@ -623,6 +624,7 @@ fig.savefig("manhattan.png", dpi=150)
 
 - Chromosomes colored alternately for distinction
 - Genome-wide significance threshold line (red dashed)
+- A key to the threshold lines, such as `P = 5e-08` (see [Threshold key](#threshold-key))
 - Automatic cumulative position calculation
 - Chromosome labels on x-axis
 
@@ -788,6 +790,36 @@ fig = ManhattanPlotter(species="canine").plot_manhattan_qq(
     gwas_df, title="Coat colour", suggestive_threshold=1e-5, style=style
 )
 ```
+
+### Threshold key
+
+Every Manhattan panel that draws a threshold line carries a key to it: a short
+line in the line's colour, style and width, then the p-value as `P = 5e-08`.
+This covers `plot_manhattan` (genomic and categorical), each panel of
+`plot_manhattan_stacked`, the Manhattan panels of `plot_manhattan_qq` and
+`plot_manhattan_qq_stacked`, and both halves of `plot_miami`. A panel with a
+suggestive line has two entries side by side, the larger p-value first. A
+panel that draws no line (`significance_threshold=None`) has no key, and a QQ
+panel never has one.
+
+The key is a frameless row in the right corner of the panel's headroom, the
+space `y_headroom` leaves beyond the highest point: the top right of an
+upright panel and the bottom right of the lower Miami panel. All three backends
+draw it there. The key is on by default; turn it off with the style:
+
+```python
+from pylocuszoom import GenomeWideStyle, ManhattanPlotter
+
+fig = ManhattanPlotter().plot_manhattan(
+    gwas_df, style=GenomeWideStyle(show_threshold_legend=False)
+)
+```
+
+The label uses the fewest digits that give the threshold back: `5e-8` reads
+`P = 5e-08` and `2.5e-6` reads `P = 2.5e-06`. A threshold that needs more than
+three significant figures, such as `0.05 / 3`, is shown to three
+(`P = 1.67e-02`). If a short panel's highest peak sits at its right edge and
+reaches the key, raise `y_headroom`.
 
 ---
 
@@ -1042,6 +1074,7 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `point_edge_width` | float | None | Outline width of Manhattan and QQ points; `0` draws no outline. `None` keeps 0.1 on Manhattan points and 0.02 on QQ points. |
 | `y_headroom` | float | 0.1 | Space left above the highest Manhattan point or threshold line, as a fraction of its height. A Manhattan panel and the QQ panel beside it, and the two Miami halves, share one limit padded from the higher of the two. |
 | `manhattan_qq_width_ratio` | float | 2.5 | Width of the Manhattan panel relative to the QQ panel in a Manhattan-QQ figure. |
+| `show_threshold_legend` | bool | True | Whether each Manhattan panel carries a [key to its threshold lines](#threshold-key), one `P = 5e-08` entry per line drawn. |
 
 All three backends apply every field. Corner panel labels and Miami SNP
 annotations keep their own sizes.

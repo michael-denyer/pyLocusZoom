@@ -79,6 +79,7 @@ Tests live under `tests/`. Files follow the `test_*.py` naming convention and ma
 | `ManhattanPlotter`: output of each `plot_*` method | `tests/test_manhattan_plotter_methods.py` |
 | Manhattan and QQ pure data preparation | `tests/test_manhattan.py`, `tests/test_qq.py` |
 | `GenomeWideStyle` across the genome-wide plotters | `tests/test_genomewide_style.py` |
+| The threshold key on Manhattan and Miami panels, on every backend | `tests/test_threshold_legend.py` |
 | `MiamiPlotter` | `tests/test_miami_plotter.py` |
 | `ColocPlotter` | `tests/test_coloc_plotter.py`; the `coloc_plot_spec` contract in `tests/test_coloc.py` |
 | `LDHeatmapPlotter` | `tests/test_ld_heatmap_plotter.py` |

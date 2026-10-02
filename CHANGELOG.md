@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Manhattan panels carry a key to their threshold lines: a line swatch in the line's colour, style and width followed by `P = 5e-08`, one entry per line drawn, the suggestive line first. It is on by default, so every existing Manhattan, categorical Manhattan, stacked, Manhattan-QQ and Miami figure gains it on all three backends; `GenomeWideStyle(show_threshold_legend=False)` turns it off. A panel with no line has no key, and QQ panels have none. The key is a frameless row in the right corner of the panel's headroom: top right, or bottom right on the lower Miami panel.
+- `PlotBackend.add_legend` takes `location` (`"upper right"` or `"lower right"`) and `horizontal`, and `LegendEntry` takes `marker="line"` with `linestyle` and `linewidth`. Both new parameters have defaults, so existing calls are unchanged; a custom backend must accept them to draw a Manhattan panel with the key on.
+
 ### Changed
 
 - **Genome-wide plots reject a position that is null, non-numeric or below 1.** `plot_manhattan`, `plot_manhattan_stacked`, `plot_manhattan_qq`, `plot_manhattan_qq_stacked` and `plot_miami` raise `ValidationError` naming the position column, the way the loaders already reject `pos <= 0`. This is a behaviour change: a 0-based frame, which drew before, now raises, so add 1 to its positions; a row with a null position and a valid p-value, which was silently left off the plot, also raises. Rows dropped for an invalid p-value are not checked, and regional `plot()` and `plot_stacked()` are unchanged.

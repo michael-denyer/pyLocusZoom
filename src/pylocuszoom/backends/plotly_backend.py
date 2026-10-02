@@ -620,6 +620,8 @@ class PlotlyBackend:
         ax: _Panel,
         entries: List[LegendEntry],
         title: Optional[str] = None,
+        location: Literal["upper right", "lower right"] = "upper right",
+        horizontal: bool = False,
     ) -> None:
         """Render legend entries as an independently-positioned Plotly legend.
 
@@ -633,6 +635,25 @@ class PlotlyBackend:
         count = len(existing) + 1
         legend_key = "legend" if count == 1 else f"legend{count}"
         for entry in entries:
+            if entry.marker == "line":
+                fig.add_trace(
+                    go.Scatter(
+                        x=[None],
+                        y=[None],
+                        mode="lines",
+                        line=dict(
+                            color=entry.color,
+                            dash=_DASH_MAP.get(entry.linestyle, "dash"),
+                            width=entry.linewidth,
+                        ),
+                        name=entry.label,
+                        showlegend=True,
+                        legend=legend_key,
+                    ),
+                    row=ax.row,
+                    col=ax.col,
+                )
+                continue
             symbol = (
                 "square"
                 if entry.marker == "patch"
@@ -647,7 +668,13 @@ class PlotlyBackend:
                 legend_key,
                 entry.edgecolor or "black",
             )
-        configure_legend(ax, legend_key, convert_latex_to_unicode(title or ""))
+        configure_legend(
+            ax,
+            legend_key,
+            convert_latex_to_unicode(title or ""),
+            location=location,
+            horizontal=horizontal,
+        )
 
     def hide_yaxis(self, ax: _Panel) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""

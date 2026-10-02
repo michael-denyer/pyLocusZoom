@@ -571,11 +571,18 @@ class BokehBackend:
         )
         return LegendItem(label=label, renderers=[renderer])
 
-    def _create_legend(self, ax: figure, items: List[Any], title: str) -> None:
-        """Create and add a styled legend to the figure's upper-right corner."""
+    def _create_legend(
+        self,
+        ax: figure,
+        items: List[Any],
+        title: str,
+        location: str = "upper right",
+        horizontal: bool = False,
+    ) -> None:
+        """Create and add a styled legend to one of the figure's right corners."""
         legend = Legend(
             items=items,
-            location="top_right",
+            location="bottom_right" if location == "lower right" else "top_right",
             title=convert_latex_to_unicode(title),
             background_fill_alpha=0.9,
             border_line_color="black",
@@ -584,6 +591,14 @@ class BokehBackend:
             label_height=12,
             glyph_height=12,
         )
+        if horizontal:
+            legend.update(
+                orientation="horizontal",
+                background_fill_alpha=0,
+                border_line_color=None,
+                spacing=10,
+                margin=2,
+            )
         ax.add_layout(legend)
 
     def add_legend(
@@ -591,11 +606,26 @@ class BokehBackend:
         ax: figure,
         entries: List[LegendEntry],
         title: Optional[str] = None,
+        location: Literal["upper right", "lower right"] = "upper right",
+        horizontal: bool = False,
     ) -> None:
         """Render legend entries as a Bokeh legend using invisible glyphs."""
         source = self._ensure_legend_range(ax)
         items = []
         for entry in entries:
+            if entry.marker == "line":
+                renderer = ax.line(
+                    x="x",
+                    y="y",
+                    source=source,
+                    line_color=entry.color,
+                    line_dash=_DASH_MAP.get(entry.linestyle, "dashed"),
+                    line_width=entry.linewidth,
+                    y_range_name="legend_range",
+                    visible=False,
+                )
+                items.append(LegendItem(label=entry.label, renderers=[renderer]))
+                continue
             marker = (
                 "square"
                 if entry.marker == "patch"
@@ -611,7 +641,7 @@ class BokehBackend:
                     edgecolor=entry.edgecolor or "black",
                 )
             )
-        self._create_legend(ax, items, title or "")
+        self._create_legend(ax, items, title or "", location, horizontal)
 
     def hide_yaxis(self, ax: figure) -> None:
         """Hide y-axis ticks, labels, line, and grid for gene track panels."""

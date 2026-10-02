@@ -446,14 +446,25 @@ seam by pure functions in `backends/composition.py` and handed down as
 `LegendEntry` values:
 
 ```python
-def add_legend(self, ax, entries: list[LegendEntry], title=None):
-    """entries carry label, color, marker ("patch" or a marker code), edgecolor."""
+def add_legend(
+    self, ax, entries: list[LegendEntry], title=None,
+    location="upper right", horizontal=False,
+):
+    """entries carry label, color, marker ("patch", "line" or a marker code),
+    edgecolor, and a line swatch's linestyle and linewidth."""
 ```
 
 Backends draw the legend in the panel's upper-right corner and honour each
 entry's `edgecolor`, falling back to black when it is `None`. (2.0 also took a
 `loc`, which every caller set to `"upper right"`; 5.0 removed it.) No drawing
 primitive takes a label, so `add_legend` is the only route to legend content.
+
+The Manhattan threshold key is the one legend that is not a framed column in
+the upper right. `ManhattanPanelSpec.draw` builds its entries with
+`composition.threshold_legend_entries` from `threshold_lines()`, the same list
+it draws the lines from, and passes `horizontal=True` for a frameless row. It
+passes `location="lower right"` on the inverted Miami panel, whose headroom is
+at the bottom. `location` takes those two corners only.
 
 **2. `add_recombination_overlay` is gone.** The overlay is composed from
 primitives by `composition.render_recombination_overlay()`. In 2.0 a backend

@@ -242,7 +242,8 @@ class TestPalette:
             four_chrom_df, style=GenomeWideStyle(palette=["#111111", "#222222"])
         )
 
-        assert [trace.marker.color for trace in fig.data] == [
+        colors = [t.marker.color for t in fig.data if t.mode == "markers"]
+        assert colors == [
             "#111111",
             "#222222",
             "#111111",

@@ -559,13 +559,18 @@ class PlotBackend(Protocol):
         ax: Any,
         entries: "List[LegendEntry]",
         title: Optional[str] = None,
+        location: Literal["upper right", "lower right"] = "upper right",
+        horizontal: bool = False,
     ) -> None:
-        """Add a legend in the panel's upper-right corner.
+        """Add a legend inside one of the panel's right-hand corners.
 
         Args:
             ax: Axes or panel.
             entries: Backend-neutral ``LegendEntry`` specs to render.
             title: Legend title.
+            location: Corner of the panel the legend is anchored in.
+            horizontal: Lay the entries out in one row with no frame or
+                background, instead of a framed column.
         """
         ...
 

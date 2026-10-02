@@ -394,6 +394,8 @@ class MatplotlibBackend:
         ax: Axes,
         entries: List[LegendEntry],
         title: Optional[str] = None,
+        location: Literal["upper right", "lower right"] = "upper right",
+        horizontal: bool = False,
     ) -> None:
         """Render backend-neutral legend entries as matplotlib handles."""
         from matplotlib.lines import Line2D
@@ -405,6 +407,17 @@ class MatplotlibBackend:
             if entry.marker == "patch":
                 handles.append(
                     Patch(facecolor=entry.color, edgecolor=edge, label=entry.label)
+                )
+            elif entry.marker == "line":
+                handles.append(
+                    Line2D(
+                        [0],
+                        [0],
+                        color=entry.color,
+                        linestyle=entry.linestyle,
+                        linewidth=entry.linewidth,
+                        label=entry.label,
+                    )
                 )
             else:
                 handles.append(
@@ -419,9 +432,24 @@ class MatplotlibBackend:
                         label=entry.label,
                     )
                 )
+        if horizontal:
+            ax.legend(
+                handles=handles,
+                loc=location,
+                title=title,
+                fontsize=9,
+                frameon=False,
+                title_fontsize=10,
+                ncol=len(handles),
+                handlelength=2.5,
+                columnspacing=1.2,
+                borderpad=0,
+                borderaxespad=0.2,
+            )
+            return
         ax.legend(
             handles=handles,
-            loc="upper right",
+            loc=location,
             title=title,
             fontsize=9,
             frameon=True,

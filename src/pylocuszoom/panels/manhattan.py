@@ -8,12 +8,13 @@ three copies.
 """
 
 from dataclasses import dataclass, replace
-from typing import Any, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 import pandas as pd
 
 from ..backends.base import PlotBackend
+from ..backends.composition import threshold_legend_entries
 from ..backends.hover import HoverConfig, HoverDataBuilder
 from ..config import GenomeWideStyle
 from ..exceptions import ValidationError
@@ -22,6 +23,7 @@ from ._shared import (
     MANHATTAN_EDGE_WIDTH,
     MANHATTAN_POINT_SIZE,
     POINT_EDGE_COLOR,
+    SIGNIFICANCE_LINE_COLOR,
     SUGGESTIVE_LINE_COLOR,
     add_significance_line,
 )
@@ -106,13 +108,17 @@ class ManhattanPanelSpec:
     y_max: Optional[float] = None
     style: GenomeWideStyle = GenomeWideStyle()
 
+    def threshold_lines(self) -> List[Tuple[float, str]]:
+        """Return the ``(p-value, colour)`` of each threshold line drawn."""
+        lines = [
+            (self.significance_threshold, SIGNIFICANCE_LINE_COLOR),
+            (self.suggestive_threshold, SUGGESTIVE_LINE_COLOR),
+        ]
+        return [(p, color) for p, color in lines if p is not None]
+
     def highest(self) -> float:
         """Return the highest point or threshold line, in -log10 p."""
-        line_levels = [
-            -np.log10(threshold)
-            for threshold in (self.significance_threshold, self.suggestive_threshold)
-            if threshold is not None
-        ]
+        line_levels = [-np.log10(p) for p, _ in self.threshold_lines()]
         return max([self.prepared.frame["neglog10p"].max(), *line_levels])
 
     def draw(self, backend: PlotBackend, ax: Any) -> None:
@@ -143,14 +149,17 @@ class ManhattanPanelSpec:
             )
 
         line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
-        add_significance_line(backend, ax, self.significance_threshold, **line_kwargs)
-        add_significance_line(
-            backend,
-            ax,
-            self.suggestive_threshold,
-            color=SUGGESTIVE_LINE_COLOR,
-            **line_kwargs,
-        )
+        lines = self.threshold_lines()
+        for threshold, color in lines:
+            add_significance_line(backend, ax, threshold, color=color, **line_kwargs)
+        if style.show_threshold_legend and lines:
+            # The headroom is at the bottom of an inverted panel.
+            backend.add_legend(
+                ax,
+                threshold_legend_entries(lines, **line_kwargs),
+                location="lower right" if self.invert_y else "upper right",
+                horizontal=True,
+            )
         backend.set_xlim(ax, *layout.x_limits)
         y_max = self.y_max
         if y_max is None:
