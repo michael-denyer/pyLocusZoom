@@ -15,6 +15,11 @@ exclude = [
   # the Zenodo record page behind it has returned 504 during outages, which
   # lychee reports as a redirect loop. Don't let a Zenodo outage block a commit.
   '^https?://doi\.org/10\.5281/zenodo\.',
+  # Links to this repository's own files on main. github.com answers 503 for
+  # them when several CI runs are queued, and the page on main says nothing
+  # about the commit being checked. tests/test_docs_contract.py checks that
+  # each names a file, and a heading, that exists in the checkout.
+  '^https?://github\.com/michael-denyer/pyLocusZoom/blob/main/',
 ]
 
 exclude_path = [
