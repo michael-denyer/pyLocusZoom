@@ -1,0 +1,79 @@
+# TLC matrix for the staged cache protocols. Run with tlc-matrix.sh.
+# Process names are strings; a set-valued constant has no spaces.
+
+# --- chain_lifter, source never returns corrupt content: every claim holds.
+spec StagedCache.tla
+check INVARIANTS TypeOK PartOwnership PartNeverVanishes NoLeak DestNeverPartial LifterGood
+check INVARIANTS NoGoodUnlink NoSpuriousFailure CachedLifterServed QuiescentClean
+check PROPERTIES Termination
+run chain p=1 init=absent | Procs={"a"} Calls=1 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=1 init=good | Procs={"a"} Calls=1 InitDest="good" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=1 init=corrupt | Procs={"a"} Calls=1 InitDest="corrupt" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 init=absent | Procs={"a","b"} Calls=1 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 init=corrupt | Procs={"a","b"} Calls=1 InitDest="corrupt" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=3 init=absent | Procs={"a","b","c"} Calls=1 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=3 init=corrupt | Procs={"a","b","c"} Calls=1 InitDest="corrupt" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 calls=2 init=absent | Procs={"a","b"} Calls=2 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={} CorruptDl={} Witness="none"
+# Download failures at each point where the code can raise.
+run chain p=2 init=absent fail=a@create | Procs={"a","b"} Calls=1 InitDest="absent" FailProcs={"a"} FailDl={1} FailStage="create" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 init=corrupt fail=a@stream | Procs={"a","b"} Calls=1 InitDest="corrupt" FailProcs={"a"} FailDl={1} FailStage="stream" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 init=absent fail=all@replace | Procs={"a","b"} Calls=1 InitDest="absent" FailProcs={"a","b"} FailDl={1} FailStage="replace" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=3 init=corrupt fail=ab@stream | Procs={"a","b","c"} Calls=1 InitDest="corrupt" FailProcs={"a","b"} FailDl={1} FailStage="stream" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 calls=2 init=absent fail=a@stream dl=1,2 | Procs={"a","b"} Calls=2 InitDest="absent" FailProcs={"a"} FailDl={1,2} FailStage="stream" CorruptProcs={} CorruptDl={} Witness="none"
+run chain p=2 calls=2 init=corrupt fail=a@stream dl=2 | Procs={"a","b"} Calls=2 InitDest="corrupt" FailProcs={"a"} FailDl={2} FailStage="stream" CorruptProcs={} CorruptDl={} Witness="none"
+
+# --- Boundary: the source returns corrupt content, no download raises, one
+# call each. NoGoodUnlink, NoSpuriousFailure and CachedLifterServed are not
+# claimed here; the witness runs below show they fail. QuiescentClean holds.
+spec StagedCache.tla
+check INVARIANTS TypeOK PartOwnership PartNeverVanishes NoLeak DestNeverPartial LifterGood
+check INVARIANTS QuiescentClean
+check PROPERTIES Termination
+run chain-corrupt p=1 all corrupt | Procs={"a"} Calls=1 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={"a"} CorruptDl={1,2} Witness="none"
+run chain-corrupt p=2 b corrupt init=absent | Procs={"a","b"} Calls=1 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={"b"} CorruptDl={1,2} Witness="none"
+run chain-corrupt p=2 b corrupt init=corrupt | Procs={"a","b"} Calls=1 InitDest="corrupt" FailProcs={} FailDl={} FailStage="none" CorruptProcs={"b"} CorruptDl={1,2} Witness="none"
+run chain-corrupt p=2 first download corrupt | Procs={"a","b"} Calls=1 InitDest="absent" FailProcs={} FailDl={} FailStage="none" CorruptProcs={"a","b"} CorruptDl={1} Witness="none"
+run chain-corrupt p=3 bc corrupt init=corrupt | Procs={"a","b","c"} Calls=1 InitDest="corrupt" FailProcs={} FailDl={} FailStage="none" CorruptProcs={"b","c"} CorruptDl={1,2} Witness="none"
+
+# --- Boundary: corrupt content together with a raising download or a cached
+# lifter. QuiescentClean is not claimed either (witness corruptLeft).
+spec StagedCache.tla
+check INVARIANTS TypeOK PartOwnership PartNeverVanishes NoLeak DestNeverPartial LifterGood
+check PROPERTIES Termination
+run chain-corrupt-fail p=2 corrupt=1 fail=2@stream | Procs={"a","b"} Calls=1 InitDest="absent" FailProcs={"a","b"} FailDl={2} FailStage="stream" CorruptProcs={"a","b"} CorruptDl={1} Witness="none"
+run chain-corrupt-fail p=3 b corrupt a fails@replace | Procs={"a","b","c"} Calls=1 InitDest="corrupt" FailProcs={"a"} FailDl={1} FailStage="replace" CorruptProcs={"b"} CorruptDl={1,2} Witness="none"
+run chain-corrupt-fail p=2 calls=2 b corrupt a fails dl=2 | Procs={"a","b"} Calls=2 InitDest="absent" FailProcs={"a"} FailDl={2} FailStage="stream" CorruptProcs={"b"} CorruptDl={1,2} Witness="none"
+
+# --- Witnesses: expected failures, encoded as reachability. Each run follows
+# the fixed interleaving Sched in the spec; PASS means the bad state is
+# reached on it.
+#   unlinkGood     _liftover.py:145 removes a good chain another process
+#                  published, and that process then raises DataDownloadError.
+#   corruptLeft    a corrupt first download stays on disk when the refetch raises.
+#   cachedIgnored  a process holding a cached lifter raises because the file
+#                  was unlinked and its re-download failed.
+spec StagedCache.tla
+check INVARIANTS TypeOK PartOwnership PartNeverVanishes DestNeverPartial LifterGood
+check PROPERTIES WitnessReached
+run witness unlinkGood | Procs={"a","b"} Calls=1 InitDest="corrupt" FailProcs={} FailDl={} FailStage="none" CorruptProcs={"b"} CorruptDl={1} Witness="unlinkGood"
+run witness corruptLeft | Procs={"a"} Calls=1 InitDest="absent" FailProcs={"a"} FailDl={2} FailStage="stream" CorruptProcs={"a"} CorruptDl={1} Witness="corruptLeft"
+run witness cachedIgnored | Procs={"a","b"} Calls=2 InitDest="absent" FailProcs={"a"} FailDl={2} FailStage="stream" CorruptProcs={"b"} CorruptDl={1,2} Witness="cachedIgnored"
+
+# --- Gene cache: get-or-fetch callers against a clear_cache deleter.
+spec StagedGeneCache.tla
+check INVARIANTS TypeOK PartOwnership NoLeak DestNeverPartial ReaderSeesWhole
+check INVARIANTS SaveLostOnlyOnFault QuiescentClean
+check PROPERTIES Termination
+run gene g=0 c=1 init=good | Getters={} Clearers={"x"} InitDest="good" FailProcs={} FailStage="none"
+run gene g=1 c=0 init=absent | Getters={"a"} Clearers={} InitDest="absent" FailProcs={} FailStage="none"
+run gene g=1 c=1 init=good | Getters={"a"} Clearers={"x"} InitDest="good" FailProcs={} FailStage="none"
+run gene g=2 c=1 init=absent | Getters={"a","b"} Clearers={"x"} InitDest="absent" FailProcs={} FailStage="none"
+run gene g=2 c=1 init=corrupt | Getters={"a","b"} Clearers={"x"} InitDest="corrupt" FailProcs={} FailStage="none"
+run gene g=3 c=1 init=good | Getters={"a","b","c"} Clearers={"x"} InitDest="good" FailProcs={} FailStage="none"
+run gene g=3 c=1 init=absent | Getters={"a","b","c"} Clearers={"x"} InitDest="absent" FailProcs={} FailStage="none"
+run gene g=2 c=2 init=good | Getters={"a","b"} Clearers={"x","y"} InitDest="good" FailProcs={} FailStage="none"
+run gene g=2 c=1 fail=a@fetch | Getters={"a","b"} Clearers={"x"} InitDest="absent" FailProcs={"a"} FailStage="fetch"
+run gene g=2 c=1 fail=a@create | Getters={"a","b"} Clearers={"x"} InitDest="absent" FailProcs={"a"} FailStage="create"
+run gene g=2 c=1 fail=a@write | Getters={"a","b"} Clearers={"x"} InitDest="corrupt" FailProcs={"a"} FailStage="write"
+run gene g=3 c=1 fail=all@write | Getters={"a","b","c"} Clearers={"x"} InitDest="absent" FailProcs={"a","b","c"} FailStage="write"
+run gene g=2 c=1 fail=all@replace | Getters={"a","b"} Clearers={"x"} InitDest="good" FailProcs={"a","b"} FailStage="replace"
