@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `LDHeatmapPlotter.plot_ld_heatmap` raises `ValidationError` ("ld_matrix must contain at least one SNP") for a 0x0 matrix. matplotlib and bokeh raised a bare `IndexError` from `cell_edges` and plotly returned an empty figure. The check sits in `prepare_ld_matrix`, so an empty `LDHeatmapInput(matrix=...)` in a regional plot now reports the same message instead of "No SNPs from LD heatmap overlap with region".
+
 ## [5.0.1] - 2026-09-24
 
 ### Added

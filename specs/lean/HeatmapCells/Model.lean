@@ -56,7 +56,10 @@ def mids (coords : List Int) : List Int :=
 
 /-- `cell_edges`, `composition.py:214-232`, edges doubled.
 The empty list reaches `coords[0]` / `mids[0]` at l.229 and raises
-`IndexError`. In the last arm `mids` is non-empty (`mids_length`), so the
+`IndexError`. No plot call reaches that arm: `prepare_ld_matrix`
+(`_ld_matrix.py:23-26`) rejects a matrix with no SNPs at intake, and
+`HeatmapPanel.from_matrix` (`panels/heatmap.py:63-66`) rejects a regional
+heatmap with no SNP in the region. In the last arm `mids` is non-empty (`mids_length`), so the
 `getD` defaults are never used. -/
 def cell_edges (coords : List Int) : Option (List (Int × Int)) :=
   match coords with
@@ -223,7 +226,8 @@ def badRects : List (Int × List Int) :=
 These are counter-examples to `EdgesGood` for inputs that are not strictly
 ascending. They are pinned so the build fails if the model stops showing them. -/
 
--- Empty list: `IndexError` at l.229.
+-- Empty list: `IndexError` at l.229. Unreachable from a plot call since
+-- `prepare_ld_matrix` rejects a `(0, 0)` matrix (`_ld_matrix.py:23-26`).
 #guard cell_edges [] == none
 -- Duplicate at the low end: first cell has zero width. Python: [(5.0, 5.0), (5.0, 6.0), (6.0, 8.0)].
 #guard cell_edges [5, 5, 7] == some [(10, 10), (10, 12), (12, 16)]
@@ -447,7 +451,8 @@ theorem cell_edges_good' (c : List Int) (h : 1 ≤ c.length) (hasc : Asc c) :
   | [a], _ => exact ⟨_, (cell_edges_single a).2, (cell_edges_single a).1⟩
   | a :: b :: t, _ => exact cell_edges_good _ (by simp only [List.length_cons]; omega) hasc
 
-/-- The empty list raises (`IndexError`, l.229). -/
+/-- The empty list raises (`IndexError`, l.229). `cell_edges` keeps this
+precondition; `prepare_ld_matrix` (`_ld_matrix.py:23-26`) enforces it at intake. -/
 theorem cell_edges_nil : cell_edges [] = none := rfl
 
 theorem allOrNone_spec {α β : Type} (f : α → Option β) (P : α → β → Prop) :

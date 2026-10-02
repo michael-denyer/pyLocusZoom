@@ -72,7 +72,7 @@ class LDHeatmapPlotter:
             Figure object (type depends on backend).
 
         Raises:
-            ValidationError: If ld_matrix is not square, lead_snp or any
+            ValidationError: If ld_matrix is empty or not square, lead_snp or any
                 highlight_snps is not in snp_ids, or metric is not "r2" or
                 "dprime".
 

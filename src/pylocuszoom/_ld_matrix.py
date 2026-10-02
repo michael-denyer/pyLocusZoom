@@ -14,11 +14,16 @@ def prepare_ld_matrix(
     """Resolve a square matrix and exactly one SNP id per row and column.
 
     Missing ids come from a DataFrame's index, or array row numbers.
-    Raises ValidationError when the shape and ids do not agree.
+    Raises ValidationError when the matrix has no SNPs or the shape and ids
+    do not agree.
     """
     data = matrix.to_numpy() if isinstance(matrix, pd.DataFrame) else np.asarray(matrix)
     if data.ndim != 2 or data.shape[0] != data.shape[1]:
         raise ValidationError(f"ld_matrix must be square, got shape {data.shape}")
+    if data.shape[0] == 0:
+        raise ValidationError(
+            f"ld_matrix must contain at least one SNP, got shape {data.shape}"
+        )
     if snp_ids is None:
         snp_ids = (
             list(matrix.index.astype(str))

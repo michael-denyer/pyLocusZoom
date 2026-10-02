@@ -47,7 +47,7 @@ class LDHeatmapPanel:
         for an array.
 
         Raises:
-            ValidationError: If the matrix is not square, ``snp_ids`` does not
+            ValidationError: If the matrix is empty or not square, ``snp_ids`` does not
                 match it, ``lead_snp`` or a highlight SNP is not in
                 ``snp_ids``, or ``metric`` is not ``"r2"`` or ``"dprime"``.
         """

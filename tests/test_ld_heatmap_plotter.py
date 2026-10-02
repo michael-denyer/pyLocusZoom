@@ -287,6 +287,14 @@ class TestLDHeatmapBackends:
 class TestLDHeatmapEdgeCases:
     """Tests for edge cases in LDHeatmapPlotter."""
 
+    @pytest.mark.parametrize("backend", BUILTIN_BACKENDS)
+    def test_matrix_with_no_snps_is_rejected(self, backend):
+        """Every backend rejects a 0x0 matrix at intake instead of drawing it."""
+        plotter = LDHeatmapPlotter(backend=backend)
+
+        with pytest.raises(ValidationError, match="at least one SNP"):
+            plotter.plot_ld_heatmap(np.empty((0, 0)))
+
     def test_single_snp_matrix_draws_one_cell(self):
         """Assert a 1x1 matrix draws its single cell and label."""
         plotter = LDHeatmapPlotter()
