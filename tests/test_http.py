@@ -8,12 +8,18 @@ import requests
 from hypothesis import given
 from hypothesis import strategies as st
 
-from pylocuszoom._http import _with_retries, download_file
+from pylocuszoom._http import _with_retries, staged_path, stream_file
 from pylocuszoom.exceptions import DataDownloadError
 
 
-class TestDownloadFile:
-    """A download must never leave a truncated file at the destination."""
+def _download(url, dest):
+    """Download as a caller that persists the file does: staged, then published."""
+    with staged_path(dest) as partial:
+        stream_file(url, partial)
+
+
+class TestStagedDownload:
+    """A staged download never leaves a truncated file at the destination."""
 
     @staticmethod
     def _streaming_response(chunks):
@@ -27,7 +33,7 @@ class TestDownloadFile:
         response = self._streaming_response([b"abcd", b"efgh"])
 
         with patch("pylocuszoom._http.requests.get", return_value=response):
-            download_file("https://example.invalid/f", dest)
+            _download("https://example.invalid/f", dest)
 
         assert dest.read_bytes() == b"abcdefgh"
         assert [p.name for p in tmp_path.iterdir()] == ["file.gz"]
@@ -49,7 +55,7 @@ class TestDownloadFile:
             patch("pylocuszoom._http.requests.get", side_effect=interrupted_response),
             pytest.raises(DataDownloadError, match="example.invalid/f") as exc_info,
         ):
-            download_file("https://example.invalid/f", dest)
+            _download("https://example.invalid/f", dest)
 
         assert isinstance(exc_info.value.__cause__, requests.ConnectionError)
         assert not dest.exists()
@@ -68,7 +74,7 @@ class TestDownloadFile:
                 side_effect=[failed, self._streaming_response([b"abcd"])],
             ) as mock_get,
         ):
-            download_file("https://example.invalid/f", dest)
+            _download("https://example.invalid/f", dest)
 
         assert mock_get.call_count == 2
         assert dest.read_bytes() == b"abcd"
@@ -86,7 +92,7 @@ class TestDownloadFile:
             patch("pylocuszoom._http.requests.get", return_value=response) as mock_get,
             pytest.raises(DataDownloadError),
         ):
-            download_file("https://example.invalid/f", dest)
+            _download("https://example.invalid/f", dest)
 
         assert mock_get.call_count == 1
 
@@ -100,7 +106,7 @@ class TestDownloadFile:
             patch("pylocuszoom._http.requests.get", return_value=response),
             pytest.raises(DataDownloadError, match="example.invalid/f") as exc_info,
         ):
-            download_file("https://example.invalid/f", dest)
+            _download("https://example.invalid/f", dest)
 
         assert exc_info.value.__cause__ is original
         assert str(exc_info.value) == (
@@ -117,7 +123,7 @@ class TestDownloadFile:
             ),
             pytest.raises(DataDownloadError) as exc_info,
         ):
-            download_file("https://example.invalid/f", tmp_path / "file.gz")
+            _download("https://example.invalid/f", tmp_path / "file.gz")
 
         assert str(exc_info.value) == (
             "Failed to download https://example.invalid/f after 3 attempts: reset"
@@ -146,8 +152,8 @@ def test_concurrent_downloads_publish_only_their_own_complete_response(
 
     monkeypatch.setattr("pylocuszoom._http._stream_to", stream)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        first = executor.submit(download_file, "first", dest)
-        second = executor.submit(download_file, "second", dest)
+        first = executor.submit(_download, "first", dest)
+        second = executor.submit(_download, "second", dest)
         try:
             first.result(timeout=10)
             first_result = dest.read_bytes()

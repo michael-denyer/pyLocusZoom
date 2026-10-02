@@ -7,7 +7,7 @@ on anything else. Only the error class, service name for messages, and headers
 differ per caller. An error that outlasts the retries reports how many attempts
 were made; one that is not worth retrying keeps its own message.
 
-``download_file`` streams a large file over the same retry policy, so the 50 MB
+``stream_file`` streams a large file over the same retry policy, so the 50 MB
 recombination tarball gets the attempts the 5 KB JSON payload always had.
 """
 
@@ -158,48 +158,6 @@ def request_json(
         raise error_cls(f"{service} API returned invalid JSON: {e}") from e
 
 
-def download_file(
-    url: str,
-    dest_path: Path,
-    desc: str = "Downloading",
-    *,
-    timeout: float = 60,
-    max_retries: int = 3,
-    retry_delay: float = 1.0,
-) -> None:
-    """Stream a file to disk with a progress bar, retrying like request_json.
-
-    Streams into a private ``.part`` sibling and replaces ``dest_path`` only once
-    the stream completes, so an interrupted download never leaves a truncated
-    file where a later ``exists()`` check would trust it. A retry restarts the
-    stream from the beginning; the partial file is removed either way.
-
-    Connection failures retry, as they do for a JSON request. An HTTP status
-    retries only when it is 429 or 503; a 404 is not going to become a file on
-    the second attempt.
-
-    Args:
-        url: URL to download from.
-        dest_path: Destination file path.
-        desc: Description for the progress bar.
-        timeout: Per-request timeout in seconds.
-        max_retries: Attempts before giving up on a retryable error.
-        retry_delay: Initial backoff in seconds; doubles on each retry.
-
-    Raises:
-        DataDownloadError: If the download ultimately fails.
-    """
-    with staged_path(dest_path) as partial_path:
-        stream_file(
-            url,
-            partial_path,
-            desc,
-            timeout=timeout,
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-        )
-
-
 def stream_file(
     url: str,
     partial_path: Path,
@@ -209,10 +167,16 @@ def stream_file(
     max_retries: int = 3,
     retry_delay: float = 1.0,
 ) -> None:
-    """Stream a file into a path the caller has staged, retrying like request_json.
+    """Stream a file into a private path, retrying like request_json.
 
-    The download half of ``download_file``, for a caller that holds its own
-    ``staged_path`` and checks the content before it is published.
+    The one HTTP download. It writes ``partial_path`` in place, and an
+    interrupted download leaves a truncated file there, so the caller keeps
+    the path private until the content is checked: inside ``staged_path`` or
+    a temporary directory. A retry restarts the stream from the beginning.
+
+    Connection failures retry, as they do for a JSON request. An HTTP status
+    retries only when it is 429 or 503; a 404 is not going to become a file on
+    the second attempt.
 
     Args:
         url: URL to download from.

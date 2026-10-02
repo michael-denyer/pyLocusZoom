@@ -18,7 +18,7 @@ from typing import Optional
 
 import pandas as pd
 
-from ._http import download_file
+from ._http import stream_file
 from ._liftover import CoordinateLifter, chain_lifter, describe_drops, liftover_region
 from .exceptions import DataDownloadError, RecombinationMapNotFound, ValidationError
 from .genome_build import GENOME_BUILDS, assembly_token, resolve_build
@@ -303,7 +303,7 @@ def download_recombination_maps(source: RecombSource, output_path: Path) -> Path
         with tempfile.TemporaryDirectory(dir=output_path.parent) as tmpdir:
             tmp = Path(tmpdir)
             archive = tmp / "maps.tar.gz"
-            download_file(source.url, archive, desc="Recombination maps")
+            stream_file(source.url, archive, desc="Recombination maps")
             logger.debug(f"Downloaded {archive.stat().st_size / 1024:.1f} KB")
 
             staging = tmp / "_staging"
