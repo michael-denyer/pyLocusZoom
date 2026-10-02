@@ -3,20 +3,21 @@
 
 Source: `src/pylocuszoom/backends/composition.py`
 
-* `lower_triangle`           l.172-188 (mask at l.187, `np.triu(..., k=1)`)
-* `heatmap_highlight_cells`  l.191-211 (guard l.207, cells l.209-210)
-* `cell_edges`               l.214-232 (single branch l.226-227, arithmetic l.228-232)
-* `heatmap_highlight_rects`  l.235-258 (indexing l.256)
-* `draw_ld_heatmap`          l.261-312 (`y_coords = list(range(len(x_coords)))`, l.287)
+* `composition.py::lower_triangle` (the mask `np.triu(..., k=1)`)
+* `composition.py::heatmap_highlight_cells` (the guard, then the two cell runs)
+* `composition.py::cell_edges` (the `len(coords) == 1` branch, then the midpoint
+  arithmetic)
+* `composition.py::heatmap_highlight_rects` (the indexing `x_edges[x], y_edges[y]`)
+* `composition.py::draw_ld_heatmap` (`y_coords = list(range(len(x_coords)))`)
 
 ## Conventions fixed by reading the backends
 
 Every backend draws `data[row][col]` at `(x_coords[col], y_coords[row])`:
-matplotlib `pcolormesh(X, Y, C)` (`matplotlib_backend.py:540-549`), plotly
-`go.Heatmap(z, x, y)` (`plotly_backend.py:797-800`), and bokeh's explicit
-`xs = x_edges[j]`, `ys = y_edges[i]` for `data[i, j]`
-(`bokeh_backend.py:741-746`). `heatmap_highlight_rects` reads `x_edges[x]`,
-`y_edges[y]` (l.256), so a highlight cell `(x, y)` is `(column, row)`.
+matplotlib `pcolormesh(X, Y, C)` (`matplotlib_backend.py::MatplotlibBackend.add_heatmap`),
+plotly `go.Heatmap(z, x, y)` (`plotly_backend.py::PlotlyBackend.add_heatmap`),
+and bokeh's explicit `xs = x_edges[j]`, `ys = y_edges[i]` for `data[i, j]`
+(`bokeh_backend.py::BokehBackend.add_heatmap`). `heatmap_highlight_rects` reads
+`x_edges[x]`, `y_edges[y]`, so a highlight cell `(x, y)` is `(column, row)`.
 `lower_triangle` masks `column > row`, so a cell is rendered iff `x ≤ y`.
 
 ## Number model
@@ -30,49 +31,50 @@ matplotlib `pcolormesh(X, Y, C)` (`matplotlib_backend.py:540-549`), plotly
   This is exact for the real callers, which pass Python ints (genomic
   positions or `range(n)`) far below 2^52; it does not model float
   rounding of non-integer coordinates.
-* A Python exception (`ValueError` l.208, `IndexError` l.229/l.256) is `none`.
+* A Python exception (the guard's `ValueError`, an `IndexError` from `coords[0]`
+  or from `x_edges[x], y_edges[y]`) is `none`.
 -/
 
 /-! ## Transcription -/
 
-/-- `lower_triangle` mask, `composition.py:187`: `np.triu(ones, k=1)` masks
+/-- `lower_triangle` mask: `np.triu(ones, k=1)` masks
 entry `(row, col)` iff `col > row`. -/
 def masked (row col : Nat) : Bool := decide (col > row)
 
-/-- `heatmap_highlight_cells`, `composition.py:191-211`. Cells are `(x, y)`.
+/-- `heatmap_highlight_cells` in `composition.py`. Cells are `(x, y)`.
 `range(snp_idx + 1, n_snps)` is `List.range' (s + 1) (n - (s + 1))`. -/
 def heatmap_highlight_cells (snp_idx n_snps : Int) : Option (List (Nat × Nat)) :=
-  if n_snps < 1 ∨ snp_idx < 0 ∨ snp_idx ≥ n_snps then none            -- l.207-208
+  if n_snps < 1 ∨ snp_idx < 0 ∨ snp_idx ≥ n_snps then none            -- `raise ValueError`
   else
     let s := snp_idx.toNat
     let n := n_snps.toNat
-    some ((List.range (s + 1)).map (fun j => (j, s))                   -- l.209
-          ++ (List.range' (s + 1) (n - (s + 1))).map (fun i => (s, i))) -- l.210
+    some ((List.range (s + 1)).map (fun j => (j, s))                   -- `(j, snp_idx)`
+          ++ (List.range' (s + 1) (n - (s + 1))).map (fun i => (s, i))) -- `(snp_idx, i)`
 
-/-- Doubled midpoints, `composition.py:228`:
+/-- Doubled midpoints of `cell_edges`:
 `mids = [(a + b) / 2 for a, b in zip(coords, coords[1:])]`. -/
 def mids (coords : List Int) : List Int :=
   (coords.zip coords.tail).map (fun p => p.1 + p.2)
 
-/-- `cell_edges`, `composition.py:214-232`, edges doubled.
-The empty list reaches `coords[0]` / `mids[0]` at l.229 and raises
-`IndexError`. No plot call reaches that arm: `prepare_ld_matrix`
-(`_ld_matrix.py:23-26`) rejects a matrix with no SNPs at intake, and
-`HeatmapPanel.from_matrix` (`panels/heatmap.py:63-66`) rejects a regional
+/-- `cell_edges` in `composition.py`, edges doubled.
+The empty list reaches `coords[0]` / `mids[0]` in the `first = ...` line and
+raises `IndexError`. No plot call reaches that arm:
+`_ld_matrix.py::prepare_ld_matrix` rejects a matrix with no SNPs at intake, and
+`panels/heatmap.py::HeatmapPanel.from_matrix` rejects a regional
 heatmap with no SNP in the region. In the last arm `mids` is non-empty (`mids_length`), so the
 `getD` defaults are never used. -/
 def cell_edges (coords : List Int) : Option (List (Int × Int)) :=
   match coords with
-  | [] => none                                                         -- l.229
-  | [c] => some [(2 * c - 1, 2 * c + 1)]                               -- l.226-227
+  | [] => none                                                         -- `coords[0]` raises
+  | [c] => some [(2 * c - 1, 2 * c + 1)]                               -- `len(coords) == 1`
   | c0 :: c1 :: t =>
     let coords := c0 :: c1 :: t
-    let m := mids coords                                               -- l.228
-    let first := 2 * c0 - (m.getD 0 0 - 2 * c0)                        -- l.229
+    let m := mids coords                                               -- `mids`
+    let first := 2 * c0 - (m.getD 0 0 - 2 * c0)                        -- `first`
     let cl := coords.getD (coords.length - 1) 0                        -- coords[-1]
-    let last := 2 * cl + (2 * cl - m.getD (m.length - 1) 0)            -- l.230
-    let bounds := first :: (m ++ [last])                               -- l.231
-    some (bounds.zip bounds.tail)                                      -- l.232
+    let last := 2 * cl + (2 * cl - m.getD (m.length - 1) 0)            -- `last`
+    let bounds := first :: (m ++ [last])                               -- `bounds`
+    some (bounds.zip bounds.tail)                                      -- `zip(bounds, bounds[1:])`
 
 /-- Run `f` over a list; `none` as soon as one call raises. -/
 def allOrNone {α β : Type} (f : α → Option β) : List α → Option (List β)
@@ -82,7 +84,7 @@ def allOrNone {α β : Type} (f : α → Option β) : List α → Option (List �
     | some b, some bs => some (b :: bs)
     | _, _ => none
 
-/-- Loop body of `heatmap_highlight_rects`, `composition.py:256-257`.
+/-- Loop body of `heatmap_highlight_rects`.
 Result is `(x0, y0, width, height)`, all doubled. A cell index is a `Nat`,
 so Python's negative indexing cannot occur; out of range is `IndexError`. -/
 def rect_of (x_edges y_edges : List (Int × Int)) (cell : Nat × Nat) :
@@ -91,11 +93,11 @@ def rect_of (x_edges y_edges : List (Int × Int)) (cell : Nat × Nat) :
   | some (x0, x1), some (y0, y1) => some (x0, y0, x1 - x0, y1 - y0)
   | _, _ => none
 
-/-- `heatmap_highlight_rects`, `composition.py:235-258`. -/
+/-- `heatmap_highlight_rects` in `composition.py`. -/
 def heatmap_highlight_rects (snp_idx : Int) (x_coords y_coords : List Int) :
     Option (List (Int × Int × Int × Int)) :=
-  match heatmap_highlight_cells snp_idx x_coords.length,               -- l.252
-        cell_edges x_coords, cell_edges y_coords with                  -- l.253
+  match heatmap_highlight_cells snp_idx x_coords.length,               -- `cells`
+        cell_edges x_coords, cell_edges y_coords with                  -- `x_edges, y_edges`
   | some cells, some x_edges, some y_edges => allOrNone (rect_of x_edges y_edges) cells
   | _, _, _ => none
 
@@ -202,7 +204,7 @@ def nonAscButGood : List (List Int) :=
 #guard nonAscButGood.isEmpty
 
 /-- (d): `(snp_idx, x_coords)` with ascending `x_coords` of length 1..4 over
-`-2..5`, `y_coords = range(n)` as `draw_ld_heatmap` builds them (l.287), and
+`-2..5`, `y_coords = range(n)` as `draw_ld_heatmap` builds them, and
 every `snp_idx` in `[-2, n + 1]`: a valid index must give good rectangles,
 an invalid one must raise. -/
 def badRects : List (Int × List Int) :=
@@ -226,8 +228,8 @@ def badRects : List (Int × List Int) :=
 These are counter-examples to `EdgesGood` for inputs that are not strictly
 ascending. They are pinned so the build fails if the model stops showing them. -/
 
--- Empty list: `IndexError` at l.229. Unreachable from a plot call since
--- `prepare_ld_matrix` rejects a `(0, 0)` matrix (`_ld_matrix.py:23-26`).
+-- Empty list: `IndexError` from `coords[0]`. Unreachable from a plot call
+-- since `prepare_ld_matrix` rejects a `(0, 0)` matrix.
 #guard cell_edges [] == none
 -- Duplicate at the low end: first cell has zero width. Python: [(5.0, 5.0), (5.0, 6.0), (6.0, 8.0)].
 #guard cell_edges [5, 5, 7] == some [(10, 10), (10, 12), (12, 16)]
@@ -240,7 +242,7 @@ ascending. They are pinned so the build fails if the model stops showing them. -
 -- A zero-width edge becomes a zero-width highlight rectangle.
 #guard heatmap_highlight_rects 0 [5, 5, 7] [0, 1, 2]
   == some [(10, -1, 0, 2), (10, 1, 0, 2), (10, 3, 0, 2)]
--- `y_coords` shorter than `x_coords`: `IndexError` at l.256.
+-- `y_coords` shorter than `x_coords`: `IndexError` from `y_edges[y]`.
 #guard heatmap_highlight_rects 0 [1, 2, 3] [0, 1] == none
 
 /-! ## Theorems (all sizes) -/
@@ -432,7 +434,7 @@ theorem cell_edges_good_only_if_asc (c : List Int) (h : 2 ≤ c.length)
   simp only [Nat.succ_ne_zero, ite_false, Nat.add_sub_cancel] at hc
   omega
 
-/-- (c) the single-coordinate branch (l.226-227): one unit-wide cell. -/
+/-- (c) the single-coordinate branch (`len(coords) == 1`): one unit-wide cell. -/
 theorem cell_edges_single (a : Int) : EdgesGood [a] [(2 * a - 1, 2 * a + 1)] ∧
     cell_edges [a] = some [(2 * a - 1, 2 * a + 1)] := by
   refine ⟨⟨rfl, ?_, ?_⟩, rfl⟩
@@ -451,8 +453,8 @@ theorem cell_edges_good' (c : List Int) (h : 1 ≤ c.length) (hasc : Asc c) :
   | [a], _ => exact ⟨_, (cell_edges_single a).2, (cell_edges_single a).1⟩
   | a :: b :: t, _ => exact cell_edges_good _ (by simp only [List.length_cons]; omega) hasc
 
-/-- The empty list raises (`IndexError`, l.229). `cell_edges` keeps this
-precondition; `prepare_ld_matrix` (`_ld_matrix.py:23-26`) enforces it at intake. -/
+/-- The empty list raises (`IndexError` from `coords[0]`). `cell_edges` keeps
+this precondition; `prepare_ld_matrix` enforces it at intake. -/
 theorem cell_edges_nil : cell_edges [] = none := rfl
 
 theorem allOrNone_spec {α β : Type} (f : α → Option β) (P : α → β → Prop) :
@@ -477,7 +479,8 @@ theorem getD_eq_of_lt {α : Type} (l : List α) (i : Nat) (d : α) (h : i < l.le
   simp [List.getD_eq_getElem?_getD, h]
 
 /-- (d) With strictly ascending `x_coords` and `y_coords` of equal non-zero
-length and `0 ≤ s < n`, every index at l.256 is in bounds (the call returns),
+length and `0 ≤ s < n`, every `x_edges[x], y_edges[y]` index is in bounds (the
+call returns),
 there is one rectangle per cell, and each has positive width and height and
 strictly contains its cell's centre. -/
 theorem rects_good (s : Nat) (xc yc : List Int) (hs : s < xc.length)
@@ -503,7 +506,7 @@ theorem rects_good (s : Nat) (xc yc : List Int) (hs : s < xc.length)
   refine ⟨cells, rects, hcells, ?_, hrl, hrm⟩
   simp only [heatmap_highlight_rects, hcells, hxe, hye, hr]
 
-/-- (d) as `draw_ld_heatmap` calls it (l.287, l.300): `y_coords = range(n)`
+/-- (d) as `draw_ld_heatmap` calls it: `y_coords = range(n)`
 is strictly ascending by construction, so only `x_coords` needs a hypothesis. -/
 theorem range_asc (n : Nat) : Asc (intRange 0 n) := by
   intro i hi

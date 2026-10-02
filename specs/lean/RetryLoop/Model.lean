@@ -2,9 +2,10 @@
 # The HTTP retry loop of pyLocusZoom
 
 Source: `src/pylocuszoom/_http.py`
-* `_retryable`      l.33-37
-* `_with_retries`   l.46-77 (argument guard l.61-64, loop l.65-77)
-* `request_json`    l.99-158 (only the exception split at l.141-153)
+* `_http.py::_retryable`
+* `_http.py::_with_retries` (the argument guard, then the `while True` loop)
+* `_http.py::request_json` (only the exception split around its
+  `_with_retries` call)
 
 The model checks the code as written. It keeps the source names.
 
@@ -14,10 +15,10 @@ Modelling choices
   still wants another attempt, the run ends in `Exit.starved`; that is an
   artefact of the finite environment, not a behaviour of the code.
 * `max_retries` is an `Int`: Python accepts 0 and negative values, and the
-  guard at l.61-62 rejects them.
-* `retry_delay` is a Python float. The guard at l.63-64 reads only its sign,
+  guard `if max_retries < 1` rejects them.
+* `retry_delay` is a Python float. The guard `if retry_delay < 0` reads only its sign,
   so the model passes it as an `Int` and uses nothing else about it.
-* `runLoop` is the loop alone (l.65-77), without the guard. Its theorems hold
+* `runLoop` is the loop alone, from `delay = retry_delay` on, without the guard. Its theorems hold
   for every `max_retries`, so the reported attempt count is shown to be right
   independently of the guard. `_with_retries` is the guard followed by
   `runLoop`.
@@ -31,21 +32,21 @@ Modelling choices
 * `sleeps` and `calls` are ghost fields: the list of `time.sleep` arguments so
   far and the number of `attempt()` calls so far.
 * Only `requests.RequestException` is modelled. Any other exception leaves the
-  loop at once (l.70 does not catch it).
+  loop at once (`except requests.RequestException` does not catch it).
 -/
 
 /-- A `requests.RequestException`. `http status` is a `requests.HTTPError`;
-`status` is `none` when the error carries no response (`_status_of`, l.40-43).
+`status` is `none` when the error carries no response (`_http.py::_status_of`).
 `connection` stands for every `RequestException` that is not an `HTTPError`. -/
 inductive Err where
   | connection
   | http (status : Option Nat)
 deriving Repr, DecidableEq
 
-/-- `_http.py:28`. -/
+/-- `_http.py::RETRYABLE_STATUS`. -/
 def RETRYABLE_STATUS : List Nat := [429, 503]
 
-/-- `_http.py:33-37`. -/
+/-- `_retryable` in `_http.py`. -/
 def _retryable : Err → Bool
   | .connection => true
   | .http none => false
@@ -63,19 +64,19 @@ def Outcome.retry : Outcome → Bool
   | .error e => _retryable e
 
 structure State where
-  /-- `attempt_number`, l.66 and l.77. -/
+  /-- `attempt_number`: set to 1, then `attempt_number += 1`. -/
   attempt_number : Int
-  /-- `delay` in units of `retry_delay`, l.65 and l.76. -/
+  /-- `delay` in units of `retry_delay`: set to it, then `delay *= 2`. -/
   delay : Nat
-  /-- Ghost: arguments of `time.sleep` so far, oldest first (l.75). -/
+  /-- Ghost: arguments of `time.sleep` so far, oldest first. -/
   sleeps : List Nat
-  /-- Ghost: number of `attempt()` calls so far (l.69). -/
+  /-- Ghost: number of `attempt()` calls so far. -/
   calls : Nat
 deriving Repr, DecidableEq
 
 /-- How `_with_retries` ends. `call` is the 1-based index of the `attempt()`
 call that returned or whose exception is re-raised. `rejected` is the
-`ValueError` of the argument guard (l.61-64). -/
+`ValueError` of the argument guard. -/
 inductive Exit where
   | returned (call : Nat)
   | raised (call : Nat) (e : Err)
@@ -83,55 +84,58 @@ inductive Exit where
   | starved
 deriving Repr, DecidableEq
 
-/-- The `while True` loop, `_http.py:67-77`. One list element is one pass. -/
+/-- The `while True` loop of `_with_retries`. One list element is one pass. -/
 def loop (max_retries : Int) (s : State) : List Outcome → Exit × State
   | [] => (.starved, s)
-  -- l.69 `return attempt()`
+  -- `return attempt()`
   | .success :: _ => (.returned (s.calls + 1), { s with calls := s.calls + 1 })
   | .error e :: rest =>
-    -- l.71 `if attempt_number >= max_retries or not _retryable(e):` ... l.73 `raise`
+    -- `if attempt_number >= max_retries or not _retryable(e):` ... `raise`
     if s.attempt_number ≥ max_retries ∨ _retryable e = false then
       (.raised (s.calls + 1) e, { s with calls := s.calls + 1 })
     else
-      -- l.75 `time.sleep(delay)`, l.76 `delay *= 2`, l.77 `attempt_number += 1`
+      -- `time.sleep(delay)`, `delay *= 2`, `attempt_number += 1`
       loop max_retries
         { attempt_number := s.attempt_number + 1
           delay := s.delay * 2
           sleeps := s.sleeps ++ [s.delay]
           calls := s.calls + 1 } rest
 
-/-- `_http.py:65-66`: `delay = retry_delay` (one unit), `attempt_number = 1`. -/
+/-- `delay = retry_delay` (one unit), `attempt_number = 1`. -/
 def init : State := { attempt_number := 1, delay := 1, sleeps := [], calls := 0 }
 
-/-- `_http.py:65-77`: the loop from its initial state, without the guard. -/
+/-- The loop of `_with_retries` from its initial state, without the guard. -/
 def runLoop (max_retries : Int) (env : List Outcome) : Exit × State :=
   loop max_retries init env
 
-/-- `_http.py:72`: `e.attempts = attempt_number`, read off the state in which
-the loop raised. This is the count the callers format (l.152, l.201). -/
+/-- `e.attempts = attempt_number`, read off the state in which the loop
+raised. This is the count the callers format (`request_json` and
+`_http.py::stream_file`). -/
 def attempts (s : State) : Int := s.attempt_number
 
-/-- `_http.py:46-77`. The guard (l.61-64) raises `ValueError` before the first
+/-- `_with_retries` in `_http.py`. The guard raises `ValueError` before the first
 attempt when `max_retries < 1` or `retry_delay < 0`; otherwise the loop runs. -/
 def _with_retries (max_retries retry_delay : Int) (env : List Outcome) : Exit × State :=
   if max_retries < 1 ∨ retry_delay < 0 then (.rejected, init) else runLoop max_retries env
 
-/-- How `request_json` ends, `_http.py:141-156`. -/
+/-- How `request_json` ends. -/
 inductive JsonExit where
-  /-- l.156: the response is decoded (JSON decoding itself is not modelled). -/
+  /-- `return response.json()`: the response is decoded (JSON decoding itself
+  is not modelled). -/
   | json (call : Nat)
-  /-- l.149-150: an error not worth retrying; the message is the error's own
+  /-- `if not _retryable(e)`: an error not worth retrying; the message is the error's own
   and has no attempt count. -/
   | fatalBranch (call : Nat) (e : Err)
-  /-- l.151-153: the message says "failed after {reported} attempts". -/
+  /-- Otherwise the message says "failed after {reported} attempts". -/
   | countBranch (reported : Int) (call : Nat)
-  /-- The guard's `ValueError`, which l.148 does not catch. -/
+  /-- The guard's `ValueError`, which `except requests.RequestException`
+  does not catch. -/
   | rejected
   | starved
 deriving Repr, DecidableEq
 
-/-- `_http.py:148-153`: what `request_json` does with the way `_with_retries`
-ended. `reported` is `e.attempts` (l.152). -/
+/-- What the `except` arm of `request_json` does with the way `_with_retries`
+ended. `reported` is `e.attempts`. -/
 def classify : Exit × State → JsonExit × State
   | (.returned k, s) => (.json k, s)
   | (.raised k e, s) =>
@@ -139,7 +143,7 @@ def classify : Exit × State → JsonExit × State
   | (.rejected, s) => (.rejected, s)
   | (.starved, s) => (.starved, s)
 
-/-- `_http.py:141-153`. -/
+/-- `request_json` in `_http.py`, up to its exception split. -/
 def request_json (max_retries retry_delay : Int) (env : List Outcome) : JsonExit × State :=
   classify (_with_retries max_retries retry_delay env)
 
@@ -172,7 +176,7 @@ def RunOK (max_retries : Int) (env : List Outcome) : Prop :=
 instance (m : Int) (env : List Outcome) : Decidable (RunOK m env) := by
   unfold RunOK; infer_instance
 
-/-- Property (e) for one run: when l.152 reports an attempt count, the count is
+/-- Property (e) for one run: when `request_json` reports an attempt count, the count is
 the number of `attempt()` calls made. -/
 def MessageAccurate (max_retries retry_delay : Int) (env : List Outcome) : Prop :=
   match request_json max_retries retry_delay env with
@@ -315,7 +319,7 @@ def fin (n : Nat) : State :=
 
 theorem init_eq : init = st 0 := by simp [init, st, pows]
 
-/-- One retry (l.75-77) takes `st n` to `st (n + 1)`. -/
+/-- One retry (sleep, double, increment) takes `st n` to `st (n + 1)`. -/
 theorem st_step (n : Nat) :
     ({ attempt_number := (st n).attempt_number + 1
        delay := (st n).delay * 2
@@ -577,7 +581,7 @@ theorem returned_is_last (m : Int) (env : List Outcome) (k : Nat)
     exact mid_getElem pre _ rest
   · rw [h] at hk; simp at hk
 
-/-- (e) The count stored at l.72 is the number of `attempt()` calls made, for
+/-- (e) The count stored in `e.attempts` is the number of `attempt()` calls made, for
 every `max_retries`, accepted by the guard or not. No hypotheses beyond the
 raise itself. -/
 theorem attempts_eq_calls (m : Int) (env : List Outcome) (k : Nat) (e : Err)

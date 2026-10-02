@@ -4,35 +4,35 @@
    StagedCache.tla models the liftover chain over the same staged writer.
 
    Source modelled (src/pylocuszoom/):
-     reference_genes.py:96-107  load, fetch on a miss, save
-     _gene_cache.py:101-131     load_annotations
-     _gene_cache.py:134-154     save_annotations
-     _gene_cache.py:157-188     clear_cache
-     _http.py:80-96             staged_path
+     reference_genes.py::get_genes_for_build  load, fetch on a miss, save
+     _gene_cache.py::load_annotations
+     _gene_cache.py::save_annotations
+     _gene_cache.py::clear_cache
+     _http.py::staged_path
 
    One action is one filesystem call.
 
      pc        code                                             action
-     load      _gene_cache.py:112 ZipFile(entry)                GLoad
-     fetch     reference_genes.py:102 source.fetch              GFetch
-     mk        _gene_cache.py:146-147, _http.py:88-90 mkstemp   GMk
-     open      _gene_cache.py:147 ZipFile(partial, "w")         GOpen
-     write     _gene_cache.py:148-151 and the archive close     GWrite
-     replace   _http.py:94 os.replace                           GReplace
-     cleanup   _http.py:96 unlink(missing_ok)                   GCleanup
-     glob      _gene_cache.py:179-182 both globs, eagerly       CGlob
-     unlink    _gene_cache.py:184 cache_file.unlink()           CUnlink
+     load      load_annotations: ZipFile(entry)                 GLoad
+     fetch     get_genes_for_build: source.fetch                GFetch
+     mk        save_annotations: mkdir, staged_path mkstemp     GMk
+     open      save_annotations: ZipFile(partial, "w")          GOpen
+     write     save_annotations: to_csv, the archive close      GWrite
+     replace   staged_path: os.replace                          GReplace
+     cleanup   staged_path: unlink(missing_ok)                  GCleanup
+     glob      clear_cache: both globs, eagerly                 CGlob
+     unlink    clear_cache: cache_file.unlink()                 CUnlink
 
    ZipFile opens the entry once and reads both members from that descriptor,
    so GLoad observes one content. Anything but a complete archive is a miss
-   (:117-131). The two globs are unpacked into one tuple before the loop
+   (the except arms of load_annotations). The two globs are unpacked into one tuple before the loop
    starts, so CGlob is one snapshot and the unlinks follow one at a time. The
    sibling name is ".{entry.name}.XXXX.part"; it ends in ".part", so neither
    "*.csv" nor "annotations_*.zip" matches it and Matches holds the entry only.
 
    Failure injection: a process in FailProcs raises at FailStage. "fetch"
    propagates to the caller; "create", "write" and "replace" are OSError,
-   which save_annotations logs and swallows (:153-154).
+   which save_annotations logs and swallows.
 
    Ownership: part[n] is the sibling named n with the process that created
    it; holds[p] says p's live staged_path frame owns a sibling.
@@ -56,13 +56,13 @@ vars == <<pc, dest, part, holds, failed, out, seen, todo, deleted, lost>>
 None == "none"
 Procs == Getters \cup Clearers
 Names == Getters
-\* _http.py:88-90: mkstemp gives every writer its own sibling name.
+\* staged_path: mkstemp gives every writer its own sibling name.
 Name(p) == p
 NoPart == [c |-> "none", own |-> None]
 Absent == [c |-> "absent", gen |-> None]
 Fails(p, stage) == p \in FailProcs /\ FailStage = stage
 
-\* _gene_cache.py:180-181: what "*.csv" and "annotations_*.zip" match.
+\* clear_cache: what "*.csv" and "annotations_*.zip" match.
 Matches == IF dest.c = "absent" THEN {} ELSE {"dest"}
 
 Init ==
@@ -161,7 +161,7 @@ CGlob(c) ==
   /\ pc' = [pc EXCEPT ![c] = IF Matches = {} THEN "done" ELSE "unlink"]
   /\ UNCHANGED <<dest, part, holds, failed, out, seen, deleted, lost>>
 
-\* A name that is gone raises FileNotFoundError, logged at :186-187.
+\* A name that is gone raises FileNotFoundError, which clear_cache logs.
 CUnlink(c) ==
   /\ pc[c] = "unlink"
   /\ \E f \in todo[c] :

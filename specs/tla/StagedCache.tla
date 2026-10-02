@@ -5,33 +5,33 @@
    cache over the same writer.
 
    Source modelled (src/pylocuszoom/):
-     _http.py:80-96        staged_path: mkstemp sibling, yield, os.replace, finally unlink
-     _http.py:203-237      stream_file (abstracted, see below)
-     _http.py:46-77        _with_retries (abstracted, see below)
-     _liftover.py:74-120   load_chain and _parse_chain
-     _liftover.py:123-151  chain_lifter: resolve the URL and the cache path
-     _liftover.py:154-162  _cached_chain, @lru_cache(maxsize=4) per process:
-                           load, else download
-     _liftover.py:165-177  _download_chain: stage, download, parse, publish
+     _http.py::staged_path          mkstemp sibling, yield, os.replace, finally unlink
+     _http.py::stream_file          (abstracted, see below)
+     _http.py::_with_retries        (abstracted, see below)
+     _liftover.py::load_chain       and _liftover.py::_parse_chain
+     _liftover.py::chain_lifter     resolve the URL and the cache path
+     _liftover.py::_cached_chain    @lru_cache(maxsize=4) per process:
+                                    load, else download
+     _liftover.py::_download_chain  stage, download, parse, publish
 
    One action is one filesystem call. A check and the call it guards are
    separate actions, so every interleaving between them is explored.
 
-     pc        code                                          action
-     load      _liftover.py:154 memo, :158 load_chain        Load
-     mk        _liftover.py:168 mkdir, :170 mkstemp          Mk
-     open      _liftover.py:171 stream_file starts           Open
-     stream    _liftover.py:171 stream_file ends or raises   Stream
-     validate  _liftover.py:172 _parse_chain(partial)        Validate
-     replace   _http.py:94 os.replace(partial, dest)         Replace
-     cleanup   _http.py:96 partial.unlink(missing_ok)        Cleanup
+     pc        code                                             action
+     load      _cached_chain: memo, load_chain(path)            Load
+     mk        _download_chain: mkdir, staged_path mkstemp      Mk
+     open      _download_chain: stream_file starts              Open
+     stream    _download_chain: stream_file ends or raises      Stream
+     validate  _download_chain: _parse_chain(partial)           Validate
+     replace   staged_path: os.replace(partial_path, dest)      Replace
+     cleanup   staged_path: partial_path.unlink(missing_ok)     Cleanup
 
    No action unlinks the destination: the only writer of dest is Replace, and
    Validate stands between every download and it.
 
    load_chain opens the file once and parses from that descriptor, so one
    Load action observes one content. An absent file is FileNotFoundError,
-   which :116 turns into ValidationError like any unreadable content.
+   which _parse_chain turns into ValidationError like any unreadable content.
    Validate parses the sibling the way the destination would be opened
    (gzipped by the destination's suffix); content that does not parse raises,
    staged_path skips os.replace and removes the sibling, and the call raises
@@ -87,7 +87,7 @@ None == "none"
 \* A call downloads at most once.
 MaxDl == Calls
 Names == Procs
-\* _http.py:88-90: mkstemp gives every writer its own sibling name.
+\* staged_path: mkstemp gives every writer its own sibling name.
 Name(p) == p
 NoPart == [c |-> "none", own |-> None]
 
@@ -125,7 +125,7 @@ Start(p) ==
   /\ UNCHANGED <<failed, dl, calls, dest, part, holds, memo, clobber, lost,
                  damaged>>
 
-\* :154 returns the memoised lifter; otherwise :158 parses the cached file,
+\* _cached_chain returns the memoised lifter; otherwise load_chain parses the cached file,
 \* and anything that does not parse sends the call to the download.
 Load(p) ==
   /\ pc[p] = "load"
@@ -176,7 +176,7 @@ Stream(p) ==
   /\ UNCHANGED <<dl, calls, dest, holds, lifter, memo, res, clobber, lost,
                  damaged>>
 
-\* :172 parses the sibling. Content that does not parse, or a sibling that
+\* _parse_chain(partial) parses the sibling. Content that does not parse, or a sibling that
 \* is gone, raises inside the staged_path block: no os.replace, then cleanup.
 Validate(p) ==
   /\ pc[p] = "validate"
@@ -209,7 +209,8 @@ Replace(p) ==
               /\ UNCHANGED <<failed, blame, lost>>
   /\ UNCHANGED <<dl, calls, lifter, memo, res, damaged>>
 
-\* The finally clause, then :177 returns the lifter or the error propagates.
+\* The finally clause, then _download_chain returns the lifter or the error
+\* propagates.
 Cleanup(p) ==
   /\ pc[p] = "cleanup"
   /\ part' = [part EXCEPT ![Name(p)] = NoPart]

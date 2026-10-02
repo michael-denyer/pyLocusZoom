@@ -3,13 +3,14 @@
 
 Model of the integer arithmetic in
 
-* `src/pylocuszoom/backends/plotly_layout.py:15-78` (`_Panel.subplot_idx`,
-  `axis`, `ref`, `secondary_ref`) and `:102-113` (`secondary_axis_key`);
-* `src/pylocuszoom/backends/plotly_backend.py:100-106` and `:137-151` (which
-  `row`, `col`, `n_cols` values `create_figure` / `create_figure_grid` build)
-  and `:507-536` (`create_twin_axis`, where `secondary_ref` becomes a layout
-  key unless a subplot already has that key);
-* `src/pylocuszoom/backends/_coerce.py:49-63` (`split_pixels`).
+* `src/pylocuszoom/backends/plotly_layout.py::_Panel` (`subplot_idx`, `axis`,
+  `ref`, `secondary_ref`) and `plotly_layout.py::secondary_axis_key`;
+* `src/pylocuszoom/backends/plotly_backend.py::PlotlyBackend.create_figure` and
+  `plotly_backend.py::PlotlyBackend.create_figure_grid` (which `row`, `col`,
+  `n_cols` values they build) and
+  `plotly_backend.py::PlotlyBackend.create_twin_axis` (where `secondary_ref`
+  becomes a layout key unless a subplot already has that key);
+* `src/pylocuszoom/backends/_coerce.py::split_pixels`.
 
 Modelling choices:
 
@@ -41,46 +42,44 @@ namespace PlotlyAxes
 
 /-! ## Transcription -/
 
-/-- `_Panel.subplot_idx`, `plotly_layout.py:31`:
+/-- `_Panel.subplot_idx` in `plotly_layout.py`:
 `(self.row - 1) * self.n_cols + self.col`. -/
 def subplot_idx (row col n_cols : Int) : Int := (row - 1) * n_cols + col
 
-/-- `_Panel.axis`, `plotly_layout.py:42-43`: `f"{kind}{idx}" if idx > 1 else kind`.
+/-- `_Panel.axis` in `plotly_layout.py`: `f"{kind}{idx}" if idx > 1 else kind`.
 `none` is the unsuffixed layout key. -/
 def axis (idx : Int) : Option Int := if idx > 1 then some idx else none
 
-/-- `_Panel.ref`, `plotly_layout.py:67-68`: the same rule as `axis`. -/
+/-- `_Panel.ref` in `plotly_layout.py`: the same rule as `axis`. -/
 def ref (idx : Int) : Option Int := if idx > 1 then some idx else none
 
-/-- `_Panel.secondary_ref`, `plotly_layout.py:56`: `f"y{100 + self.subplot_idx - 1}"`.
-Always suffixed. `secondary_axis_key` (`plotly_layout.py:111-112`) keeps the
-suffix, so this is also the suffix of the layout key `create_twin_axis` writes
-(`plotly_backend.py:514-525`). -/
+/-- `_Panel.secondary_ref` in `plotly_layout.py`: `f"y{100 + self.subplot_idx - 1}"`.
+Always suffixed. `secondary_axis_key` keeps the suffix, so this is also the
+suffix of the layout key `create_twin_axis` writes. -/
 def secondary_ref (idx : Int) : Option Int := some (100 + idx - 1)
 
-/-- `PlotlyBackend.create_twin_axis`, `plotly_backend.py:514-536`, on a figure
-of `N` subplots: the suffix of the secondary axis it creates. `none` is the
-`ValidationError` of `plotly_backend.py:517-522`, raised when the key is in
+/-- `PlotlyBackend.create_twin_axis` in `plotly_backend.py`, on a figure
+of `N` subplots: the suffix of the secondary axis it creates. `none` is its
+`ValidationError`, raised when the key is in
 the layout as a subplot's own y-axis. The secondary key is always suffixed, so
 it is one of `yaxis2 .. yaxisN` exactly when its suffix is in `2 .. N`. -/
 def twin_axis (N idx : Int) : Option Int :=
   if 1 < 100 + idx - 1 ∧ 100 + idx - 1 ≤ N then none else some (100 + idx - 1)
 
 /-- The cell is inside an `n_rows` by `n_cols` grid, 1-based. These are the
-only cells `create_figure` (`plotly_backend.py:100-106`, `n_cols = 1`) and
-`create_figure_grid` (`plotly_backend.py:137-151`) build. -/
+only cells `create_figure` (`n_cols = 1`) and `create_figure_grid` build. -/
 def InGrid (n_rows n_cols row col : Int) : Prop :=
   1 ≤ row ∧ row ≤ n_rows ∧ 1 ≤ col ∧ col ≤ n_cols
 
 instance (n_rows n_cols row col : Int) : Decidable (InGrid n_rows n_cols row col) := by
   unfold InGrid; infer_instance
 
-/-- Even arm of `split_pixels`, `_coerce.py:60-61`: `[total // n] * n`.
+/-- Even arm of `split_pixels` (`ratios is None`): `[total // n] * n`.
 `none` is the `ZeroDivisionError` raised when `n == 0`. -/
 def split_pixels_even (total : Int) (n : Nat) : Option (List Int) :=
   if n = 0 then none else some (List.replicate n (total / (n : Int)))
 
-/-- Ratio arm of `split_pixels`, `_coerce.py:62-63`, for non-negative integer
+/-- Ratio arm of `split_pixels`, for non-negative integer
 ratios: `[int(total * r / denominator) for r in ratios]`. An empty list
 divides nothing and returns `[]`; otherwise a zero denominator raises. -/
 def split_pixels_ratio (total : Nat) (ratios : List Nat) : Option (List Nat) :=
@@ -90,8 +89,7 @@ def split_pixels_ratio (total : Nat) (ratios : List Nat) : Option (List Nat) :=
 
 /-! ## Bounded exhaustive checks -/
 
-/-- Cells in the order `create_figure_grid` returns them
-(`plotly_backend.py:147-151`): row-major, 1-based. -/
+/-- Cells in the order `create_figure_grid` returns them: row-major, 1-based. -/
 def cells (n_rows n_cols : Nat) : List (Int × Int) :=
   (List.range n_rows).flatMap fun (r : Nat) =>
     (List.range n_cols).map fun (c : Nat) => ((r : Int) + 1, (c : Int) + 1)
