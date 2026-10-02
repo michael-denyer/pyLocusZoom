@@ -247,11 +247,17 @@ def prepare_genomewide_frames(
 ) -> list[PreparedManhattan]:
     """Validate each frame against ``config`` and lay them out on one genome.
 
-    The boundary for the genome-wide families: every frame is checked for
+    The boundary for the genome-wide families. Every frame is checked for
     the chromosome, position and p-value columns the config names (and
-    ``rs_col`` when given) before any of them is laid out, and projected onto
-    the canonical columns with its chromosome names normalised. The rows that
-    survive p-value filtering must then carry numeric positions of 1 or more.
+    ``rs_col`` when given) before any of them is filtered. The rows that
+    survive p-value filtering must carry numeric positions of 1 or more.
+    Every rule runs on the caller's own column names; only then is a frame
+    projected onto the canonical columns, with its chromosome names
+    normalised, and laid out.
+
+    Every returned value carries the same :class:`GenomeLayout`, so a given
+    ``(chrom, pos)`` lands at the same x in all of them. Pass a one-element
+    list for a single panel.
 
     Args:
         dfs: GWAS results DataFrames, in panel order.
@@ -261,11 +267,18 @@ def prepare_genomewide_frames(
         rs_col: SNP id column to require as well, or None.
         style: Supplies the chromosome gap and palette of the layout.
 
+    Returns:
+        One prepared value per input, in the same order, each carrying the
+        canonical ``chr``, ``pos`` and ``p_value`` columns (and ``rs`` when
+        ``rs_col`` is given) and the columns ``_chrom_str``, ``_chrom_idx``,
+        ``_cumulative_pos``, ``neglog10p`` and ``_color``.
+
     Raises:
-        ValidationError: If a frame is empty or lacks a named column, or a
-            plottable row has a null, non-numeric or below-1 position.
+        ValidationError: If a frame is empty or lacks a named column, if no
+            p-value in a frame survives, if a surviving row has a null,
+            non-numeric or below-1 position, or if neither the species nor
+            ``config.custom_chrom_order`` names a chromosome order.
     """
-    normalized = []
     for df in dfs:
         check(
             df,
@@ -273,88 +286,59 @@ def prepare_genomewide_frames(
                 config.pos_col, config.p_col, rs_col, chrom_col=config.chrom_col
             ),
         )
-        roles = {
-            Canonical.CHROM: normalize_chrom_series(df[config.chrom_col]),
-            Canonical.POS: df[config.pos_col],
-            Canonical.P: df[config.p_col],
-        }
-        if rs_col is not None:
-            roles[Canonical.RS] = df[rs_col]
-        normalized.append(pd.DataFrame(roles))
     custom_order = config.custom_chrom_order
-    return prepare_manhattan_frames(
-        normalized,
-        species=species,
-        custom_order=None
+    order = get_chromosome_order(
+        species,
+        None
         if custom_order is None
         else [normalize_chrom(chrom) for chrom in custom_order],
-        gap=style.chrom_gap,
-        palette=style.palette,
-        pos_name=config.pos_col,
     )
-
-
-def prepare_manhattan_frames(
-    dfs: Sequence[pd.DataFrame],
-    *,
-    species: str | Species | None = None,
-    custom_order: list[str] | None = None,
-    gap: int = CHROMOSOME_GAP,
-    palette: Sequence[str] | None = None,
-    pos_name: str = Canonical.POS,
-) -> list[PreparedManhattan]:
-    """Lay out canonical GWAS frames against one shared genome layout.
-
-    Every returned value carries the same :class:`GenomeLayout`, so a given
-    ``(chrom, pos)`` lands at the same x in all of them. Pass a one-element
-    list for a single panel. The frames carry the canonical ``chr``, ``pos``
-    and ``p_value`` columns with normalised chromosome names, as
-    :func:`prepare_genomewide_frames` projects them after validation.
-
-    Args:
-        dfs: Canonical GWAS frames, in panel order.
-        species: Species for chromosome ordering.
-        custom_order: Custom chromosome order.
-        gap: Base pairs between one chromosome's end and the next's start.
-        palette: Chromosome colours, or None for the default palette.
-        pos_name: The caller's name for the position column, for the error
-            message.
-
-    Returns:
-        One prepared value per input, in the same order, each carrying the
-        columns ``_chrom_str``, ``_chrom_idx``, ``_cumulative_pos``,
-        ``neglog10p`` and ``_color``.
-
-    Raises:
-        ValidationError: If no p-value in a frame survives, if a surviving
-            row has a null, non-numeric or below-1 position, or if neither
-            species nor custom_order names a chromosome order.
-    """
-    chrom_col, pos_col, p_col = Canonical.CHROM, Canonical.POS, Canonical.P
-    order = get_chromosome_order(species, custom_order)
-    filtered = [
+    # One column may fill two roles, so each is selected once.
+    named = list(
+        dict.fromkeys(
+            col
+            for col in (config.chrom_col, config.pos_col, config.p_col, rs_col)
+            if col is not None
+        )
+    )
+    # A frame may name one of its own columns "neglog10p", so the transformed
+    # column takes a name none of them has until the projection.
+    neglog_col = "neglog10p"
+    while neglog_col in named:
+        neglog_col += "_"
+    plottable = [
         prepare_pvalue_data(
-            df,
-            p_col,
+            df[named],
+            config.p_col,
             "genome-wide",
-            on_empty=ALL_PVALUES_INVALID.format(p_col=p_col),
+            out_col=neglog_col,
+            on_empty=ALL_PVALUES_INVALID.format(p_col=config.p_col),
         )
         for df in dfs
     ]
     # Rows dropped for their p-value are never laid out, so only the
     # survivors' positions are checked.
-    for frame in filtered:
-        check(
-            frame[[pos_col]].rename(columns={pos_col: pos_name}),
-            genomewide_position_spec(pos_name),
-        )
+    for frame in plottable:
+        check(frame, genomewide_position_spec(config.pos_col))
+    chrom_col, pos_col = Canonical.CHROM, Canonical.POS
+    filtered = []
+    for frame in plottable:
+        roles = {
+            chrom_col: normalize_chrom_series(frame[config.chrom_col]),
+            pos_col: frame[config.pos_col],
+            Canonical.P: frame[config.p_col],
+        }
+        if rs_col is not None:
+            roles[Canonical.RS] = frame[rs_col]
+        roles["neglog10p"] = frame[neglog_col]
+        filtered.append(pd.DataFrame(roles))
     layout = GenomeLayout.from_frames(
         filtered,
         chrom_col=chrom_col,
         pos_col=pos_col,
         order=order,
-        gap=gap,
-        palette=palette,
+        gap=style.chrom_gap,
+        palette=style.palette,
     )
     return [
         PreparedManhattan(

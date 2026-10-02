@@ -313,6 +313,28 @@ class TestGenomeWideBoundary:
         with pytest.raises(ValidationError, match="Column 'BP': 1 values < 1"):
             plotter.plot_manhattan(df, config=config)
 
+    def test_all_invalid_p_values_name_the_configured_column(self, plotter):
+        df = pd.DataFrame({"CHR": ["1", "2"], "BP": [100, 200], "P": [np.nan, 1.5]})
+        config = GenomeWideConfig(chrom_col="CHR", pos_col="BP", p_col="P")
+        with pytest.raises(
+            ValidationError, match="All rows have invalid p-values in column 'P' "
+        ):
+            plotter.plot_manhattan(df, config=config)
+
+    def test_a_position_column_named_neglog10p_keeps_its_values(self, plotter):
+        """The transformed p-value column never overwrites a caller's column."""
+        df = pd.DataFrame(
+            {"chr": ["1", "2"], "neglog10p": [100, 50], "p_value": [1e-5, 1e-6]}
+        )
+        fig = plotter.plot_manhattan(
+            df,
+            config=GenomeWideConfig(pos_col="neglog10p"),
+            style=GenomeWideStyle(chrom_gap=0),
+        )
+
+        x = sorted(x for coll in fig.axes[0].collections for x, _ in coll.get_offsets())
+        assert x == [100, 150]
+
     def test_every_stacked_frame_has_its_positions_checked(
         self, plotter, manhattan_chrom_df
     ):
