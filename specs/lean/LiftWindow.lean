@@ -37,6 +37,8 @@ is a concrete example: `lead_not_a_row_is_dropped` and
 this file is a bounded search.
 -/
 
+namespace LiftWindow
+
 /-! ## Transcription -/
 
 /-- `_liftover.py::_Outcome`. -/
@@ -688,3 +690,5 @@ theorem negative_lifter_escapes :
       (liftOne (fun _ => [(true, -5)]) 3).2 = some (-4) ∧
       ¬ Inside (1, 2) (-4) := by
   decide
+
+end LiftWindow

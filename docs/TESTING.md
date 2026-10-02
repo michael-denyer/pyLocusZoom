@@ -205,10 +205,10 @@ Two TLC processes started at the same moment can fail with `Parsing or semantic 
 
 ### Lean models
 
-`specs/lean/` holds one Lean 4 project per piece of sequential arithmetic. Each `Model.lean` transcribes the Python functions it names in its header as `file.py::symbol`, runs a bounded exhaustive search as `#guard` lines, and proves its properties for every input size. The hypotheses a theorem needs, and what the model leaves out, are listed in that header.
+`specs/lean/` is one Lake package with one library per piece of sequential arithmetic. Each `<Model>.lean` wraps its definitions in a namespace of the same name, transcribes the Python functions it names in its header as `file.py::symbol`, runs a bounded exhaustive search as `#guard` lines, and proves its properties for every input size. The hypotheses a theorem needs, and what the model leaves out, are listed in that header.
 
-| Project | Source | Proved |
-| ------- | ------ | ------ |
+| Model | Source | Proved |
+| ----- | ------ | ------ |
 | `GeneRows` | `gene_track.assign_gene_positions` | Genes sharing a row never collide, rows have no gaps, and each gene takes the lowest free row. |
 | `GenomeLayout` | `manhattan.GenomeLayout.from_frames`, `panels/miami.py` highlights | Points keep chromosome order, get distinct x and stay a gap apart for 1-based positions and a non-negative gap. |
 | `HeatmapCells` | `backends/composition.py` highlight cells and cell edges | The highlight covers exactly the rendered cells of one SNP's row and column, and every cell has positive size for strictly ascending coordinates. |
@@ -216,13 +216,13 @@ Two TLC processes started at the same moment can fail with `Parsing or semantic 
 | `PlotlyAxes` | `backends/plotly_layout.py` axis names, `backends/_coerce.split_pixels` | The subplot index is a bijection on the grid, and secondary axis names avoid primary names up to 99 subplots. |
 | `RetryLoop` | `_http._with_retries` | At most `max(1, max_retries)` attempts are made, the backoff doubles with no sleep after the last attempt, and the error raised is the last attempt's. |
 
-After changing one of those functions, update its model and run the checker from the `agent-formal-verify` plugin on the project:
+After changing one of those functions, update its model and run the checker from the `agent-formal-verify` plugin on the package, which builds all six models:
 
 ```bash
-bash /path/to/formal-verify/scripts/lean-check.sh specs/lean/GeneRows
+bash /path/to/formal-verify/scripts/lean-check.sh specs/lean
 ```
 
-The checker builds every `.lean` file and fails on a build error, a failing `#guard`, a `sorry`, or a declaration that rests on an axiom beyond `propext`, `Classical.choice` and `Quot.sound`. It needs [elan](https://github.com/leanprover/elan) and the toolchain named in the project's `lean-toolchain`. Coordinates are modelled as unbounded integers, so float rounding is outside every proof.
+The checker builds every `.lean` file and fails on a build error, a failing `#guard`, a `sorry`, or a declaration that rests on an axiom beyond `propext`, `Classical.choice` and `Quot.sound`. It needs [elan](https://github.com/leanprover/elan) and the toolchain named in `specs/lean/lean-toolchain`. Coordinates are modelled as unbounded integers, so float rounding is outside every proof.
 
 ## Coverage Requirements
 
@@ -248,6 +248,6 @@ Steps:
 4. `uv sync --extra dev --extra all` to install dev and PySpark dependencies.
 5. `uv run pytest` to run the suite. Every flag comes from `addopts`, including the marker expression that deselects the integration tests, which hit the live Ensembl API.
 
-Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), example regeneration and notebook execution (the `examples` job), package building (`uv build`), and the formal models (the `models` job, which runs every `specs/tla/*.matrix` through TLC and every `specs/lean/` project through the Lean checker, using the helper scripts of the `agent-formal-verify` plugin at a pinned commit). A test failure, lint failure, or doc-lint failure will block the PR.
+Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), example regeneration and notebook execution (the `examples` job), package building (`uv build`), and the formal models (the `models` job, which runs every `specs/tla/*.matrix` through TLC and the `specs/lean/` package through the Lean checker, using the helper scripts of the `agent-formal-verify` plugin at a pinned commit). A test failure, lint failure, or doc-lint failure will block the PR.
 
 Because `pytest-xdist` and `pytest-randomly` are active, every CI run reports the worker count and the random seed in the header — use `pytest --randomly-seed=<seed>` locally to reproduce a failure.

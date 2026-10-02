@@ -1,0 +1,20 @@
+name = "models"
+defaultTargets = ["GeneRows", "GenomeLayout", "HeatmapCells", "LiftWindow", "PlotlyAxes", "RetryLoop"]
+
+[[lean_lib]]
+name = "GeneRows"
+
+[[lean_lib]]
+name = "GenomeLayout"
+
+[[lean_lib]]
+name = "HeatmapCells"
+
+[[lean_lib]]
+name = "LiftWindow"
+
+[[lean_lib]]
+name = "PlotlyAxes"
+
+[[lean_lib]]
+name = "RetryLoop"

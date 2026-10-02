@@ -35,6 +35,8 @@ Modelling choices
   loop at once (`except requests.RequestException` does not catch it).
 -/
 
+namespace RetryLoop
+
 /-- A `requests.RequestException`. `http status` is a `requests.HTTPError`;
 `status` is `none` when the error carries no response (`_http.py::_status_of`).
 `connection` stands for every `RequestException` that is not an `HTTPError`. -/
@@ -737,3 +739,5 @@ theorem fatal_keeps_message (m d : Int) (hm : 1 ≤ m) (hd : 0 ≤ d) (pre rest 
   unfold request_json
   rw [accepted_runs_loop m d _ hm hd, fatal_immediate m pre rest e hp hf hl]
   simp [classify, hf]
+
+end RetryLoop

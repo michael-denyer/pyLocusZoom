@@ -35,6 +35,8 @@ and bokeh's explicit `xs = x_edges[j]`, `ys = y_edges[i]` for `data[i, j]`
   or from `x_edges[x], y_edges[y]`) is `none`.
 -/
 
+namespace HeatmapCells
+
 /-! ## Transcription -/
 
 /-- `lower_triangle` mask: `np.triu(ones, k=1)` masks
@@ -524,3 +526,5 @@ theorem rects_guard (s : Int) (xc yc : List Int) (h : ¬ (0 ≤ s ∧ s < xc.len
     have := (not_congr (cells_guard s xc.length)).mpr h
     simpa using this
   simp only [heatmap_highlight_rects, hnone]
+
+end HeatmapCells
