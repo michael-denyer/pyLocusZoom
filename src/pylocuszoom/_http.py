@@ -4,7 +4,8 @@
 Ensembl and UCSC want identical behaviour for a JSON GET: retry with doubling
 backoff on connection errors and on 429/503, raise the client's own error class
 on anything else. Only the error class, service name for messages, and headers
-differ per caller.
+differ per caller. An error that outlasts the retries reports how many attempts
+were made; one that is not worth retrying keeps its own message.
 
 ``download_file`` streams a large file over the same retry policy, so the 50 MB
 recombination tarball gets the attempts the 5 KB JSON payload always had.
@@ -51,9 +52,16 @@ def _with_retries(
     what one attempt does.
 
     Raises:
+        ValueError: If ``max_retries`` is below 1 or ``retry_delay`` is
+            negative, before the first attempt.
         requests.RequestException: The last attempt's error, or the first
-            error that is not worth retrying.
+            error that is not worth retrying. Its ``attempts`` attribute is
+            the number of attempts made.
     """
+    if max_retries < 1:
+        raise ValueError(f"max_retries must be at least 1, got {max_retries}")
+    if retry_delay < 0:
+        raise ValueError(f"retry_delay must not be negative, got {retry_delay}")
     delay = retry_delay
     attempt_number = 1
     while True:
@@ -61,6 +69,7 @@ def _with_retries(
             return attempt()
         except requests.RequestException as e:
             if attempt_number >= max_retries or not _retryable(e):
+                e.attempts = attempt_number
                 raise
             logger.warning(f"{what} failed (attempt {attempt_number}): {e}")
             time.sleep(delay)
@@ -136,11 +145,11 @@ def request_json(
             max_retries=max_retries,
             retry_delay=retry_delay,
         )
-    except requests.HTTPError as e:
-        raise error_cls(str(e)) from e
     except requests.RequestException as e:
+        if not _retryable(e):
+            raise error_cls(str(e)) from e
         raise error_cls(
-            f"{service} API request failed after {max_retries} attempts: {e}"
+            f"{service} API request failed after {e.attempts} attempts: {e}"
         ) from e
 
     try:
@@ -189,7 +198,8 @@ def download_file(
                 retry_delay=retry_delay,
             )
         except requests.RequestException as e:
-            raise DataDownloadError(f"Failed to download {url}: {e}") from e
+            after = f" after {e.attempts} attempts" if _retryable(e) else ""
+            raise DataDownloadError(f"Failed to download {url}{after}: {e}") from e
 
 
 def _stream_to(url: str, partial_path: Path, desc: str, timeout: float) -> None:
