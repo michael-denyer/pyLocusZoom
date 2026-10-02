@@ -183,7 +183,6 @@ A one-figure GWAS summary. Every genome-wide plot takes a `GenomeWideStyle` for 
 
 - [Getting Started](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/GETTING-STARTED.md) - Installation and first plot
 - [User Guide](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/USER_GUIDE.md) - Every plot type, the config models, loaders, data formats and species support
-- [Migrating to 5.0](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/MIGRATING-5.0.md) - What to change when upgrading from 4.x
 - [Configuration](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/CONFIGURATION.md) - Cache locations and the environment variables that move them
 - [Architecture](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/ARCHITECTURE.md) - Design decisions and component overview
 - [Code Map](https://github.com/michael-denyer/pyLocusZoom/blob/main/docs/CODEMAP.md) - Architecture diagram with source code links

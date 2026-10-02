@@ -238,9 +238,7 @@ stages:
    `_optional_layer`. An `LDConfig.lead_pos` inside the region that matches no SNP
    only logs through loguru, which is off by default, so LD colouring is
    skipped without a visible message. A recombination map with no rows in the
-   region returns an empty frame, and the overlay draws nothing. Before 5.0 recombination reported a status enum instead;
-   it was a second error taxonomy kept in sync by hand beside the exception
-   hierarchy, and a chain failure that escaped it crashed `plot()`.
+   region returns an empty frame, and the overlay draws nothing.
 6. **Regional composition and backend dispatch.** `plot()` and
    `plot_stacked()` take the region plus five frozen config values
    (`ColumnConfig`, `DisplayConfig`, `LDConfig`, `PanelInputs`,
@@ -296,7 +294,7 @@ stages:
    `LDHeatmapPlotter` an `LDHeatmapPanel`. Every family is a panel value
    with `draw` on a `FigurePlan`; no family holds a renderer class.
    Panels own their drawing, labels, axes and legends; `render_figure` owns
-   the figure, translating intent through the existing `PlotBackend`
+   the figure, translating intent through the `PlotBackend`
    primitive contract. Backend implementations translate the primitive calls
    into matplotlib Axes, plotly Figure traces, or bokeh figure glyphs.
 7. **Output.** Matplotlib returns a `Figure` object; plotly and bokeh return
@@ -432,18 +430,15 @@ class needs to change. Recombination maps are downloaded lazily at runtime by
 into the platform cache directory (`utils._platform_cache_base()`), rather than
 shipping ~50 MB of maps in the wheel.
 
-### Custom backends in 2.0
+<a id="custom-backends-in-20"></a>
 
-2.0 completes the rendering seam, which breaks the 1.x extension contract. A
-custom backend needs three changes. 5.0 trims the protocol again
-([ADR-0011](adr/0011-protocol-diet-and-one-panel-body.md)); the signatures
-below are the 5.0 ones, and [MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends)
-lists each change from 4.x.
+### Custom backends
 
-**1. One neutral `add_legend`.** The five semantic legend methods
-(`add_ld_legend`, `add_effect_legend`, `add_eqtl_legend`,
-`add_finemapping_legend`, `add_simple_legend`) are gone, and the old generic
-`add_legend(handles, labels)` is replaced. Legend content is now built above the
+`PlotBackend` carries drawing primitives only, and a custom backend follows
+three rules.
+
+**1. One neutral `add_legend`.** The protocol has no semantic legend methods.
+Legend content is built above the
 seam by pure functions in `backends/composition.py` and handed down as
 `LegendEntry` values:
 
@@ -457,8 +452,7 @@ def add_legend(
 ```
 
 Backends draw the legend in the panel's upper-right corner and honour each
-entry's `edgecolor`, falling back to black when it is `None`. (2.0 also took a
-`loc`, which every caller set to `"upper right"`; 5.0 removed it.) No drawing
+entry's `edgecolor`, falling back to black when it is `None`. No drawing
 primitive takes a label, so `add_legend` is the only route to legend content.
 
 The Manhattan threshold key is the one legend that is not a framed column in
@@ -468,44 +462,39 @@ it draws the lines from, and passes `horizontal=True` for a frameless row. It
 passes `location="lower right"` on the inverted Miami panel, whose headroom is
 at the bottom. `location` takes those two corners only.
 
-**2. `add_recombination_overlay` is gone.** The overlay is composed from
-primitives by `composition.render_recombination_overlay()`. In 2.0 a backend
-that wanted the overlay implemented the optional `SupportsSecondaryAxis`; since
-the fold-back described under "One optional capability" below, its methods are
+**2. The recombination overlay is not a backend method.** The overlay is
+composed from primitives by `composition.render_recombination_overlay()`. The
+secondary-axis methods it draws through are
 required `PlotBackend` members. `create_twin_axis(ax)` returns a per-backend
 handle, `set_secondary_ylim` and `set_secondary_ylabel` take that handle, and
 `line` and `fill_between` accept it in place of a panel to draw against the
 secondary scale.
 
-**3. Capabilities are protocols, not booleans.** The `supports_snp_labels` and
-`supports_secondary_axis` properties are removed. Optional capabilities are
-detected with `isinstance` against `@runtime_checkable` protocols, so a backend
-declares support by implementing the methods and declines by omitting them:
-`SupportsRegionHighlight`, `SupportsSNPLabels`, `SupportsSecondaryAxis`. Only
-`SupportsSNPLabels` is still optional; see "One optional capability" below.
-`supports_hover` stayed a boolean until 5.0 deleted it
-([ADR-0011](adr/0011-protocol-diet-and-one-panel-body.md)): its one caller
-saved about 5 ms, and matplotlib ignores hover data anyway.
+**3. Capabilities are protocols, not booleans.** The protocol has no
+`supports_*` properties. An optional capability is
+detected with `isinstance` against a `@runtime_checkable` protocol, so a backend
+declares support by implementing the methods and declines by omitting them.
+`SupportsSNPLabels` is the only one; see "One optional capability" below.
 
-No compatibility shim is provided. See
-[ADR-0004](adr/0004-complete-rendering-seam-and-capability-protocols.md) for the
+See
+[ADR-0004](adr/0004-complete-rendering-seam-and-capability-protocols.md) and
+[ADR-0011](adr/0011-protocol-diet-and-one-panel-body.md) for the
 reasoning.
 
 ### One optional capability
 
-`SupportsHeatmap`, `SupportsErrorBars`, `SupportsSecondaryAxis` and
-`SupportsRegionHighlight` were folded back into `PlotBackend`. All three shipped
-backends implemented all four, so every `isinstance` gate on them guarded a
-branch no backend reached, and the three call sites had invented three different
-policies for a case that could not occur. `SupportsSNPLabels` remains the one
+`SupportsSNPLabels` is the one
 optional protocol, because it needs adjustText and plotly and bokeh really do
-decline it. See
-[ADR-0005](adr/0005-heatmap-and-bar-chart-capability-protocols.md) for the split
-and why it was reversed.
+decline it. Heatmaps, horizontal error bars, the secondary axis and region
+highlights are not optional. All three shipped backends implement them, so an
+`isinstance` gate on any of them would guard a branch no backend reaches, and
+each call site would need a policy for a case that cannot occur. See
+[ADR-0005](adr/0005-heatmap-and-bar-chart-capability-protocols.md) for the
+decision.
 
 `add_heatmap`, `errorbar_h`, `create_twin_axis`,
 `set_secondary_ylim`, `set_secondary_ylabel` and `add_region_highlight` are
-required methods again. A backend that implements every required method and no
+required methods. A backend that implements every required method and no
 `add_snp_labels` still renders every regional, Manhattan, Miami, colocalisation
 and PheWAS plot.
 

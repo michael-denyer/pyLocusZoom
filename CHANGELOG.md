@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `docs/MIGRATING-5.0.md` is removed. The Breaking section of the 5.0.0 entry below lists every change that needs one from you, including each `PlotBackend` signature change for custom backends.
+
 ### Added
 
 - Manhattan panels carry a key to their threshold lines: a line swatch in the line's colour, style and width followed by `P = 5e-08`, one entry per line drawn, the suggestive line first. It is on by default, so every existing Manhattan, categorical Manhattan, stacked, Manhattan-QQ and Miami figure gains it on all three backends; `GenomeWideStyle(show_threshold_legend=False)` turns it off. A panel with no line has no key, and QQ panels have none. The key is a frameless row in the right corner of the panel's headroom: top right, or bottom right on the lower Miami panel.
@@ -74,8 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-[docs/MIGRATING-5.0.md](docs/MIGRATING-5.0.md) collects every change below that needs one from you, including each `PlotBackend` signature change for custom backends.
-
 The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.md)): a column you name must exist, and every input error is a `pylocuszoom.ValidationError`. Each entry below ends with the change to make. `scripts/migrate_to_config_models.py` rewrites the `PanelInputs` fields and flat `plot_coloc` options mechanically.
 
 - **A config model's rejected value raises `pylocuszoom.ValidationError`, not pydantic's `ValidationError`.** Every model (`ColumnConfig`, `LDConfig`, `GenomeWideStyle`, ...) and every region passed to a plot method raised pydantic's class, which shares the name but not the `PyLocusZoomError` hierarchy. The message now names each failing field. Assigning to a frozen model raises the same way. Migration: catch `pylocuszoom.ValidationError` (or `ValueError`, which both subclass).
@@ -121,7 +123,7 @@ The intake boundary is strict ([ADR-0010](docs/adr/0010-strict-intake-boundary.m
 - **`ensembl.ENSEMBL_REQUEST_TIMEOUT`, `ENSEMBL_MAX_RETRIES`, `ENSEMBL_RETRY_DELAY` and the three `ucsc.UCSC_*` equivalents are removed.** They restated `request_json`'s defaults (30 s, 3 attempts, 1 s).
 - **`plot_coloc` takes a `ColocConfig`, and its options are keyword-only.** Its fifteen options restated `ColocConfig`'s fields, and `ColocConfig` was not exported, so a caller could not build one to pass. The signature is now `plot_coloc(gwas_df, eqtl_df, *, config=ColocConfig(), gwas_threshold=UNSET, eqtl_threshold=UNSET, title=None)`, and `ColocConfig` is exported from `pylocuszoom`. `ColocConfig.gwas_threshold` and `eqtl_threshold` are removed; the thresholds stay per call, as in every other family, and one outside (0, 1] still raises. Migration: the migration script rewrites flat keywords into `config=ColocConfig(...)`.
 - **`plot_phewas`, `plot_forest` and `plot_ld_heatmap` take their options by keyword.** Every argument after the frame and its identifier (`variant_id`, `snp_ids`) is keyword-only, as on the other three plotters. Migration: name the arguments.
-- **The `PlotBackend` protocol loses what no caller sent (custom backends).** `supports_hover`, `add_colorbar`, `add_legend(loc)`, `add_text(rotation)` and `add_snp_labels(adjust, lead_pos, region_span)` are removed. `add_heatmap` takes `colorbar_label` and returns `None`, so every drawing primitive returns `None` and `pylocuszoom.backends.Mappable` is gone. `add_snp_labels` returns `None`. `scatter` always receives `alpha` and `set_title`/`set_suptitle` always receive `fontweight`: 4.1 and 4.2 left them out for older backends, and those shims (`scatter_alpha`, `title_weight`) are removed. Every legend is drawn in the panel's upper-right corner, where every caller already put it. [ADR-0011](docs/adr/0011-protocol-diet-and-one-panel-body.md) records the decision. Migration: [docs/MIGRATING-5.0.md](docs/MIGRATING-5.0.md#custom-backends) lists each signature.
+- **The `PlotBackend` protocol loses what no caller sent (custom backends).** `supports_hover`, `add_colorbar`, `add_legend(loc)`, `add_text(rotation)` and `add_snp_labels(adjust, lead_pos, region_span)` are removed. `add_heatmap` takes `colorbar_label` and returns `None`, so every drawing primitive returns `None` and `pylocuszoom.backends.Mappable` is gone. `add_snp_labels` returns `None`. `scatter` always receives `alpha` and `set_title`/`set_suptitle` always receive `fontweight`: 4.1 and 4.2 left them out for older backends, and those shims (`scatter_alpha`, `title_weight`) are removed. Every legend is drawn in the panel's upper-right corner, where every caller already put it. [ADR-0011](docs/adr/0011-protocol-diet-and-one-panel-body.md) records the decision. Migration: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#custom-backends) gives each current signature.
 - **`scatter(hover_data=)` takes a `HoverData`, not a DataFrame (custom backends).** `HoverData` is the display-named frame plus one `HoverRole` per column (`ID`, `POSITION`, `P_VALUE`, `R2`, `PLAIN`), and a backend formats a column by its role. `HoverDataBuilder.build_dataframe` is renamed `build` and returns one; `plotly_hovertemplate` and `bokeh_tooltips` take one. Migration: read `hover_data.frame` where you read the DataFrame, and `hover_data.roles` for the format.
 
 ### Changed

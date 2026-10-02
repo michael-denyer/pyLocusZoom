@@ -50,7 +50,7 @@ so none of those flags belong on a command line or in a CI step.
 
 ### Markers
 
-Currently a single custom marker is registered in `pyproject.toml`:
+A single custom marker is registered in `pyproject.toml`:
 
 - `integration` — tests that require external services (e.g. the Ensembl REST API). Deselected by default; opt in with `-m integration`. Every other test runs with outbound connections and DNS lookups refused by the autouse `block_network` fixture in `tests/conftest.py`, so a test that would download fails instead of reading or filling the machine's cache.
 
@@ -156,7 +156,7 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
 - **Assert on observable outputs, not mock call counts.** Check returned figures, DataFrame columns/shapes, written files, and raised exceptions. Reserve `assert_called_once_with` for true system boundaries (PLINK subprocess, HTTP, filesystem dispatch).
 - **Drive PLINK through `fake_plink`** — tests must not require a real PLINK installation. The `fake_plink` fixture in `conftest.py` patches `subprocess.run` and writes a real `.ld` file at the path the command asked for, so command construction, output parsing and the R2 assignment all stay inside the test. Assert on the frame `calculate_ld` returns, not on what the mock received: a command flag is already pinned by `TestBuildLdCommand` and `TestBuildPairwiseLdCommand`, which call the pure builders and assert on the list they return.
-- **State a rendering behaviour once, not once per backend.** A fact about the figure (how many panels, where the threshold line sits, which marker, whether it hovers) belongs in one `@pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)` test reading a probe from `tests/figure_probes.py`; use `INTERACTIVE_BACKENDS` only for questions matplotlib cannot answer, such as HTML export. If the probe cannot answer the question yet, add a method to all three probes rather than walking the figure in the test. Hand-written per-backend twins drift: the bokeh eQTL marker test used to pass with the negative-effect glyph never drawn. A genuine library-specific regression still belongs in `test_plotly_backend.py` or `test_bokeh_backend.py`.
+- **State a rendering behaviour once, not once per backend.** A fact about the figure (how many panels, where the threshold line sits, which marker, whether it hovers) belongs in one `@pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)` test reading a probe from `tests/figure_probes.py`; use `INTERACTIVE_BACKENDS` only for questions matplotlib cannot answer, such as HTML export. If the probe cannot answer the question yet, add a method to all three probes rather than walking the figure in the test. Hand-written per-backend twins drift, so one backend's copy can keep passing while the glyph it names is never drawn. A genuine library-specific regression still belongs in `test_plotly_backend.py` or `test_bokeh_backend.py`.
 - **Cover edge cases**: empty DataFrames, missing required columns, mismatched list lengths, single-SNP regions, and cross-chromosome filtering.
 - **Respect the 30s timeout.** If a test is legitimately slow, override with `@pytest.mark.timeout(60)` rather than raising the global default.
 - **Randomization-safe**: tests must not depend on execution order. If a test only passes under a specific seed, that is a bug in the test.

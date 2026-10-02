@@ -210,7 +210,7 @@ For a concrete example, see `prepare_genomewide_frames` in
    - `examples` — downloads the canine recombination maps, runs the example generator
      into a temporary directory (any `UserWarning` fails it) and executes the notebook.
    - `build` — `uv build` produces wheel and sdist artifacts.
-8. There is no `.github/PULL_REQUEST_TEMPLATE.md` at time of writing — write a concise
+8. There is no `.github/PULL_REQUEST_TEMPLATE.md`, so write a concise
    description covering *what* changed and *why*, and reference any related GitHub
    issues. Do not include AI-assistant attribution in commit messages or PR bodies.
 9. Releases are cut from `main` by bumping `version` in `pyproject.toml`, running `uv lock`,
