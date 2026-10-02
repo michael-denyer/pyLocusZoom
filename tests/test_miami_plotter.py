@@ -5,8 +5,13 @@ import pandas as pd
 import pytest
 
 from pylocuszoom import GenomeWideConfig
+from pylocuszoom._figure import RegionHighlight as PlannedHighlight
 from pylocuszoom.backends import BUILTIN_BACKENDS
+from pylocuszoom.exceptions import ValidationError
+from pylocuszoom.manhattan import prepare_genomewide_frames
 from pylocuszoom.miami_plotter import MiamiPlotter
+from pylocuszoom.panels.miami import MiamiRequest, miami_plan
+from pylocuszoom.species import resolve_species
 from tests.conftest import FIGURE_TYPES
 from tests.figure_probes import INTERACTIVE_BACKENDS, PROBES, RegionHighlight
 
@@ -643,6 +648,124 @@ class TestMiamiHighlight:
         expected = [RegionHighlight(500, 2500, "#ff0000")]
         assert probe.region_highlights(fig, 0) == expected
         assert probe.region_highlights(fig, 1) == expected
+
+    @pytest.mark.parametrize("backend_name", BUILTIN_BACKENDS)
+    def test_region_past_the_data_is_clipped_to_its_chromosome(
+        self, backend_name, miami_panel_dfs
+    ):
+        """A region longer than the plotted chromosome stops at its last point."""
+        plotter = MiamiPlotter(species="canine", backend=backend_name)
+        top_df, bottom_df = miami_panel_dfs
+
+        fig = plotter.plot_miami(
+            top_df, bottom_df, highlight_regions=[("1", 2500, 2_000_000)]
+        )
+
+        # Chromosome 1 is plotted up to 3000; chromosome 2 starts at 1_003_000.
+        probe = PROBES[backend_name]
+        expected = [RegionHighlight(2500, 3000, "#ffff00")]
+        assert probe.region_highlights(fig, 0) == expected
+        assert probe.region_highlights(fig, 1) == expected
+
+    @pytest.mark.parametrize("chrom", ["chr1", "Chr1", 1, "1"])
+    def test_region_chromosome_is_normalised_like_the_frames(
+        self, chrom, miami_panel_dfs
+    ):
+        """A 'chr' prefix or an integer names the same chromosome as the frame."""
+        top_df, bottom_df = miami_panel_dfs
+
+        fig = MiamiPlotter(species="canine").plot_miami(
+            top_df, bottom_df, highlight_regions=[(chrom, 500, 2500)]
+        )
+
+        assert PROBES["matplotlib"].region_highlights(fig, 0) == [
+            RegionHighlight(500, 2500, "#ffff00")
+        ]
+
+    @pytest.mark.parametrize(
+        "region, reason",
+        [
+            (("1", 5000, 6000), "starts past the last plotted position"),
+            (("7", 10, 20), "has no plotted data"),
+        ],
+    )
+    def test_region_outside_the_data_warns_and_is_skipped(
+        self, region, reason, miami_panel_dfs
+    ):
+        """A region with nothing plotted under it is dropped with a warning."""
+        top_df, bottom_df = miami_panel_dfs
+        chrom, start, end = region
+
+        with pytest.warns(
+            UserWarning, match=f"{chrom}:{start}-{end} skipped.*{reason}"
+        ):
+            fig = MiamiPlotter(species="canine").plot_miami(
+                top_df, bottom_df, highlight_regions=[region, ("2", 500, 1500)]
+            )
+
+        expected = [RegionHighlight(1_003_500, 1_004_500, "#ffff00")]
+        assert PROBES["matplotlib"].region_highlights(fig, 0) == expected
+        assert PROBES["matplotlib"].region_highlights(fig, 1) == expected
+
+    @pytest.mark.parametrize(
+        "region, reason",
+        [
+            (("1", 20, 10), "start must not exceed end"),
+            (("1", -50, 0), "start must be >= 1"),
+            (("1", 0, 10), "start must be >= 1"),
+        ],
+    )
+    def test_malformed_region_raises(self, region, reason, miami_panel_dfs):
+        """A region that starts before base 1 or after its own end is rejected."""
+        top_df, bottom_df = miami_panel_dfs
+
+        with pytest.raises(ValidationError, match=f"highlight_regions.*{reason}"):
+            MiamiPlotter(species="canine").plot_miami(
+                top_df, bottom_df, highlight_regions=[region]
+            )
+
+    @staticmethod
+    def _request(dfs, highlights):
+        top, bottom = prepare_genomewide_frames(
+            list(dfs), GenomeWideConfig(), species=resolve_species("canine")
+        )
+        return MiamiRequest(
+            top=top,
+            bottom=bottom,
+            hover=None,
+            rs_col=None,
+            top_threshold=None,
+            bottom_threshold=None,
+            top_label=None,
+            bottom_label=None,
+            top_annotations=(),
+            bottom_annotations=(),
+            highlights=highlights,
+            highlight_color="yellow",
+            highlight_alpha=0.3,
+            figsize=(12, 8),
+            title=None,
+        )
+
+    def test_plan_clips_each_span_to_its_chromosome(self, miami_panel_dfs):
+        """The plan's spans never leave the chromosome they were asked for."""
+        request = self._request(
+            miami_panel_dfs, (("chr1", 2500, 2_000_000), (2, 1500, 5000))
+        )
+
+        assert miami_plan(request).highlights == [
+            PlannedHighlight(2500, 3000, "yellow", 0.3),
+            PlannedHighlight(1_004_500, 1_005_000, "yellow", 0.3),
+        ]
+
+    def test_plan_skips_a_region_past_the_data(self, miami_panel_dfs):
+        """The plan warns about a region wholly beyond the data and draws none."""
+        request = self._request(miami_panel_dfs, (("1", 3001, 4000),))
+
+        with pytest.warns(UserWarning, match="1:3001-4000 skipped"):
+            plan = miami_plan(request)
+
+        assert plan.highlights == []
 
 
 class TestConstructorThresholdIsTheDefault:

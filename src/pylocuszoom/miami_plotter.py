@@ -6,7 +6,7 @@ Provides visualization of GWAS comparisons with mirrored y-axes:
 - Both panels share x-axis with consistent chromosome alignment
 """
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from ._figure import render_figure
 from ._plotter_utils import (
@@ -18,6 +18,7 @@ from ._plotter_utils import (
 from .backends import BackendType, get_backend
 from .backends.hover import HoverConfig
 from .config import GenomeWideConfig, GenomeWideStyle
+from .exceptions import ValidationError
 from .manhattan import prepare_genomewide_frames
 from .panels.miami import MiamiRequest, miami_plan
 from .schemas import Canonical
@@ -74,7 +75,7 @@ class MiamiPlotter:
         bottom_label: Optional[str] = None,
         top_snp_annotations: Optional[List[str]] = None,
         bottom_snp_annotations: Optional[List[str]] = None,
-        highlight_regions: Optional[List[Tuple[str, int, int]]] = None,
+        highlight_regions: Optional[List[Tuple[Union[int, str], int, int]]] = None,
         highlight_color: str = "yellow",
         highlight_alpha: float = 0.3,
         figsize: Tuple[float, float] = (12, 8),
@@ -103,8 +104,13 @@ class MiamiPlotter:
                 Requires rs_col to be set. Basic text labels (no collision avoidance).
             bottom_snp_annotations: List of SNP IDs to annotate on bottom panel.
                 Requires rs_col to be set. Basic text labels (no collision avoidance).
-            highlight_regions: List of (chrom, start, end) tuples to highlight.
-                Regions are drawn as vertical spans across both panels.
+            highlight_regions: List of (chrom, start, end) tuples to highlight,
+                in 1-based positions with ``1 <= start <= end``. The chromosome
+                may be an integer or carry a "chr" prefix. Regions are drawn as
+                vertical spans across both panels. A span stops at the last
+                plotted position of its chromosome; a region on a chromosome
+                with no data, or starting past its last plotted position, is
+                skipped with a ``UserWarning``.
             highlight_color: Color for highlighted regions.
             highlight_alpha: Transparency for highlighted regions (0-1).
             figsize: Figure size as (width, height).
@@ -118,7 +124,8 @@ class MiamiPlotter:
             ValidationError: If either frame is empty or lacks a configured
                 column, or ``rs_col`` when given, or if the plotter's species
                 has no chromosome order and ``config.custom_chrom_order`` is
-                not set.
+                not set, or if a highlight region starts before position 1 or
+                after its own end.
 
         Example:
             >>> fig = plotter.plot_miami(
@@ -128,6 +135,17 @@ class MiamiPlotter:
             ...     bottom_label="Replication",
             ... )
         """
+        for chrom, start, end in highlight_regions or ():
+            if start < 1:
+                raise ValidationError(
+                    f"highlight_regions entry ({chrom!r}, {start}, {end}): "
+                    "start must be >= 1"
+                )
+            if start > end:
+                raise ValidationError(
+                    f"highlight_regions entry ({chrom!r}, {start}, {end}): "
+                    "start must not exceed end"
+                )
         top_df, bottom_df = to_pandas(top_df), to_pandas(bottom_df)
         top_threshold = resolve_threshold(top_threshold, self.genomewide_threshold)
         bottom_threshold = resolve_threshold(
