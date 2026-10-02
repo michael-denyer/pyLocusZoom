@@ -153,12 +153,17 @@ def _has_complete_maps(path: Path, source: RecombSource) -> bool:
 
 
 def _holds_only_maps(path: Path, source: RecombSource) -> bool:
-    """Return whether replacing path wholesale would discard only this source's maps.
+    """Return whether every file in path has the name of one of this source's maps.
+
+    Publishing into an existing directory deletes any other ``chr*_recomb.tsv``
+    and leaves unrelated files alone, so this refuses both: the first would be
+    lost, and the second make path something other than a map directory. A
+    caller's own file with a map's name cannot be told from a map.
 
     The answer comes from one listing of the directory, so a concurrent writer
     replacing a legacy symlink cannot change it part-way. A path or an entry
-    that is gone has nothing left to discard; a path that is not a directory
-    never holds only maps.
+    that is gone holds nothing; a path that is not a directory never holds
+    only maps.
     """
     try:
         with os.scandir(path) as entries:
@@ -273,9 +278,10 @@ def download_recombination_maps(source: RecombSource, output_path: Path) -> Path
     """Download, extract and publish one source's complete map set.
 
     Unconditional: the caller owns the cache-hit decision. Everything is
-    written into a temporary directory and promoted with one rename, so a
-    failure part-way through cannot leave a partial set behind that a later
-    cache check would accept.
+    written into a temporary directory and published only once the set is
+    complete (see ``_publish_map_generation``), so a failed download or a
+    bad archive cannot leave a partial set behind that a later cache check
+    would accept.
 
     Args:
         source: Source to download.
@@ -329,8 +335,12 @@ def download_canine_recombination_maps(
 
     Args:
         output_dir: Directory to save maps. Uses platform cache if None. It
-            must be new, empty or hold only a previous canine map set, because
-            publishing replaces the whole directory.
+            must be new, empty or hold only files with the canine maps' names.
+            Publishing into an existing directory replaces the canine map
+            files and deletes any other ``chr*_recomb.tsv``, so a directory
+            holding one is refused, and one holding unrelated files is
+            refused as not a map directory. A file of yours with a canine
+            map's name cannot be told from a map and is overwritten.
         force: Re-download even if files exist.
 
     Returns:
@@ -339,7 +349,8 @@ def download_canine_recombination_maps(
     Raises:
         DataDownloadError: If the download fails or the archive is corrupt,
             incomplete, or not a recombination map set.
-        ValidationError: If output_dir holds anything besides canine maps.
+        ValidationError: If output_dir holds anything besides files with
+            the canine maps' names.
     """
     output_path = _resolve_map_dir(output_dir)
     if not force and _has_complete_maps(output_path, CANINE_SOURCE):
@@ -347,8 +358,10 @@ def download_canine_recombination_maps(
     if output_dir is not None and not _holds_only_maps(output_path, CANINE_SOURCE):
         raise ValidationError(
             f"output_dir {output_path} holds files other than the canine "
-            "recombination maps, and publishing the map set would replace it. "
-            "Pass a new or empty directory."
+            "recombination maps. Publishing the map set there would delete "
+            "any other chr*_recomb.tsv file, and a directory holding "
+            "unrelated files is not a map directory. Pass a new or empty "
+            "directory."
         )
     return download_recombination_maps(CANINE_SOURCE, output_path)
 
