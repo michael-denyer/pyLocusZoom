@@ -277,13 +277,24 @@ class TestOrdering:
     """Test the row-wise ordering rule."""
 
     def test_inverted_rows_reported_with_count(self):
-        """Rows where lower exceeds upper are counted in the error."""
+        """Rows where lower exceeds upper are counted and named by index."""
         df = pd.DataFrame({"start": [10, 30, 50], "end": [20, 25, 40]})
 
         with pytest.raises(ValidationError) as exc_info:
             check(df, ColumnSpec(name="test_df", ordering=(("start", "end"),)))
 
-        assert "2 rows have start > end" in str(exc_info.value)
+        assert "2 rows have start > end (index 1, 2)" in str(exc_info.value)
+
+    def test_inverted_rows_beyond_the_fifth_are_elided(self):
+        """A long list of inverted rows names the first five index labels."""
+        df = pd.DataFrame({"start": [2] * 7, "end": [1] * 7})
+
+        with pytest.raises(ValidationError) as exc_info:
+            check(df, ColumnSpec(name="test_df", ordering=(("start", "end"),)))
+
+        assert "7 rows have start > end (index 0, 1, 2, 3, 4, ...)" in str(
+            exc_info.value
+        )
 
     def test_equal_bounds_pass(self):
         """Equal lower and upper bounds are ordered, not inverted."""

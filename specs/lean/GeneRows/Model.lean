@@ -18,7 +18,7 @@ Modelling decisions:
   set is always `{0, .., k-1}`; `row in row_ends` is `row < rowEnds.length`.
 * The frame is a `List Gene` in iteration order. Nothing is assumed about
   order, about `start ≤ end`, or about the region; each theorem names the
-  hypotheses it needs.
+  hypotheses it needs. The caller does enforce `start ≤ end`: see `WellFormed`.
 -/
 
 /-- One row of `genes_df`: the `start` and `end` columns (`end` is a Lean
@@ -119,8 +119,11 @@ def NoShrink (S E : Int) (g : Gene) : Prop :=
 instance (S E : Int) (g : Gene) : Decidable (NoShrink S E g) := by
   unfold NoShrink; infer_instance
 
-/-- What the real caller should supply: `start ≤ end` per gene, and the gene
-intersects the region (`filter_genes_by_region`, `gene_track.py:101-105`). -/
+/-- What the real caller supplies: `start ≤ end` per gene, enforced by the
+`ordering` rule of `GENES_PLOT` (`schemas.py:91`) that `GenePanel.from_genes`
+checks before the row assignment (`panels/genes.py:51`, rule run at
+`validation.py:180-193`), and the gene intersects the region
+(`filter_genes_by_region`, `gene_track.py:101-105`). -/
 def WellFormed (S E : Int) (g : Gene) : Prop :=
   g.start ≤ g.stop ∧ S ≤ g.stop ∧ g.start ≤ E
 
@@ -220,8 +223,9 @@ def postTight (S E : Int) (genes : List Gene) (rows : List Nat) : Bool :=
 -- (a) is a statement about (clipStart, clipEnd). `GenePanel.draw` paints the
 -- rectangle from `gene_start` with width `gene_end - gene_start`
 -- (`panels/genes.py:167-173`), which for a gene with `end < start` covers
--- `[gene_end, gene_start]`. Sorted input, as the caller supplies: (1,500) and
--- (600,100) share row 0, (a) holds, and the glyphs 1..500 and 100..600 overlap.
+-- `[gene_end, gene_start]`. Sorted input: (1,500) and (600,100) share row 0,
+-- (a) holds, and the glyphs 1..500 and 100..600 overlap. `GenePanel.from_genes`
+-- now rejects this frame (`panels/genes.py:51`, `schemas.py:91`).
 #guard assign_gene_positions [⟨1, 500⟩, ⟨600, 100⟩] 1 1001 = [0, 0]
 #guard decide (NonOverlap 1 1001 [⟨1, 500⟩, ⟨600, 100⟩] [0, 0])
 #guard !decide (GlyphsDisjoint 1 1001 [⟨1, 500⟩, ⟨600, 100⟩] [0, 0])

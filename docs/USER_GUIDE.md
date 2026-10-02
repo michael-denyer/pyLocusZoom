@@ -1350,7 +1350,7 @@ gwas_df = pd.DataFrame({
 |--------|------|----------|-------------|
 | `chr` | str/int | Yes | Chromosome (accepts "1", "chr1", or 1). |
 | `start` | int | Yes | Gene start position (bp). |
-| `end` | int | Yes | Gene end position (bp). |
+| `end` | int | Yes | Gene end position (bp). A row with `end` before `start` raises `ValidationError`. |
 | `gene_name` | str | Yes | Gene symbol for display. |
 | `strand` | str | No | "+" or "-" for directional arrows. |
 | `assembly` | str | No | Assembly the coordinates are in. Set on frames fetched from Ensembl; ignored when plotting. |
@@ -1361,7 +1361,7 @@ gwas_df = pd.DataFrame({
 |--------|------|----------|-------------|
 | `chr` | str/int | Yes | Chromosome. |
 | `start` | int | Yes | Exon start position. |
-| `end` | int | Yes | Exon end position. |
+| `end` | int | Yes | Exon end position. A row with `end` before `start` raises `ValidationError`. |
 | `gene_name` | str | Yes | Parent gene (must match genes_df). |
 | `assembly` | str | No | Assembly the coordinates are in. Set on frames fetched from Ensembl; ignored when plotting. |
 

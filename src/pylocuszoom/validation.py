@@ -52,6 +52,7 @@ class ColumnSpec:
             ``"loader"`` row of ``_data.P_VALUE_POLICY`` says; do not list it
             under ``numeric`` or ``not_null`` as well.
         ordering: ``(lower, upper)`` pairs where lower must never exceed upper.
+            The error names the first five offending index labels.
         non_empty: Reject a frame with no rows, before any column rule runs.
         error_class: Exception raised on failure.
     """
@@ -182,9 +183,14 @@ def check(df: pd.DataFrame, spec: ColumnSpec) -> None:
             for col in (lower_col, upper_col)
         ):
             continue
-        inverted = (df[lower_col] > df[upper_col]).sum()
-        if inverted > 0:
-            errors.append(f"{inverted} rows have {lower_col} > {upper_col}")
+        inverted = df.index[df[lower_col] > df[upper_col]]
+        if len(inverted) > 0:
+            labels = ", ".join(map(str, inverted[:5]))
+            if len(inverted) > 5:
+                labels += ", ..."
+            errors.append(
+                f"{len(inverted)} rows have {lower_col} > {upper_col} (index {labels})"
+            )
 
     if errors:
         raise spec.error_class(
