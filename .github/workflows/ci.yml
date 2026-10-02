@@ -134,7 +134,31 @@ jobs:
           name: dist
           path: dist/
 
-  models:
+  # The matrix runner and the Lean checker live in the agent-formal-verify
+  # repository, not in this one; scripts/check-models.sh drives them.
+  tla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check out the formal-verify helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: michael-denyer/agent-formal-verify
+          ref: 3893a0cf40192b8e08bb15625b796ca33e86e08d  # 0.1.11
+          path: .formal-verify
+
+      - name: Set up Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21.0.12+8.0.LTS"
+
+      - name: Check the TLA+ models
+        run: FORMAL_VERIFY="$PWD/.formal-verify" scripts/check-models.sh tla
+
+  lean:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -143,22 +167,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # The matrix runner and the Lean checker live in the plugin, not in this repo.
       - name: Check out the formal-verify helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: michael-denyer/agent-formal-verify
           ref: 3893a0cf40192b8e08bb15625b796ca33e86e08d  # 0.1.11
           path: .formal-verify
-
-      - name: Install TLC
-        run: bash .formal-verify/skills/formal-verify/scripts/setup.sh tla
-
-      - name: Check the TLA+ models
-        run: |
-          for matrix in specs/tla/*.matrix; do
-            bash .formal-verify/skills/formal-verify/scripts/tlc-matrix.sh "$PWD/$matrix"
-          done
 
       - name: Install elan
         run: |
@@ -170,6 +184,4 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Check the Lean models
-        run: |
-          bash .formal-verify/skills/formal-verify/scripts/setup.sh lean "$PWD/specs/lean"
-          bash .formal-verify/skills/formal-verify/scripts/lean-check.sh "$PWD/specs/lean"
+        run: FORMAL_VERIFY="$PWD/.formal-verify" scripts/check-models.sh lean

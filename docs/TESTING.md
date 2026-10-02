@@ -162,13 +162,19 @@ Hypothesis strategies shared across tests live in `tests/strategies.py`.
 
 ## Model Checking
 
-`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the functions it models as `file.py::symbol`, and each action's comment names the call it follows. The `models` job in CI runs it. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run the matrix with `tlc-matrix.sh` from the `agent-formal-verify` plugin, which needs [`tla2tools.jar`](https://github.com/tlaplus/tlaplus/releases) and Java 11 or later:
+`specs/tla/RecombPublish.tla` models processes that share one recombination map cache directory, one filesystem call per step, with each check (`exists`, `is_dir`, `is_symlink`, a glob) a separate step from the call it guards. A process runs `ensure_recomb_maps` or `download_canine_recombination_maps` with or without `force` and `output_dir`, and a reader goes on to `load_recombination_map`. The header of the spec names the functions it models as `file.py::symbol`, and each action's comment names the call it follows. The `tla` job in CI runs it. After changing `_publish_map_generation`, `_has_complete_maps`, `_holds_only_maps`, `download_recombination_maps` or their callers, update the spec to match and run every model with `scripts/check-models.sh`. The script drives the runners of the [`agent-formal-verify`](https://github.com/michael-denyer/agent-formal-verify) repository, so it takes a checkout of that repository in `FORMAL_VERIFY`; CI uses the commit pinned in `.github/workflows/ci.yml`:
 
 ```bash
-JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/RecombPublish.matrix
+git clone https://github.com/michael-denyer/agent-formal-verify /tmp/agent-formal-verify
+FORMAL_VERIFY=/tmp/agent-formal-verify scripts/check-models.sh        # TLA+ matrices, then the Lean package
+FORMAL_VERIFY=/tmp/agent-formal-verify scripts/check-models.sh tla    # or one half: tla, lean
 ```
 
-The runner prints one `PASS` or `FAIL` line per run with its distinct state count, and every run in `RecombPublish.matrix` passes. A second argument runs only the labels that contain it, for example `strict` or `expected-failure`.
+The TLA+ half needs Java 11 or later and downloads the pinned `tla2tools.jar` to `~/.cache/tla` on first use; set `JAVA` to a `java` binary that is not on `PATH`. It prints one `PASS` or `FAIL` line per run with its distinct state count, and every run in `RecombPublish.matrix` passes. To run one matrix, or only the labels that contain a string such as `strict` or `expected-failure`, call the runner itself:
+
+```bash
+bash /tmp/agent-formal-verify/skills/formal-verify/scripts/tlc-matrix.sh specs/tla/RecombPublish.matrix strict
+```
 
 The matrix checks these properties:
 
@@ -193,11 +199,7 @@ A violation prints the interleaving that breaks the claim; replay it against the
 
 ### Staged cache writer
 
-`specs/tla/StagedCache.tla` and `specs/tla/StagedGeneCache.tla` model the temp-file-then-replace writer (`_http.staged_path`) as the liftover-chain cache (`_liftover.chain_lifter`) and the gene-annotation cache (`_gene_cache`) use it, with separate processes sharing one cache directory and one model step per filesystem call. `StagedCache.matrix` runs both:
-
-```bash
-JAVA=/path/to/java bash /path/to/formal-verify/scripts/tlc-matrix.sh specs/tla/StagedCache.matrix
-```
+`specs/tla/StagedCache.tla` and `specs/tla/StagedGeneCache.tla` model the temp-file-then-replace writer (`_http.staged_path`) as the liftover-chain cache (`_liftover.chain_lifter`) and the gene-annotation cache (`_gene_cache`) use it, with separate processes sharing one cache directory and one model step per filesystem call. `StagedCache.matrix` runs both, and `scripts/check-models.sh tla` runs it after `RecombPublish.matrix`.
 
 The runs check that every `.part` sibling is owned by exactly one writer and is replaced or removed by the time its call ends, that the destination and every reader only see complete files, that `chain_lifter` never returns a lifter built from a partial file, that `clear_cache` never removes an in-flight sibling, and that every call terminates. They cover one, two and three concurrent callers, one and two calls per process, failures at file creation, streaming and replace, and gene-cache readers and writers racing one or two `clear_cache` calls. The header of each spec names the functions it follows and the claims its boundary runs leave out.
 
@@ -216,10 +218,10 @@ Two TLC processes started at the same moment can fail with `Parsing or semantic 
 | `PlotlyAxes` | `backends/plotly_layout.py` axis names, `backends/_coerce.split_pixels` | The subplot index is a bijection on the grid, and secondary axis names avoid primary names up to 99 subplots. |
 | `RetryLoop` | `_http._with_retries` | At most `max(1, max_retries)` attempts are made, the backoff doubles with no sleep after the last attempt, and the error raised is the last attempt's. |
 
-After changing one of those functions, update its model and run the checker from the `agent-formal-verify` plugin on the package, which builds all six models:
+After changing one of those functions, update its model and run the checker on the package, which builds all six models:
 
 ```bash
-bash /path/to/formal-verify/scripts/lean-check.sh specs/lean
+FORMAL_VERIFY=/tmp/agent-formal-verify scripts/check-models.sh lean
 ```
 
 The checker builds every `.lean` file and fails on a build error, a failing `#guard`, a `sorry`, or a declaration that rests on an axiom beyond `propext`, `Classical.choice` and `Quot.sound`. It needs [elan](https://github.com/leanprover/elan) and the toolchain named in `specs/lean/lean-toolchain`. Coordinates are modelled as unbounded integers, so float rounding is outside every proof.
@@ -248,6 +250,6 @@ Steps:
 4. `uv sync --extra dev --extra all` to install dev and PySpark dependencies.
 5. `uv run pytest` to run the suite. Every flag comes from `addopts`, including the marker expression that deselects the integration tests, which hit the live Ensembl API.
 
-Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), example regeneration and notebook execution (the `examples` job), package building (`uv build`), and the formal models (the `models` job, which runs every `specs/tla/*.matrix` through TLC and the `specs/lean/` package through the Lean checker, using the helper scripts of the `agent-formal-verify` plugin at a pinned commit). A test failure, lint failure, or doc-lint failure will block the PR.
+Separate jobs in the same workflow handle linting (`ruff check`, `ruff format --check` pinned to `ruff@0.15.2`), documentation linting (markdownlint, mermaid maid + renderer parity, yamllint, lychee link check), example regeneration and notebook execution (the `examples` job), package building (`uv build`), and the formal models (the `tla` and `lean` jobs, which call `scripts/check-models.sh` to run every `specs/tla/*.matrix` through TLC and the `specs/lean/` package through the Lean checker, using the helper scripts of the `agent-formal-verify` repository at a pinned commit). A test failure, lint failure, or doc-lint failure will block the PR.
 
 Because `pytest-xdist` and `pytest-randomly` are active, every CI run reports the worker count and the random seed in the header — use `pytest --randomly-seed=<seed>` locally to reproduce a failure.

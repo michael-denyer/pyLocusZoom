@@ -65,6 +65,7 @@ The common development commands are:
 | `uv build` | Build the wheel and sdist via hatchling into `dist/`. |
 | `uv run python examples/generate_example_plots.py` | Regenerate example plots shown in the README. |
 | `scripts/example_diff.sh [--keep]` | Generate outside the checkout and compare exports with HEAD. Exit 1 means differences; exit 2 means failure. `--keep` accepts generated changes only when affected exports have no manual edits. |
+| `FORMAL_VERIFY=<checkout> scripts/check-models.sh [tla\|lean]` | Run the TLA+ matrices and the Lean package in `specs/`. See [Model Checking](TESTING.md#model-checking). |
 | `uv lock` | Refresh `uv.lock` after changing dependencies in `pyproject.toml`. |
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full pre-commit and pre-PR checklists.
