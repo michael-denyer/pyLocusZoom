@@ -96,7 +96,7 @@ Or regenerate all example plots (useful to confirm the install works end-to-end)
 uv run python examples/generate_example_plots.py
 ```
 
-Generated PNGs land in `examples/matplotlib/`, `examples/plotly/`, and `examples/bokeh/`.
+The PNGs land in `examples/matplotlib/` and the interactive HTML files in `examples/plotly/` and `examples/bokeh/`.
 
 ## Common Setup Issues
 

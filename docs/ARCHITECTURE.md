@@ -435,8 +435,7 @@ shipping ~50 MB of maps in the wheel.
 ### Custom backends
 
 `PlotBackend` carries drawing primitives only, and a custom backend follows
-three rules. [MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends) lists what a
-backend written for 4.x must change.
+three rules.
 
 **1. One neutral `add_legend`.** The protocol has no semantic legend methods.
 Legend content is built above the

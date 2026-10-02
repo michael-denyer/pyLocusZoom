@@ -305,9 +305,11 @@ It needs adjustText, which has no plotly or bokeh equivalent. Every other
 capability is a required `PlotBackend` method, because all three backends
 implement it. The recombination
 overlay is not a protocol: it composes above the seam in `composition.py` on top
-of `create_twin_axis`. Static export and hover are
-backend properties rather than capabilities (matplotlib writes PNG/PDF/SVG and
-has no hover; plotly and bokeh write HTML and do). A custom backend opts in by
+of `create_twin_axis`. Hover and export are
+not capabilities either. `scatter` takes `hover_data` on every backend:
+matplotlib ignores it, and plotly and bokeh draw tooltips from it. A figure is
+written with its own library's method, which gives PNG, PDF or SVG from
+matplotlib and HTML from plotly and bokeh. A custom backend opts in by
 implementing the methods and out by omitting them; see
 [ARCHITECTURE.md](ARCHITECTURE.md#one-optional-capability).
 

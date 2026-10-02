@@ -923,8 +923,7 @@ and the recombination overlay are composed above it in
 labels) is the one optional capability, negotiated with a `@runtime_checkable`
 protocol: a backend opts in by implementing `add_snp_labels` and out by
 omitting it, and still renders every plot family without it.
-[MIGRATING-5.0.md](MIGRATING-5.0.md#custom-backends) lists what a backend
-written for 4.x must change, and [ARCHITECTURE.md](ARCHITECTURE.md) describes the seam.
+[ARCHITECTURE.md](ARCHITECTURE.md) describes the seam.
 
 ---
 
