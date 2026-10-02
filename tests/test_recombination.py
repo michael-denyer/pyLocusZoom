@@ -273,43 +273,32 @@ class TestLiftoverChainFailures:
         )
         return cache_home / "liftover"
 
-    def test_a_chain_download_failure_is_a_download_error(self, chain_dir, monkeypatch):
-        monkeypatch.setattr(
-            "pylocuszoom._liftover.stream_file",
-            Mock(side_effect=DataDownloadError("simulated chain 404")),
-        )
+    def test_a_chain_download_failure_is_a_download_error(self, chain_dir, serve_chain):
+        serve_chain(DataDownloadError("simulated chain 404"))
 
         with pytest.raises(DataDownloadError, match="simulated chain 404"):
             get_recombination_rate_for_region(
                 1, 1, 5000, species="canine", genome_build="canfam4"
             )
 
-    def test_a_corrupt_cached_chain_is_downloaded_again(self, chain_dir, monkeypatch):
+    def test_a_corrupt_cached_chain_is_downloaded_again(self, chain_dir, serve_chain):
         import gzip
 
         chain_dir.mkdir()
         (chain_dir / "canFam3ToCanFam4.over.chain.gz").write_bytes(b"not a chain")
-
-        def download(url, dest, desc=None):
-            Path(dest).write_bytes(gzip.compress(self.CHAIN.encode()))
-
-        fetch = Mock(side_effect=download)
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", fetch)
+        downloads = serve_chain(gzip.compress(self.CHAIN.encode()))
 
         frame = get_recombination_rate_for_region(
             1, 1, 5000, species="canine", genome_build="canfam4"
         )
 
-        assert fetch.call_count == 1
+        assert len(downloads) == 1
         assert frame["pos"].tolist() == [250]
 
     def test_a_chain_that_stays_unreadable_is_a_download_error(
-        self, chain_dir, monkeypatch
+        self, chain_dir, serve_chain
     ):
-        def download(url, dest, desc=None):
-            Path(dest).write_bytes(b"<html>502</html>")
-
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
+        serve_chain(b"<html>502</html>")
 
         with pytest.raises(DataDownloadError, match="unreadable"):
             get_recombination_rate_for_region(

@@ -39,6 +39,7 @@ SPLIT_CHAIN = (
     "chain 1000 chr1 5000 + 0 1000 chr1 5000 + 100 1100 1\n1000\n\n"
     "chain 1000 chr1 5000 + 1000 2000 chr5 5000 + 0 1000 2\n1000\n\n"
 )
+SPLIT_CHAIN_GZ = gzip.compress(SPLIT_CHAIN.encode())
 
 
 @pytest.fixture
@@ -176,37 +177,28 @@ class TestChainLifter:
 
     CANFAM3, CANFAM4 = GENOME_BUILDS["canfam3"], GENOME_BUILDS["canfam4"]
 
-    @pytest.fixture
-    def downloads(self, monkeypatch):
-        """Record every chain download, writing SPLIT_CHAIN to the destination."""
-        urls = []
+    def test_downloads_a_missing_chain_into_the_cache(self, cache_home, serve_chain):
+        downloads = serve_chain(SPLIT_CHAIN_GZ)
 
-        def download(url, dest, desc=None):
-            urls.append(url)
-            content = SPLIT_CHAIN.encode()
-            dest.write_bytes(gzip.compress(content) if url.endswith(".gz") else content)
-
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
-        return urls
-
-    def test_downloads_a_missing_chain_into_the_cache(self, cache_home, downloads):
         lifter = chain_lifter(self.CANFAM3, self.CANFAM4)
 
         assert downloads == [self.CANFAM3.chain_url(self.CANFAM4)]
         assert (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").exists()
         assert lifter.convert_coordinate("chr1", 999)[0][:2] == ("chr1", 1099)
 
-    def test_reuses_a_cached_chain(self, cache_home, downloads):
+    def test_reuses_a_cached_chain(self, cache_home, serve_chain):
+        downloads = serve_chain()
         (cache_home / "liftover").mkdir(parents=True)
         (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").write_bytes(
-            gzip.compress(SPLIT_CHAIN.encode())
+            SPLIT_CHAIN_GZ
         )
 
         chain_lifter(self.CANFAM3, self.CANFAM4)
 
         assert downloads == []
 
-    def test_each_registered_chain_downloads_its_own_url(self, cache_home, downloads):
+    def test_each_registered_chain_downloads_its_own_url(self, cache_home, serve_chain):
+        downloads = serve_chain(SPLIT_CHAIN.encode())
         url = "https://example.org/chains/fooToBar.over.chain"
         source = GenomeBuild(
             key="foo", species="x", assembly_name="Foo", liftover_chains=(("bar", url),)
@@ -218,18 +210,17 @@ class TestChainLifter:
         assert downloads == [url]
         assert lifter.convert_coordinate("chr1", 999)[0][:2] == ("chr1", 1099)
 
-    def test_an_unregistered_pair_is_a_validation_error(self, cache_home, downloads):
+    def test_an_unregistered_pair_is_a_validation_error(self, cache_home, serve_chain):
+        downloads = serve_chain()
+
         with pytest.raises(ValidationError, match="No liftover chain"):
             chain_lifter(self.CANFAM4, self.CANFAM3)
         assert downloads == []
 
     def test_an_unreadable_download_is_reported_and_not_cached(
-        self, cache_home, monkeypatch
+        self, cache_home, serve_chain
     ):
-        def download(url, dest, desc=None):
-            dest.write_bytes(b"<html>502</html>")
-
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
+        serve_chain(b"<html>502</html>")
 
         with pytest.raises(DataDownloadError, match="unreadable") as raised:
             chain_lifter(self.CANFAM3, self.CANFAM4)
@@ -240,15 +231,15 @@ class TestChainLifter:
         assert ".part" not in message
         assert message.count("is unreadable") == 1
 
-    def test_a_chain_download_is_staged_once(self, cache_home, monkeypatch):
+    def test_a_chain_download_is_staged_once(self, cache_home, serve_chain):
         """The download is written straight into the sibling that gets parsed."""
         written = []
 
-        def stream(url, partial, desc=None):
+        def stream(partial):
             written.append(sorted(p.name for p in partial.parent.iterdir()))
-            partial.write_bytes(gzip.compress(SPLIT_CHAIN.encode()))
+            return SPLIT_CHAIN_GZ
 
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", stream)
+        serve_chain(stream)
 
         chain_lifter(self.CANFAM3, self.CANFAM4)
 
@@ -263,33 +254,16 @@ class TestChainLifter:
     def chain_path(self, cache_home):
         return cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz"
 
-    @pytest.fixture
-    def serve(self, monkeypatch):
-        """Make successive chain downloads write the given bodies, or raise them."""
-
-        def serve(*bodies):
-            remaining = list(bodies)
-
-            def download(url, dest, desc=None):
-                body = remaining.pop(0)
-                if isinstance(body, Exception):
-                    raise body
-                dest.write_bytes(body)
-
-            monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
-
-        return serve
-
     def test_a_corrupt_download_leaves_another_process_chain_in_place(
-        self, chain_path, serve, monkeypatch
+        self, chain_path, serve_chain, monkeypatch
     ):
         """Another process publishes a good chain when this one fails to load."""
         from pylocuszoom import _liftover
 
-        good = gzip.compress(SPLIT_CHAIN.encode())
+        good = SPLIT_CHAIN_GZ
         chain_path.parent.mkdir(parents=True)
         chain_path.write_bytes(self.CORRUPT)
-        serve(self.CORRUPT)
+        serve_chain(self.CORRUPT)
         real_load = _liftover.load_chain
 
         def load(path):
@@ -306,9 +280,9 @@ class TestChainLifter:
         assert chain_path.read_bytes() == good
 
     def test_a_corrupt_download_is_never_cached_while_downloads_keep_failing(
-        self, chain_path, serve
+        self, chain_path, serve_chain
     ):
-        serve(self.CORRUPT, DataDownloadError("network down"))
+        serve_chain(self.CORRUPT, DataDownloadError("network down"))
 
         for _ in range(2):
             with pytest.raises(DataDownloadError):
@@ -316,21 +290,21 @@ class TestChainLifter:
             assert list(chain_path.parent.iterdir()) == []
 
     def test_a_held_lifter_is_served_after_the_cached_chain_is_removed(
-        self, chain_path, serve
+        self, chain_path, serve_chain
     ):
-        serve(gzip.compress(SPLIT_CHAIN.encode()), DataDownloadError("network down"))
+        serve_chain(SPLIT_CHAIN_GZ, DataDownloadError("network down"))
         first = chain_lifter(self.CANFAM3, self.CANFAM4)
         chain_path.unlink()
 
         assert chain_lifter(self.CANFAM3, self.CANFAM4) is first
 
     def test_a_corrupt_cached_chain_is_replaced_by_a_good_download(
-        self, chain_path, serve
+        self, chain_path, serve_chain
     ):
-        good = gzip.compress(SPLIT_CHAIN.encode())
+        good = SPLIT_CHAIN_GZ
         chain_path.parent.mkdir(parents=True)
         chain_path.write_bytes(self.CORRUPT)
-        serve(good)
+        serve_chain(good)
 
         lifter = chain_lifter(self.CANFAM3, self.CANFAM4)
 
@@ -338,12 +312,12 @@ class TestChainLifter:
         assert chain_path.read_bytes() == good
 
     def test_a_corrupt_cached_chain_is_kept_when_the_download_is_corrupt(
-        self, chain_path, serve
+        self, chain_path, serve_chain
     ):
         """Removing it could remove a good chain another process just published."""
         chain_path.parent.mkdir(parents=True)
         chain_path.write_bytes(self.CORRUPT)
-        serve(self.CORRUPT)
+        serve_chain(self.CORRUPT)
 
         with pytest.raises(DataDownloadError, match="unreadable"):
             chain_lifter(self.CANFAM3, self.CANFAM4)
@@ -407,19 +381,28 @@ class TestPlotAcrossBuilds:
         {("chr1", 999): 10_999, ("chr1", 1_999): 11_999, ("chr1", 2_999): 12_999}
     )
 
-    def test_plots_lifted_positions_with_requested_margins(
-        self, plotter, source_gwas_df
-    ):
-        fig = plotter.plot(
-            source_gwas_df,
-            chrom=1,
-            start=500,
-            end=3_500,
-            columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-            ld=LDConfig(lead_pos=1_000),
-            display=DisplayConfig(show_recombination=False, snp_labels=False),
-            liftover=LiftoverConfig(lifter=self.LIFTER),
-        )
+    @pytest.fixture
+    def plot_lifted(self, plotter, source_gwas_df):
+        """Plot chr1:500-3500 of ``source_gwas_df`` through a lifter.
+
+        Keyword arguments replace the frame and any ``plot()`` argument.
+        """
+
+        def plot_lifted(lifter, frame=source_gwas_df, **overrides):
+            arguments = {
+                "chrom": 1,
+                "start": 500,
+                "end": 3_500,
+                "columns": ColumnConfig(pos_col="ps", p_col="p_wald"),
+                "display": DisplayConfig(show_recombination=False, snp_labels=False),
+                "liftover": LiftoverConfig(lifter=lifter),
+            }
+            return plotter.plot(frame, **{**arguments, **overrides})
+
+        return plot_lifted
+
+    def test_plots_lifted_positions_with_requested_margins(self, plot_lifted):
+        fig = plot_lifted(self.LIFTER, ld=LDConfig(lead_pos=1_000))
 
         ax = fig.axes[0]
         xs = {x for coll in ax.collections for x, _ in coll.get_offsets()}
@@ -428,87 +411,51 @@ class TestPlotAcrossBuilds:
 
     @pytest.mark.parametrize("chrom_col", ["chrom", None])
     def test_lifts_a_frame_by_its_configured_chromosome_column(
-        self, plotter, source_gwas_df, chrom_col
+        self, plot_lifted, source_gwas_df, chrom_col
     ):
         frame = source_gwas_df.drop(columns="chr")
         if chrom_col is not None:
             frame[chrom_col] = source_gwas_df["chr"]
-        fig = plotter.plot(
+        fig = plot_lifted(
+            self.LIFTER,
             frame,
-            chrom=1,
-            start=500,
-            end=3_500,
             columns=ColumnConfig(chrom_col=chrom_col, pos_col="ps", p_col="p_wald"),
-            display=DisplayConfig(show_recombination=False, snp_labels=False),
-            liftover=LiftoverConfig(lifter=self.LIFTER),
         )
 
         xs = {x for coll in fig.axes[0].collections for x, _ in coll.get_offsets()}
         assert xs == {11_000, 12_000, 13_000}
 
-    def test_raises_when_nothing_lifts(self, plotter, source_gwas_df):
+    def test_raises_when_nothing_lifts(self, plot_lifted):
         with pytest.raises(ValueError, match="No SNP in chr1:500-3500 lifted"):
-            plotter.plot(
-                source_gwas_df,
-                chrom=1,
-                start=500,
-                end=3_500,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+            plot_lifted(
+                InMemoryLifter({("chr1", 0): 0}),
                 display=DisplayConfig(show_recombination=False),
-                liftover=LiftoverConfig(lifter=InMemoryLifter({("chr1", 0): 0})),
             )
 
-    def test_warns_when_lead_does_not_lift(self, plotter, source_gwas_df):
+    def test_warns_when_lead_does_not_lift(self, plot_lifted):
         lifter = InMemoryLifter({("chr1", 1_999): 11_999, ("chr1", 2_999): 12_999})
         with pytest.warns(UserWarning, match="Lead SNP at chr1:1000 did not lift"):
-            plotter.plot(
-                source_gwas_df,
-                chrom=1,
-                start=500,
-                end=3_500,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-                ld=LDConfig(lead_pos=1_000),
-                display=DisplayConfig(show_recombination=False, snp_labels=False),
-                liftover=LiftoverConfig(lifter=lifter),
-            )
+            plot_lifted(lifter, ld=LDConfig(lead_pos=1_000))
 
     # 1-based 2500 is in the region but is no row of ``source_gwas_df``.
     STRAY_LEAD = 2_500
 
-    def test_warns_when_lead_lifts_outside_the_window(self, plotter, source_gwas_df):
+    def test_warns_when_lead_lifts_outside_the_window(self, plot_lifted):
         lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): 99_999})
         with pytest.warns(
             UserWarning, match="Lead SNP at chr1:2500 lifted outside the window"
         ):
-            fig = plotter.plot(
-                source_gwas_df,
-                chrom=1,
-                start=500,
-                end=3_500,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-                ld=LDConfig(lead_pos=self.STRAY_LEAD),
-                display=DisplayConfig(show_recombination=False, snp_labels=False),
-                liftover=LiftoverConfig(lifter=lifter),
-            )
+            fig = plot_lifted(lifter, ld=LDConfig(lead_pos=self.STRAY_LEAD))
 
         assert fig.axes[0].get_xlim() == (10_500, 13_500)
 
-    def test_warns_when_lead_lifts_onto_another_snp(self, plotter, source_gwas_df):
+    def test_warns_when_lead_lifts_onto_another_snp(self, plot_lifted):
         """A lead that is no row must not turn the SNP it lands on into the lead."""
         lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): 11_999})
         with pytest.warns(
             UserWarning, match="Lead SNP at chr1:2500 is not a SNP of the data"
         ):
-            plotter.plot(
-                source_gwas_df,
-                chrom=1,
-                start=500,
-                end=3_500,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-                ld=LDConfig(lead_pos=self.STRAY_LEAD),
-                display=DisplayConfig(show_recombination=False, snp_labels=False),
-                liftover=LiftoverConfig(lifter=lifter),
-            )
+            plot_lifted(lifter, ld=LDConfig(lead_pos=self.STRAY_LEAD))
 
     @pytest.mark.parametrize(
         "lifted_lead, reason",
@@ -518,7 +465,7 @@ class TestPlotAcrossBuilds:
         ],
     )
     def test_an_unusable_lifted_lead_is_an_error_with_ld_reference_file(
-        self, plotter, source_gwas_df, lifted_lead, reason
+        self, plot_lifted, lifted_lead, reason
     ):
         """Outside the window or on another SNP, PLINK is not run for a wrong lead."""
         lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): lifted_lead})
@@ -530,17 +477,12 @@ class TestPlotAcrossBuilds:
                 match=f"Lead SNP at chr1:2500 {reason}.*, and LD from "
                 "ld_reference_file needs a lead",
             ):
-                plotter.plot(
-                    source_gwas_df,
-                    chrom=1,
-                    start=500,
-                    end=3_500,
-                    columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                plot_lifted(
+                    lifter,
                     ld=LDConfig(
                         lead_pos=self.STRAY_LEAD, ld_reference_file="/no/such/ref"
                     ),
                     display=DisplayConfig(show_recombination=False),
-                    liftover=LiftoverConfig(lifter=lifter),
                 )
 
     def test_plot_stacked_warns_when_a_lead_lifts_outside_the_window(
@@ -561,22 +503,14 @@ class TestPlotAcrossBuilds:
                 liftover=LiftoverConfig(lifter=lifter),
             )
 
-    def test_warns_when_the_region_is_rearranged(self, plotter, source_gwas_df):
+    def test_warns_when_the_region_is_rearranged(self, plot_lifted):
         lifter = InMemoryLifter(
             {("chr1", 999): 12_999, ("chr1", 1_999): 11_999, ("chr1", 2_999): 10_999}
         )
         with pytest.warns(UserWarning, match="rearranged between builds"):
-            plotter.plot(
-                source_gwas_df,
-                chrom=1,
-                start=500,
-                end=3_500,
-                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
-                display=DisplayConfig(show_recombination=False, snp_labels=False),
-                liftover=LiftoverConfig(lifter=lifter),
-            )
+            plot_lifted(lifter)
 
-    def test_validates_the_config_before_lifting(self, plotter, source_gwas_df):
+    def test_validates_the_config_before_lifting(self, plot_lifted):
         """A lead lost to liftover is not announced as auto-detected and then refused."""
         lifter = InMemoryLifter({("chr1", 1_999): 11_999, ("chr1", 2_999): 12_999})
 
@@ -586,15 +520,10 @@ class TestPlotAcrossBuilds:
                 ValidationError,
                 match="chr1:1000 did not lift to .*, and LD .* needs a lead",
             ):
-                plotter.plot(
-                    source_gwas_df,
-                    chrom=1,
-                    start=500,
-                    end=3_500,
-                    columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                plot_lifted(
+                    lifter,
                     ld=LDConfig(lead_pos=1_000, ld_reference_file="/no/such/ref"),
                     display=DisplayConfig(show_recombination=False),
-                    liftover=LiftoverConfig(lifter=lifter),
                 )
 
     def test_an_invalid_region_is_refused_before_lifting(self, plotter, source_gwas_df):
