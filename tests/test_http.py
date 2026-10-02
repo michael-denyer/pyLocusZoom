@@ -103,7 +103,25 @@ class TestDownloadFile:
             download_file("https://example.invalid/f", dest)
 
         assert exc_info.value.__cause__ is original
+        assert str(exc_info.value) == (
+            "Failed to download https://example.invalid/f: 404 Client Error"
+        )
         assert list(tmp_path.iterdir()) == []
+
+    def test_exhausted_retries_report_the_attempt_count(self, tmp_path):
+        with (
+            patch("pylocuszoom._http.time.sleep"),
+            patch(
+                "pylocuszoom._http.requests.get",
+                side_effect=requests.ConnectionError("reset"),
+            ),
+            pytest.raises(DataDownloadError) as exc_info,
+        ):
+            download_file("https://example.invalid/f", tmp_path / "file.gz")
+
+        assert str(exc_info.value) == (
+            "Failed to download https://example.invalid/f after 3 attempts: reset"
+        )
 
 
 def test_concurrent_downloads_publish_only_their_own_complete_response(
@@ -178,6 +196,69 @@ class TestRequestJson:
         assert payload == {"answer": 42}
         assert [call.args[0] for call in sleep.call_args_list] == [1.0, 2.0]
 
+    @staticmethod
+    def _failure_message(outcomes, **kwargs):
+        """Run request_json over failing outcomes; return its message, requests made."""
+        from pylocuszoom._http import request_json
+        from pylocuszoom.exceptions import EnsemblAPIError
+
+        def as_side_effect(outcome):
+            if isinstance(outcome, Exception):
+                return outcome
+            return MagicMock(ok=False, status_code=outcome, text="body")
+
+        with (
+            patch("pylocuszoom._http.time.sleep"),
+            patch(
+                "pylocuszoom._http.requests.get",
+                side_effect=[as_side_effect(outcome) for outcome in outcomes],
+            ) as mock_get,
+            pytest.raises(EnsemblAPIError) as exc_info,
+        ):
+            request_json(
+                "https://example.invalid",
+                {},
+                error_cls=EnsemblAPIError,
+                service="X",
+                **kwargs,
+            )
+        return str(exc_info.value), mock_get.call_count
+
+    def test_an_exhausted_429_reports_the_attempt_count(self):
+        """The count must not depend on which error the last attempt raised."""
+        refused = requests.ConnectionError("refused")
+
+        assert self._failure_message([refused, refused, 429]) == (
+            "X API request failed after 3 attempts: X API error 429: body",
+            3,
+        )
+        assert self._failure_message([429, 429, refused]) == (
+            "X API request failed after 3 attempts: refused",
+            3,
+        )
+
+    def test_a_fatal_status_keeps_its_message_without_a_count(self):
+        refused = requests.ConnectionError("refused")
+
+        assert self._failure_message([404]) == ("X API error 404: body", 1)
+        assert self._failure_message([refused, 404]) == ("X API error 404: body", 2)
+
+    @given(
+        st.lists(st.sampled_from([429, 503]), min_size=6, max_size=6),
+        st.integers(1, 6),
+    )
+    def test_the_reported_count_is_the_number_of_requests_made(
+        self, statuses, max_retries
+    ):
+        message, requests_made = self._failure_message(
+            statuses[:max_retries], max_retries=max_retries
+        )
+
+        assert requests_made == max_retries
+        assert message.startswith(
+            f"X API request failed after {requests_made} attempts: "
+        )
+
 
 def _http_error(status):
     response = MagicMock(status_code=status)
@@ -240,3 +321,19 @@ class TestRetryProperties:
             assert attempts == len(retryable) + 1
         else:
             assert attempts == max_retries
+
+    @pytest.mark.parametrize(
+        ("max_retries", "retry_delay", "named"),
+        [(0, 1.0, "max_retries"), (-1, 1.0, "max_retries"), (3, -1.0, "retry_delay")],
+    )
+    def test_an_impossible_schedule_is_rejected_before_the_first_attempt(
+        self, max_retries, retry_delay, named
+    ):
+        attempt = MagicMock(side_effect=requests.ConnectionError("reset"))
+
+        with pytest.raises(ValueError, match=named):
+            _with_retries(
+                attempt, what="GET", max_retries=max_retries, retry_delay=retry_delay
+            )
+
+        assert attempt.call_count == 0

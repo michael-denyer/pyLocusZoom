@@ -2,9 +2,9 @@
 # The HTTP retry loop of pyLocusZoom
 
 Source: `src/pylocuszoom/_http.py`
-* `_retryable`      l.32-36
-* `_with_retries`   l.45-68
-* `request_json`    l.90-149 (only the exception split at l.132-144)
+* `_retryable`      l.33-37
+* `_with_retries`   l.46-77 (argument guard l.61-64, loop l.65-77)
+* `request_json`    l.99-158 (only the exception split at l.141-153)
 
 The model checks the code as written. It keeps the source names.
 
@@ -13,32 +13,39 @@ Modelling choices
   `i` (1-based) sees the `i`-th outcome. If the list runs out while the loop
   still wants another attempt, the run ends in `Exit.starved`; that is an
   artefact of the finite environment, not a behaviour of the code.
-* `max_retries` is an `Int`: Python accepts 0 and negative values.
+* `max_retries` is an `Int`: Python accepts 0 and negative values, and the
+  guard at l.61-62 rejects them.
+* `retry_delay` is a Python float. The guard at l.63-64 reads only its sign,
+  so the model passes it as an `Int` and uses nothing else about it.
+* `runLoop` is the loop alone (l.65-77), without the guard. Its theorems hold
+  for every `max_retries`, so the reported attempt count is shown to be right
+  independently of the guard. `_with_retries` is the guard followed by
+  `runLoop`.
 * `attempt_number` is an `Int` (Python int, unbounded, compared with
   `max_retries`).
 * `delay` is a Python float that starts at `retry_delay` and is doubled. The
   model counts it in `Nat` units of `retry_delay` (1, 2, 4, ...). This assumes
-  `retry_delay >= 0` and that float doubling is exact (true until overflow to
-  `inf` near 2^1024). A negative `retry_delay` makes `time.sleep` raise
-  `ValueError`, which is outside the model.
+  `retry_delay >= 0`, which the guard ensures, and that float doubling is exact
+  (true until overflow to `inf` near 2^1024). A NaN `retry_delay` passes the
+  guard and makes `time.sleep` raise `ValueError`; that is outside the model.
 * `sleeps` and `calls` are ghost fields: the list of `time.sleep` arguments so
   far and the number of `attempt()` calls so far.
 * Only `requests.RequestException` is modelled. Any other exception leaves the
-  loop at once (l.62 does not catch it).
+  loop at once (l.70 does not catch it).
 -/
 
 /-- A `requests.RequestException`. `http status` is a `requests.HTTPError`;
-`status` is `none` when the error carries no response (`_status_of`, l.39-42).
+`status` is `none` when the error carries no response (`_status_of`, l.40-43).
 `connection` stands for every `RequestException` that is not an `HTTPError`. -/
 inductive Err where
   | connection
   | http (status : Option Nat)
 deriving Repr, DecidableEq
 
-/-- `_http.py:27`. -/
+/-- `_http.py:28`. -/
 def RETRYABLE_STATUS : List Nat := [429, 503]
 
-/-- `_http.py:32-36`. -/
+/-- `_http.py:33-37`. -/
 def _retryable : Err → Bool
   | .connection => true
   | .http none => false
@@ -56,66 +63,85 @@ def Outcome.retry : Outcome → Bool
   | .error e => _retryable e
 
 structure State where
-  /-- `attempt_number`, l.58 and l.68. -/
+  /-- `attempt_number`, l.66 and l.77. -/
   attempt_number : Int
-  /-- `delay` in units of `retry_delay`, l.57 and l.67. -/
+  /-- `delay` in units of `retry_delay`, l.65 and l.76. -/
   delay : Nat
-  /-- Ghost: arguments of `time.sleep` so far, oldest first (l.66). -/
+  /-- Ghost: arguments of `time.sleep` so far, oldest first (l.75). -/
   sleeps : List Nat
-  /-- Ghost: number of `attempt()` calls so far (l.61). -/
+  /-- Ghost: number of `attempt()` calls so far (l.69). -/
   calls : Nat
 deriving Repr, DecidableEq
 
-/-- How the loop ends. `call` is the 1-based index of the `attempt()` call that
-returned or whose exception is re-raised. -/
+/-- How `_with_retries` ends. `call` is the 1-based index of the `attempt()`
+call that returned or whose exception is re-raised. `rejected` is the
+`ValueError` of the argument guard (l.61-64). -/
 inductive Exit where
   | returned (call : Nat)
   | raised (call : Nat) (e : Err)
+  | rejected
   | starved
 deriving Repr, DecidableEq
 
-/-- The `while True` loop, `_http.py:59-68`. One list element is one pass. -/
+/-- The `while True` loop, `_http.py:67-77`. One list element is one pass. -/
 def loop (max_retries : Int) (s : State) : List Outcome → Exit × State
   | [] => (.starved, s)
-  -- l.61 `return attempt()`
+  -- l.69 `return attempt()`
   | .success :: _ => (.returned (s.calls + 1), { s with calls := s.calls + 1 })
   | .error e :: rest =>
-    -- l.63 `if attempt_number >= max_retries or not _retryable(e): raise`
+    -- l.71 `if attempt_number >= max_retries or not _retryable(e):` ... l.73 `raise`
     if s.attempt_number ≥ max_retries ∨ _retryable e = false then
       (.raised (s.calls + 1) e, { s with calls := s.calls + 1 })
     else
-      -- l.66 `time.sleep(delay)`, l.67 `delay *= 2`, l.68 `attempt_number += 1`
+      -- l.75 `time.sleep(delay)`, l.76 `delay *= 2`, l.77 `attempt_number += 1`
       loop max_retries
         { attempt_number := s.attempt_number + 1
           delay := s.delay * 2
           sleeps := s.sleeps ++ [s.delay]
           calls := s.calls + 1 } rest
 
-/-- `_http.py:57-58`: `delay = retry_delay` (one unit), `attempt_number = 1`. -/
+/-- `_http.py:65-66`: `delay = retry_delay` (one unit), `attempt_number = 1`. -/
 def init : State := { attempt_number := 1, delay := 1, sleeps := [], calls := 0 }
 
-/-- `_http.py:45-68`. -/
-def _with_retries (max_retries : Int) (env : List Outcome) : Exit × State :=
+/-- `_http.py:65-77`: the loop from its initial state, without the guard. -/
+def runLoop (max_retries : Int) (env : List Outcome) : Exit × State :=
   loop max_retries init env
 
-/-- How `request_json` ends, `_http.py:132-147`. -/
+/-- `_http.py:72`: `e.attempts = attempt_number`, read off the state in which
+the loop raised. This is the count the callers format (l.152, l.201). -/
+def attempts (s : State) : Int := s.attempt_number
+
+/-- `_http.py:46-77`. The guard (l.61-64) raises `ValueError` before the first
+attempt when `max_retries < 1` or `retry_delay < 0`; otherwise the loop runs. -/
+def _with_retries (max_retries retry_delay : Int) (env : List Outcome) : Exit × State :=
+  if max_retries < 1 ∨ retry_delay < 0 then (.rejected, init) else runLoop max_retries env
+
+/-- How `request_json` ends, `_http.py:141-156`. -/
 inductive JsonExit where
-  /-- l.147: the response is decoded (JSON decoding itself is not modelled). -/
+  /-- l.156: the response is decoded (JSON decoding itself is not modelled). -/
   | json (call : Nat)
-  /-- l.139-140: `except requests.HTTPError`; the message has no attempt count. -/
-  | httpBranch (call : Nat) (status : Option Nat)
-  /-- l.141-144: the message says "failed after {reported} attempts". -/
+  /-- l.149-150: an error not worth retrying; the message is the error's own
+  and has no attempt count. -/
+  | fatalBranch (call : Nat) (e : Err)
+  /-- l.151-153: the message says "failed after {reported} attempts". -/
   | countBranch (reported : Int) (call : Nat)
+  /-- The guard's `ValueError`, which l.148 does not catch. -/
+  | rejected
   | starved
 deriving Repr, DecidableEq
 
-/-- `_http.py:132-144`. `reported` is `max_retries`, exactly as l.143 formats it. -/
-def request_json (max_retries : Int) (env : List Outcome) : JsonExit × State :=
-  match _with_retries max_retries env with
+/-- `_http.py:148-153`: what `request_json` does with the way `_with_retries`
+ended. `reported` is `e.attempts` (l.152). -/
+def classify : Exit × State → JsonExit × State
   | (.returned k, s) => (.json k, s)
-  | (.raised k (.http status), s) => (.httpBranch k status, s)
-  | (.raised k .connection, s) => (.countBranch max_retries k, s)
+  | (.raised k e, s) =>
+    if _retryable e then (.countBranch (attempts s) k, s) else (.fatalBranch k e, s)
+  | (.rejected, s) => (.rejected, s)
   | (.starved, s) => (.starved, s)
+
+/-- `_http.py:141-153`. -/
+def request_json (max_retries retry_delay : Int) (env : List Outcome) : JsonExit × State :=
+  classify (_with_retries max_retries retry_delay env)
 
 /-! ## Specification -/
 
@@ -140,21 +166,31 @@ def oracle (max_retries : Int) (env : List Outcome) : Exit × Nat × List Nat :=
 
 /-- Properties (a)-(d) for one run: exit, call count and sleeps match the oracle. -/
 def RunOK (max_retries : Int) (env : List Outcome) : Prop :=
-  let r := _with_retries max_retries env
+  let r := runLoop max_retries env
   (r.1, r.2.calls, r.2.sleeps) = oracle max_retries env
 
 instance (m : Int) (env : List Outcome) : Decidable (RunOK m env) := by
   unfold RunOK; infer_instance
 
-/-- Property (e) for one run: when l.143 reports an attempt count, the count is
+/-- Property (e) for one run: when l.152 reports an attempt count, the count is
 the number of `attempt()` calls made. -/
-def MessageAccurate (max_retries : Int) (env : List Outcome) : Prop :=
-  match (request_json max_retries env).1 with
-  | .countBranch reported call => reported = (call : Int)
+def MessageAccurate (max_retries retry_delay : Int) (env : List Outcome) : Prop :=
+  match request_json max_retries retry_delay env with
+  | (.countBranch reported call, s) => reported = (call : Int) ∧ s.calls = call
   | _ => True
 
-instance (m : Int) (env : List Outcome) : Decidable (MessageAccurate m env) := by
+instance (m d : Int) (env : List Outcome) : Decidable (MessageAccurate m d env) := by
   unfold MessageAccurate; split <;> infer_instance
+
+/-- Property (f) for one run: the guard rejects exactly `max_retries < 1` and
+`retry_delay < 0`, and a rejected run made no attempt and no sleep. -/
+def GuardOK (max_retries retry_delay : Int) (env : List Outcome) : Prop :=
+  let r := _with_retries max_retries retry_delay env
+  if max_retries < 1 ∨ retry_delay < 0 then r = (.rejected, init)
+  else r = runLoop max_retries env ∧ r.1 ≠ .rejected
+
+instance (m d : Int) (env : List Outcome) : Decidable (GuardOK m d env) := by
+  unfold GuardOK; infer_instance
 
 /-! ## Bounded exhaustive check -/
 
@@ -181,34 +217,53 @@ def badRuns (lo hi : Int) (n : Nat) :
     (envsUpTo n).filterMap fun env =>
       if RunOK m env then none
       else
-        let r := _with_retries m env
+        let r := runLoop m env
         some (m, env, (r.1, r.2.calls, r.2.sleeps), oracle m env)
 
-/-- Runs that break `MessageAccurate`; each entry is `(max_retries, env, exit)`. -/
-def badMessages (lo hi : Int) (n : Nat) : List (Int × List Outcome × JsonExit) :=
+/-- Runs that break `MessageAccurate` or `GuardOK`, with `retry_delay` in
+`-1, 0, 1`; each entry is `(max_retries, retry_delay, env, exit)`. -/
+def badMessages (lo hi : Int) (n : Nat) : List (Int × Int × List Outcome × JsonExit) :=
   (intsFrom lo hi).flatMap fun m =>
-    (envsUpTo n).filterMap fun env =>
-      if MessageAccurate m env then none else some (m, env, (request_json m env).1)
+    (intsFrom (-1) 1).flatMap fun d =>
+      (envsUpTo n).filterMap fun env =>
+        if MessageAccurate m d env ∧ GuardOK m d env then none
+        else some (m, d, env, (request_json m d env).1)
 
 -- The shipped default is `max_retries = 3`. The bound covers -2..6 and every
 -- outcome list of length ≤ 5 over six outcomes (9331 lists per `max_retries`).
 #eval badRuns (-2) 6 5   -- []
 #guard (badRuns (-2) 6 5).isEmpty
 
--- Property (e) holds for `max_retries ≥ 1` ...
-#eval badMessages 1 6 5   -- []
-#guard (badMessages 1 6 5).isEmpty
+-- Properties (e) and (f) hold for every `max_retries` in -2..6, each sign of
+-- `retry_delay` and every outcome list of length ≤ 5.
+#eval badMessages (-2) 6 5   -- []
+#guard (badMessages (-2) 6 5).isEmpty
 
--- ... and fails for `max_retries ≤ 0`: the message reports 0 or a negative
--- count after one real attempt. This is the code as written (l.143), so the
--- guard pins the finding instead of failing the build.
-#eval badMessages (-1) 0 1
--- [(-1, [error connection], countBranch (-1) 1), (0, [error connection], countBranch 0 1)]
-#guard badMessages (-1) 0 1 =
-  [(-1, [.error .connection], .countBranch (-1) 1), (0, [.error .connection], .countBranch 0 1)]
+-- `max_retries` 0 or -1, or a negative `retry_delay`, is rejected before the
+-- first attempt: no call, no sleep, no count message.
+#guard _with_retries 0 1 [.error .connection] = (.rejected, init)
+#guard _with_retries (-1) 1 [.error .connection] = (.rejected, init)
+#guard _with_retries 3 (-1) [.error .connection] = (.rejected, init)
+#guard (request_json 0 1 [.error .connection]).1 = .rejected
+
+-- The count message no longer depends on the last attempt's error type: both
+-- orders of two connection errors and a 429 report 3 attempts after 3 calls.
+#guard (request_json 3 1 [.error .connection, .error .connection, .error (.http (some 429))]).1
+  = .countBranch 3 3
+#guard (request_json 3 1 [.error (.http (some 429)), .error (.http (some 429)), .error .connection]).1
+  = .countBranch 3 3
+
+-- A 404 keeps its own message, on the first attempt or after a retry.
+#guard (request_json 3 1 [.error (.http (some 404))]).1 = .fatalBranch 1 (.http (some 404))
+#guard (request_json 3 1 [.error .connection, .error (.http (some 404))]).1
+  = .fatalBranch 2 (.http (some 404))
+
+-- The count comes from the loop, not from `max_retries`: even the unguarded
+-- loop with `max_retries = 0` records the one attempt it made.
+#guard attempts (runLoop 0 [.error .connection]).2 = 1
 
 -- Three attempts sleep 1 + 2 = 3 units, and nothing after the third.
-#guard (_with_retries 3 [.error .connection, .error .connection, .error .connection]).2.sleeps = [1, 2]
+#guard (runLoop 3 [.error .connection, .error .connection, .error .connection]).2.sleeps = [1, 2]
 
 /-! ## Proofs for every `max_retries` and every outcome list -/
 
@@ -260,7 +315,7 @@ def fin (n : Nat) : State :=
 
 theorem init_eq : init = st 0 := by simp [init, st, pows]
 
-/-- One retry (l.66-68) takes `st n` to `st (n + 1)`. -/
+/-- One retry (l.75-77) takes `st n` to `st (n + 1)`. -/
 theorem st_step (n : Nat) :
     ({ attempt_number := (st n).attempt_number + 1
        delay := (st n).delay * 2
@@ -358,21 +413,21 @@ theorem loop_fwd (m : Int) : ∀ (env : List Outcome) (n : Nat), n < bound m →
           exact Or.inr ⟨.error e :: pre, o, rest', by rw [he]; rfl,
             allRetry_cons.2 ⟨hr, hp⟩, hl, hres⟩
 
-/-- Master case split for `_with_retries`. Either the outcome list ran out
+/-- Master case split for `runLoop`. Either the outcome list ran out
 (all of it retryable errors, fewer than the bound), or the run stopped on the
 first outcome `o` that follows a prefix `pre` of retryable errors: a success
 returns, an error is re-raised because it is fatal or because this is attempt
 number `bound max_retries`. In both stopping cases the final state is
 `fin pre.length`: `pre.length + 1` calls and `pre.length` sleeps. -/
 theorem with_retries_cases (m : Int) (env : List Outcome) :
-    (_with_retries m env = (.starved, st env.length) ∧ AllRetry env ∧ env.length < bound m) ∨
+    (runLoop m env = (.starved, st env.length) ∧ AllRetry env ∧ env.length < bound m) ∨
     (∃ pre o rest, env = pre ++ o :: rest ∧ AllRetry pre ∧ pre.length < bound m ∧
-      ((o = .success ∧ _with_retries m env = (.returned (pre.length + 1), fin pre.length)) ∨
+      ((o = .success ∧ runLoop m env = (.returned (pre.length + 1), fin pre.length)) ∨
        (∃ e, o = .error e ∧ (_retryable e = false ∨ pre.length + 1 = bound m) ∧
-          _with_retries m env = (.raised (pre.length + 1) e, fin pre.length)))) := by
+          runLoop m env = (.raised (pre.length + 1) e, fin pre.length)))) := by
   have h := loop_fwd m env 0 (bound_pos m)
   simp only [Fwd, Nat.zero_add] at h
-  unfold _with_retries
+  unfold runLoop
   rw [init_eq]
   exact h
 
@@ -382,7 +437,7 @@ theorem mid_getElem (pre : List Outcome) (o : Outcome) (rest : List Outcome) :
 /-- (a) Attempt bound, and so termination: `attempt()` is called at most
 `max(1, max_retries)` times, for every `max_retries : Int`. No hypotheses. -/
 theorem calls_le_bound (m : Int) (env : List Outcome) :
-    (_with_retries m env).2.calls ≤ bound m := by
+    (runLoop m env).2.calls ≤ bound m := by
   rcases with_retries_cases m env with ⟨h, _, hl⟩ | ⟨pre, o, rest, _, _, hl, ⟨_, h⟩ | ⟨e, _, _, h⟩⟩
   · rw [h]; simp only [st]; omega
   · rw [h]; simp only [fin]; omega
@@ -390,7 +445,7 @@ theorem calls_le_bound (m : Int) (env : List Outcome) :
 
 /-- The run never asks for more outcomes than the list holds unless it is starved. -/
 theorem not_starved_of_length (m : Int) (env : List Outcome) (hlen : bound m ≤ env.length) :
-    (_with_retries m env).1 ≠ .starved := by
+    (runLoop m env).1 ≠ .starved := by
   rcases with_retries_cases m env with ⟨_, _, hl⟩ | ⟨pre, o, rest, _, _, _, ⟨_, h⟩ | ⟨e, _, _, h⟩⟩
   · omega
   · rw [h]; simp
@@ -401,7 +456,7 @@ theorem not_starved_of_length (m : Int) (env : List Outcome) (hlen : bound m ≤
 `bound` outcomes). The error raised is that of attempt `bound`. -/
 theorem all_retryable_exact (m : Int) (env : List Outcome) (hall : AllRetry env)
     (hlen : bound m ≤ env.length) :
-    ∃ e, _with_retries m env = (.raised (bound m) e, fin (bound m - 1)) ∧
+    ∃ e, runLoop m env = (.raised (bound m) e, fin (bound m - 1)) ∧
       env[bound m - 1]? = some (.error e) := by
   rcases with_retries_cases m env with
     ⟨_, _, hl⟩ | ⟨pre, o, rest, he, _, _, ⟨ho, _⟩ | ⟨e, ho, hd, h⟩⟩
@@ -425,7 +480,7 @@ theorem all_retryable_exact (m : Int) (env : List Outcome) (hall : AllRetry env)
 earlier outcome is a retryable error (so no fatal error comes first), and
 `k ≤ bound`. No hypotheses. -/
 theorem returned_iff (m : Int) (env : List Outcome) (k : Nat) :
-    (_with_retries m env).1 = .returned k ↔
+    (runLoop m env).1 = .returned k ↔
       ∃ pre rest, env = pre ++ .success :: rest ∧ AllRetry pre ∧ pre.length < bound m ∧
         k = pre.length + 1 := by
   constructor
@@ -439,7 +494,7 @@ theorem returned_iff (m : Int) (env : List Outcome) (k : Nat) :
       exact ⟨pre, rest, he, hp, hl, hk.symm⟩
     · rw [h] at hk; simp at hk
   · rintro ⟨pre, rest, rfl, hp, hl, rfl⟩
-    unfold _with_retries
+    unfold runLoop
     rw [init_eq, loop_prefix m _ pre 0 hp (by omega), loop_success]
     simp
 
@@ -449,8 +504,8 @@ one raised, with `pre.length` sleeps in total, so none after it. Hypotheses:
 `hp` (prefix retryable), `hf` (`_retryable e = false`), `hl` (within bound). -/
 theorem fatal_immediate (m : Int) (pre rest : List Outcome) (e : Err) (hp : AllRetry pre)
     (hf : _retryable e = false) (hl : pre.length < bound m) :
-    _with_retries m (pre ++ .error e :: rest) = (.raised (pre.length + 1) e, fin pre.length) := by
-  unfold _with_retries
+    runLoop m (pre ++ .error e :: rest) = (.raised (pre.length + 1) e, fin pre.length) := by
+  unfold runLoop
   rw [init_eq, loop_prefix m _ pre 0 hp (by omega), loop_error, if_pos (Or.inr hf)]
   simp
 
@@ -458,9 +513,9 @@ theorem fatal_immediate (m : Int) (pre rest : List Outcome) (e : Err) (hp : AllR
 stops after `k` calls slept exactly `1, 2, ..., 2^(k-2)` units, `k - 1` sleeps.
 Hypothesis: the run is not starved. -/
 theorem exit_sleeps (m : Int) (env : List Outcome)
-    (hne : (_with_retries m env).1 ≠ .starved) :
-    (_with_retries m env).2.sleeps = pows ((_with_retries m env).2.calls - 1) ∧
-      1 ≤ (_with_retries m env).2.calls := by
+    (hne : (runLoop m env).1 ≠ .starved) :
+    (runLoop m env).2.sleeps = pows ((runLoop m env).2.calls - 1) ∧
+      1 ≤ (runLoop m env).2.calls := by
   rcases with_retries_cases m env with ⟨h, _, _⟩ | ⟨pre, o, rest, _, _, _, ⟨_, h⟩ | ⟨e, _, _, h⟩⟩
   · rw [h] at hne; simp at hne
   · rw [h]; simp [fin]
@@ -468,19 +523,19 @@ theorem exit_sleeps (m : Int) (env : List Outcome)
 
 /-- (c) Total sleep for `k` calls is `2^(k-1) - 1` units of `retry_delay`. -/
 theorem total_sleep (m : Int) (env : List Outcome)
-    (hne : (_with_retries m env).1 ≠ .starved) :
-    (_with_retries m env).2.sleeps.sum = 2 ^ ((_with_retries m env).2.calls - 1) - 1 ∧
-      (_with_retries m env).2.sleeps.length + 1 = (_with_retries m env).2.calls := by
+    (hne : (runLoop m env).1 ≠ .starved) :
+    (runLoop m env).2.sleeps.sum = 2 ^ ((runLoop m env).2.calls - 1) - 1 ∧
+      (runLoop m env).2.sleeps.length + 1 = (runLoop m env).2.calls := by
   obtain ⟨hs, hc⟩ := exit_sleeps m env hne
   rw [hs, pows_length]
-  have := pows_sum ((_with_retries m env).2.calls - 1)
+  have := pows_sum ((runLoop m env).2.calls - 1)
   omega
 
 /-- (c) While the loop is still running (starved), it has slept once per call. -/
 theorem starved_sleeps (m : Int) (env : List Outcome)
-    (h : (_with_retries m env).1 = .starved) :
-    (_with_retries m env).2.sleeps = pows env.length ∧
-      (_with_retries m env).2.calls = env.length := by
+    (h : (runLoop m env).1 = .starved) :
+    (runLoop m env).2.sleeps = pows env.length ∧
+      (runLoop m env).2.calls = env.length := by
   rcases with_retries_cases m env with ⟨h', _, _⟩ | ⟨pre, o, rest, _, _, _, ⟨_, h'⟩ | ⟨e, _, _, h'⟩⟩
   · rw [h']; simp [st]
   · rw [h'] at h; simp at h
@@ -491,8 +546,8 @@ then `k` is the total number of calls, outcome `k` of the environment is that
 error, every earlier outcome was a retryable error, and the raise is due to a
 fatal error or to reaching the bound. No hypotheses. -/
 theorem raised_is_last (m : Int) (env : List Outcome) (k : Nat) (e : Err)
-    (hk : (_with_retries m env).1 = .raised k e) :
-    (_with_retries m env).2.calls = k ∧ env[k - 1]? = some (.error e) ∧
+    (hk : (runLoop m env).1 = .raised k e) :
+    (runLoop m env).2.calls = k ∧ env[k - 1]? = some (.error e) ∧
       (_retryable e = false ∨ k = bound m) ∧
       ∃ pre rest, env = pre ++ .error e :: rest ∧ AllRetry pre ∧ k = pre.length + 1 := by
   rcases with_retries_cases m env with
@@ -509,8 +564,8 @@ theorem raised_is_last (m : Int) (env : List Outcome) (k : Nat) (e : Err)
 
 /-- (d) Likewise the value returned is the last call's. -/
 theorem returned_is_last (m : Int) (env : List Outcome) (k : Nat)
-    (hk : (_with_retries m env).1 = .returned k) :
-    (_with_retries m env).2.calls = k ∧ env[k - 1]? = some .success := by
+    (hk : (runLoop m env).1 = .returned k) :
+    (runLoop m env).2.calls = k ∧ env[k - 1]? = some .success := by
   rcases with_retries_cases m env with
     ⟨h, _, _⟩ | ⟨pre, o, rest, he, _, _, ⟨ho, h⟩ | ⟨e', _, _, h⟩⟩
   · rw [h] at hk; simp at hk
@@ -522,63 +577,159 @@ theorem returned_is_last (m : Int) (env : List Outcome) (k : Nat)
     exact mid_getElem pre _ rest
   · rw [h] at hk; simp at hk
 
-/-- (e) Whenever `request_json` takes the l.141-144 branch, it reports
-`max_retries`, while the true number of attempts is `bound max_retries`. -/
-theorem count_branch_attempts (m : Int) (env : List Outcome) (reported : Int) (call : Nat)
-    (h : (request_json m env).1 = .countBranch reported call) :
-    reported = m ∧ call = bound m ∧ (request_json m env).2.calls = bound m := by
-  unfold request_json at h ⊢
-  split at h <;> simp only [reduceCtorEq, JsonExit.countBranch.injEq] at h
-  next k s heq =>
-    obtain ⟨h1, h2⟩ := h
-    have hk : (_with_retries m env).1 = .raised k .connection := by rw [heq]
-    obtain ⟨hc, _, hd, _⟩ := raised_is_last m env k .connection hk
-    have hkb : k = bound m := by
-      rcases hd with hd | hd
-      · simp [_retryable] at hd
-      · exact hd
-    rw [heq] at hc
-    exact ⟨h1.symm, by omega, by simpa [hkb] using hc⟩
+/-- (e) The count stored at l.72 is the number of `attempt()` calls made, for
+every `max_retries`, accepted by the guard or not. No hypotheses beyond the
+raise itself. -/
+theorem attempts_eq_calls (m : Int) (env : List Outcome) (k : Nat) (e : Err)
+    (hk : (runLoop m env).1 = .raised k e) :
+    attempts (runLoop m env).2 = (k : Int) ∧ (runLoop m env).2.calls = k := by
+  rcases with_retries_cases m env with
+    ⟨h, _, _⟩ | ⟨pre, o, rest, _, _, _, ⟨_, h⟩ | ⟨e', _, _, h⟩⟩
+  · rw [h] at hk; simp at hk
+  · rw [h] at hk; simp at hk
+  · rw [h] at hk
+    simp only [Exit.raised.injEq] at hk
+    obtain ⟨hk1, _⟩ := hk
+    subst hk1
+    rw [h]
+    simp [attempts, fin]
 
-/-- (e) The l.143 message is accurate iff `max_retries ≥ 1`. -/
-theorem message_accurate_iff (m : Int) (env : List Outcome) (reported : Int) (call : Nat)
-    (h : (request_json m env).1 = .countBranch reported call) :
-    reported = (call : Int) ↔ 1 ≤ m := by
-  obtain ⟨h1, h2, _⟩ := count_branch_attempts m env reported call h
-  subst h1 h2
-  unfold bound
-  split <;> omega
+/-- The loop never ends in `rejected`; only the guard does. -/
+theorem runLoop_not_rejected (m : Int) (env : List Outcome) :
+    (runLoop m env).1 ≠ .rejected := by
+  rcases with_retries_cases m env with
+    ⟨h, _, _⟩ | ⟨pre, o, rest, _, _, _, ⟨_, h⟩ | ⟨e', _, _, h⟩⟩ <;> rw [h] <;> simp
 
-/-- (e) The concrete mismatch: `max_retries = 0` and one connection error
-reports "0 attempts" after 1 attempt. -/
-theorem message_mismatch_zero :
-    (request_json 0 [.error .connection]).1 = .countBranch 0 1 := by decide
+/-- (f) The guard rejects before the first attempt: no call and no sleep.
+Hypothesis: `max_retries < 1` or `retry_delay < 0`. -/
+theorem rejected_no_attempt (m d : Int) (env : List Outcome) (h : m < 1 ∨ d < 0) :
+    _with_retries m d env = (.rejected, init) := by
+  unfold _with_retries
+  rw [if_pos h]
 
-/-- (e) For `max_retries ≤ 0` every count message is wrong: it reports
-`max_retries ≤ 0` after exactly one attempt. -/
-theorem message_wrong_nonpos (m : Int) (hm : m ≤ 0) (env : List Outcome) (reported : Int)
-    (call : Nat) (h : (request_json m env).1 = .countBranch reported call) :
-    call = 1 ∧ reported ≤ 0 := by
-  obtain ⟨h1, h2, _⟩ := count_branch_attempts m env reported call h
-  subst h1 h2
-  unfold bound
-  split <;> omega
+/-- (f) An accepted input runs the loop. Hypotheses: `1 ≤ max_retries` and
+`0 ≤ retry_delay`. -/
+theorem accepted_runs_loop (m d : Int) (env : List Outcome) (hm : 1 ≤ m) (hd : 0 ≤ d) :
+    _with_retries m d env = runLoop m env := by
+  unfold _with_retries
+  rw [if_neg (by omega)]
 
-/-- (e) An `HTTPError` (429 or 503) that exhausts the retries takes the l.139
-branch, whose message carries no attempt count. Hypotheses: `hhttp` (every
-outcome is a retryable `HTTPError`), `hlen` (at least `bound` outcomes). -/
-theorem http_exhaustion_no_count (m : Int) (env : List Outcome)
+/-- (f) `_with_retries` raises `ValueError` iff `max_retries < 1` or
+`retry_delay < 0`. No hypotheses. -/
+theorem rejected_iff (m d : Int) (env : List Outcome) :
+    (_with_retries m d env).1 = .rejected ↔ m < 1 ∨ d < 0 := by
+  constructor
+  · intro h
+    by_cases hg : m < 1 ∨ d < 0
+    · exact hg
+    · unfold _with_retries at h
+      rw [if_neg hg] at h
+      exact absurd h (runLoop_not_rejected m env)
+  · intro hg
+    rw [rejected_no_attempt m d env hg]
+
+/-- (a) With the guard, an accepted run makes at most `max_retries` attempts:
+the bound is `max_retries` itself. Hypothesis: `1 ≤ max_retries`. -/
+theorem bound_accepted (m : Int) (hm : 1 ≤ m) : (bound m : Int) = m := by
+  unfold bound; split <;> omega
+
+/-- (e) Every count message is accurate, for every `max_retries`, every
+`retry_delay` and every outcome list: the reported count is the index of the
+last call, which is the number of `attempt()` calls made. No hypotheses. -/
+theorem message_accurate (m d : Int) (env : List Outcome) (reported : Int) (call : Nat)
+    (h : (request_json m d env).1 = .countBranch reported call) :
+    reported = (call : Int) ∧ (request_json m d env).2.calls = call := by
+  unfold request_json _with_retries at h ⊢
+  by_cases hg : m < 1 ∨ d < 0
+  · rw [if_pos hg] at h
+    simp [classify] at h
+  · rw [if_neg hg] at h ⊢
+    cases hr : runLoop m env with
+    | mk x s =>
+      rw [hr] at h
+      cases x with
+      | returned k => simp [classify] at h
+      | rejected => simp [classify] at h
+      | starved => simp [classify] at h
+      | raised k e =>
+        have hacc := attempts_eq_calls m env k e (by rw [hr])
+        rw [hr] at hacc
+        simp only [classify] at h ⊢
+        split at h
+        next hret =>
+          simp only [JsonExit.countBranch.injEq] at h
+          obtain ⟨h1, h2⟩ := h
+          subst h1 h2
+          simp only [hret, ite_true]
+          exact hacc
+        next => simp at h
+
+/-- (e) Under the guard a count message reports `max_retries`: the retries
+were exhausted, so the wording for a connection failure is what it was before
+the count was derived from the loop. No hypotheses: a rejected input has no
+count message. -/
+theorem count_is_max_retries (m d : Int) (env : List Outcome) (reported : Int) (call : Nat)
+    (h : (request_json m d env).1 = .countBranch reported call) :
+    reported = m := by
+  obtain ⟨hrep, _⟩ := message_accurate m d env reported call h
+  unfold request_json _with_retries at h
+  by_cases hg : m < 1 ∨ d < 0
+  · rw [if_pos hg] at h
+    simp [classify] at h
+  · rw [if_neg hg] at h
+    cases hr : runLoop m env with
+    | mk x s =>
+      rw [hr] at h
+      cases x with
+      | returned k => simp [classify] at h
+      | rejected => simp [classify] at h
+      | starved => simp [classify] at h
+      | raised k e =>
+        simp only [classify] at h
+        split at h
+        next hret =>
+          simp only [JsonExit.countBranch.injEq] at h
+          obtain ⟨_, h2⟩ := h
+          subst h2
+          obtain ⟨_, _, hd, _⟩ := raised_is_last m env k e (by rw [hr])
+          rcases hd with hd | hd
+          · rw [hret] at hd; cases hd
+          · have := bound_accepted m (by omega)
+            omega
+        next => simp at h
+
+/-- (e) An `HTTPError` (429 or 503) that exhausts the retries reports the
+attempt count, like a connection failure does. Hypotheses: the input is
+accepted (`hm`, `hd`), `hhttp` (every outcome is a retryable `HTTPError`),
+`hlen` (at least `max_retries` outcomes). -/
+theorem http_exhaustion_reports_count (m d : Int) (hm : 1 ≤ m) (hd : 0 ≤ d)
+    (env : List Outcome)
     (hhttp : ∀ o ∈ env, ∃ status, o = .error (.http status) ∧ _retryable (.http status) = true)
     (hlen : bound m ≤ env.length) :
-    ∃ status, (request_json m env).1 = .httpBranch (bound m) status := by
+    (request_json m d env).1 = .countBranch m (bound m) := by
   have hall : AllRetry env := by
     intro o ho
     obtain ⟨status, rfl, hr⟩ := hhttp o ho
     exact hr
   obtain ⟨e, h, hget⟩ := all_retryable_exact m env hall hlen
   have hmem : Outcome.error e ∈ env := List.mem_of_getElem? hget
-  obtain ⟨status, heq, _⟩ := hhttp _ hmem
+  obtain ⟨status, heq, hret⟩ := hhttp _ hmem
   cases heq
-  refine ⟨status, ?_⟩
+  have hb := bound_accepted m hm
+  have hpos := bound_pos m
   unfold request_json
-  rw [h]
+  rw [accepted_runs_loop m d env hm hd, h]
+  simp only [classify, hret, ite_true, attempts, fin]
+  congr 1
+  omega
+
+/-- (e) An error that is not worth retrying keeps its own message, with no
+attempt count, on whichever attempt it arrives. Hypotheses: the input is
+accepted (`hm`, `hd`), `hp` (prefix retryable), `hf` (`_retryable e = false`),
+`hl` (within the bound). -/
+theorem fatal_keeps_message (m d : Int) (hm : 1 ≤ m) (hd : 0 ≤ d) (pre rest : List Outcome)
+    (e : Err) (hp : AllRetry pre) (hf : _retryable e = false) (hl : pre.length < bound m) :
+    (request_json m d (pre ++ .error e :: rest)).1 = .fatalBranch (pre.length + 1) e := by
+  unfold request_json
+  rw [accepted_runs_loop m d _ hm hd, fatal_immediate m pre rest e hp hf hl]
+  simp [classify, hf]
