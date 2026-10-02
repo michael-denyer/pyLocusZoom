@@ -360,6 +360,85 @@ class TestPlotAcrossBuilds:
                 liftover=LiftoverConfig(lifter=lifter),
             )
 
+    # 1-based 2500 is in the region but is no row of ``source_gwas_df``.
+    STRAY_LEAD = 2_500
+
+    def test_warns_when_lead_lifts_outside_the_window(self, plotter, source_gwas_df):
+        lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): 99_999})
+        with pytest.warns(
+            UserWarning, match="Lead SNP at chr1:2500 lifted outside the window"
+        ):
+            fig = plotter.plot(
+                source_gwas_df,
+                chrom=1,
+                start=500,
+                end=3_500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                ld=LDConfig(lead_pos=self.STRAY_LEAD),
+                display=DisplayConfig(show_recombination=False, snp_labels=False),
+                liftover=LiftoverConfig(lifter=lifter),
+            )
+
+        assert fig.axes[0].get_xlim() == (10_500, 13_500)
+
+    def test_warns_when_lead_lifts_onto_another_snp(self, plotter, source_gwas_df):
+        """A lead that is no row must not turn the SNP it lands on into the lead."""
+        lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): 11_999})
+        with pytest.warns(
+            UserWarning, match="Lead SNP at chr1:2500 is not a SNP of the data"
+        ):
+            plotter.plot(
+                source_gwas_df,
+                chrom=1,
+                start=500,
+                end=3_500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                ld=LDConfig(lead_pos=self.STRAY_LEAD),
+                display=DisplayConfig(show_recombination=False, snp_labels=False),
+                liftover=LiftoverConfig(lifter=lifter),
+            )
+
+    @pytest.mark.parametrize("lifted_lead", [99_999, 11_999])
+    def test_an_unusable_lifted_lead_is_an_error_with_ld_reference_file(
+        self, plotter, source_gwas_df, lifted_lead
+    ):
+        """Outside the window or on another SNP, PLINK is not run for a wrong lead."""
+        lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): lifted_lead})
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(ValidationError, match="chr1:2500 .* needs a lead"):
+                plotter.plot(
+                    source_gwas_df,
+                    chrom=1,
+                    start=500,
+                    end=3_500,
+                    columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                    ld=LDConfig(
+                        lead_pos=self.STRAY_LEAD, ld_reference_file="/no/such/ref"
+                    ),
+                    display=DisplayConfig(show_recombination=False),
+                    liftover=LiftoverConfig(lifter=lifter),
+                )
+
+    def test_plot_stacked_warns_when_a_lead_lifts_outside_the_window(
+        self, plotter, source_gwas_df
+    ):
+        lifter = InMemoryLifter({**self.LIFTER._mapping, ("chr1", 2_499): 99_999})
+        with pytest.warns(
+            UserWarning, match="Lead SNP at chr1:2500 lifted outside the window"
+        ):
+            plotter.plot_stacked(
+                [source_gwas_df, source_gwas_df],
+                chrom=1,
+                start=500,
+                end=3_500,
+                columns=ColumnConfig(pos_col="ps", p_col="p_wald"),
+                lead_positions=[self.STRAY_LEAD, 1_000],
+                display=DisplayConfig(show_recombination=False, snp_labels=False),
+                liftover=LiftoverConfig(lifter=lifter),
+            )
+
     def test_warns_when_the_region_is_rearranged(self, plotter, source_gwas_df):
         lifter = InMemoryLifter(
             {("chr1", 999): 12_999, ("chr1", 1_999): 11_999, ("chr1", 2_999): 10_999}
@@ -529,7 +608,18 @@ def _lift_cases(draw, identity=False):
             if target is not None:
                 mapping[("chr1", pos - 1)] = target - 1
         frames.append(pd.DataFrame({"chr": 1, "pos": positions, "p_value": 0.5}))
-        leads.append(draw(st.none() | st.sampled_from(positions)))
+        # A lead is any position of the region, a row of its frame or not.
+        lead = draw(st.none() | st.integers(min_value=start, max_value=end))
+        if lead is not None and not identity and ("chr1", lead - 1) not in mapping:
+            # Off a row it lifts anywhere, or onto a position a SNP lifted to.
+            target = draw(
+                st.none()
+                | st.integers(min_value=1, max_value=5_000_000)
+                | st.sampled_from(sorted(mapping.values())).map(lambda hit: hit + 1)
+            )
+            if target is not None:
+                mapping[("chr1", lead - 1)] = target - 1
+        leads.append(lead)
     return start, end, frames, leads, InMemoryLifter(mapping)
 
 
@@ -557,16 +647,20 @@ class TestLiftWindowProperties:
         except ValidationError:
             return  # A frame with no lifted SNP in the region; pinned elsewhere.
 
-        start, end, _, leads, _ = case
+        _, _, frames, leads, _ = case
         assert 1 <= window.start < window.end
         for frame in window.frames:
             assert window.start <= frame["pos"].min()
             assert frame["pos"].max() <= window.end
-        for source_lead, lead in zip(leads, window.lead_positions):
-            # A lead outside the region is accepted with or without liftover
-            # and may lift anywhere, so only an in-region lead is bounded.
-            if lead is not None and start <= source_lead <= end:
-                assert window.start <= lead <= window.end
+        for source, lifted, source_lead, lead in zip(
+            frames, window.frames, leads, window.lead_positions
+        ):
+            if lead is None:
+                continue
+            assert window.start <= lead <= window.end
+            # Only a lead that is a lifted row may share a lifted row's position.
+            if source_lead not in source.loc[lifted.index, "pos"].tolist():
+                assert lead not in lifted["pos"].tolist()
 
     @given(_lift_cases(identity=True))
     def test_an_identity_lift_keeps_the_requested_window(self, case):
@@ -579,3 +673,50 @@ class TestLiftWindowProperties:
         for before, after in zip(frames, window.frames):
             in_region = before[before["pos"].between(start, end)]
             assert after["pos"].tolist() == in_region["pos"].tolist()
+
+
+class TestLiftWindowLeads:
+    """A lead lifts on its own, so it is checked against the lifted rows."""
+
+    @pytest.fixture
+    def frame(self):
+        return pd.DataFrame({"chr": 1, "pos": [100, 200], "p_value": [1e-9, 1e-3]})
+
+    def test_a_lead_lifting_outside_the_window_is_dropped_with_a_note(self, frame):
+        lifter = InMemoryLifter(
+            {("chr1", 99): 99, ("chr1", 149): 4_999, ("chr1", 199): 199}
+        )
+
+        window = _lift(50, 250, [frame], [150], lifter)
+
+        assert (window.start, window.end) == (50, 250)
+        assert window.lead_positions == [None]
+        assert window.notes == (
+            "Lead SNP at chr1:150 lifted outside the window of the region's "
+            "SNPs in the target build; the lead is auto-detected instead",
+        )
+
+    def test_a_lead_that_is_no_row_lifting_onto_a_snp_is_dropped_with_a_note(
+        self, frame
+    ):
+        lifter = InMemoryLifter(
+            {("chr1", 99): 99, ("chr1", 149): 299, ("chr1", 199): 299}
+        )
+
+        window = _lift(50, 250, [frame], [150], lifter)
+
+        assert window.frames[0]["pos"].tolist() == [100, 300]
+        assert window.lead_positions == [None]
+        assert window.notes == (
+            "Lead SNP at chr1:150 is not a SNP of the data and lifted onto "
+            "another SNP's position in the target build; the lead is "
+            "auto-detected instead",
+        )
+
+    def test_a_lead_that_is_a_row_keeps_its_lifted_position(self, frame):
+        lifter = InMemoryLifter({("chr1", 99): 99, ("chr1", 199): 299})
+
+        window = _lift(50, 250, [frame], [200], lifter)
+
+        assert window.lead_positions == [300]
+        assert window.notes == ()

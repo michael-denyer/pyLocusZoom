@@ -1654,8 +1654,10 @@ then source-build coordinates; gene, eQTL and fine-mapping frames are
 target-build. The window keeps the requested margins around the outermost
 lifted SNPs. `plot_stacked()` takes the same `liftover` and lifts every frame;
 its window spans the lifted SNPs of all panels. The config is validated in
-source-build coordinates before anything is lifted, and a lead that does not
-lift is an error when `ld_reference_file` needs it.
+source-build coordinates before anything is lifted. A lead that does not lift,
+that lifts outside the window, or that is not a SNP of the data and lifts onto
+another SNP's position is auto-detected instead, with a `UserWarning` naming
+its source-build position; it is an error when `ld_reference_file` needs it.
 
 ```python
 from pylocuszoom import LDConfig, LiftoverConfig, LocusZoomPlotter

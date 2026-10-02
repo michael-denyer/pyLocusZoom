@@ -326,9 +326,10 @@ class LiftedWindow:
         end: Window end in the target build, keeping the requested margin
             after the last lifted SNP of any frame.
         lead_positions: Each requested lead lifted, or None where there was
-            none or it did not lift.
+            none, it did not lift, it lifted outside the window, or it is no
+            row of its frame and lifted onto a row's position.
         notes: Sentences the caller should pass on to the user: a lead that
-            did not lift, or a region rearranged between builds.
+            was dropped, or a region rearranged between builds.
     """
 
     frames: List[pd.DataFrame]
@@ -412,15 +413,38 @@ def lift_window(
                 f"{target_name}; the lead is auto-detected instead"
             )
         source_pos = selected.loc[lift.lifted_df.index, pos_col]
+        lead = lift.lead_pos
+        # The lead lifts on its own, so one that is no lifted row can land on
+        # a row's position and would make that SNP the lead.
+        if (
+            lead is not None
+            and not (source_pos == lead_pos).any()
+            and (lift.lifted_df[pos_col] == lead).any()
+        ):
+            notes.append(
+                f"Lead SNP at chr{chrom}:{lead_pos} is not a SNP of the data "
+                f"and lifted onto another SNP's position in {target_name}; "
+                "the lead is auto-detected instead"
+            )
+            lead = None
         window_start = max(1, lift.start - int(source_pos.min() - start))
         starts.append(window_start)
         ends.append(max(lift.end + int(end - source_pos.max()), window_start + 1))
         lifted_frames.append(lift.lifted_df)
-        leads.append(lift.lead_pos)
+        leads.append(lead)
+    window_start, window_end = min(starts), max(ends)
+    for index, lead in enumerate(leads):
+        if lead is not None and not window_start <= lead <= window_end:
+            notes.append(
+                f"Lead SNP at chr{chrom}:{lead_positions[index]} lifted outside "
+                f"the window of the region's SNPs in {target_name}; the lead is "
+                "auto-detected instead"
+            )
+            leads[index] = None
     return LiftedWindow(
         frames=lifted_frames,
-        start=min(starts),
-        end=max(ends),
+        start=window_start,
+        end=window_end,
         lead_positions=leads,
         notes=tuple(dict.fromkeys(notes)),
     )
