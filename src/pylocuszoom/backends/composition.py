@@ -44,13 +44,17 @@ class LegendEntry:
 
     ``marker`` uses the same vocabulary as ``scatter(marker=...)``: ``"patch"``
     for a filled swatch, or a marker code (``"D"``, ``"^"``, ``"v"``, ``"o"``)
-    for a point marker. Backends map these to their native symbols.
+    for a point marker, or ``"line"`` for a short line drawn with
+    ``linestyle`` and ``linewidth``, which take the ``axhline`` vocabulary.
+    Backends map these to their native symbols.
     """
 
     label: str
     color: str
     marker: str = "patch"
     edgecolor: Optional[str] = None
+    linestyle: str = "-"
+    linewidth: float = 1.0
 
 
 # Mathtext, so matplotlib renders an italic r with a true superscript. The
@@ -96,6 +100,53 @@ def finemapping_legend_entries(
     return [
         LegendEntry(f"CS{cs_id}", get_color(cs_id), marker="o")
         for cs_id in credible_sets
+    ]
+
+
+def threshold_label(threshold: float) -> str:
+    """Label a p-value threshold as ``P = 5e-08``.
+
+    Uses the fewest mantissa digits that still read back as the same number,
+    so ``5e-8`` is ``P = 5e-08`` and ``2.5e-6`` is ``P = 2.5e-06`` rather
+    than a rounded ``P = 2e-06``. A threshold that needs more than three
+    significant figures, such as ``0.05 / 3``, is shown to three.
+
+    Args:
+        threshold: P-value the line is drawn at.
+
+    Returns:
+        The legend label.
+    """
+    for digits in range(3):
+        text = f"{threshold:.{digits}e}"
+        # Tolerance for float noise: 0.05 / 1_000_000 is not exactly 5e-08.
+        if math.isclose(float(text), threshold, rel_tol=1e-9):
+            break
+    return f"P = {text}"
+
+
+def threshold_legend_entries(
+    lines: Sequence[Tuple[float, str]], *, linestyle: str, linewidth: float
+) -> List[LegendEntry]:
+    """One line swatch per threshold line, least stringent threshold first.
+
+    Args:
+        lines: ``(p-value, colour)`` of each line a panel draws.
+        linestyle: Linestyle the lines are drawn with.
+        linewidth: Width the lines are drawn with.
+
+    Returns:
+        One entry per line, ordered by descending p-value.
+    """
+    return [
+        LegendEntry(
+            threshold_label(threshold),
+            color,
+            marker="line",
+            linestyle=linestyle,
+            linewidth=linewidth,
+        )
+        for threshold, color in sorted(lines, key=lambda line: -line[0])
     ]
 
 

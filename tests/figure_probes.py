@@ -21,6 +21,8 @@ Vocabulary:
   ``triangle-up``, ``triangle-down``.
 - Colours: lower-case ``#rrggbb`` hex.
 - Legend corners, as matplotlib spells ``loc``: ``"lower left"``.
+- Legend lines: ``(label, colour, linestyle)`` per line swatch, in legend
+  order, the linestyle as matplotlib spells it: ``"--"``.
 - Y ranges: ``(bottom, top)`` as set, so an inverted axis reads
   ``(top, 0)``. Plotly and bokeh answer None for an axis left to autorange.
 - Panels: the stacked plotting areas, top first, as ``create_figure`` returned
@@ -151,6 +153,22 @@ class MatplotlibProbe:
             )
             edges[text.get_text()] = _hex(edge)
         return edges
+
+    def legend_lines(self, fig, panel=0):
+        """The line swatches of the panel's legend; empty with no legend."""
+        legend = self.panels(fig)[panel].get_legend()
+        if legend is None:
+            return []
+        return [
+            (text.get_text(), _hex(handle.get_color()), handle.get_linestyle())
+            for text, handle in zip(legend.get_texts(), legend.legend_handles)
+            if hasattr(handle, "get_linestyle") and handle.get_marker() == "None"
+        ]
+
+    def legend_is_row(self, fig, panel=0):
+        """Whether the panel's legend lays its entries out in one row."""
+        legend = self.panels(fig)[panel].get_legend()
+        return legend._ncols == len(legend.get_texts())
 
     def hline_levels(self, fig, panel=None, linestyle="--"):
         """Heights of full-width horizontal lines, in panel order."""
@@ -359,10 +377,32 @@ class PlotlyProbe:
             return False
         return [f"{v / 1e6:.2f}" for v in axis.tickvals] == list(axis.ticktext)
 
+    def _legend_traces(self, fig, panel):
+        xref = self._xref(fig, panel)
+        return [t for t in fig.data if t.showlegend and (t.xaxis or "x") == xref]
+
+    def _legend(self, fig, panel):
+        """The panel's legend, or the figure's first when the panel has none."""
+        traces = self._legend_traces(fig, panel)
+        return fig.layout[traces[0].legend or "legend"] if traces else fig.layout.legend
+
     def legend_corner(self, fig, panel=0):
-        """The corner the first legend is anchored to."""
-        legend = fig.layout.legend
+        """The corner the panel's legend is anchored to."""
+        legend = self._legend(fig, panel)
         return f"{LEGEND_VERTICAL[legend.yanchor]} {legend.xanchor}"
+
+    def legend_lines(self, fig, panel=0):
+        """The line swatches of the panel's legend; empty with no legend."""
+        linestyles = {"solid": "-", "dash": "--", "dot": ":", "dashdot": "-."}
+        return [
+            (trace.name, _hex(trace.line.color), linestyles[trace.line.dash])
+            for trace in self._legend_traces(fig, panel)
+            if trace.mode == "lines"
+        ]
+
+    def legend_is_row(self, fig, panel=0):
+        """Whether the panel's legend lays its entries out in one row."""
+        return self._legend(fig, panel).orientation == "h"
 
     def legend_edgecolors(self, fig, panel=0):
         """Each legend label mapped to its swatch's edge colour."""
@@ -617,6 +657,26 @@ class BokehProbe:
             for item in self._legend(fig, panel).items
         }
 
+    def legend_lines(self, fig, panel=0):
+        """The line swatches of the panel's legend; empty with no legend."""
+        from bokeh.models import Legend, Line
+
+        linestyles = {"solid": "-", "dashed": "--", "dotted": ":", "dashdot": "-."}
+        return [
+            (
+                item.label.value,
+                _hex(item.renderers[0].glyph.line_color),
+                linestyles[_dash_name(item.renderers[0].glyph.line_dash)],
+            )
+            for legend in self.panels(fig)[panel].select(Legend)
+            for item in legend.items
+            if isinstance(item.renderers[0].glyph, Line)
+        ]
+
+    def legend_is_row(self, fig, panel=0):
+        """Whether the panel's legend lays its entries out in one row."""
+        return self._legend(fig, panel).orientation == "horizontal"
+
     def hline_levels(self, fig, panel=None, linestyle="--"):
         """Heights of full-width horizontal lines, in panel order."""
         from bokeh.models import Span
@@ -747,7 +807,12 @@ def _glyph_values(renderer, prop):
 
 def _dash_name(line_dash):
     """Bokeh stores a named dash as its pattern; name the common ones."""
-    patterns = {(): "solid", (6,): "dashed", (2, 4): "dotted"}
+    patterns = {
+        (): "solid",
+        (6,): "dashed",
+        (2, 4): "dotted",
+        (2, 4, 6, 4): "dashdot",
+    }
     if isinstance(line_dash, str):
         return line_dash
     return patterns.get(tuple(line_dash), "custom")

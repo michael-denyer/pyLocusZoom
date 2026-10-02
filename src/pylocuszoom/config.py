@@ -599,6 +599,9 @@ class GenomeWideStyle(_Config):
             padded from the higher of the two.
         manhattan_qq_width_ratio: Width of the Manhattan panel relative to the
             QQ panel in a Manhattan-QQ figure.
+        show_threshold_legend: Whether each Manhattan panel carries a key to
+            its significance and suggestive lines, one ``P = 5e-08`` entry
+            per line drawn. A panel that draws no line has no key.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -646,6 +649,9 @@ class GenomeWideStyle(_Config):
     )
     manhattan_qq_width_ratio: float = Field(
         default=2.5, gt=0, description="Manhattan panel width over QQ panel width"
+    )
+    show_threshold_legend: bool = Field(
+        default=True, description="Key to the threshold lines on Manhattan panels"
     )
 
     @field_validator("palette", mode="before")

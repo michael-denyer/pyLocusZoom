@@ -7,7 +7,7 @@ type. A reader following a protocol method resolves nothing through the
 instance to reach them.
 """
 
-from typing import NamedTuple, Optional, Tuple
+from typing import Literal, NamedTuple, Optional, Tuple
 
 import plotly.graph_objects as go
 
@@ -139,28 +139,51 @@ def panel_right(panel: _Panel) -> float:
     return (xaxis.domain[1] if xaxis and xaxis.domain else 1.0) - 0.01
 
 
-def configure_legend(panel: _Panel, legend_key: str, title: str) -> None:
-    """Anchor one of a figure's legends in a panel's upper-right corner.
+def panel_bottom(panel: _Panel) -> float:
+    """The bottom of a subplot's domain, in paper coordinates.
+
+    Args:
+        panel: The subplot.
+
+    Returns:
+        The y-coordinate in paper coordinates.
+    """
+    yaxis = getattr(panel.fig.layout, panel.axis("yaxis"), None)
+    return yaxis.domain[0] if yaxis and yaxis.domain else 0.01
+
+
+def configure_legend(
+    panel: _Panel,
+    legend_key: str,
+    title: str,
+    location: Literal["upper right", "lower right"] = "upper right",
+    horizontal: bool = False,
+) -> None:
+    """Anchor one of a figure's legends in one of a panel's right corners.
 
     Args:
         panel: The subplot the legend belongs to.
         legend_key: Layout key for this legend, such as ``"legend2"``.
         title: Legend title, already in display form.
+        location: Corner of the panel the legend is anchored in.
+        horizontal: Lay the entries out in one row with no frame or
+            background, instead of a framed column.
     """
-    panel.fig.update_layout(
-        **{
-            legend_key: dict(
-                title=dict(text=title),
-                x=panel_right(panel),
-                y=panel_top(panel),
-                xanchor="right",
-                yanchor="top",
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="black",
-                borderwidth=1,
-            )
-        }
+    legend = dict(
+        title=dict(text=title),
+        x=panel_right(panel),
+        y=panel_top(panel),
+        xanchor="right",
+        yanchor="top",
+        bgcolor="rgba(255,255,255,0.9)",
+        bordercolor="black",
+        borderwidth=1,
     )
+    if location == "lower right":
+        legend.update(y=panel_bottom(panel), yanchor="bottom")
+    if horizontal:
+        legend.update(orientation="h", bgcolor="rgba(0,0,0,0)", borderwidth=0)
+    panel.fig.update_layout(**{legend_key: legend})
 
 
 def x_range(panel: _Panel, xaxis_name: str) -> Optional[Tuple[float, float]]:

@@ -433,6 +433,7 @@ classDiagram
         <<module>>
         +LegendEntry
         +ld_legend_entries()
+        +threshold_legend_entries()
         +render_recombination_overlay()
         +heatmap_highlight_rects()
     }
