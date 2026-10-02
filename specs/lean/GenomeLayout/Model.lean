@@ -8,7 +8,7 @@ Source: `src/pylocuszoom/manhattan.py`
 * `src/pylocuszoom/panels/miami.py` l.99-109: a highlight region is drawn from
   `offsets[chrom] + start` to `offsets[chrom] + end`.
 * `CHROMOSOME_GAP = 1_000_000` (`_plotter_utils.py:47`), user-settable as
-  `GenomeWideStyle.chrom_gap` with `ge=0` (`config.py:612-614`).
+  `GenomeWideStyle.chrom_gap` with `ge=0` (`config.py:629-631`).
 
 Model. The input is the list of *present* chromosomes in display order, each
 with the positions the pooled frames carry for it. The loop at l.155-158 skips
@@ -18,8 +18,11 @@ plot-time contract (`schemas.gwas_plot_spec`, l.54-73) puts no lower bound on a
 position, so 0 and negative values are representable on purpose.
 
 Outside the model (assumptions, see the report):
-* the display order has no duplicate names (a duplicate overwrites
-  `offsets[chrom]` at l.157 and adds its length twice at l.158);
+* the display order has no duplicate names (a duplicate would overwrite
+  `offsets[chrom]` at l.157 and add its length twice at l.158). Enforced for a
+  user order by `GenomeWideConfig.validate_custom_chrom_order`
+  (`config.py:534-548`), which rejects a name repeated after normalisation;
+  the built-in species orders (`species.py:31-64`) carry none;
 * positions are integers (l.158 truncates a float maximum with `int()`);
 * every x fits int64, the dtype pandas gives `map(offsets) + pos`
   (`totalFrom_le` bounds the largest x by `n * (M + gap)`).

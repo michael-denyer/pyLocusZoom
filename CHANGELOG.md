@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `LDHeatmapPlotter.plot_ld_heatmap` raises `ValidationError` ("ld_matrix must contain at least one SNP") for a 0x0 matrix. matplotlib and bokeh raised a bare `IndexError` from `cell_edges` and plotly returned an empty figure. The check sits in `prepare_ld_matrix`, so an empty `LDHeatmapInput(matrix=...)` in a regional plot now reports the same message instead of "No SNPs from LD heatmap overlap with region".
+- **`GenomeWideConfig(custom_chrom_order=...)` rejects an order that lists a chromosome twice.** A leading `chr` is ignored when comparing, so `["1", "2", "chr1"]` and `["1", "1", "2"]` both raise a `ValidationError` naming the repeated chromosome. Before, the layout gave the chromosome the offset of its last occurrence and counted its length once per occurrence: `["1", "2", "chr1"]` drew chromosome 1 after chromosome 2, left an empty stretch one chromosome wide at the start of the axis and repeated the chromosome 1 tick.
 
 ## [5.0.1] - 2026-09-24
 
