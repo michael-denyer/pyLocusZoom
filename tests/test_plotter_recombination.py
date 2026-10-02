@@ -196,7 +196,7 @@ class TestRecombinationOptionalDependency:
         def download(url, dest, desc=None):
             dest.write_bytes(gzip.compress(b"chain"))
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
         monkeypatch.setitem(sys.modules, "pyliftover", None)
 
         with pytest.warns(UserWarning, match="pip install pyliftover") as caught:
@@ -213,7 +213,7 @@ class TestRecombinationOptionalDependency:
         def broken(*args, **kwargs):
             raise ImportError("pyliftover mentioned but unrelated")
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", broken)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", broken)
 
         with pytest.raises(ImportError, match="mentioned but unrelated"):
             plotter.plot(tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000)
@@ -231,7 +231,7 @@ def test_a_failed_chain_download_warns_once_and_still_plots(
     def refuse(*args, **kwargs):
         raise DataDownloadError("simulated chain 404")
 
-    monkeypatch.setattr("pylocuszoom._liftover.download_file", refuse)
+    monkeypatch.setattr("pylocuszoom._liftover.stream_file", refuse)
     plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     with pytest.warns(UserWarning, match="simulated chain 404") as caught:

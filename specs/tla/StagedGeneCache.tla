@@ -8,18 +8,18 @@
      _gene_cache.py:101-131     load_annotations
      _gene_cache.py:134-154     save_annotations
      _gene_cache.py:157-188     clear_cache
-     _http.py:71-87             staged_path
+     _http.py:80-96             staged_path
 
    One action is one filesystem call.
 
      pc        code                                             action
      load      _gene_cache.py:112 ZipFile(entry)                GLoad
      fetch     reference_genes.py:102 source.fetch              GFetch
-     mk        _gene_cache.py:146-147, _http.py:79-81 mkstemp   GMk
+     mk        _gene_cache.py:146-147, _http.py:88-90 mkstemp   GMk
      open      _gene_cache.py:147 ZipFile(partial, "w")         GOpen
      write     _gene_cache.py:148-151 and the archive close     GWrite
-     replace   _http.py:85 os.replace                           GReplace
-     cleanup   _http.py:87 unlink(missing_ok)                   GCleanup
+     replace   _http.py:94 os.replace                           GReplace
+     cleanup   _http.py:96 unlink(missing_ok)                   GCleanup
      glob      _gene_cache.py:179-182 both globs, eagerly       CGlob
      unlink    _gene_cache.py:184 cache_file.unlink()           CUnlink
 
@@ -56,7 +56,7 @@ vars == <<pc, dest, part, holds, failed, out, seen, todo, deleted, lost>>
 None == "none"
 Procs == Getters \cup Clearers
 Names == Getters
-\* _http.py:79-81: mkstemp gives every writer its own sibling name.
+\* _http.py:88-90: mkstemp gives every writer its own sibling name.
 Name(p) == p
 NoPart == [c |-> "none", own |-> None]
 Absent == [c |-> "absent", gen |-> None]

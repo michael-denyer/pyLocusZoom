@@ -172,7 +172,7 @@ class TestLiftoverRegion:
 
 
 class TestChainLifter:
-    """Registered chains download once into the cache and load through load_chain."""
+    """Registered chains download once into the cache, and only if they parse."""
 
     CANFAM3, CANFAM4 = GENOME_BUILDS["canfam3"], GENOME_BUILDS["canfam4"]
 
@@ -184,11 +184,9 @@ class TestChainLifter:
         def download(url, dest, desc=None):
             urls.append(url)
             content = SPLIT_CHAIN.encode()
-            dest.write_bytes(
-                gzip.compress(content) if dest.suffix == ".gz" else content
-            )
+            dest.write_bytes(gzip.compress(content) if url.endswith(".gz") else content)
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
         return urls
 
     def test_downloads_a_missing_chain_into_the_cache(self, cache_home, downloads):
@@ -225,17 +223,131 @@ class TestChainLifter:
             chain_lifter(self.CANFAM4, self.CANFAM3)
         assert downloads == []
 
-    def test_a_chain_that_stays_unreadable_is_removed_and_reported(
+    def test_an_unreadable_download_is_reported_and_not_cached(
         self, cache_home, monkeypatch
     ):
         def download(url, dest, desc=None):
             dest.write_bytes(b"<html>502</html>")
 
-        monkeypatch.setattr("pylocuszoom._liftover.download_file", download)
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
+
+        with pytest.raises(DataDownloadError, match="unreadable") as raised:
+            chain_lifter(self.CANFAM3, self.CANFAM4)
+        assert not (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").exists()
+        # The staged file is gone by now, so the message names the URL once.
+        message = str(raised.value)
+        assert self.CANFAM3.chain_url(self.CANFAM4) in message
+        assert ".part" not in message
+        assert message.count("is unreadable") == 1
+
+    def test_a_chain_download_is_staged_once(self, cache_home, monkeypatch):
+        """The download is written straight into the sibling that gets parsed."""
+        written = []
+
+        def stream(url, partial, desc=None):
+            written.append(sorted(p.name for p in partial.parent.iterdir()))
+            partial.write_bytes(gzip.compress(SPLIT_CHAIN.encode()))
+
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", stream)
+
+        chain_lifter(self.CANFAM3, self.CANFAM4)
+
+        assert len(written) == 1 and len(written[0]) == 1
+        assert [p.name for p in (cache_home / "liftover").iterdir()] == [
+            "canFam3ToCanFam4.over.chain.gz"
+        ]
+
+    CORRUPT = b"<html>captive portal</html>"
+
+    @pytest.fixture
+    def chain_path(self, cache_home):
+        return cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz"
+
+    @pytest.fixture
+    def serve(self, monkeypatch):
+        """Make successive chain downloads write the given bodies, or raise them."""
+
+        def serve(*bodies):
+            remaining = list(bodies)
+
+            def download(url, dest, desc=None):
+                body = remaining.pop(0)
+                if isinstance(body, Exception):
+                    raise body
+                dest.write_bytes(body)
+
+            monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
+
+        return serve
+
+    def test_a_corrupt_download_leaves_another_process_chain_in_place(
+        self, chain_path, serve, monkeypatch
+    ):
+        """Another process publishes a good chain when this one fails to load."""
+        from pylocuszoom import _liftover
+
+        good = gzip.compress(SPLIT_CHAIN.encode())
+        chain_path.parent.mkdir(parents=True)
+        chain_path.write_bytes(self.CORRUPT)
+        serve(self.CORRUPT)
+        real_load = _liftover.load_chain
+
+        def load(path):
+            try:
+                return real_load(path)
+            except ValidationError:
+                chain_path.write_bytes(good)
+                raise
+
+        monkeypatch.setattr(_liftover, "load_chain", load)
 
         with pytest.raises(DataDownloadError, match="unreadable"):
             chain_lifter(self.CANFAM3, self.CANFAM4)
-        assert not (cache_home / "liftover" / "canFam3ToCanFam4.over.chain.gz").exists()
+        assert chain_path.read_bytes() == good
+
+    def test_a_corrupt_download_is_never_cached_while_downloads_keep_failing(
+        self, chain_path, serve
+    ):
+        serve(self.CORRUPT, DataDownloadError("network down"))
+
+        for _ in range(2):
+            with pytest.raises(DataDownloadError):
+                chain_lifter(self.CANFAM3, self.CANFAM4)
+            assert list(chain_path.parent.iterdir()) == []
+
+    def test_a_held_lifter_is_served_after_the_cached_chain_is_removed(
+        self, chain_path, serve
+    ):
+        serve(gzip.compress(SPLIT_CHAIN.encode()), DataDownloadError("network down"))
+        first = chain_lifter(self.CANFAM3, self.CANFAM4)
+        chain_path.unlink()
+
+        assert chain_lifter(self.CANFAM3, self.CANFAM4) is first
+
+    def test_a_corrupt_cached_chain_is_replaced_by_a_good_download(
+        self, chain_path, serve
+    ):
+        good = gzip.compress(SPLIT_CHAIN.encode())
+        chain_path.parent.mkdir(parents=True)
+        chain_path.write_bytes(self.CORRUPT)
+        serve(good)
+
+        lifter = chain_lifter(self.CANFAM3, self.CANFAM4)
+
+        assert lifter.convert_coordinate("chr1", 999)[0][:2] == ("chr1", 1099)
+        assert chain_path.read_bytes() == good
+
+    def test_a_corrupt_cached_chain_is_kept_when_the_download_is_corrupt(
+        self, chain_path, serve
+    ):
+        """Removing it could remove a good chain another process just published."""
+        chain_path.parent.mkdir(parents=True)
+        chain_path.write_bytes(self.CORRUPT)
+        serve(self.CORRUPT)
+
+        with pytest.raises(DataDownloadError, match="unreadable"):
+            chain_lifter(self.CANFAM3, self.CANFAM4)
+        assert [p.name for p in chain_path.parent.iterdir()] == [chain_path.name]
 
     def test_missing_pyliftover_is_a_typed_error(self, tmp_path, monkeypatch):
         from pylocuszoom._liftover import load_chain

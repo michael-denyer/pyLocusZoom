@@ -20,7 +20,7 @@ from typing import List, Optional, Protocol, Tuple, Union, runtime_checkable
 
 import pandas as pd
 
-from ._http import download_file
+from ._http import staged_path, stream_file
 from .exceptions import DataDownloadError, OptionalDependencyMissing, ValidationError
 from .genome_build import GenomeBuild, resolve_build, ucsc_chrom
 from .logging import logger
@@ -75,8 +75,8 @@ class InMemoryLifter:
 def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
     """Load a UCSC chain file as a pyliftover lifter, once per path.
 
-    The only place a chain file becomes a lifter, whether the caller named it
-    or the package downloaded it.
+    The only way a named chain file becomes a lifter, whether the caller named
+    it or it is the package's cached download.
 
     Args:
         chain_path: Chain file, plain or gzipped.
@@ -85,6 +85,20 @@ def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
         OptionalDependencyMissing: If pyliftover is not installed.
         ValidationError: If the chain is missing, unreadable or has no mappings.
     """
+    path = Path(chain_path)
+    return _parse_chain(path, gzipped=path.suffix == ".gz")
+
+
+def _parse_chain(
+    path: Path, *, gzipped: bool, source: Optional[str] = None
+) -> CoordinateLifter:
+    """Parse one chain file, gzipped or plain whatever its name says.
+
+    A download is parsed under a ``.part`` name before it is published, so the
+    file's own suffix cannot choose the opener, and errors name ``source``
+    (the URL) in place of a file that is about to be removed.
+    """
+    name = source or path
     try:
         from pyliftover import LiftOver
     except ImportError as e:
@@ -92,18 +106,17 @@ def load_chain(chain_path: Union[str, os.PathLike]) -> CoordinateLifter:
             "pyliftover is required for liftover. Install it with: pip install pyliftover"
         ) from e
 
-    logger.info(f"Loading liftover chain {chain_path}")
-    path = Path(chain_path)
-    opener = gzip.open if path.suffix == ".gz" else open
+    logger.info(f"Loading liftover chain {path}")
+    opener = gzip.open if gzipped else open
     try:
         # pyliftover raises bare Exception for malformed headers and blocks.
         # Translate at this adapter, and close the stream even when parsing fails.
         with opener(path, "rb") as stream:
             lifter = LiftOver(stream)
     except Exception as e:
-        raise ValidationError(f"Liftover chain {path} is unreadable: {e}") from e
+        raise ValidationError(f"Liftover chain {name} is unreadable: {e}") from e
     if not lifter.chain_file.chains:
-        raise ValidationError(f"Liftover chain {path} contains no mappings")
+        raise ValidationError(f"Liftover chain {name} contains no mappings")
     return lifter
 
 
@@ -111,8 +124,12 @@ def chain_lifter(source: GenomeBuild, target: GenomeBuild) -> CoordinateLifter:
     """Return the lifter for a registered chain, downloading it on first use.
 
     Chains are cached under the platform cache's ``liftover`` leaf, beside the
-    recombination maps rather than inside them. A cached chain that no longer
-    parses is downloaded once more before giving up.
+    recombination maps rather than inside them. A download reaches the cache
+    only if it parses, so it never replaces a cached chain with content that
+    is not one. A cached chain that does not parse is replaced by the next
+    download that does, and is otherwise left alone, because removing it could
+    remove a chain another process has just published. Once a process has a
+    lifter it keeps it, whatever happens to the cached file.
 
     Args:
         source: Build the coordinates are in.
@@ -120,8 +137,8 @@ def chain_lifter(source: GenomeBuild, target: GenomeBuild) -> CoordinateLifter:
 
     Raises:
         ValidationError: If no chain from ``source`` to ``target`` is registered.
-        DataDownloadError: If the chain cannot be downloaded, or is unreadable
-            after a fresh download.
+        DataDownloadError: If the chain cannot be downloaded, or the download
+            is unreadable.
         OptionalDependencyMissing: If pyliftover is not installed.
     """
     url = source.chain_url(target)
@@ -131,33 +148,33 @@ def chain_lifter(source: GenomeBuild, target: GenomeBuild) -> CoordinateLifter:
             f"to {target.assembly_name}"
         )
     path = _platform_cache_base() / "liftover" / url.rsplit("/", 1)[-1]
-    if not path.exists():
-        _download_chain(url, path)
+    return _cached_chain(url, path)
+
+
+@lru_cache(maxsize=4)
+def _cached_chain(url: str, path: Path) -> CoordinateLifter:
+    """Load the chain cached at ``path``, downloading it if it does not parse."""
     try:
         return load_chain(path)
     except ValidationError as e:
-        logger.warning(f"Liftover chain {path} is unreadable ({e}); refetching")
-    _download_chain(url, path)
-    try:
-        return load_chain(path)
-    except ValidationError as e:
-        try:
-            path.unlink(missing_ok=True)
-        except OSError as cleanup_error:
-            raise DataDownloadError(
-                f"Liftover chain {path} is unreadable and could not be removed: {cleanup_error}"
-            ) from e
-        raise DataDownloadError(f"Liftover chain {path} is unreadable: {e}") from e
+        if path.exists():
+            logger.warning(f"Liftover chain {path} is unreadable ({e}); refetching")
+    return _download_chain(url, path)
 
 
-def _download_chain(url: str, path: Path) -> None:
-    """Download one chain file into the cache."""
+def _download_chain(url: str, path: Path) -> CoordinateLifter:
+    """Download one chain and publish it to the cache only if it parses."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         logger.info(f"Downloading liftover chain {url}")
-        download_file(url, path, desc="Liftover chain")
+        with staged_path(path) as partial:
+            stream_file(url, partial, desc="Liftover chain")
+            lifter = _parse_chain(partial, gzipped=path.suffix == ".gz", source=url)
     except OSError as e:
         raise DataDownloadError(f"Could not write liftover chain {path}: {e}") from e
+    except ValidationError as e:
+        raise DataDownloadError(str(e)) from e
+    return lifter
 
 
 class _Outcome(Enum):

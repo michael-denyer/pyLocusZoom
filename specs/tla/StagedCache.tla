@@ -1,45 +1,60 @@
 ---- MODULE StagedCache ----
-(* The liftover-chain cache: temp-file-then-replace publication and the
-   refetch loop around it, for separate OS processes sharing one cache
-   directory. StagedGeneCache.tla models the gene cache over the same writer.
+(* The liftover-chain cache: a download is parsed while it is still a private
+   sibling and replaces the cached file only if it parses, for separate OS
+   processes sharing one cache directory. StagedGeneCache.tla models the gene
+   cache over the same writer.
 
    Source modelled (src/pylocuszoom/):
-     _http.py:71-87      staged_path: mkstemp sibling, yield, os.replace, finally unlink
-     _http.py:152-192    download_file: staged_path around the retried stream
-     _http.py:195-214    _stream_to: open(partial, "wb"), write chunks
-     _http.py:45-68      _with_retries (abstracted, see below)
-     _liftover.py:74-107 load_chain, @lru_cache(maxsize=4) per process and path
-     _liftover.py:110-150 chain_lifter: exists, download, load, refetch, load, unlink
-     _liftover.py:153-160 _download_chain: OSError becomes DataDownloadError
+     _http.py:80-96        staged_path: mkstemp sibling, yield, os.replace, finally unlink
+     _http.py:203-237      stream_file (abstracted, see below)
+     _http.py:46-77        _with_retries (abstracted, see below)
+     _liftover.py:74-120   load_chain and _parse_chain
+     _liftover.py:123-151  chain_lifter: resolve the URL and the cache path
+     _liftover.py:154-162  _cached_chain, @lru_cache(maxsize=4) per process:
+                           load, else download
+     _liftover.py:165-177  _download_chain: stage, download, parse, publish
 
    One action is one filesystem call. A check and the call it guards are
    separate actions, so every interleaving between them is explored.
 
-     pc        code                                        action
-     exists    _liftover.py:134 path.exists()              Exists
-     mk        _liftover.py:156, _http.py:79-81 mkstemp    Mk
-     open      _http.py:201 open(partial, "wb")            Open
-     stream    _http.py:211-213 chunks to end, or raise    Stream
-     replace   _http.py:85 os.replace(partial, dest)       Replace
-     cleanup   _http.py:87 partial.unlink(missing_ok)      Cleanup
-     load      _liftover.py:137 and :142 load_chain        Load
-     unlink    _liftover.py:145 path.unlink, :150 raise    Unlink
+     pc        code                                          action
+     load      _liftover.py:154 memo, :158 load_chain        Load
+     mk        _liftover.py:168 mkdir, :170 mkstemp          Mk
+     open      _liftover.py:171 stream_file starts           Open
+     stream    _liftover.py:171 stream_file ends or raises   Stream
+     validate  _liftover.py:172 _parse_chain(partial)        Validate
+     replace   _http.py:94 os.replace(partial, dest)         Replace
+     cleanup   _http.py:96 partial.unlink(missing_ok)        Cleanup
 
-   `phase` is 1 for the download and load at :135/:137 and 2 for :140/:142.
+   No action unlinks the destination: the only writer of dest is Replace, and
+   Validate stands between every download and it.
+
    load_chain opens the file once and parses from that descriptor, so one
    Load action observes one content. An absent file is FileNotFoundError,
-   which :103 turns into ValidationError like any unreadable content. A
-   partially written file is modelled as loading "successfully" (a truncated
-   plain chain can parse), so LifterGood depends on the staging protocol and
-   not on the parser. `memo` is the lru_cache: once a process has a lifter,
-   load_chain returns it without touching the file.
+   which :116 turns into ValidationError like any unreadable content.
+   Validate parses the sibling the way the destination would be opened
+   (gzipped by the destination's suffix); content that does not parse raises,
+   staged_path skips os.replace and removes the sibling, and the call raises
+   DataDownloadError. A partially written file is modelled as parsing
+   "successfully" (a truncated plain chain can parse), so LifterGood and
+   DestNeverPartial depend on the staging protocol and not on the parser.
+
+   `memo` is _cached_chain's lru_cache: once a call has returned a lifter in
+   a process, later calls return it without touching the file. It is filled
+   by a load of the cached file and by a validated download alike; `lifter`
+   is the lifter parsed from the sibling and not yet returned.
 
    Failure injection is by constants. Download n of process p (counted across
    its calls) raises at FailStage when p \in FailProcs and n \in FailDl; it
    yields content that does not parse when p \in CorruptProcs and
-   n \in CorruptDl. _with_retries is abstracted: a retry reopens the private
+   n \in CorruptDl. _with_retries is abstracted: a retry reopens a private
    sibling with "wb", which no other process can observe, so only the final
    outcome of the retry loop (complete or raise) is a step.
+
+   Damage models what the code does not do: with Damage # "none" the
+   environment may, once, at any moment, remove the cached file ("absent")
+   or replace it with unparseable content ("corrupt"), as a user clearing
+   the cache, disk damage or an older version of the package would.
 
    Ownership: part[n] is the sibling file named n and records which process
    created it; holds[p] says p's live staged_path frame owns a sibling.
@@ -48,70 +63,52 @@
    There is no mutex and no condition variable in this protocol, so the
    model has no lock variable, no wait set and no spurious wakeups, and a
    lost wakeup cannot occur. Every action is always enabled once its pc is
-   reached; liveness (Termination) therefore checks that the refetch loop is
-   bounded, under weak fairness on each process's steps.
-
-   Witness runs: with Witness # "none" the scheduler follows Sched, a fixed
-   interleaving, before running freely. All data choices are constants, so
-   the scheduled prefix is the only behaviour and "eventually Goal" passing
-   proves the state is reachable. These are the expected failures of
-   NoGoodUnlink, NoSpuriousFailure, QuiescentClean and CachedLifterServed
-   under a source that returns corrupt content; the matrix checks those four
-   claims only where they hold. *)
-EXTENDS Naturals, Sequences
+   reached; liveness (Termination) therefore checks that every call ends,
+   under weak fairness on each process's steps. Damage is not fair: it may
+   never happen. *)
+EXTENDS Naturals
 
 CONSTANTS Procs, Calls, InitDest, FailProcs, FailDl, FailStage,
-          CorruptProcs, CorruptDl, Witness
+          CorruptProcs, CorruptDl, Damage
 
 ASSUME /\ "none" \notin Procs
        /\ Calls \in 1..2
        /\ InitDest \in {"absent", "good", "corrupt"}
        /\ FailProcs \subseteq Procs /\ CorruptProcs \subseteq Procs
        /\ FailStage \in {"none", "create", "stream", "replace"}
+       /\ Damage \in {"none", "absent", "corrupt"}
 
-VARIABLES pc, phase, failed, dl, calls, dest, part, holds, memo, res, blame,
-          clobber, lost, clock
-vars == <<pc, phase, failed, dl, calls, dest, part, holds, memo, res, blame,
-          clobber, lost, clock>>
+VARIABLES pc, failed, dl, calls, dest, part, holds, lifter, memo, res, blame,
+          clobber, lost, damaged
+vars == <<pc, failed, dl, calls, dest, part, holds, lifter, memo, res, blame,
+          clobber, lost, damaged>>
 
 None == "none"
-MaxDl == 2 * Calls
+\* A call downloads at most once.
+MaxDl == Calls
 Names == Procs
-\* _http.py:79-81: mkstemp gives every writer its own sibling name.
+\* _http.py:88-90: mkstemp gives every writer its own sibling name.
 Name(p) == p
 NoPart == [c |-> "none", own |-> None]
-Absent == [c |-> "absent", gen |-> None]
 
 Fails(p, n, stage) == p \in FailProcs /\ n \in FailDl /\ FailStage = stage
 Corrupts(p, n) == p \in CorruptProcs /\ n \in CorruptDl
 
-Rep(p, n) == [i \in 1..n |-> p]
-Sched ==
-  CASE Witness = "unlinkGood" ->
-         \* b refetches corrupt content and reaches :145; a refetches good
-         \* content up to :142; b unlinks a's file; a loads, fails, raises.
-         Rep("b", 9) \o Rep("a", 8) \o <<"b", "a", "a">>
-    [] Witness = "cachedIgnored" ->
-         \* a caches a lifter; b overwrites with corrupt content twice and
-         \* unlinks; a's second call finds no file and its download fails.
-         Rep("b", 2) \o Rep("a", 8) \o Rep("b", 13) \o Rep("a", 6)
-    [] OTHER -> <<>>
-
 Init ==
   /\ pc = [p \in Procs |-> "idle"]
-  /\ phase = [p \in Procs |-> 1]
   /\ failed = [p \in Procs |-> FALSE]
   /\ dl = [p \in Procs |-> 0]
   /\ calls = [p \in Procs |-> 0]
   /\ dest = [c |-> InitDest, gen |-> None]
   /\ part = [n \in Names |-> NoPart]
   /\ holds = [p \in Procs |-> FALSE]
+  /\ lifter = [p \in Procs |-> "none"]
   /\ memo = [p \in Procs |-> "none"]
   /\ res = [p \in Procs |-> "none"]
   /\ blame = [p \in Procs |-> FALSE]
   /\ clobber = FALSE
   /\ lost = FALSE
-  /\ clock = 1
+  /\ damaged = FALSE
 
 \* The call returns or raises: back to the caller.
 Finish(p, r) ==
@@ -121,17 +118,26 @@ Finish(p, r) ==
 
 Start(p) ==
   /\ pc[p] = "idle" /\ calls[p] < Calls
-  /\ pc' = [pc EXCEPT ![p] = "exists"]
-  /\ phase' = [phase EXCEPT ![p] = 1]
+  /\ pc' = [pc EXCEPT ![p] = "load"]
   /\ res' = [res EXCEPT ![p] = "none"]
   /\ blame' = [blame EXCEPT ![p] = FALSE]
-  /\ UNCHANGED <<failed, dl, calls, dest, part, holds, memo, clobber, lost>>
+  /\ lifter' = [lifter EXCEPT ![p] = "none"]
+  /\ UNCHANGED <<failed, dl, calls, dest, part, holds, memo, clobber, lost,
+                 damaged>>
 
-Exists(p) ==
-  /\ pc[p] = "exists"
-  /\ pc' = [pc EXCEPT ![p] = IF dest.c = "absent" THEN "mk" ELSE "load"]
-  /\ UNCHANGED <<phase, failed, dl, calls, dest, part, holds, memo, res,
-                 blame, clobber, lost>>
+\* :154 returns the memoised lifter; otherwise :158 parses the cached file,
+\* and anything that does not parse sends the call to the download.
+Load(p) ==
+  /\ pc[p] = "load"
+  /\ IF memo[p] # "none"
+       THEN Finish(p, "ok") /\ UNCHANGED memo
+       ELSE IF dest.c \in {"good", "partial"}
+         THEN /\ memo' = [memo EXCEPT ![p] = dest.c]
+              /\ Finish(p, "ok")
+         ELSE /\ pc' = [pc EXCEPT ![p] = "mk"]
+              /\ UNCHANGED <<memo, res, calls>>
+  /\ UNCHANGED <<failed, dl, dest, part, holds, lifter, blame, clobber, lost,
+                 damaged>>
 
 Mk(p) ==
   /\ pc[p] = "mk"
@@ -144,18 +150,15 @@ Mk(p) ==
             /\ holds' = [holds EXCEPT ![p] = TRUE]
             /\ pc' = [pc EXCEPT ![p] = "open"]
             /\ UNCHANGED <<res, calls, blame>>
-  /\ UNCHANGED <<phase, failed, dest, memo, clobber, lost>>
+  /\ UNCHANGED <<failed, dest, lifter, memo, clobber, lost, damaged>>
 
-\* open(name, "wb") truncates the file, or creates it if the name is gone.
 Open(p) ==
   /\ pc[p] = "open"
   /\ part' = [part EXCEPT ![Name(p)] = [c |-> "partial", own |-> p]]
   /\ pc' = [pc EXCEPT ![p] = "stream"]
-  /\ UNCHANGED <<phase, failed, dl, calls, dest, holds, memo, res, blame,
-                 clobber, lost>>
+  /\ UNCHANGED <<failed, dl, calls, dest, holds, lifter, memo, res, blame,
+                 clobber, lost, damaged>>
 
-\* Writes go through the open descriptor: they cannot recreate a name that
-\* was unlinked meanwhile.
 Stream(p) ==
   /\ pc[p] = "stream"
   /\ IF Fails(p, dl[p], "stream")
@@ -168,9 +171,24 @@ Stream(p) ==
                               [c |-> IF Corrupts(p, dl[p]) THEN "corrupt" ELSE "good",
                                own |-> p]]
             /\ blame' = [blame EXCEPT ![p] = @ \/ Corrupts(p, dl[p])]
+            /\ pc' = [pc EXCEPT ![p] = "validate"]
+            /\ UNCHANGED failed
+  /\ UNCHANGED <<dl, calls, dest, holds, lifter, memo, res, clobber, lost,
+                 damaged>>
+
+\* :172 parses the sibling. Content that does not parse, or a sibling that
+\* is gone, raises inside the staged_path block: no os.replace, then cleanup.
+Validate(p) ==
+  /\ pc[p] = "validate"
+  /\ IF part[Name(p)].c \in {"good", "partial"}
+       THEN /\ lifter' = [lifter EXCEPT ![p] = part[Name(p)].c]
             /\ pc' = [pc EXCEPT ![p] = "replace"]
             /\ UNCHANGED failed
-  /\ UNCHANGED <<phase, dl, calls, dest, holds, memo, res, clobber, lost>>
+       ELSE /\ failed' = [failed EXCEPT ![p] = TRUE]
+            /\ pc' = [pc EXCEPT ![p] = "cleanup"]
+            /\ UNCHANGED lifter
+  /\ UNCHANGED <<dl, calls, dest, part, holds, memo, res, blame, clobber,
+                 lost, damaged>>
 
 Replace(p) ==
   /\ pc[p] = "replace"
@@ -178,73 +196,56 @@ Replace(p) ==
   /\ IF Fails(p, dl[p], "replace")
        THEN /\ failed' = [failed EXCEPT ![p] = TRUE]
             /\ blame' = [blame EXCEPT ![p] = TRUE]
-            /\ UNCHANGED <<dest, part, holds, lost>>
+            /\ UNCHANGED <<dest, part, holds, lost, clobber>>
        ELSE IF part[Name(p)].c = "none"
          THEN \* FileNotFoundError from os.replace: the sibling vanished.
               /\ failed' = [failed EXCEPT ![p] = TRUE]
               /\ lost' = TRUE
-              /\ UNCHANGED <<dest, part, holds, blame>>
+              /\ UNCHANGED <<dest, part, holds, blame, clobber>>
          ELSE /\ dest' = [c |-> part[Name(p)].c, gen |-> p]
+              /\ clobber' = (clobber \/ (dest.c = "good" /\ part[Name(p)].c # "good"))
               /\ part' = [part EXCEPT ![Name(p)] = NoPart]
               /\ holds' = [holds EXCEPT ![p] = FALSE]
               /\ UNCHANGED <<failed, blame, lost>>
-  /\ UNCHANGED <<phase, dl, calls, memo, res, clobber>>
+  /\ UNCHANGED <<dl, calls, lifter, memo, res, damaged>>
 
+\* The finally clause, then :177 returns the lifter or the error propagates.
 Cleanup(p) ==
   /\ pc[p] = "cleanup"
   /\ part' = [part EXCEPT ![Name(p)] = NoPart]
   /\ holds' = [holds EXCEPT ![p] = FALSE]
+  /\ failed' = [failed EXCEPT ![p] = FALSE]
   /\ IF failed[p]
-       THEN /\ failed' = [failed EXCEPT ![p] = FALSE]
-            /\ Finish(p, "dde")
-       ELSE /\ pc' = [pc EXCEPT ![p] = "load"]
-            /\ UNCHANGED <<failed, res, calls>>
-  /\ UNCHANGED <<phase, dl, dest, memo, blame, clobber, lost>>
+       THEN Finish(p, "dde") /\ UNCHANGED memo
+       ELSE /\ memo' = [memo EXCEPT ![p] = lifter[p]]
+            /\ Finish(p, "ok")
+  /\ UNCHANGED <<dl, dest, lifter, blame, clobber, lost, damaged>>
 
-Load(p) ==
-  /\ pc[p] = "load"
-  /\ IF memo[p] # "none"
-       THEN Finish(p, "ok") /\ UNCHANGED <<memo, phase>>
-       ELSE IF dest.c \in {"good", "partial"}
-         THEN /\ memo' = [memo EXCEPT ![p] = dest.c]
-              /\ Finish(p, "ok")
-              /\ UNCHANGED phase
-         ELSE \* ValidationError: refetch once (:139-140), then give up (:143).
-              /\ pc' = [pc EXCEPT ![p] = IF phase[p] = 1 THEN "mk" ELSE "unlink"]
-              /\ phase' = [phase EXCEPT ![p] = 2]
-              /\ UNCHANGED <<memo, res, calls>>
-  /\ UNCHANGED <<failed, dl, dest, part, holds, blame, clobber, lost>>
-
-Unlink(p) ==
-  /\ pc[p] = "unlink"
-  /\ clobber' = (clobber \/ dest.c = "good")
-  /\ dest' = Absent
-  /\ Finish(p, "dde")
-  /\ UNCHANGED <<phase, failed, dl, part, holds, memo, blame, lost>>
-
-Step(p) == \/ Start(p) \/ Exists(p) \/ Mk(p) \/ Open(p) \/ Stream(p)
-           \/ Replace(p) \/ Cleanup(p) \/ Load(p) \/ Unlink(p)
-
-PStep(p) ==
-  /\ IF clock <= Len(Sched) THEN Sched[clock] = p ELSE TRUE
-  /\ Step(p)
-  /\ clock' = IF clock <= Len(Sched) THEN clock + 1 ELSE clock
+Step(p) == \/ Start(p) \/ Load(p) \/ Mk(p) \/ Open(p) \/ Stream(p)
+           \/ Validate(p) \/ Replace(p) \/ Cleanup(p)
 
 AllDone == \A p \in Procs : pc[p] = "idle" /\ calls[p] = Calls
+
+\* The environment removes or damages the cached file, at most once.
+DamageDest ==
+  /\ Damage # "none" /\ ~damaged /\ ~AllDone
+  /\ dest' = [c |-> Damage, gen |-> None]
+  /\ damaged' = TRUE
+  /\ UNCHANGED <<pc, failed, dl, calls, part, holds, lifter, memo, res, blame,
+                 clobber, lost>>
 
 \* Stutter at the end so that termination is not reported as a deadlock.
 Terminated == AllDone /\ UNCHANGED vars
 
-Next == (\E p \in Procs : PStep(p)) \/ Terminated
+Next == (\E p \in Procs : Step(p)) \/ DamageDest \/ Terminated
 
 \* Weak fairness on every process step. No strong fairness is assumed.
-Spec == Init /\ [][Next]_vars /\ \A p \in Procs : WF_vars(PStep(p))
+Spec == Init /\ [][Next]_vars /\ \A p \in Procs : WF_vars(Step(p))
 
 --------------------------------------------------------------------------
 TypeOK ==
-  /\ pc \in [Procs -> {"idle", "exists", "mk", "open", "stream", "replace",
-                       "cleanup", "load", "unlink"}]
-  /\ phase \in [Procs -> 1..2]
+  /\ pc \in [Procs -> {"idle", "load", "mk", "open", "stream", "validate",
+                       "replace", "cleanup"}]
   /\ failed \in [Procs -> BOOLEAN]
   /\ dl \in [Procs -> 0..MaxDl]
   /\ calls \in [Procs -> 0..Calls]
@@ -252,11 +253,11 @@ TypeOK ==
   /\ part \in [Names -> [c : {"none", "empty", "partial", "good", "corrupt"},
                          own : Procs \cup {None}]]
   /\ holds \in [Procs -> BOOLEAN]
+  /\ lifter \in [Procs -> {"none", "good", "partial"}]
   /\ memo \in [Procs -> {"none", "good", "partial"}]
   /\ res \in [Procs -> {"none", "ok", "dde"}]
   /\ blame \in [Procs -> BOOLEAN]
-  /\ clobber \in BOOLEAN /\ lost \in BOOLEAN
-  /\ clock \in 1..(Len(Sched) + 1)
+  /\ clobber \in BOOLEAN /\ lost \in BOOLEAN /\ damaged \in BOOLEAN
 
 \* Every sibling file belongs to exactly one live staged_path frame, and
 \* every such frame still has its file.
@@ -266,7 +267,7 @@ PartOwnership ==
         /\ Name(part[n].own) = n
         /\ holds[part[n].own]
   /\ \A p \in Procs : holds[p] =>
-        /\ pc[p] \in {"open", "stream", "replace", "cleanup"}
+        /\ pc[p] \in {"open", "stream", "validate", "replace", "cleanup"}
         /\ part[Name(p)].c # "none"
         /\ part[Name(p)].own = p
 
@@ -280,31 +281,27 @@ DestNeverPartial == dest.c # "partial"
 
 \* chain_lifter never hands out a lifter built from anything but a complete,
 \* parseable chain.
-LifterGood == \A p \in Procs : memo[p] \in {"none", "good"}
+LifterGood == \A p \in Procs : /\ memo[p] \in {"none", "good"}
+                              /\ lifter[p] \in {"none", "good"}
 
-\* :145 never removes a good chain.
+\* No process removes a good chain or replaces it with content that does not
+\* parse. (Before the fix an unlink in chain_lifter did the first and every
+\* corrupt download did the second.)
 NoGoodUnlink == ~clobber
 
-\* A call raises only if one of its own downloads failed or was corrupt.
+\* A call raises only if its own download failed or was corrupt.
 NoSpuriousFailure == \A p \in Procs : res[p] = "dde" => blame[p]
 
 \* A process that already holds a lifter does not raise.
 CachedLifterServed == \A p \in Procs : res[p] = "dde" => memo[p] = "none"
 
-\* At quiescence the destination is absent or good, unless the corrupt file
-\* was there before any process ran.
+\* Whatever a process published parsed when it was published.
+PublishedParses == dest.gen # None => dest.c = "good"
+
+\* At quiescence the destination is absent or good, unless the unparseable
+\* file came from outside (InitDest or Damage).
 QuiescentClean ==
   AllDone => (dest.c \in {"absent", "good"} \/ dest.gen = None)
 
 Termination == <>AllDone
-
-Goal ==
-  CASE Witness = "unlinkGood" ->
-         clobber /\ \E p \in Procs : res[p] = "dde" /\ ~blame[p]
-    [] Witness = "corruptLeft" ->
-         AllDone /\ dest.c = "corrupt" /\ dest.gen \in Procs
-    [] Witness = "cachedIgnored" ->
-         \E p \in Procs : res[p] = "dde" /\ memo[p] = "good"
-    [] OTHER -> FALSE
-WitnessReached == <>Goal
 ====
