@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ..colors import FOOTER_COLOR
+from ..exceptions import ValidationError
 from . import convert_latex_to_unicode, register_backend
 from ._coerce import (
     broadcast,
@@ -504,11 +505,24 @@ class PlotlyBackend:
         )
 
     def create_twin_axis(self, ax: _Panel) -> _SecondaryAxis:
-        """Create a secondary y-axis and return its handle."""
+        """Create a secondary y-axis and return its handle.
+
+        Raises:
+            ValidationError: If the secondary axis name is a subplot's own
+                y-axis, which happens from 100 subplots up.
+        """
         secondary_y = ax.secondary_ref()
+        key = secondary_axis_key(secondary_y)
+        # A subplot's own y-axis overlays nothing; an earlier twin axis does.
+        if key in ax.fig.layout and ax.fig.layout[key].overlaying is None:
+            raise ValidationError(
+                f"Cannot add a secondary y-axis to subplot {ax.subplot_idx}: "
+                f"its name, {key}, is the y-axis of another subplot. "
+                "Secondary axes need a figure of at most 99 subplots."
+            )
         ax.fig.update_layout(
             **{
-                secondary_axis_key(secondary_y): dict(
+                key: dict(
                     overlaying=ax.ref("y"),
                     side="right",
                     anchor=ax.ref("x"),
