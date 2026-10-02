@@ -28,3 +28,18 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+
+  # The registry entry is docs/biotools.json; tests/test_docs_contract.py
+  # keeps its version equal to the package's.
+  biotools:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Update the bio.tools entry
+        env:
+          BIOTOOLS_TOKEN: ${{ secrets.BIOTOOLS_TOKEN }}
+        run: python3 scripts/update_biotools.py

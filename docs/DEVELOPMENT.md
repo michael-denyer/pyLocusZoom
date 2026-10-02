@@ -215,10 +215,13 @@ For a concrete example, see `prepare_genomewide_frames` in
    issues. Do not include AI-assistant attribution in commit messages or PR bodies.
 9. Releases are cut from `main` by bumping `version` in `pyproject.toml`, running `uv lock`,
    changing the `## [Unreleased]` CHANGELOG heading to `## [X.Y.Z] - YYYY-MM-DD`, setting
-   `version` and `date-released` in `CITATION.cff` to match, committing
-   `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, and `CITATION.cff` together, and creating a GitHub release
+   `version` and `date-released` in `CITATION.cff` and `version` in `docs/biotools.json`
+   to match, committing `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `CITATION.cff` and
+   `docs/biotools.json` together, and creating a GitHub release
    with tag `vX.Y.Z`. `.github/workflows/publish.yml` then publishes to PyPI via Trusted
-   Publishing. BiocondaBot opens a follow-up PR against bioconda-recipes automatically once
+   Publishing and sends `docs/biotools.json` to bio.tools with
+   `scripts/update_biotools.py`, which needs the `BIOTOOLS_TOKEN` repository secret.
+   A docs contract test fails while either file names another version. BiocondaBot opens a follow-up PR against bioconda-recipes automatically once
    the PyPI release is detected. Zenodo archives the release and mints a version DOI from
    `.zenodo.json`; the concept DOI in the README badge covers every version.
 

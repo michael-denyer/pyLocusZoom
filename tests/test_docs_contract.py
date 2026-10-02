@@ -6,9 +6,11 @@ somewhere else. The first pins every pytest command line in the docs to what
 CODEMAP.md to ``pylocuszoom.__all__``. The third pins the USER_GUIDE API
 Stability tables to the core and toolbox tiers of ``__all__``. The fourth
 resolves the links to this repository's own files, which the link checker
-skips.
+skips. The fifth pins the version in CITATION.cff and the bio.tools entry to
+the package's.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -165,3 +167,18 @@ def test_links_to_this_repository_name_files_and_headings_that_exist():
 
     assert links, "no link to this repository found; has the URL form changed?"
     assert not broken, "\n".join(broken)
+
+
+def test_citation_and_registry_entry_carry_the_package_version():
+    """CITATION.cff and the bio.tools entry name the version in pyproject.toml.
+
+    Nothing regenerates either file on a version bump, and the bio.tools
+    entry is published from docs/biotools.json on release.
+    """
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text()
+    version = re.search(r'^version = "(.+)"$', pyproject, flags=re.M).group(1)
+    citation = (REPO_ROOT / "CITATION.cff").read_text()
+    entry = json.loads((REPO_ROOT / "docs" / "biotools.json").read_text())
+
+    assert re.search(r"^version: (.+)$", citation, flags=re.M).group(1) == version
+    assert entry["version"] == [version]
