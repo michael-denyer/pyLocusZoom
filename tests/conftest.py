@@ -56,6 +56,32 @@ def cache_home(tmp_path, monkeypatch):
     return tmp_path / "cache" / "pylocuszoom"
 
 
+@pytest.fixture
+def serve_chain(monkeypatch):
+    """Fake the liftover chain download, the one place its patch target is named.
+
+    Call the fixture with one body per expected download: bytes are written
+    to the destination, an exception is raised, and a callable is given the
+    destination and returns the bytes. A download beyond the bodies given
+    fails the test. Returns the list of URLs requested so far.
+    """
+
+    def serve(*bodies):
+        remaining, urls = list(bodies), []
+
+        def download(url, dest, desc=None):
+            urls.append(url)
+            body = remaining.pop(0)
+            if isinstance(body, BaseException):
+                raise body
+            dest.write_bytes(body(dest) if callable(body) else body)
+
+        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
+        return urls
+
+    return serve
+
+
 @pytest.fixture(autouse=True)
 def close_matplotlib_figures():
     """Close every pyplot figure a test leaves open.

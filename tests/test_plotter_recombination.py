@@ -188,15 +188,12 @@ class TestRecombinationOptionalDependency:
         return LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     def test_missing_optional_dependency_skips_the_overlay_with_a_warning(
-        self, plotter, monkeypatch, tiny_regional_gwas_df
+        self, plotter, monkeypatch, serve_chain, tiny_regional_gwas_df
     ):
         import gzip
         import sys
 
-        def download(url, dest, desc=None):
-            dest.write_bytes(gzip.compress(b"chain"))
-
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", download)
+        serve_chain(gzip.compress(b"chain"))
         monkeypatch.setitem(sys.modules, "pyliftover", None)
 
         with pytest.warns(UserWarning, match="pip install pyliftover") as caught:
@@ -208,30 +205,23 @@ class TestRecombinationOptionalDependency:
         assert [ax.get_ylabel() for ax in fig.axes] == [r"$-\log_{10}$ P"]
 
     def test_other_import_error_propagates(
-        self, plotter, monkeypatch, tiny_regional_gwas_df
+        self, plotter, serve_chain, tiny_regional_gwas_df
     ):
-        def broken(*args, **kwargs):
-            raise ImportError("pyliftover mentioned but unrelated")
-
-        monkeypatch.setattr("pylocuszoom._liftover.stream_file", broken)
+        serve_chain(ImportError("pyliftover mentioned but unrelated"))
 
         with pytest.raises(ImportError, match="mentioned but unrelated"):
             plotter.plot(tiny_regional_gwas_df, chrom=1, start=1_000_000, end=2_000_000)
 
 
 def test_a_failed_chain_download_warns_once_and_still_plots(
-    cache_home, monkeypatch, tiny_regional_gwas_df
+    cache_home, serve_chain, tiny_regional_gwas_df
 ):
     """The chain is part of the overlay; losing it must not lose the figure."""
     write_canine_map_set(
         cache_home / "recombination_maps",
         "chr\tpos\trate\tcM\n1\t1500000\t1.0\t0.1\n",
     )
-
-    def refuse(*args, **kwargs):
-        raise DataDownloadError("simulated chain 404")
-
-    monkeypatch.setattr("pylocuszoom._liftover.stream_file", refuse)
+    serve_chain(DataDownloadError("simulated chain 404"))
     plotter = LocusZoomPlotter(species="canine", genome_build="canfam4")
 
     with pytest.warns(UserWarning, match="simulated chain 404") as caught:
