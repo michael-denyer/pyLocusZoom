@@ -639,6 +639,38 @@ class TestEmptyResultCaching:
         )
 
 
+ROS_CFAM_ASSEMBLY_INFO = {
+    "assembly_name": "ROS_Cfam_1.0",
+    "default_coord_system_version": "ROS_Cfam_1.0",
+    "assembly_accession": "GCA_014441545.1",
+}
+
+
+def ensembl_get(assembly_info):
+    """A requests.get serving ATP9B for an overlap and one assembly-info reply.
+
+    ``assembly_info`` is the ``/info/assembly`` payload, or a ready response
+    when the lookup itself should fail.
+    """
+
+    def get(url, **kwargs):
+        if "/info/assembly/" not in url:
+            return ok_response(ros_cfam_gene_payload())
+        if isinstance(assembly_info, Mock):
+            return assembly_info
+        return ok_response(assembly_info)
+
+    return get
+
+
+@pytest.fixture(autouse=True)
+def _forget_served_assemblies():
+    """Each test looks the served assembly up afresh."""
+    from pylocuszoom.ensembl import _served_assembly
+
+    _served_assembly.cache_clear()
+
+
 class TestAssemblyMismatch:
     """Ensembl serves one assembly per species and ignores coord_system_version.
 
@@ -732,6 +764,80 @@ class TestAssemblyMismatch:
             )
 
         assert [w for w in recwarn.list if w.category is UserWarning] == []
+
+    def test_fetch_silent_when_build_is_the_served_accession(self, recwarn):
+        """An accession names the served assembly as well as its name does."""
+        from pylocuszoom.ensembl import fetch_overlap_frames
+
+        get = ensembl_get(ROS_CFAM_ASSEMBLY_INFO)
+        with patch("pylocuszoom._http.requests.get", side_effect=get) as mock_get:
+            fetch_overlap_frames(
+                "canine", "1", 900_000, 1_200_000, genome_build="GCA_014441545.1"
+            )
+
+        assert [w for w in recwarn.list if w.category is UserWarning] == []
+        assert (
+            mock_get.call_args_list[-1]
+            .args[0]
+            .endswith("/info/assembly/canis_lupus_familiaris")
+        )
+
+    def test_fetch_warns_when_build_is_another_accession(self):
+        """The accession of a retired assembly is still a mismatch."""
+        from pylocuszoom.ensembl import fetch_overlap_frames
+
+        get = ensembl_get(ROS_CFAM_ASSEMBLY_INFO)
+        with patch("pylocuszoom._http.requests.get", side_effect=get):
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                fetch_overlap_frames(
+                    "canine", "1", 900_000, 1_200_000, genome_build="GCA_000002285.2"
+                )
+
+    def test_fetch_warns_when_accession_names_a_newer_assembly(self):
+        """The accession must belong to the assembly the genes are on.
+
+        A cache entry outlives the assembly it was fetched on, so the current
+        accession says nothing about genes Ensembl served before it moved.
+        """
+        from pylocuszoom.ensembl import fetch_overlap_frames
+
+        newer = {
+            "default_coord_system_version": "Dog_next_1.0",
+            "assembly_accession": "GCA_999999999.1",
+        }
+        with patch("pylocuszoom._http.requests.get", side_effect=ensembl_get(newer)):
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                fetch_overlap_frames(
+                    "canine", "1", 900_000, 1_200_000, genome_build="GCA_999999999.1"
+                )
+
+    def test_fetch_warns_when_accession_lookup_fails(self):
+        """An accession that cannot be checked is treated as a mismatch."""
+        from pylocuszoom.ensembl import fetch_overlap_frames
+
+        not_found = Mock(ok=False, status_code=404, text="not found")
+        with patch(
+            "pylocuszoom._http.requests.get", side_effect=ensembl_get(not_found)
+        ):
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                genes, _ = fetch_overlap_frames(
+                    "canine", "1", 900_000, 1_200_000, genome_build="GCA_014441545.1"
+                )
+
+        assert genes["gene_name"].tolist() == ["ATP9B"]
+
+    def test_non_accession_build_makes_no_lookup(self):
+        """A build name that is not an accession costs no extra request."""
+        from pylocuszoom.ensembl import fetch_overlap_frames
+
+        get = ensembl_get(ROS_CFAM_ASSEMBLY_INFO)
+        with patch("pylocuszoom._http.requests.get", side_effect=get) as mock_get:
+            with pytest.warns(UserWarning, match="ROS_Cfam_1.0"):
+                fetch_overlap_frames(
+                    "canine", "1", 900_000, 1_200_000, genome_build="canfam3.1"
+                )
+
+        assert mock_get.call_count == 1
 
     def test_cache_hit_still_warns(self, tmp_path):
         """Reloading from cache in a fresh session repeats the warning."""
