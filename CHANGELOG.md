@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `genome_build` accepts the INSDC accession of the assembly Ensembl serves, such as `GCA_018350175.1` for cat or `GCA_000003025.6` for pig. Before, an accession returned the right genes with an assembly-mismatch `UserWarning`, because only assembly names were compared. The accession is looked up from Ensembl's `/info/assembly/{species}` endpoint, so it works for every Ensembl species without a table in the package. The lookup costs one extra request per species in a session, and only when `genome_build` is spelled as an accession. An accession of any other assembly still warns, and so does one that cannot be looked up.
+
 ## [5.1.0] - 2026-10-02
 
 ### Removed

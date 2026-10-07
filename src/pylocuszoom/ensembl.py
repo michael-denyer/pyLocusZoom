@@ -16,6 +16,8 @@ Note: Recombination rates are NOT available from Ensembl for most species.
 Use species-specific recombination maps instead (see recombination.py).
 """
 
+import functools
+import re
 import warnings
 
 import pandas as pd
@@ -41,6 +43,9 @@ ENSEMBL_MAX_REGION_SIZE = 5_000_000
 
 ENSEMBL_REST_URL = "https://rest.ensembl.org"
 
+# An INSDC assembly accession. Only a build spelled this way is worth a lookup.
+_ACCESSION = re.compile(r"GC[AF]_\d+\.\d+", re.IGNORECASE)
+
 
 def _response_assembly(features: list) -> str:
     """Read the assembly Ensembl actually served from an overlap response."""
@@ -49,6 +54,49 @@ def _response_assembly(features: list) -> str:
         if assembly:
             return str(assembly)
     return ""
+
+
+@functools.lru_cache(maxsize=None)
+def _served_assembly(ensembl_species: str) -> tuple[str, str]:
+    """Look up the name and accession of the assembly Ensembl serves.
+
+    Returns:
+        The coordinate-system version, which is the ``assembly_name`` overlap
+        features carry, and the INSDC accession, such as ``GCA_018350175.1``.
+
+    Raises:
+        EnsemblAPIError: If the lookup fails.
+    """
+    info = request_json(
+        f"{ENSEMBL_REST_URL}/info/assembly/{ensembl_species}",
+        {},
+        error_cls=EnsemblAPIError,
+        service="Ensembl",
+        headers={"Content-Type": "application/json"},
+    )
+    return (
+        str(info.get("default_coord_system_version", "")),
+        str(info.get("assembly_accession", "")),
+    )
+
+
+def _is_accession_of(genome_build: str, assembly: str, species: str) -> bool:
+    """Say whether ``genome_build`` is the accession of the assembly served.
+
+    The served name is compared as well as the accession, because a cache
+    entry outlives the assembly it was fetched on: the accession Ensembl
+    reports today says nothing about genes it served before it moved on.
+    """
+    if not _ACCESSION.fullmatch(genome_build):
+        return False
+    try:
+        name, accession = _served_assembly(species)
+    except EnsemblAPIError as e:
+        logger.debug(f"Could not look up the Ensembl assembly for {species}: {e}")
+        return False
+    return accession.lower() == genome_build.lower() and assembly_token(
+        name
+    ) == assembly_token(assembly)
 
 
 def _warn_on_assembly_mismatch(
@@ -66,6 +114,8 @@ def _warn_on_assembly_mismatch(
     if not assembly or not genome_build:
         return
     if assembly_token(assembly) == assembly_token(genome_build):
+        return
+    if _is_accession_of(genome_build, assembly, species):
         return
     warnings.warn(
         f"Ensembl returned {species} annotations on assembly {assembly!r}, but "
