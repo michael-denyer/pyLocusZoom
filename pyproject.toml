@@ -12,7 +12,25 @@ requires-python = ">=3.10"
 authors = [
     { name = "Michael Denyer", email = "code.denyer@gmail.com" },
 ]
-keywords = ["gwas", "genetics", "visualization", "locus-zoom", "regional-plot", "locuszoom"]
+keywords = [
+    "bioinformatics",
+    "colocalization",
+    "eqtl",
+    "fine-mapping",
+    "forest-plot",
+    "genomics",
+    "gwas",
+    "ld-heatmap",
+    "linkage-disequilibrium",
+    "locuszoom",
+    "manhattan-plot",
+    "miami-plot",
+    "phewas",
+    "qq-plot",
+    "regional-plot",
+    "statistical-genetics",
+    "visualization",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
