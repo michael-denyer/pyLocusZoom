@@ -1413,7 +1413,7 @@ A `recomb_data_dir` holds one tab-separated file per chromosome, named
 |--------|-------------|
 | `chr` | Chromosome number (without "chr" prefix) |
 | `pos` | Position in base pairs |
-| `rate` | Recombination rate (cM/Mb) |
+| `rate` | Recombination rate (cM/Mb) from this row's `pos` to the next row's; the last row's rate is not drawn |
 | `cM` | Cumulative genetic distance (optional, not used for plotting) |
 
 ```text

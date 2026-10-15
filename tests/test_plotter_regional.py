@@ -223,10 +223,11 @@ class TestLocusZoomPlotterPlot:
             r"$-\log_{10}$ P",
             "Recombination rate (cM/Mb)",
         ]
-        # The fixture's own map: its one in-region row, at its canfam3.1 position.
+        # The fixture's own map: the rate of its row at 1 holds to its row at
+        # 1,500,000, whose rate holds to the region's end.
         (recomb_line,) = fig.axes[1].get_lines()
-        assert list(recomb_line.get_xdata()) == [1500000]
-        assert list(recomb_line.get_ydata()) == [1.0]
+        assert list(recomb_line.get_xdata()) == [1000000, 1500000, 1500000, 2000000]
+        assert list(recomb_line.get_ydata()) == [0.5, 0.5, 1.0, 1.0]
 
     def test_plots_with_gene_track(
         self, canine_plotter, regional_gwas_df, sample_genes_df
@@ -302,9 +303,15 @@ class TestLocusZoomPlotterPlot:
             end=2000000,
             panels=PanelInputs(recomb_df=sample_recomb_df),
         )
+        # Each row's rate holds flat to the next row; the last row closes the line.
         (recomb_line,) = fig.axes[1].get_lines()
-        assert list(recomb_line.get_xdata()) == list(sample_recomb_df["pos"])
-        assert list(recomb_line.get_ydata()) == list(sample_recomb_df["rate"])
+        assert list(recomb_line.get_xdata()) == [
+            1000000, 1200000, 1200000, 1400000, 1400000,
+            1600000, 1600000, 1800000, 1800000, 2000000,
+        ]  # fmt: skip
+        assert list(recomb_line.get_ydata()) == [
+            0.5, 0.5, 1.2, 1.2, 2.5, 2.5, 1.8, 1.8, 0.8, 0.8,
+        ]  # fmt: skip
 
     def test_disables_snp_labels(self, canine_plotter, regional_gwas_df):
         """Should not add labels when snp_labels=False."""

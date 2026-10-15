@@ -24,7 +24,7 @@ from .exceptions import DataDownloadError, RecombinationMapNotFound, ValidationE
 from .genome_build import GENOME_BUILDS, assembly_token, resolve_build
 from .logging import logger
 from .species import Species, resolve_species
-from .utils import _platform_cache_base, filter_by_region
+from .utils import _platform_cache_base
 
 CANINE_MAP_FILENAMES = frozenset(f"chr{chrom}_recomb.tsv" for chrom in range(1, 39))
 
@@ -470,7 +470,8 @@ def get_recombination_rate_for_region(
             only supplies the UCSC chromosome names.
 
     Returns:
-        DataFrame with pos and rate columns for the region.
+        DataFrame with pos and rate columns for the region, plus the nearest
+        row on each side of it, so the rate is known at both region edges.
 
     Raises:
         RecombinationMapNotFound: If the species has no built-in maps and no
@@ -526,15 +527,12 @@ def get_recombination_rate_for_region(
             )
         df = lift.lifted_df.sort_values("pos").reset_index(drop=True)
 
-    # Filter to region
-    region_df = filter_by_region(
-        df,
-        region=(chrom, start, end),
-        chrom_col=None,  # A recombination map has no chromosome column
-        pos_col="pos",
-    )
-
-    return region_df[["pos", "rate"]]
+    # A row's rate covers the interval to the next row, so the row before the
+    # region holds the rate at its left edge and the row after closes it.
+    df = df.sort_values("pos", kind="stable")
+    first = max(int(df["pos"].searchsorted(start, side="left")) - 1, 0)
+    last = int(df["pos"].searchsorted(end, side="right")) + 1
+    return df.iloc[first:last][["pos", "rate"]].reset_index(drop=True)
 
 
 def ensure_recomb_maps(

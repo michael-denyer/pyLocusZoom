@@ -150,6 +150,42 @@ def threshold_legend_entries(
     ]
 
 
+def recombination_steps(
+    recomb_df: "pd.DataFrame", start: int, end: int
+) -> "pd.DataFrame":
+    """Vertices of a recombination map's rate as a step line over ``[start, end]``.
+
+    A map row's ``rate`` covers the interval from its ``pos`` to the next
+    row's, as in HapMap-style maps, so the line holds each rate flat and
+    steps at each map position. A window edge between two map positions
+    carries the rate held there. The line does not extend before the first
+    map position or past the last, where the map has no rate.
+
+    Args:
+        recomb_df: Map rows with ``pos`` and ``rate`` columns, in any order.
+        start: Left edge of the window (bp).
+        end: Right edge of the window (bp).
+
+    Returns:
+        DataFrame of ``pos`` and ``rate`` vertices, two per step, or an empty
+        frame when the window does not overlap the map.
+    """
+    import numpy as np
+    import pandas as pd
+
+    rows = recomb_df[["pos", "rate"]].dropna().sort_values("pos", kind="stable")
+    pos, rate = rows["pos"].to_numpy(), rows["rate"].to_numpy()
+    empty = pd.DataFrame({"pos": [], "rate": []})
+    if rows.empty:
+        return empty
+    lo, hi = max(start, pos[0]), min(end, pos[-1])
+    if lo >= hi:
+        return empty
+    edges = np.concatenate(([lo], pos[(pos > lo) & (pos < hi)], [hi]))
+    held = rate[np.searchsorted(pos, edges[:-1], side="right") - 1]
+    return pd.DataFrame({"pos": np.repeat(edges, 2)[1:-1], "rate": np.repeat(held, 2)})
+
+
 def render_recombination_overlay(
     backend: "PlotBackend",
     ax: object,
@@ -159,13 +195,13 @@ def render_recombination_overlay(
 ) -> None:
     """Draw a recombination-rate track on a backend's secondary axis.
 
-    Filters ``recomb_df`` to ``[start, end]`` and drives the backend's
-    secondary axis. ``create_twin_axis`` returns a handle that is both a
-    drawing target for ``fill_between`` and ``line`` and the subject of the
-    two ``*_secondary`` axis calls, so the composition is identical across
-    backends.
+    Draws ``recombination_steps`` of ``recomb_df`` over ``[start, end]`` and
+    drives the backend's secondary axis. ``create_twin_axis`` returns a handle
+    that is both a drawing target for ``fill_between`` and ``line`` and the
+    subject of the two ``*_secondary`` axis calls, so the composition is
+    identical across backends.
     """
-    region = recomb_df[(recomb_df["pos"] >= start) & (recomb_df["pos"] <= end)]
+    region = recombination_steps(recomb_df, start, end)
     if region.empty:
         return
     secondary = backend.create_twin_axis(ax)
