@@ -6,6 +6,7 @@ renders a list of entries natively, so the bin-iteration and swatch policy is
 owned once instead of duplicated in every adapter.
 
 The same rule applies to any geometry a backend would otherwise recompute:
+``recombination_steps`` turns a map into step-line vertices,
 ``render_recombination_overlay`` drives the secondary-axis primitives, and
 ``heatmap_highlight_rects`` decides where a SNP highlight is drawn, leaving
 each adapter to draw plain rectangles. ``draw_ld_heatmap`` is the one draw
@@ -173,17 +174,18 @@ def recombination_steps(
     import numpy as np
     import pandas as pd
 
-    rows = recomb_df[["pos", "rate"]].dropna().sort_values("pos", kind="stable")
-    pos, rate = rows["pos"].to_numpy(), rows["rate"].to_numpy()
-    empty = pd.DataFrame({"pos": [], "rate": []})
-    if rows.empty:
-        return empty
-    lo, hi = max(start, pos[0]), min(end, pos[-1])
-    if lo >= hi:
-        return empty
-    edges = np.concatenate(([lo], pos[(pos > lo) & (pos < hi)], [hi]))
-    held = rate[np.searchsorted(pos, edges[:-1], side="right") - 1]
-    return pd.DataFrame({"pos": np.repeat(edges, 2)[1:-1], "rate": np.repeat(held, 2)})
+    from ..recombination import map_rows_covering
+
+    rows = map_rows_covering(recomb_df[["pos", "rate"]].dropna(), start, end)
+    if len(rows) < 2:
+        return pd.DataFrame({"pos": [], "rate": []})
+    edges = np.clip(rows["pos"].to_numpy(), start, end)
+    return pd.DataFrame(
+        {
+            "pos": np.column_stack([edges[:-1], edges[1:]]).ravel(),
+            "rate": np.repeat(rows["rate"].to_numpy()[:-1], 2),
+        }
+    )
 
 
 def render_recombination_overlay(

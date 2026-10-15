@@ -133,6 +133,23 @@ class TestGetRecombinationRateForRegion:
 
         assert list(result["pos"]) == [1000, 3000, 5000, 7000]
 
+    def test_an_edge_on_a_map_row_is_bracketed_by_that_row(self, tmp_path):
+        """A row at an edge holds the rate there, so no row beyond it is needed."""
+        (tmp_path / "chr1_recomb.tsv").write_text(
+            "chr\tpos\trate\tcM\n"
+            "1\t1000\t0.5\t0.001\n"
+            "1\t3000\t1.2\t0.003\n"
+            "1\t5000\t2.0\t0.005\n"
+            "1\t7000\t1.5\t0.007\n"
+            "1\t10000\t0.8\t0.010\n"
+        )
+
+        result = get_recombination_rate_for_region(
+            chrom=1, start=3000, end=7000, data_dir=str(tmp_path)
+        )
+
+        assert list(result["pos"]) == [3000, 5000, 7000]
+
     def test_returns_only_pos_and_rate_columns(self, tmp_path):
         """Should return DataFrame with only pos and rate columns."""
         map_content = "chr\tpos\trate\tcM\n1\t1000\t0.5\t0.001\n"
