@@ -373,8 +373,10 @@ class PanelInputs(_Config):
         genes_df: Gene annotations with ``chr``, ``start``, ``end`` and
             ``gene_name`` columns.
         exons_df: Exon annotations with the same columns.
-        recomb_df: Recombination rates for the region, replacing the
-            plotter's own maps.
+        recomb_df: Recombination map rows for the region's chromosome,
+            replacing the plotter's own maps. Pass the whole map, or at least
+            the row at or before the region's start and the row at or after
+            its end; the overlay clips the map to the region.
         eqtl: The eQTL panel.
         finemapping: The fine-mapping panel.
         ld_heatmap: The LD heatmap panel.

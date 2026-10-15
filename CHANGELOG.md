@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `genome_build` accepts the INSDC accession of the assembly Ensembl serves, such as `GCA_018350175.1` for cat or `GCA_000003025.6` for pig. Before, an accession returned the right genes with an assembly-mismatch `UserWarning`, because only assembly names were compared. The accession is looked up from Ensembl's `/info/assembly/{species}` endpoint, so it works for every Ensembl species without a table in the package. The lookup costs one extra request per species in a session, and only when `genome_build` is spelled as an accession. An accession of any other assembly still warns, and so does one that cannot be looked up.
 
+### Fixed
+
+- **The recombination overlay draws each map rate as a step that reaches the region's edges.** A map row's `rate` covers the interval from its position to the next row's, as in HapMap-style maps and the bundled canine maps, but the line joined the rows with slopes, so between two map positions it showed rates the map does not contain. It also kept only rows inside the region, so on a sparse map the line started at the first map position inside the region and stopped at the last, and a region between two map positions drew nothing. The line is now flat between map positions and steps at each one, and it carries the held rate out to both region edges. `get_recombination_rate_for_region` returns the last row at or before the region's start and the first row at or after its end as well as the rows inside it. A `PanelInputs.recomb_df` should do the same, or be the chromosome's whole map. Every regional figure with a recombination overlay changes shape; a map with one row in range and none around it no longer draws an overlay, because a single row has no interval.
+
 ## [5.1.0] - 2026-10-02
 
 ### Removed

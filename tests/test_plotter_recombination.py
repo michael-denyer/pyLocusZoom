@@ -36,15 +36,15 @@ class TestLocusZoomPlotterRecombination:
 
         first = recomb_rates(canine_plotter.plot(gwas_df, **region))
         (tmp_path / "recombination_maps" / "chr1_recomb.tsv").write_text(
-            "chr\tpos\trate\tcM\n1\t1500000\t9.0\t1.0\n"
+            "chr\tpos\trate\tcM\n1\t1000000\t9.0\t0.0\n1\t2000000\t0.0\t9.0\n"
         )
         again = recomb_rates(canine_plotter.plot(gwas_df, **region))
         fresh = LocusZoomPlotter(
             species="canine", recomb_data_dir=canine_plotter.recomb_data_dir
         )
 
-        assert first == again == [1.0]
-        assert recomb_rates(fresh.plot(gwas_df, **region)) == [9.0]
+        assert first == again == [0.5, 0.5, 1.0, 1.0]
+        assert recomb_rates(fresh.plot(gwas_df, **region)) == [9.0, 9.0]
 
     def test_recombination_overlay_does_not_distort_primary_ylim(self):
         """Primary y-axis limits should be unchanged when recombination is enabled.
@@ -150,7 +150,7 @@ class TestRecombinationDownloadErrors:
             canine.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)
         write_canine_map_set(
             cache_home / "recombination_maps",
-            "chr\tpos\trate\tcM\n1\t1500000\t3.0\t0.1\n",
+            "chr\tpos\trate\tcM\n1\t1000000\t3.0\t0.0\n1\t2000000\t0.0\t3.0\n",
         )
 
         fig = canine.plot(tiny_regional_gwas_df, chrom=1, start=1000000, end=2000000)

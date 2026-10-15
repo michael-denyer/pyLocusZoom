@@ -1110,7 +1110,7 @@ annotations keep their own sizes.
 |-------|------|---------|-------------|
 | `genes_df` | DataFrame | None | Gene annotations for track. |
 | `exons_df` | DataFrame | None | Exon annotations for gene structure; needs `chr`, `start`, `end` and `gene_name`. |
-| `recomb_df` | DataFrame | None | Custom recombination rate data. |
+| `recomb_df` | DataFrame | None | Custom recombination map with `pos` and `rate`. Pass the chromosome's whole map, or at least the row at or before the region's start and the row at or after its end; the overlay clips it to the region. |
 | `eqtl` | `EqtlInput` | None | The eQTL panel: `data`, `gene` (exact match on a `gene` column), `threshold` in (0, 1] (default `1e-5`), and `chrom_col` (default `"chr"`, `None` for position only). |
 | `finemapping` | `FinemappingInput` | None | The fine-mapping panel: `data` with `pos` and `pip`, `cs_col` (default `"cs"`, which may be absent; another name must exist; `None` for no credible sets), and `chrom_col`. |
 | `ld_heatmap` | `LDHeatmapInput` | None | The LD heatmap panel: `matrix`, `snp_ids` (required; ids must match the GWAS SNP id column, and at least one must fall inside the region, or the call raises), `height` (> 0, default `0.25`) and `metric` (`"r2"` or `"dprime"`). |
@@ -1413,7 +1413,7 @@ A `recomb_data_dir` holds one tab-separated file per chromosome, named
 |--------|-------------|
 | `chr` | Chromosome number (without "chr" prefix) |
 | `pos` | Position in base pairs |
-| `rate` | Recombination rate (cM/Mb) |
+| `rate` | Recombination rate (cM/Mb) from this row's `pos` to the next row's; the last row's rate is not drawn |
 | `cM` | Cumulative genetic distance (optional, not used for plotting) |
 
 ```text

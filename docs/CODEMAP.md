@@ -227,7 +227,7 @@ Data transformation between validated input and backend-ready primitives.
 | 3b | get_eqtl_color | eQTL effect size → colour | [colors.py](../src/pylocuszoom/colors.py) |
 | 3c | assign_gene_positions | Overlap-free gene row layout | [gene_track.py](../src/pylocuszoom/gene_track.py) |
 | 3c | compute_arrow_geometry | Strand-arrow tip positions and dimensions | [gene_track.py](../src/pylocuszoom/gene_track.py) |
-| 3d | get_recombination_rate_for_region | Region-filtered recomb rate, downloading and lifting managed maps; every reason there is none is a typed `PyLocusZoomError` | [recombination.py](../src/pylocuszoom/recombination.py) |
+| 3d | get_recombination_rate_for_region | Recomb rates for a region plus the row bracketing each edge, downloading and lifting managed maps; every reason there is none is a typed `PyLocusZoomError` | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_canine_recombination_maps | Lazy-download bundled maps | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3d | download_recombination_maps, RecombSource | Species-generic download, canonical member streaming and publication; the record carries everything that varies | [recombination.py](../src/pylocuszoom/recombination.py) |
 | 3e | prepare_genomewide_frames | Genome-wide intake: column, p-value and position checks on the caller's names, then projection and cumulative-position prep against one shared `GenomeLayout` | [manhattan.py](../src/pylocuszoom/manhattan.py) |

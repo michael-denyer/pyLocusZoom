@@ -103,8 +103,9 @@ class _RecordingSecondaryBackend:
     def fill_between(self, ax, *args, **kwargs):
         self.calls.append("fill_between")
 
-    def line(self, ax, *args, **kwargs):
+    def line(self, ax, x, y, **kwargs):
         self.calls.append("line")
+        self.line_xy = (list(x), list(y))
 
     def set_secondary_ylim(self, secondary, *args, **kwargs):
         self.calls.append("set_secondary_ylim")
@@ -139,6 +140,39 @@ class TestRecombinationOverlay:
         recomb = pd.DataFrame({"pos": [100, 200], "rate": [10.0, 50.0]})
         render_recombination_overlay(backend, "AX", recomb, start=500, end=600)
         assert backend.calls == []
+
+    def test_window_between_two_map_points_draws_the_held_rate(self):
+        import pandas as pd
+
+        from pylocuszoom.backends.composition import render_recombination_overlay
+
+        backend = _RecordingSecondaryBackend()
+        recomb = pd.DataFrame({"pos": [100, 200], "rate": [10.0, 0.0]})
+        render_recombination_overlay(backend, "AX", recomb, start=120, end=180)
+        assert backend.line_xy == ([120, 180], [10.0, 10.0])
+
+
+class TestRecombinationSteps:
+    """Each map rate holds from its own position to the next map position."""
+
+    @staticmethod
+    def _steps(start, end):
+        import pandas as pd
+
+        from pylocuszoom.backends.composition import recombination_steps
+
+        recomb = pd.DataFrame({"pos": [300, 100, 200], "rate": [0.0, 10.0, 50.0]})
+        steps = recombination_steps(recomb, start, end)
+        return steps["pos"].tolist(), steps["rate"].tolist()
+
+    def test_steps_at_each_map_point_and_reaches_both_window_edges(self):
+        assert self._steps(150, 250) == ([150, 200, 200, 250], [10.0, 10.0, 50.0, 50.0])
+
+    def test_stops_at_the_first_and_last_map_points(self):
+        assert self._steps(50, 400) == ([100, 200, 200, 300], [10.0, 10.0, 50.0, 50.0])
+
+    def test_window_outside_the_map_is_empty(self):
+        assert self._steps(400, 500) == ([], [])
 
 
 class TestHeatmapHighlightCells:
