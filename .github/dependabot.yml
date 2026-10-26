@@ -6,3 +6,18 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+
+  # Python dependencies in uv.lock. Version updates arrive weekly; minor and
+  # patch bumps land in one grouped PR. Security updates for this ecosystem
+  # also land in one grouped PR instead of one PR per advisory.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
