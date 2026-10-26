@@ -8,7 +8,7 @@ For environment variables and cache locations, see [CONFIGURATION.md](CONFIGURAT
 ## Local Setup
 
 pyLocusZoom uses [`uv`](https://docs.astral.sh/uv/) for dependency management and
-virtualenv handling. Python 3.10, 3.11, or 3.12 is required (`requires-python = ">=3.10"`
+virtualenv handling. Python 3.11 or 3.12 is required (`requires-python = ">=3.11"`
 in `pyproject.toml`).
 
 1. Fork the repository on GitHub, then clone your fork:
@@ -205,7 +205,7 @@ For a concrete example, see `prepare_genomewide_frames` in
 7. Push and open a PR against `main`. The CI workflow has five jobs — all must pass:
    - `lint` — `ruff check` and `ruff format --check` (Python 3.11, pinned ruff 0.15.2).
    - `docs-lint` — markdownlint, mermaid (maid + mmdc), yamllint, lychee link check.
-   - `test` — pytest matrix across Python 3.10, 3.11, and 3.12; runs
+   - `test` — pytest matrix across Python 3.11 and 3.12; runs
      `uv run pytest`, which takes every flag from `addopts`.
    - `examples` — downloads the canine recombination maps, runs the example generator
      into a temporary directory (any `UserWarning` fails it) and executes the notebook.

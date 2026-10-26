@@ -8,7 +8,7 @@ version = "5.2.0"
 description = "Publication-ready regional association plots with LD coloring, gene tracks, and recombination overlays"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "Michael Denyer", email = "code.denyer@gmail.com" },
 ]
@@ -36,7 +36,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Bio-Informatics",

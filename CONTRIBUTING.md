@@ -30,7 +30,7 @@ mermaid hooks shell out to `npx`, so you need Node.js 20+ on your PATH
 (`brew install node` on macOS). See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 for the full dev setup.
 
-Python 3.10, 3.11, and 3.12 are all supported and tested in CI.
+Python 3.11 and 3.12 are both supported and tested in CI.
 
 ## Coding standards
 

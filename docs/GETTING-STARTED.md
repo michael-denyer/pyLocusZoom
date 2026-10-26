@@ -6,7 +6,7 @@ This guide walks you through installing pyLocusZoom, producing a first plot, and
 
 | Tool | Version | Why |
 |------|---------|-----|
-| Python | >=3.10 | Declared in `pyproject.toml` (`requires-python = ">=3.10"`); tested against 3.10, 3.11, 3.12 |
+| Python | >=3.11 | Declared in `pyproject.toml` (`requires-python = ">=3.11"`); tested against 3.11, 3.12 |
 | `uv` (recommended) | latest | Project uses `uv.lock` for reproducible builds |
 | `pip` (alternative) | any recent | Works for consumers who only want to install from PyPI |
 | PLINK 1.9 | any | Optional — only needed if you compute LD from genotype files instead of passing a pre-computed `ld_col` |
@@ -101,7 +101,7 @@ The PNGs land in `examples/matplotlib/` and the interactive HTML files in `examp
 ## Common Setup Issues
 
 - **`ModuleNotFoundError: No module named 'pylocuszoom'`** — You installed into a different environment than the one running Python. With uv, always prefix commands with `uv run` (e.g., `uv run python script.py`) so they execute inside the project's `.venv`.
-- **Python version too old** — `pip install pylocuszoom` fails with a version-compatibility message on Python <3.10. Upgrade Python or use `uv python install 3.12`.
+- **Python version too old** — `pip install pylocuszoom` fails with a version-compatibility message on Python <3.11. Upgrade Python or use `uv python install 3.12`.
 - **PLINK not found when computing LD** — Passing `ld_reference_file="genotypes"` requires PLINK 1.9 on your `PATH`, or an explicit `plink_path="/path/to/plink"`. If you already have LD values, pass them via the `ld_col` parameter instead and skip PLINK entirely.
 - **First canine plot is slow / appears to hang** — The first regional plot for a canine locus downloads ~50MB of recombination maps into the user cache. Subsequent plots are instant. You can pre-download via `pylocuszoom.recombination.ensure_recomb_maps()`.
 - **Missing SNP IDs error when using `ld_reference_file`** — LD computation joins on the `rs` column; ensure your GWAS DataFrame has an `rs` (or configured `rs_col`) column populated with SNP IDs matching the PLINK `.bim`.
