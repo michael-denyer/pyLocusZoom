@@ -243,7 +243,7 @@ The following patterns are excluded from coverage:
 
 ## CI Integration
 
-Tests run in the `test` job of `.github/workflows/ci.yml`, triggered on pushes and pull requests targeting `main`. The job uses a matrix across Python 3.10, 3.11, and 3.12 on `ubuntu-latest`.
+Tests run in the `test` job of `.github/workflows/ci.yml`, triggered on pushes and pull requests targeting `main`. The job uses a matrix across Python 3.11 and 3.12 on `ubuntu-latest`.
 
 Steps:
 
