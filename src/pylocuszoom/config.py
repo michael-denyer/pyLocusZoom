@@ -511,7 +511,7 @@ class GenomeWideConfig(_Config):
 
     Manhattan, QQ and Miami plots lay a whole-genome frame out along one
     chromosome axis, so they share one column contract. ``plot_qq`` reads
-    only ``p_col``.
+    only ``p_col`` and ``weight_col``.
 
     Attributes:
         chrom_col: Column name for chromosome.
@@ -520,6 +520,15 @@ class GenomeWideConfig(_Config):
         custom_chrom_order: Chromosome order along the axis, overriding the
             plotter's species order. Each chromosome is listed once; a leading
             ``chr`` is ignored, so ``"1"`` and ``"chr1"`` are the same name.
+        weight_col: Column holding the number of tests each row stands for,
+            for a frame that is a sample of a larger scan. Set it to the
+            inverse of the row's inclusion probability: 1 for a row kept
+            outright, ``1 / f`` for a row kept at random with probability
+            ``f``. QQ panels and their lambda then describe the whole scan;
+            Manhattan panels draw each row once whatever its weight. Every
+            method that lays out chromosomes requires the column and checks
+            that each weight is a positive, finite number. None treats each
+            row as one test.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -531,6 +540,9 @@ class GenomeWideConfig(_Config):
     p_col: str = Field(default=Canonical.P, description="P-value column name")
     custom_chrom_order: Optional[List[str]] = Field(
         default=None, description="Chromosome order overriding the species"
+    )
+    weight_col: Optional[str] = Field(
+        default=None, description="Column of tests each row stands for in a QQ"
     )
 
     @field_validator("custom_chrom_order")
@@ -578,8 +590,9 @@ class GenomeWideStyle(_Config):
         title_fontsize: Size of the figure title that ``title`` sets on a
             multi-panel figure (Manhattan-QQ, stacked, Miami).
         panel_title_fontsize: Size of the title drawn on each panel: the QQ
-            lambda titles, and the ``title`` of a single-panel
-            ``plot_manhattan`` or ``plot_qq``.
+            lambda titles, the ``title`` of a single-panel
+            ``plot_manhattan`` or ``plot_qq``, and stacked panel labels drawn
+            ``"above"``.
         axis_label_fontsize: Size of the x and y axis labels.
         tick_label_fontsize: Size of the tick labels on both axes.
         tick_step: Label every ``tick_step``-th chromosome (or category) that
@@ -604,6 +617,16 @@ class GenomeWideStyle(_Config):
         show_threshold_legend: Whether each Manhattan panel carries a key to
             its significance and suggestive lines, one ``P = 5e-08`` entry
             per line drawn. A panel that draws no line has no key.
+        panel_label_position: Where ``plot_manhattan_stacked`` and
+            ``plot_manhattan_qq_stacked`` draw each ``panel_labels`` entry.
+            ``"inside"`` writes it in the top-left corner of its Manhattan
+            panel at 10 pt. ``"above"`` makes it the panel's title, sized by
+            ``panel_title_fontsize`` (10 pt when unset), widens the gap
+            between rows so no title meets the tick labels of the row above,
+            and moves the ``title`` of ``plot_manhattan_stacked`` from the
+            top panel to the figure. Plotly keeps its fixed row spacing, which
+            leaves no room above the rows of ``plot_manhattan_stacked``. Miami
+            labels stay inside.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -654,6 +677,9 @@ class GenomeWideStyle(_Config):
     )
     show_threshold_legend: bool = Field(
         default=True, description="Key to the threshold lines on Manhattan panels"
+    )
+    panel_label_position: Literal["inside", "above"] = Field(
+        default="inside", description="Stacked panel labels in the corner or above"
     )
 
     @field_validator("palette", mode="before")

@@ -52,7 +52,9 @@ class FigurePlan:
         title_fontsize: Size of ``suptitle`` and ``first_panel_title``.
         title_fontweight: Weight of ``suptitle`` and ``first_panel_title``.
         top: Fraction of the figure height the panels extend to.
-        hspace: Vertical space between panels as a fraction of panel height.
+        hspace: Vertical space between panels as a fraction of panel height,
+            or None for just enough that no panel's title meets the tick
+            labels of the panel above.
     """
 
     panels: Sequence[Panel]
@@ -70,7 +72,7 @@ class FigurePlan:
     title_fontsize: int = 14
     title_fontweight: Literal["bold", "normal"] = "bold"
     top: float = 0.95
-    hspace: float = 0.08
+    hspace: Optional[float] = 0.08
 
 
 def render_figure(backend: PlotBackend, plan: FigurePlan) -> Any:

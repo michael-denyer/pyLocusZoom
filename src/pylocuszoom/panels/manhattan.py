@@ -30,6 +30,11 @@ from ._shared import (
 
 T = TypeVar("T")
 
+MANHATTAN_POINT_ZORDER = 2
+# A dense panel fills the band around a threshold with points, so the lines
+# are drawn over them.
+THRESHOLD_LINE_ZORDER = MANHATTAN_POINT_ZORDER + 1
+
 
 def styled(override: Optional[T], default: T) -> T:
     """Return a style field the caller set, or the panel's own default."""
@@ -143,7 +148,7 @@ class ManhattanPanelSpec:
                 marker="o",
                 edgecolor=POINT_EDGE_COLOR,
                 linewidth=styled(style.point_edge_width, MANHATTAN_EDGE_WIDTH),
-                zorder=2,
+                zorder=MANHATTAN_POINT_ZORDER,
                 hover_data=hover_data,
                 alpha=style.point_alpha,
             )
@@ -151,7 +156,14 @@ class ManhattanPanelSpec:
         line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
         lines = self.threshold_lines()
         for threshold, color in lines:
-            add_significance_line(backend, ax, threshold, color=color, **line_kwargs)
+            add_significance_line(
+                backend,
+                ax,
+                threshold,
+                color=color,
+                zorder=THRESHOLD_LINE_ZORDER,
+                **line_kwargs,
+            )
         if style.show_threshold_legend and lines:
             # The headroom is at the bottom of an inverted panel.
             backend.add_legend(
@@ -215,7 +227,8 @@ def stacked_manhattan_specs(
     Args:
         prepared: Values from ``prepare_genomewide_frames``, top to bottom.
         significance_threshold: P-value for the significance line, or None.
-        panel_labels: Corner label per panel, or None.
+        panel_labels: Label per panel, or None. ``style.panel_label_position``
+            puts each in its panel's corner or makes it the panel's title.
         style: Caller styling, shared by every panel.
 
     Returns:
@@ -230,14 +243,19 @@ def stacked_manhattan_specs(
             f"panel_labels length ({len(panel_labels)}) must match "
             f"number of GWAS DataFrames ({n_panels})"
         )
+    labels = panel_labels if panel_labels is not None else [None] * n_panels
+    above = style.panel_label_position == "above"
     return [
         ManhattanPanelSpec(
             value,
             significance_threshold=significance_threshold,
             y_label_fontsize=10,
             x_label="Chromosome" if index == n_panels - 1 else None,
-            panel_label=panel_labels[index] if panel_labels is not None else None,
+            title=label if above else None,
+            # The corner label's size, so moving a label above keeps it.
+            title_fontsize=10,
+            panel_label=None if above else label,
             style=style,
         )
-        for index, value in enumerate(prepared)
+        for index, (value, label) in enumerate(zip(prepared, labels))
     ]

@@ -13,6 +13,7 @@ from matplotlib.patches import Polygon, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from ..colors import FOOTER_COLOR
+from ..exceptions import ValidationError
 from . import register_backend
 from .composition import LegendEntry, cell_edges
 from .hover import HoverData
@@ -24,6 +25,9 @@ _LEFT_MARGIN = 0.08
 _RIGHT_MARGIN = 0.95
 _BOTTOM_MARGIN = 0.1
 _INSET_COLORBAR_LABEL = "_pylocuszoom_colorbar"
+# Space between one row's tick labels and the titles of the row below: twice
+# matplotlib's title pad, so a title reads as its own panel's.
+_ROW_GAP_PAD_PT = 12
 
 
 @register_backend("matplotlib")
@@ -517,9 +521,9 @@ class MatplotlibBackend:
         self,
         fig: Figure,
         top: float = 0.95,
-        hspace: float = 0.08,
+        hspace: Optional[float] = 0.08,
     ) -> None:
-        """Adjust subplot layout parameters."""
+        """Adjust subplot layout parameters, measuring the row gap for None."""
         # A colorbar outside a shared-x panel needs figure-wide space so the
         # gene, association and heatmap axes retain identical genomic scales.
         has_inset_colorbar = any(
@@ -532,6 +536,49 @@ class MatplotlibBackend:
             bottom=_BOTTOM_MARGIN,
             hspace=hspace,
         )
+        if hspace is None:
+            fig.subplots_adjust(hspace=self._fitted_hspace(fig))
+
+    @staticmethod
+    def _fitted_hspace(fig: Figure) -> float:
+        """Return the hspace that keeps every row clear of the row above it.
+
+        What hangs below a row (tick labels, an x label) and above one
+        (titles) is sized in points, not as a share of the panel, so one
+        measurement at any spacing gives the gap the rows need.
+
+        Raises:
+            ValidationError: If the figure is too short to fit those gaps.
+        """
+        below: dict[int, float] = {}
+        above: dict[int, float] = {}
+        n_rows = 1
+        for ax in fig.axes:
+            spec = ax.get_subplotspec()
+            if spec is None:
+                continue
+            n_rows = spec.get_gridspec().nrows
+            tight, frame = ax.get_tightbbox(), ax.bbox
+            last, first = spec.rowspan.stop - 1, spec.rowspan.start
+            below[last] = max(below.get(last, 0.0), frame.y0 - tight.y0)
+            above[first] = max(above.get(first, 0.0), tight.y1 - frame.y1)
+        widest = max(
+            (
+                below.get(row, 0.0) + above.get(row + 1, 0.0)
+                for row in range(n_rows - 1)
+            ),
+            default=0.0,
+        )
+        gap = (widest + _ROW_GAP_PAD_PT * fig.dpi / 72) / fig.bbox.height
+        panels = fig.subplotpars.top - fig.subplotpars.bottom - (n_rows - 1) * gap
+        if panels <= 0:
+            raise ValidationError(
+                f"A figure {fig.get_figheight():g} in tall has no room for "
+                f"{n_rows} rows of panels with titles above them; "
+                "pass a taller figsize"
+            )
+        # matplotlib spaces rows by hspace times the mean panel height.
+        return gap * n_rows / panels
 
     def add_region_highlight(
         self,

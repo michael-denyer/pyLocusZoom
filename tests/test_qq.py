@@ -5,8 +5,10 @@ import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from matplotlib.collections import PathCollection
 
 from pylocuszoom import GenomeWideConfig
+from pylocuszoom.exceptions import ValidationError
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from pylocuszoom.qq import calculate_confidence_band, calculate_lambda_gc
 from tests.strategies import pvalues
@@ -266,3 +268,204 @@ class TestEmptyQQInput:
 
         with pytest.raises(ValueError, match="No valid p-values"):
             plotter.plot_qq(empty_df, config=GenomeWideConfig(p_col="p"))
+
+
+class TestWeightedQQ:
+    """A QQ from a stratified sample, weighted by inverse inclusion probability.
+
+    The sample stands for a full scan of ``N_FULL`` uniform p-values: every
+    p below ``CUTOFF`` is kept with weight 1, and each other p is kept with
+    probability ``FRACTION`` and weight ``1 / FRACTION``. The weighted QQ of
+    the sample should put each kept p where the full scan's QQ puts it.
+
+    The tolerances, in -log10 units, are the sampling noise of this design
+    measured over 200 seeds: the error is largest just past the seam, where
+    few sampled rows sit among many kept ones (worst 0.10), and smallest in
+    the kept tail, where only the total weight is estimated (worst 0.02).
+    Lambda's weighted median comes from the ~4,000 sampled rows (worst error
+    0.12). Without weights the tail is off by 1.5 and lambda by 1.8.
+    """
+
+    N_FULL = 200_000
+    CUTOFF = 1e-2
+    FRACTION = 0.02
+    TAIL_TOLERANCE = 0.03
+    TOLERANCE = 0.12
+    LAMBDA_TOLERANCE = 0.15
+
+    @pytest.fixture
+    def scan(self):
+        """Return the full scan's p-values and the weighted sample of them."""
+        rng = np.random.default_rng(7)
+        full = rng.uniform(0, 1, self.N_FULL)
+        tail = full < self.CUTOFF
+        sampled = ~tail & (rng.uniform(0, 1, self.N_FULL) < self.FRACTION)
+        keep = tail | sampled
+        sample = pd.DataFrame(
+            {
+                "chr": rng.choice(["1", "2", "3"], keep.sum()),
+                "pos": rng.integers(1, 10_000_000, keep.sum()),
+                "p_value": full[keep],
+                "w": np.where(tail[keep], 1.0, 1 / self.FRACTION),
+            }
+        )
+        return np.sort(full), sample
+
+    @staticmethod
+    def _qq_points(ax):
+        """Return the drawn QQ points as (expected, observed), largest first."""
+        points = np.concatenate(
+            [c.get_offsets() for c in ax.collections if isinstance(c, PathCollection)]
+        )
+        return points[np.argsort(-points[:, 1])]
+
+    @staticmethod
+    def _full_scan_expected(full_sorted, sample):
+        """Return the full scan's expected -log10 p of each sampled p, smallest first."""
+        ranks = np.searchsorted(full_sorted, np.sort(sample["p_value"]), side="right")
+        return -np.log10(ranks / (len(full_sorted) + 1))
+
+    def _seam(self, observed):
+        """Return a mask of the 40 points either side of the cutoff."""
+        seam_index = np.searchsorted(-observed, np.log10(self.CUTOFF))
+        mask = np.zeros(len(observed), dtype=bool)
+        mask[max(seam_index - 40, 0) : seam_index + 40] = True
+        return mask
+
+    def test_weighted_sample_matches_full_scan(self, scan):
+        full_sorted, sample = scan
+
+        fig = ManhattanPlotter().plot_qq(
+            sample, config=GenomeWideConfig(weight_col="w")
+        )
+
+        expected, observed = self._qq_points(fig.get_axes()[0]).T
+        truth = self._full_scan_expected(full_sorted, sample)
+        error = np.abs(expected - truth)
+        assert error[:20].max() < self.TAIL_TOLERANCE
+        assert error[self._seam(observed)].max() < self.TOLERANCE
+        assert error.max() < self.TOLERANCE
+
+    def test_unweighted_sample_misplaces_the_tail(self, scan):
+        """Without weights each row is one test, so the sample is the scan."""
+        full_sorted, sample = scan
+
+        fig = ManhattanPlotter().plot_qq(sample)
+
+        expected, _ = self._qq_points(fig.get_axes()[0]).T
+        truth = self._full_scan_expected(full_sorted, sample)
+        assert truth[0] - expected[0] > 1
+
+    def test_weighted_lambda_matches_full_scan(self, scan):
+        full_sorted, sample = scan
+
+        weighted = ManhattanPlotter().plot_qq(
+            sample, config=GenomeWideConfig(weight_col="w")
+        )
+        unweighted = ManhattanPlotter().plot_qq(sample)
+
+        def shown_lambda(fig):
+            return float(fig.get_axes()[0].get_title().split("= ")[1].rstrip(")"))
+
+        assert shown_lambda(weighted) == pytest.approx(
+            calculate_lambda_gc(full_sorted), abs=self.LAMBDA_TOLERANCE
+        )
+        assert shown_lambda(unweighted) > 2
+
+    def test_weighted_band_matches_full_scan(self, scan):
+        """The 95% band at each tail point is the full scan's band there."""
+        from pylocuszoom.qq import prepare_qq_data
+
+        full_sorted, sample = scan
+        n_tail = int((sample["p_value"] < self.CUTOFF).sum())
+
+        weighted = prepare_qq_data(sample, weight_col="w").frame
+        _, lower, upper = calculate_confidence_band(self.N_FULL)
+
+        np.testing.assert_allclose(
+            weighted["_ci_lower"][:n_tail], lower[:n_tail], atol=self.TAIL_TOLERANCE
+        )
+        np.testing.assert_allclose(
+            weighted["_ci_upper"][:n_tail], upper[:n_tail], atol=self.TAIL_TOLERANCE
+        )
+
+    def test_manhattan_qq_stacked_weights_the_qq_only(self, scan):
+        """The QQ panel is weighted; the Manhattan panel draws every row once."""
+        full_sorted, sample = scan
+        plotter = ManhattanPlotter(species="human")
+
+        weighted = plotter.plot_manhattan_qq_stacked(
+            [sample], config=GenomeWideConfig(weight_col="w")
+        )
+        plain = plotter.plot_manhattan_qq_stacked([sample])
+
+        manhattan, qq = weighted.get_axes()
+        expected, _ = self._qq_points(qq).T
+        truth = self._full_scan_expected(full_sorted, sample)
+        assert np.abs(expected - truth).max() < self.TOLERANCE
+        np.testing.assert_array_equal(
+            self._qq_points(manhattan), self._qq_points(plain.get_axes()[0])
+        )
+
+    def test_manhattan_qq_weights_the_qq(self, scan):
+        full_sorted, sample = scan
+
+        fig = ManhattanPlotter(species="human").plot_manhattan_qq(
+            sample, config=GenomeWideConfig(weight_col="w")
+        )
+
+        expected, _ = self._qq_points(fig.get_axes()[1]).T
+        truth = self._full_scan_expected(full_sorted, sample)
+        assert np.abs(expected - truth).max() < self.TOLERANCE
+
+    def test_unit_weights_change_nothing(self):
+        """Weight 1 on every row is the unweighted QQ, value for value."""
+        from pylocuszoom.qq import prepare_qq_data
+
+        rng = np.random.default_rng(3)
+        df = pd.DataFrame({"p": rng.uniform(0, 1, 1001), "w": 1.0})
+
+        plain = prepare_qq_data(df, p_col="p")
+        weighted = prepare_qq_data(df, p_col="p", weight_col="w")
+
+        pd.testing.assert_frame_equal(weighted.frame, plain.frame)
+        assert weighted.lambda_gc == pytest.approx(plain.lambda_gc, rel=1e-12)
+        assert weighted.n_variants == plain.n_variants
+
+    def test_even_count_unit_weights_lambda_is_the_plain_median(self):
+        from pylocuszoom.qq import prepare_qq_data
+
+        df = pd.DataFrame({"p": [0.9, 0.5, 0.2, 0.01], "w": 1.0})
+
+        assert prepare_qq_data(df, p_col="p", weight_col="w").lambda_gc == (
+            pytest.approx(prepare_qq_data(df, p_col="p").lambda_gc, rel=1e-12)
+        )
+
+    @pytest.mark.parametrize("method", ["plot_qq", "plot_manhattan"])
+    def test_missing_weight_column_is_named(self, method):
+        """A Manhattan plot ignores the weights but still checks the column."""
+        df = pd.DataFrame({"chr": ["1", "2"], "pos": [1, 2], "p_value": [0.1, 0.5]})
+        plot = getattr(ManhattanPlotter(species="human"), method)
+
+        with pytest.raises(ValidationError, match="weight"):
+            plot(df, config=GenomeWideConfig(weight_col="weight"))
+
+    @pytest.mark.parametrize(
+        "bad", [0.0, -1.0, np.nan, np.inf], ids=["zero", "negative", "nan", "inf"]
+    )
+    def test_rejects_a_weight_that_is_not_positive_and_finite(self, bad):
+        df = pd.DataFrame(
+            {"chr": ["1", "1"], "pos": [1, 2], "p_value": [0.1, 0.5], "w": [1.0, bad]}
+        )
+        config = GenomeWideConfig(weight_col="w")
+
+        with pytest.raises(ValidationError, match="'w'"):
+            ManhattanPlotter().plot_qq(df, config=config)
+        with pytest.raises(ValidationError, match="'w'"):
+            ManhattanPlotter(species="human").plot_manhattan_qq(df, config=config)
+
+    def test_rejects_a_non_numeric_weight(self):
+        df = pd.DataFrame({"p_value": [0.1, 0.5], "w": ["1", "x"]})
+
+        with pytest.raises(ValidationError, match="'w'"):
+            ManhattanPlotter().plot_qq(df, config=GenomeWideConfig(weight_col="w"))

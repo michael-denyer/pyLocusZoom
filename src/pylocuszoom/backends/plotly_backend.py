@@ -745,7 +745,7 @@ class PlotlyBackend:
         self,
         fig: go.Figure,
         top: float = 0.95,
-        hspace: float = 0.08,
+        hspace: Optional[float] = 0.08,
     ) -> None:
         """Adjust layout margins.
 

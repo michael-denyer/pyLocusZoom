@@ -70,6 +70,7 @@ class TestModel:
         assert style.point_edge_width is None
         assert style.y_headroom == 0.1
         assert style.manhattan_qq_width_ratio == 2.5
+        assert style.panel_label_position == "inside"
 
     def test_is_frozen(self):
         with pytest.raises(ValidationError):
@@ -95,6 +96,7 @@ class TestModel:
             ("point_edge_width", -0.1),
             ("y_headroom", -0.1),
             ("manhattan_qq_width_ratio", 0),
+            ("panel_label_position", "below"),
         ],
     )
     def test_rejects_invalid_values(self, field, value):
@@ -442,6 +444,188 @@ class TestTitleWeight:
         titled = [p.title for p in _bokeh_plots(fig) if p.title.text]
         assert titled
         assert {t.text_font_style for t in titled} == {"normal"}
+
+
+DOG_CHROMS = [str(c) for c in range(1, 39)] + ["X"]
+LABELS = [f"Case {i}" for i in range(1, 6)]
+
+
+@pytest.fixture
+def dog_frames():
+    """Five scans over the 39 dog chromosomes, five SNPs each."""
+    frames = []
+    for seed in range(5):
+        rng = np.random.default_rng(seed)
+        p_value = rng.uniform(1e-4, 1, len(DOG_CHROMS) * 5)
+        p_value[seed] = 1e-12
+        frames.append(
+            pd.DataFrame(
+                {
+                    "chr": np.repeat(DOG_CHROMS, 5),
+                    "pos": np.tile(np.arange(1, 6) * 10_000_000, len(DOG_CHROMS)),
+                    "p_value": p_value,
+                }
+            )
+        )
+    return frames
+
+
+def _row_major(fig, n_cols):
+    """Axes of a figure as rows of ``n_cols``."""
+    axes = fig.get_axes()
+    return [axes[i : i + n_cols] for i in range(0, len(axes), n_cols)]
+
+
+class TestPanelLabelPosition:
+    """``panel_label_position`` moves stacked panel labels into titles above."""
+
+    ABOVE = GenomeWideStyle(
+        panel_label_position="above",
+        point_size=4,
+        title_fontsize=20,
+        panel_title_fontsize=14,
+        axis_label_fontsize=14,
+        tick_label_fontsize=12,
+        tick_rotation=90,
+    )
+    # (method, columns per row, hspace each method draws with by default)
+    METHODS = [
+        ("plot_manhattan_stacked", 1, 0.1),
+        ("plot_manhattan_qq_stacked", 2, 0.15),
+    ]
+
+    @pytest.mark.parametrize("method, n_cols, hspace", METHODS)
+    def test_default_draws_labels_inside_the_panels(
+        self, method, n_cols, hspace, dog_frames
+    ):
+        plotter = ManhattanPlotter(species="canine")
+
+        fig = getattr(plotter, method)(dog_frames, panel_labels=LABELS)
+
+        for label, (manhattan_ax, *_) in zip(LABELS, _row_major(fig, n_cols)):
+            assert manhattan_ax.get_title() == ""
+            (corner,) = [t for t in manhattan_ax.texts if t.get_text() == label]
+            assert corner.xy == (0.02, 0.95)
+            assert corner.get_fontsize() == 10
+        assert fig.subplotpars.hspace == pytest.approx(hspace)
+
+    @pytest.mark.parametrize("method, n_cols, hspace", METHODS)
+    def test_above_titles_each_manhattan_panel(
+        self, method, n_cols, hspace, dog_frames
+    ):
+        plotter = ManhattanPlotter(species="canine")
+
+        fig = getattr(plotter, method)(
+            dog_frames, panel_labels=LABELS, style=self.ABOVE
+        )
+
+        for label, (manhattan_ax, *_) in zip(LABELS, _row_major(fig, n_cols)):
+            assert manhattan_ax.get_title() == label
+            assert manhattan_ax.title.get_fontsize() == 14
+            assert manhattan_ax.title.get_fontweight() == "bold"
+            assert label not in [t.get_text() for t in manhattan_ax.texts]
+
+    def test_above_title_keeps_the_inside_label_size_by_default(self, dog_frames):
+        fig = ManhattanPlotter(species="canine").plot_manhattan_qq_stacked(
+            dog_frames,
+            panel_labels=LABELS,
+            style=GenomeWideStyle(panel_label_position="above"),
+        )
+
+        for manhattan_ax, qq_ax in _row_major(fig, 2):
+            assert manhattan_ax.title.get_fontsize() == 10
+            assert qq_ax.title.get_fontsize() == 10
+
+    @pytest.mark.parametrize(
+        "method, n_cols, figsize",
+        [
+            ("plot_manhattan_qq_stacked", 2, (14, 5.5 * 5)),
+            ("plot_manhattan_qq_stacked", 2, (14, 12)),
+            ("plot_manhattan_stacked", 1, (12, 8)),
+            ("plot_manhattan_stacked", 1, (14, 5.5 * 5)),
+        ],
+    )
+    def test_no_title_overlaps_the_panel_above(
+        self, method, n_cols, figsize, dog_frames
+    ):
+        plotter = ManhattanPlotter(species="canine")
+
+        fig = getattr(plotter, method)(
+            dog_frames,
+            panel_labels=LABELS,
+            figsize=figsize,
+            title="Five dog scans",
+            style=self.ABOVE,
+        )
+
+        fig.canvas.draw()
+        rows = _row_major(fig, n_cols)
+        for above, below in zip(rows, rows[1:]):
+            for upper_ax, lower_ax in zip(above, below):
+                title_top = lower_ax.title.get_window_extent().y1
+                assert title_top <= upper_ax.get_tightbbox().y0, lower_ax.get_title()
+        first_title_top = max(ax.title.get_window_extent().y1 for ax in rows[0])
+        assert first_title_top <= fig._suptitle.get_window_extent().y0
+
+    def test_figure_too_short_for_the_titles_raises(self, dog_frames):
+        plotter = ManhattanPlotter(species="canine")
+
+        with pytest.raises(ValidationError, match="taller figsize"):
+            plotter.plot_manhattan_qq_stacked(
+                dog_frames, panel_labels=LABELS, figsize=(14, 3), style=self.ABOVE
+            )
+
+    def test_qq_column_stays_level_with_its_manhattan_row(self, dog_frames):
+        fig = ManhattanPlotter(species="canine").plot_manhattan_qq_stacked(
+            dog_frames, panel_labels=LABELS, style=self.ABOVE
+        )
+
+        for manhattan_ax, qq_ax in _row_major(fig, 2):
+            manhattan_box, qq_box = manhattan_ax.get_position(), qq_ax.get_position()
+            assert (qq_box.y0, qq_box.y1) == (manhattan_box.y0, manhattan_box.y1)
+
+    def test_stacked_figure_title_moves_above_the_first_label(self, dog_frames):
+        fig = ManhattanPlotter(species="canine").plot_manhattan_stacked(
+            dog_frames, panel_labels=LABELS, title="Stack", style=self.ABOVE
+        )
+
+        assert fig._suptitle.get_text() == "Stack"
+        assert fig._suptitle.get_fontsize() == 20
+        assert fig.get_axes()[0].get_title() == "Case 1"
+
+    def test_bokeh_titles_each_manhattan_plot(self, dog_frames):
+        from bokeh.models import Label
+
+        plotter = ManhattanPlotter(species="canine", backend="bokeh")
+
+        fig = plotter.plot_manhattan_qq_stacked(
+            dog_frames, panel_labels=LABELS, style=self.ABOVE
+        )
+
+        manhattan_plots = _bokeh_plots(fig)[::2]
+        assert [p.title.text for p in manhattan_plots] == LABELS
+        assert {p.title.text_font_size for p in manhattan_plots} == {"14pt"}
+        corner_labels = [
+            item.text
+            for p in manhattan_plots
+            for item in p.center
+            if isinstance(item, Label)
+        ]
+        assert not set(LABELS) & set(corner_labels)
+
+    def test_plotly_titles_each_manhattan_panel(self, dog_frames):
+        plotter = ManhattanPlotter(species="canine", backend="plotly")
+
+        fig = plotter.plot_manhattan_qq_stacked(
+            dog_frames, panel_labels=LABELS, style=self.ABOVE
+        )
+
+        by_text = {a.text: a for a in fig.layout.annotations}
+        for label in LABELS:
+            assert f"<b>{label}</b>" in by_text
+            title = by_text[f"<b>{label}</b>"]
+            assert (title.x, title.y, title.yanchor) == (0.5, 1.0, "bottom")
+            assert title.font.size == 14
 
 
 class TestChromosomeAxis:

@@ -213,7 +213,8 @@ class ManhattanPlotter:
 
         Args:
             df: DataFrame with p-values.
-            config: Column names; only ``config.p_col`` is read.
+            config: Column names; only ``config.p_col`` and
+                ``config.weight_col`` are read.
             show_confidence_band: If True, show 95% confidence band.
             show_lambda: If True, show genomic inflation factor in title.
             figsize: Figure size as (width, height).
@@ -228,7 +229,7 @@ class ManhattanPlotter:
             >>> fig = plotter.plot_qq(gwas_df, config=GenomeWideConfig(p_col="pvalue"))
         """
         df = to_pandas(df)
-        qq = prepare_qq_data(df, p_col=config.p_col)
+        qq = prepare_qq_data(df, p_col=config.p_col, weight_col=config.weight_col)
         panel = QQPanelSpec(
             qq_df=qq.frame,
             show_confidence_band=show_confidence_band,
@@ -287,21 +288,26 @@ class ManhattanPlotter:
         prepared = prepare_genomewide_frames(
             gwas_dfs, config, species=self.species, style=style
         )
+        specs = stacked_manhattan_specs(
+            prepared,
+            significance_threshold=significance_threshold,
+            panel_labels=panel_labels,
+            style=style,
+        )
+        # A titled top panel leaves the figure title no room there.
+        titled = specs[0].title is not None
         return render_figure(
             self._backend,
             FigurePlan(
-                panels=stacked_manhattan_specs(
-                    prepared,
-                    significance_threshold=significance_threshold,
-                    panel_labels=panel_labels,
-                    style=style,
-                ),
+                panels=specs,
                 figsize=figsize,
                 height_ratios=[figsize[1] / n_gwas] * n_gwas,
-                first_panel_title=title,
+                suptitle=title if titled else None,
+                first_panel_title=None if titled else title,
                 title_fontsize=style.title_fontsize,
                 title_fontweight=style.title_fontweight,
-                hspace=0.1,
+                top=0.90 if titled and title else 0.95,
+                hspace=None if titled else 0.1,
             ),
         )
 
@@ -358,7 +364,7 @@ class ManhattanPlotter:
         manhattan = prepare_genomewide_frames(
             [df], config, species=self.species, style=style
         )[0]
-        qq = prepare_qq_data(manhattan.frame)
+        qq = prepare_qq_data(manhattan.frame, weight_col=manhattan.weight_col)
         panels = [
             ManhattanPanelSpec(
                 manhattan,
@@ -454,7 +460,7 @@ class ManhattanPlotter:
         )
         panels = []
         for index, (spec, prepared) in enumerate(zip(specs, manhattans)):
-            qq = prepare_qq_data(prepared.frame)
+            qq = prepare_qq_data(prepared.frame, weight_col=prepared.weight_col)
             qq_spec = QQPanelSpec(
                 qq_df=qq.frame,
                 show_confidence_band=show_confidence_band,
@@ -476,6 +482,6 @@ class ManhattanPlotter:
                 title_fontsize=style.title_fontsize,
                 title_fontweight=style.title_fontweight,
                 top=0.90 if title else 0.95,
-                hspace=0.15,
+                hspace=None if specs[0].title is not None else 0.15,
             ),
         )

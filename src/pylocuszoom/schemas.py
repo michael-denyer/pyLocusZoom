@@ -93,6 +93,32 @@ def genomewide_position_spec(pos_col: str = Canonical.POS) -> ColumnSpec:
     )
 
 
+def qq_weight_spec(weight_col: str) -> ColumnSpec:
+    """Return the contract for a QQ weight column.
+
+    A weight counts the tests a row stands for, so it must be a positive,
+    finite number on every row.
+
+    Args:
+        weight_col: Column name for the weight.
+    """
+    return ColumnSpec(
+        name="gwas_df",
+        required=(weight_col,),
+        numeric=(weight_col,),
+        not_null=(weight_col,),
+        ranges=(
+            RangeRule(
+                weight_col,
+                min_val=0,
+                max_val=float("inf"),
+                exclusive_min=True,
+                exclusive_max=True,
+            ),
+        ),
+    )
+
+
 GENES_LOAD = ColumnSpec(
     name="Gene annotation",
     required=(Canonical.CHROM, "start", "end", "gene_name"),

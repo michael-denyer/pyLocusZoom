@@ -11,10 +11,18 @@ from ._data import prepare_pvalue_data
 from ._plotter_utils import CHROMOSOME_GAP
 from .config import GenomeWideConfig, GenomeWideStyle
 from .exceptions import ValidationError
-from .schemas import Canonical, genomewide_position_spec, gwas_plot_spec
+from .schemas import (
+    Canonical,
+    genomewide_position_spec,
+    gwas_plot_spec,
+    qq_weight_spec,
+)
 from .species import Species, resolve_species
 from .utils import normalize_chrom, normalize_chrom_series
 from .validation import check
+
+# The projected frame's name for the caller's GenomeWideConfig.weight_col.
+QQ_WEIGHT_COL = "_qq_weight"
 
 ALL_PVALUES_INVALID = (
     "All rows have invalid p-values in column '{p_col}' "
@@ -227,7 +235,8 @@ class PreparedManhattan:
 
     ``frame`` carries ``neglog10p``, ``_color``, ``x_col`` (the x each point
     is drawn at) and ``group_col`` (the chromosome or category that colours
-    it). ``layout`` is the one every frame prepared in the same call shares,
+    it), and ``weight_col`` names its QQ weight column, or is None when it
+    has none. ``layout`` is the one every frame prepared in the same call shares,
     so a given point lands at the same x in all of them.
     """
 
@@ -235,6 +244,7 @@ class PreparedManhattan:
     layout: PanelLayout
     x_col: str
     group_col: str
+    weight_col: str | None = None
 
 
 def prepare_genomewide_frames(
@@ -270,14 +280,17 @@ def prepare_genomewide_frames(
     Returns:
         One prepared value per input, in the same order, each carrying the
         canonical ``chr``, ``pos`` and ``p_value`` columns (and ``rs`` when
-        ``rs_col`` is given) and the columns ``_chrom_str``, ``_chrom_idx``,
-        ``_cumulative_pos``, ``neglog10p`` and ``_color``.
+        ``rs_col`` is given, ``_qq_weight`` when ``config.weight_col`` is)
+        and the columns ``_chrom_str``, ``_chrom_idx``, ``_cumulative_pos``,
+        ``neglog10p`` and ``_color``.
 
     Raises:
         ValidationError: If a frame is empty or lacks a named column, if no
             p-value in a frame survives, if a surviving row has a null,
-            non-numeric or below-1 position, or if neither the species nor
-            ``config.custom_chrom_order`` names a chromosome order.
+            non-numeric or below-1 position, if a weight in
+            ``config.weight_col`` is null, non-numeric, or not positive and
+            finite, or if neither the species nor ``config.custom_chrom_order``
+            names a chromosome order.
     """
     for df in dfs:
         check(
@@ -286,6 +299,8 @@ def prepare_genomewide_frames(
                 config.pos_col, config.p_col, rs_col, chrom_col=config.chrom_col
             ),
         )
+        if config.weight_col is not None:
+            check(df, qq_weight_spec(config.weight_col))
     custom_order = config.custom_chrom_order
     order = get_chromosome_order(
         species,
@@ -297,7 +312,13 @@ def prepare_genomewide_frames(
     named = list(
         dict.fromkeys(
             col
-            for col in (config.chrom_col, config.pos_col, config.p_col, rs_col)
+            for col in (
+                config.chrom_col,
+                config.pos_col,
+                config.p_col,
+                rs_col,
+                config.weight_col,
+            )
             if col is not None
         )
     )
@@ -330,6 +351,8 @@ def prepare_genomewide_frames(
         }
         if rs_col is not None:
             roles[Canonical.RS] = frame[rs_col]
+        if config.weight_col is not None:
+            roles[QQ_WEIGHT_COL] = frame[config.weight_col]
         roles["neglog10p"] = frame[neglog_col]
         filtered.append(pd.DataFrame(roles))
     layout = GenomeLayout.from_frames(
@@ -346,6 +369,7 @@ def prepare_genomewide_frames(
             layout,
             x_col="_cumulative_pos",
             group_col="_chrom_str",
+            weight_col=None if config.weight_col is None else QQ_WEIGHT_COL,
         )
         for frame in filtered
     ]

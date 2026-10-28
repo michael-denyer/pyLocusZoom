@@ -93,7 +93,7 @@ class PlotBackend(Protocol):
         self,
         fig: Any,
         top: float = 0.95,
-        hspace: float = 0.08,
+        hspace: Optional[float] = 0.08,
     ) -> None:
         """Finalize figure layout with margins and spacing.
 
@@ -106,7 +106,8 @@ class PlotBackend(Protocol):
             fig: Figure object.
             top: Top margin fraction, lowered to leave room for a suptitle.
             hspace: Vertical space between panels, as a fraction of panel
-                height.
+                height. None asks for just enough that no panel's title meets
+                the tick labels of the panel above.
         """
         ...
 

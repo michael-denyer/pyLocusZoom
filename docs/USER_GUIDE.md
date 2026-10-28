@@ -673,6 +673,44 @@ fig.savefig("qq_plot.png", dpi=150)
 - Genomic inflation factor (λ) in title
 - Identity line for reference
 
+#### QQ from a sampled frame
+
+A scan of tens of millions of tests is often too large to plot, so the caller
+keeps every p-value below a cutoff and a random fraction of the rest. Plotted
+as is, the QQ treats the sample as the whole scan: the kept tail is expected
+far too low and the curve bends where the sampling starts. Name a weight
+column in `GenomeWideConfig(weight_col=...)` holding each row's inverse
+inclusion probability, 1 for a row kept outright and `1 / f` for a row kept
+at random with probability `f`:
+
+```python
+import numpy as np
+
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+
+cutoff, fraction = 1e-4, 0.01
+rng = np.random.default_rng(0)
+tail = full_df["p_value"] < cutoff
+sampled = ~tail & (rng.uniform(size=len(full_df)) < fraction)
+sample = full_df[tail | sampled].copy()
+sample["weight"] = np.where(sample["p_value"] < cutoff, 1.0, 1 / fraction)
+
+fig = ManhattanPlotter(species="canine").plot_manhattan_qq(
+    sample, config=GenomeWideConfig(weight_col="weight")
+)
+```
+
+A row's expected rank is then the cumulative weight up to it in p order, out
+of the total weight, so a kept row lands at its rank in the full scan. The
+confidence band and λ (a weighted median) use the same weights. Unit weights
+give exactly the unweighted plot. `plot_qq`, `plot_manhattan_qq` and
+`plot_manhattan_qq_stacked` read the weights; Manhattan and Miami panels
+draw each row once. `plot_manhattan`, `plot_manhattan_stacked` and
+`plot_miami` still check the column, so one config can serve every method: a
+missing column or a weight that is not a positive, finite number raises
+`ValidationError` in all six. A categorical `plot_manhattan` reads only
+`p_col`.
+
 ### Stacked Manhattan Plots
 
 Compare multiple GWAS studies in vertically stacked Manhattan plots with shared chromosome axis.
@@ -765,6 +803,30 @@ fig = plotter.plot_manhattan_qq_stacked(
 fig.savefig("manhattan_qq_stacked.png", dpi=150)
 ```
 
+Both stacked methods write each `panel_labels` entry in the top-left corner of
+its Manhattan panel at 10 pt. `GenomeWideStyle(panel_label_position="above")`
+makes it the panel's title instead, sized by `panel_title_fontsize` (10 pt when
+unset), and widens the gap between rows until no title meets the tick labels of
+the row above, chromosome labels rotated by `tick_rotation=90` included. The QQ
+panels stay level with their Manhattan row. `plot_manhattan_stacked` then
+writes its `title` above the figure instead of on the top panel.
+
+```python
+fig = plotter.plot_manhattan_qq_stacked(
+    [discovery_df, replication_df, meta_df],
+    panel_labels=["Discovery", "Replication", "Meta-analysis"],
+    style=GenomeWideStyle(panel_label_position="above", panel_title_fontsize=14),
+)
+```
+
+matplotlib measures the drawn titles and tick labels to size the gap, and
+raises `ValidationError` for a figure too short to hold them. Bokeh reserves
+room for each title itself. Plotly keeps its fixed row spacing: the
+Manhattan-QQ grid leaves 8% of the figure height between rows, enough at
+ordinary sizes, but the rows of a plotly `plot_manhattan_stacked` are 2% apart,
+so a title there covers the bottom of the panel above. Keep plotly stacks at
+`"inside"`.
+
 ### Styling genome-wide plots
 
 Every Manhattan, QQ, stacked, side-by-side and Miami method takes
@@ -801,6 +863,9 @@ This covers `plot_manhattan` (genomic and categorical), each panel of
 suggestive line has two entries side by side, the larger p-value first. A
 panel that draws no line (`significance_threshold=None`) has no key, and a QQ
 panel never has one.
+
+The threshold lines are drawn over the points, so a dense panel does not hide
+them.
 
 The key is a frameless row in the right corner of the panel's headroom, the
 space `y_headroom` leaves beyond the highest point: the top right of an
@@ -1047,6 +1112,7 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `pos_col` | str | `"pos"` | Position column name. |
 | `p_col` | str | `"p_value"` | P-value column name. |
 | `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. Each chromosome is listed once; a leading `chr` is ignored, so listing both `1` and `chr1` raises a `ValidationError`. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
+| `weight_col` | str | None | Column holding the number of tests each row stands for, for a frame that samples a larger scan. QQ panels and their λ then describe the whole scan; Manhattan panels draw each row once. Every weight must be positive and finite; the genomic Manhattan, stacked and Miami methods check this too. See [QQ from a sampled frame](#qq-from-a-sampled-frame). |
 
 #### GenomeWideStyle
 
@@ -1061,7 +1127,7 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `point_size` | float | None | Marker area in matplotlib `s` units for Manhattan and QQ points. |
 | `point_alpha` | float | None | Marker opacity in (0, 1]. `None` draws opaque points. |
 | `title_fontsize` | int | 14 | The figure title that `title=` sets on Manhattan-QQ, stacked and Miami figures. |
-| `panel_title_fontsize` | int | None | Each panel's title: the QQ λ title, and the `title` of a single `plot_manhattan` or `plot_qq`. |
+| `panel_title_fontsize` | int | None | Each panel's title: the QQ λ title, the `title` of a single `plot_manhattan` or `plot_qq`, and stacked panel labels drawn `"above"`. |
 | `axis_label_fontsize` | int | None | X and y axis labels. |
 | `tick_label_fontsize` | int | None | Tick labels on both axes. |
 | `tick_step` | int | 1 | Label every n-th chromosome or category that carries data, starting with the first. At least 1. |
@@ -1074,8 +1140,10 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `y_headroom` | float | 0.1 | Space left above the highest Manhattan point or threshold line, as a fraction of its height. A Manhattan panel and the QQ panel beside it, and the two Miami halves, share one limit padded from the higher of the two. |
 | `manhattan_qq_width_ratio` | float | 2.5 | Width of the Manhattan panel relative to the QQ panel in a Manhattan-QQ figure. |
 | `show_threshold_legend` | bool | True | Whether each Manhattan panel carries a [key to its threshold lines](#threshold-key), one `P = 5e-08` entry per line drawn. |
+| `panel_label_position` | str | `"inside"` | Where `plot_manhattan_stacked` and `plot_manhattan_qq_stacked` draw each `panel_labels` entry: `"inside"`, in the top-left corner of its Manhattan panel at 10 pt, or `"above"`, as the panel's title with room cleared between rows. See [Stacked Manhattan and QQ](#stacked-manhattan-and-qq). Miami labels stay inside. |
 
-All three backends apply every field. Corner panel labels and Miami SNP
+All three backends apply every field, though plotly keeps its fixed row
+spacing under `panel_label_position="above"`. Corner panel labels and Miami SNP
 annotations keep their own sizes.
 
 #### DisplayConfig
