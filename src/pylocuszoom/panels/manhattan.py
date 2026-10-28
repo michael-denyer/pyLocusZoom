@@ -227,7 +227,8 @@ def stacked_manhattan_specs(
     Args:
         prepared: Values from ``prepare_genomewide_frames``, top to bottom.
         significance_threshold: P-value for the significance line, or None.
-        panel_labels: Corner label per panel, or None.
+        panel_labels: Label per panel, or None. ``style.panel_label_position``
+            puts each in its panel's corner or makes it the panel's title.
         style: Caller styling, shared by every panel.
 
     Returns:
@@ -242,14 +243,19 @@ def stacked_manhattan_specs(
             f"panel_labels length ({len(panel_labels)}) must match "
             f"number of GWAS DataFrames ({n_panels})"
         )
+    labels = panel_labels if panel_labels is not None else [None] * n_panels
+    above = style.panel_label_position == "above"
     return [
         ManhattanPanelSpec(
             value,
             significance_threshold=significance_threshold,
             y_label_fontsize=10,
             x_label="Chromosome" if index == n_panels - 1 else None,
-            panel_label=panel_labels[index] if panel_labels is not None else None,
+            title=label if above else None,
+            # The corner label's size, so moving a label above keeps it.
+            title_fontsize=10,
+            panel_label=None if above else label,
             style=style,
         )
-        for index, value in enumerate(prepared)
+        for index, (value, label) in enumerate(zip(prepared, labels))
     ]

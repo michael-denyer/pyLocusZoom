@@ -697,7 +697,7 @@ class BokehBackend:
         self,
         fig: Any,
         top: float = 0.95,
-        hspace: float = 0.08,
+        hspace: Optional[float] = 0.08,
     ) -> None:
         """Do nothing: a Bokeh column sizes and spaces its own panels."""
 

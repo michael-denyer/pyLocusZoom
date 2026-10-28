@@ -803,6 +803,30 @@ fig = plotter.plot_manhattan_qq_stacked(
 fig.savefig("manhattan_qq_stacked.png", dpi=150)
 ```
 
+Both stacked methods write each `panel_labels` entry in the top-left corner of
+its Manhattan panel at 10 pt. `GenomeWideStyle(panel_label_position="above")`
+makes it the panel's title instead, sized by `panel_title_fontsize` (10 pt when
+unset), and widens the gap between rows until no title meets the tick labels of
+the row above, chromosome labels rotated by `tick_rotation=90` included. The QQ
+panels stay level with their Manhattan row. `plot_manhattan_stacked` then
+writes its `title` above the figure instead of on the top panel.
+
+```python
+fig = plotter.plot_manhattan_qq_stacked(
+    [discovery_df, replication_df, meta_df],
+    panel_labels=["Discovery", "Replication", "Meta-analysis"],
+    style=GenomeWideStyle(panel_label_position="above", panel_title_fontsize=14),
+)
+```
+
+matplotlib measures the drawn titles and tick labels to size the gap, and
+raises `ValidationError` for a figure too short to hold them. Bokeh reserves
+room for each title itself. Plotly keeps its fixed row spacing: the
+Manhattan-QQ grid leaves 8% of the figure height between rows, enough at
+ordinary sizes, but the rows of a plotly `plot_manhattan_stacked` are 2% apart,
+so a title there covers the bottom of the panel above. Keep plotly stacks at
+`"inside"`.
+
 ### Styling genome-wide plots
 
 Every Manhattan, QQ, stacked, side-by-side and Miami method takes
@@ -1103,7 +1127,7 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `point_size` | float | None | Marker area in matplotlib `s` units for Manhattan and QQ points. |
 | `point_alpha` | float | None | Marker opacity in (0, 1]. `None` draws opaque points. |
 | `title_fontsize` | int | 14 | The figure title that `title=` sets on Manhattan-QQ, stacked and Miami figures. |
-| `panel_title_fontsize` | int | None | Each panel's title: the QQ λ title, and the `title` of a single `plot_manhattan` or `plot_qq`. |
+| `panel_title_fontsize` | int | None | Each panel's title: the QQ λ title, the `title` of a single `plot_manhattan` or `plot_qq`, and stacked panel labels drawn `"above"`. |
 | `axis_label_fontsize` | int | None | X and y axis labels. |
 | `tick_label_fontsize` | int | None | Tick labels on both axes. |
 | `tick_step` | int | 1 | Label every n-th chromosome or category that carries data, starting with the first. At least 1. |
@@ -1116,8 +1140,10 @@ are larger, and stacked figures use smaller panel titles and axis labels.
 | `y_headroom` | float | 0.1 | Space left above the highest Manhattan point or threshold line, as a fraction of its height. A Manhattan panel and the QQ panel beside it, and the two Miami halves, share one limit padded from the higher of the two. |
 | `manhattan_qq_width_ratio` | float | 2.5 | Width of the Manhattan panel relative to the QQ panel in a Manhattan-QQ figure. |
 | `show_threshold_legend` | bool | True | Whether each Manhattan panel carries a [key to its threshold lines](#threshold-key), one `P = 5e-08` entry per line drawn. |
+| `panel_label_position` | str | `"inside"` | Where `plot_manhattan_stacked` and `plot_manhattan_qq_stacked` draw each `panel_labels` entry: `"inside"`, in the top-left corner of its Manhattan panel at 10 pt, or `"above"`, as the panel's title with room cleared between rows. See [Stacked Manhattan and QQ](#stacked-manhattan-and-qq). Miami labels stay inside. |
 
-All three backends apply every field. Corner panel labels and Miami SNP
+All three backends apply every field, though plotly keeps its fixed row
+spacing under `panel_label_position="above"`. Corner panel labels and Miami SNP
 annotations keep their own sizes.
 
 #### DisplayConfig

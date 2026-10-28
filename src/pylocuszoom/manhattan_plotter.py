@@ -288,21 +288,26 @@ class ManhattanPlotter:
         prepared = prepare_genomewide_frames(
             gwas_dfs, config, species=self.species, style=style
         )
+        specs = stacked_manhattan_specs(
+            prepared,
+            significance_threshold=significance_threshold,
+            panel_labels=panel_labels,
+            style=style,
+        )
+        # A titled top panel leaves the figure title no room there.
+        titled = specs[0].title is not None
         return render_figure(
             self._backend,
             FigurePlan(
-                panels=stacked_manhattan_specs(
-                    prepared,
-                    significance_threshold=significance_threshold,
-                    panel_labels=panel_labels,
-                    style=style,
-                ),
+                panels=specs,
                 figsize=figsize,
                 height_ratios=[figsize[1] / n_gwas] * n_gwas,
-                first_panel_title=title,
+                suptitle=title if titled else None,
+                first_panel_title=None if titled else title,
                 title_fontsize=style.title_fontsize,
                 title_fontweight=style.title_fontweight,
-                hspace=0.1,
+                top=0.90 if titled and title else 0.95,
+                hspace=None if titled else 0.1,
             ),
         )
 
@@ -477,6 +482,6 @@ class ManhattanPlotter:
                 title_fontsize=style.title_fontsize,
                 title_fontweight=style.title_fontweight,
                 top=0.90 if title else 0.95,
-                hspace=0.15,
+                hspace=None if specs[0].title is not None else 0.15,
             ),
         )
