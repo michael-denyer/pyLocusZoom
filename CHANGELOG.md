@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Minimum Python version is now 3.11. Python 3.10 reached end of life in October 2026, and Pillow 13.0.0, which fixes 41 open security advisories against Pillow 12.3.0, no longer supports it. `uv.lock` moves to Pillow 13.0.0 and certifi 2026.10.23, and drops the Python 3.10 resolution branch (numpy 2.2.6, scipy 1.15.3, ipython 8.39.0). CI tests 3.11 and 3.12.
+- pandas 3 is supported. The dependency range widens from `pandas>=1.4.0,<3` to `pandas>=1.4.0,<4`, and `uv.lock` moves to pandas 3.1.0. A new `test-pandas2` CI job runs the suite on pandas 2.3.3, so pandas 2 stays tested now that the lock is on 3.
 
 ## [5.2.0] - 2026-10-15
 
