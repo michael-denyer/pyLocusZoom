@@ -705,7 +705,11 @@ of the total weight, so a kept row lands at its rank in the full scan. The
 confidence band and λ (a weighted median) use the same weights. Unit weights
 give exactly the unweighted plot. `plot_qq`, `plot_manhattan_qq` and
 `plot_manhattan_qq_stacked` read the weights; Manhattan and Miami panels
-draw each row once.
+draw each row once. `plot_manhattan`, `plot_manhattan_stacked` and
+`plot_miami` still check the column, so one config can serve every method: a
+missing column or a weight that is not a positive, finite number raises
+`ValidationError` in all six. A categorical `plot_manhattan` reads only
+`p_col`.
 
 ### Stacked Manhattan Plots
 
@@ -1084,7 +1088,7 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `pos_col` | str | `"pos"` | Position column name. |
 | `p_col` | str | `"p_value"` | P-value column name. |
 | `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. Each chromosome is listed once; a leading `chr` is ignored, so listing both `1` and `chr1` raises a `ValidationError`. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
-| `weight_col` | str | None | Column holding the number of tests each row stands for, for a frame that samples a larger scan. QQ panels and their λ then describe the whole scan; Manhattan panels draw each row once. Every weight must be positive and finite. See [QQ from a sampled frame](#qq-from-a-sampled-frame). |
+| `weight_col` | str | None | Column holding the number of tests each row stands for, for a frame that samples a larger scan. QQ panels and their λ then describe the whole scan; Manhattan panels draw each row once. Every weight must be positive and finite; the genomic Manhattan, stacked and Miami methods check this too. See [QQ from a sampled frame](#qq-from-a-sampled-frame). |
 
 #### GenomeWideStyle
 

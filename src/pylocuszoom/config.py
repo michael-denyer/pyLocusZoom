@@ -526,8 +526,9 @@ class GenomeWideConfig(_Config):
             outright, ``1 / f`` for a row kept at random with probability
             ``f``. QQ panels and their lambda then describe the whole scan;
             Manhattan panels draw each row once whatever its weight. Every
-            weight must be a positive, finite number. None treats each row
-            as one test.
+            method that lays out chromosomes requires the column and checks
+            that each weight is a positive, finite number. None treats each
+            row as one test.
     """
 
     model_config = ConfigDict(frozen=True)

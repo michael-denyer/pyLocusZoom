@@ -441,11 +441,14 @@ class TestWeightedQQ:
             pytest.approx(prepare_qq_data(df, p_col="p").lambda_gc, rel=1e-12)
         )
 
-    def test_missing_weight_column_is_named(self):
-        df = pd.DataFrame({"p_value": [0.1, 0.5]})
+    @pytest.mark.parametrize("method", ["plot_qq", "plot_manhattan"])
+    def test_missing_weight_column_is_named(self, method):
+        """A Manhattan plot ignores the weights but still checks the column."""
+        df = pd.DataFrame({"chr": ["1", "2"], "pos": [1, 2], "p_value": [0.1, 0.5]})
+        plot = getattr(ManhattanPlotter(species="human"), method)
 
         with pytest.raises(ValidationError, match="weight"):
-            ManhattanPlotter().plot_qq(df, config=GenomeWideConfig(weight_col="weight"))
+            plot(df, config=GenomeWideConfig(weight_col="weight"))
 
     @pytest.mark.parametrize(
         "bad", [0.0, -1.0, np.nan, np.inf], ids=["zero", "negative", "nan", "inf"]
