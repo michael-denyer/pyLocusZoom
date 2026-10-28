@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-10-28
+
 ### Changed
 
 - Minimum Python version is now 3.11. Python 3.10 reached end of life in October 2026, and Pillow 13.0.0, which fixes 41 open security advisories against Pillow 12.3.0, no longer supports it. `uv.lock` moves to Pillow 13.0.0 and certifi 2026.10.23, and drops the Python 3.10 resolution branch (numpy 2.2.6, scipy 1.15.3, ipython 8.39.0). CI tests 3.11 and 3.12.
