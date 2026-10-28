@@ -511,7 +511,7 @@ class GenomeWideConfig(_Config):
 
     Manhattan, QQ and Miami plots lay a whole-genome frame out along one
     chromosome axis, so they share one column contract. ``plot_qq`` reads
-    only ``p_col``.
+    only ``p_col`` and ``weight_col``.
 
     Attributes:
         chrom_col: Column name for chromosome.
@@ -520,6 +520,14 @@ class GenomeWideConfig(_Config):
         custom_chrom_order: Chromosome order along the axis, overriding the
             plotter's species order. Each chromosome is listed once; a leading
             ``chr`` is ignored, so ``"1"`` and ``"chr1"`` are the same name.
+        weight_col: Column holding the number of tests each row stands for,
+            for a frame that is a sample of a larger scan. Set it to the
+            inverse of the row's inclusion probability: 1 for a row kept
+            outright, ``1 / f`` for a row kept at random with probability
+            ``f``. QQ panels and their lambda then describe the whole scan;
+            Manhattan panels draw each row once whatever its weight. Every
+            weight must be a positive, finite number. None treats each row
+            as one test.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -531,6 +539,9 @@ class GenomeWideConfig(_Config):
     p_col: str = Field(default=Canonical.P, description="P-value column name")
     custom_chrom_order: Optional[List[str]] = Field(
         default=None, description="Chromosome order overriding the species"
+    )
+    weight_col: Optional[str] = Field(
+        default=None, description="Column of tests each row stands for in a QQ"
     )
 
     @field_validator("custom_chrom_order")

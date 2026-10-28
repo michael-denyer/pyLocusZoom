@@ -213,7 +213,8 @@ class ManhattanPlotter:
 
         Args:
             df: DataFrame with p-values.
-            config: Column names; only ``config.p_col`` is read.
+            config: Column names; only ``config.p_col`` and
+                ``config.weight_col`` are read.
             show_confidence_band: If True, show 95% confidence band.
             show_lambda: If True, show genomic inflation factor in title.
             figsize: Figure size as (width, height).
@@ -228,7 +229,7 @@ class ManhattanPlotter:
             >>> fig = plotter.plot_qq(gwas_df, config=GenomeWideConfig(p_col="pvalue"))
         """
         df = to_pandas(df)
-        qq = prepare_qq_data(df, p_col=config.p_col)
+        qq = prepare_qq_data(df, p_col=config.p_col, weight_col=config.weight_col)
         panel = QQPanelSpec(
             qq_df=qq.frame,
             show_confidence_band=show_confidence_band,
@@ -358,7 +359,7 @@ class ManhattanPlotter:
         manhattan = prepare_genomewide_frames(
             [df], config, species=self.species, style=style
         )[0]
-        qq = prepare_qq_data(manhattan.frame)
+        qq = prepare_qq_data(manhattan.frame, weight_col=manhattan.weight_col)
         panels = [
             ManhattanPanelSpec(
                 manhattan,
@@ -454,7 +455,7 @@ class ManhattanPlotter:
         )
         panels = []
         for index, (spec, prepared) in enumerate(zip(specs, manhattans)):
-            qq = prepare_qq_data(prepared.frame)
+            qq = prepare_qq_data(prepared.frame, weight_col=prepared.weight_col)
             qq_spec = QQPanelSpec(
                 qq_df=qq.frame,
                 show_confidence_band=show_confidence_band,

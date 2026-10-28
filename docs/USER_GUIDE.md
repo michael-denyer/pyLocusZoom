@@ -673,6 +673,40 @@ fig.savefig("qq_plot.png", dpi=150)
 - Genomic inflation factor (λ) in title
 - Identity line for reference
 
+#### QQ from a sampled frame
+
+A scan of tens of millions of tests is often too large to plot, so the caller
+keeps every p-value below a cutoff and a random fraction of the rest. Plotted
+as is, the QQ treats the sample as the whole scan: the kept tail is expected
+far too low and the curve bends where the sampling starts. Name a weight
+column in `GenomeWideConfig(weight_col=...)` holding each row's inverse
+inclusion probability, 1 for a row kept outright and `1 / f` for a row kept
+at random with probability `f`:
+
+```python
+import numpy as np
+
+from pylocuszoom import GenomeWideConfig, ManhattanPlotter
+
+cutoff, fraction = 1e-4, 0.01
+rng = np.random.default_rng(0)
+tail = full_df["p_value"] < cutoff
+sampled = ~tail & (rng.uniform(size=len(full_df)) < fraction)
+sample = full_df[tail | sampled].copy()
+sample["weight"] = np.where(sample["p_value"] < cutoff, 1.0, 1 / fraction)
+
+fig = ManhattanPlotter(species="canine").plot_manhattan_qq(
+    sample, config=GenomeWideConfig(weight_col="weight")
+)
+```
+
+A row's expected rank is then the cumulative weight up to it in p order, out
+of the total weight, so a kept row lands at its rank in the full scan. The
+confidence band and λ (a weighted median) use the same weights. Unit weights
+give exactly the unweighted plot. `plot_qq`, `plot_manhattan_qq` and
+`plot_manhattan_qq_stacked` read the weights; Manhattan and Miami panels
+draw each row once.
+
 ### Stacked Manhattan Plots
 
 Compare multiple GWAS studies in vertically stacked Manhattan plots with shared chromosome axis.
@@ -1050,6 +1084,7 @@ their stacked and side-by-side variants, and `plot_miami`).
 | `pos_col` | str | `"pos"` | Position column name. |
 | `p_col` | str | `"p_value"` | P-value column name. |
 | `custom_chrom_order` | list[str] | None | Chromosome order along the axis, overriding the plotter species. Each chromosome is listed once; a leading `chr` is ignored, so listing both `1` and `chr1` raises a `ValidationError`. The canine order places PLINK's numeric sex codes beside their letters (X, 39, XY, 41, Y, 40, MT, 42); the feline order runs A1 to F2, then X, Y, MT. |
+| `weight_col` | str | None | Column holding the number of tests each row stands for, for a frame that samples a larger scan. QQ panels and their λ then describe the whole scan; Manhattan panels draw each row once. Every weight must be positive and finite. See [QQ from a sampled frame](#qq-from-a-sampled-frame). |
 
 #### GenomeWideStyle
 
