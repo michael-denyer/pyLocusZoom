@@ -85,6 +85,31 @@ jobs:
           HYPOTHESIS_PROFILE: ci
         run: uv run pytest
 
+  # The lock resolves pandas 3, but pyproject allows pandas 2 and downstream
+  # users still run it. --no-sync keeps uv run from restoring the locked pandas.
+  test-pandas2:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies with pandas 2.3.3
+        run: |
+          uv sync --frozen --extra dev --extra all --python 3.12
+          uv pip install pandas==2.3.3
+          uv run --no-sync python -c "import pandas; assert pandas.__version__ == '2.3.3', pandas.__version__"
+
+      - name: Run tests
+        env:
+          HYPOTHESIS_PROFILE: ci
+        run: uv run --no-sync pytest
+
   examples:
     runs-on: ubuntu-latest
     timeout-minutes: 10
