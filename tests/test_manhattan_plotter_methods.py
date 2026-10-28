@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from matplotlib.collections import PathCollection, PolyCollection
 
-from pylocuszoom import GenomeWideConfig
+from pylocuszoom import GenomeWideConfig, MiamiPlotter
 from pylocuszoom.backends import BUILTIN_BACKENDS
 from pylocuszoom.manhattan_plotter import ManhattanPlotter
 from tests.conftest import FIGURE_TYPES
@@ -650,6 +650,61 @@ class TestYlimCoversThresholdLines:
         assert top.get_ylim()[1] > line
         assert bottom.get_ylim()[0] > line
         assert bottom.get_ylim()[1] == 0
+
+
+_PLOTTER = ManhattanPlotter(species="human")
+_CATEGORIES = pd.DataFrame({"cat": ["a", "b", "c"], "p_value": [0.1, 0.01, 1e-9]})
+
+# Each figure family that draws Manhattan panels, and how many panels with a
+# threshold line it draws.
+_MANHATTAN_FIGURES = {
+    "manhattan": (lambda df: _PLOTTER.plot_manhattan(df), 1),
+    "categorical": (
+        lambda df: _PLOTTER.plot_manhattan(_CATEGORIES, category_col="cat"),
+        1,
+    ),
+    "stacked": (lambda df: _PLOTTER.plot_manhattan_stacked([df, df]), 2),
+    "manhattan_qq": (
+        lambda df: _PLOTTER.plot_manhattan_qq(df, suggestive_threshold=1e-5),
+        1,
+    ),
+    "manhattan_qq_stacked": (
+        lambda df: _PLOTTER.plot_manhattan_qq_stacked([df, df]),
+        2,
+    ),
+    "miami": (
+        lambda df: MiamiPlotter(species="human").plot_miami(df, df),
+        2,
+    ),
+}
+
+
+class TestThresholdLinesAbovePoints:
+    """A threshold line on a Manhattan panel is drawn over the points.
+
+    A dense panel fills the band around 5e-8 with points; a line drawn
+    beneath them is hidden.
+    """
+
+    @pytest.mark.parametrize("name", list(_MANHATTAN_FIGURES))
+    def test_every_threshold_line_is_above_every_point(self, name, manhattan_gwas_df):
+        draw, n_panels = _MANHATTAN_FIGURES[name]
+        fig = draw(manhattan_gwas_df)
+
+        checked = 0
+        for ax in fig.get_axes():
+            lines = [
+                line for line in ax.get_lines() if list(line.get_xdata()) == [0, 1]
+            ]
+            if not lines:
+                continue
+            points = [c for c in ax.collections if isinstance(c, PathCollection)]
+            assert points
+            assert min(line.get_zorder() for line in lines) > max(
+                c.get_zorder() for c in points
+            )
+            checked += 1
+        assert checked == n_panels
 
 
 class TestPlotManhattanQQOptions:

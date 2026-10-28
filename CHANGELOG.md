@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Threshold lines on matplotlib Manhattan panels are drawn over the points.** They were drawn beneath them, so on a dense panel, where points fill the band around 5e-8, the significance and suggestive lines were hidden. This covers `plot_manhattan` (genomic and categorical), `plot_manhattan_stacked`, the Manhattan panels of `plot_manhattan_qq` and `plot_manhattan_qq_stacked`, and both halves of `plot_miami`. Plotly and Bokeh already drew the lines above the points and are unchanged. Regional panels keep the line beneath their points. The six matplotlib Manhattan-family example images are regenerated.
+
 ## [5.3.0] - 2026-10-28
 
 ### Changed

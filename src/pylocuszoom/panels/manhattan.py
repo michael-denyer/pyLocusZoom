@@ -30,6 +30,11 @@ from ._shared import (
 
 T = TypeVar("T")
 
+MANHATTAN_POINT_ZORDER = 2
+# A dense panel fills the band around a threshold with points, so the lines
+# are drawn over them.
+THRESHOLD_LINE_ZORDER = MANHATTAN_POINT_ZORDER + 1
+
 
 def styled(override: Optional[T], default: T) -> T:
     """Return a style field the caller set, or the panel's own default."""
@@ -143,7 +148,7 @@ class ManhattanPanelSpec:
                 marker="o",
                 edgecolor=POINT_EDGE_COLOR,
                 linewidth=styled(style.point_edge_width, MANHATTAN_EDGE_WIDTH),
-                zorder=2,
+                zorder=MANHATTAN_POINT_ZORDER,
                 hover_data=hover_data,
                 alpha=style.point_alpha,
             )
@@ -151,7 +156,14 @@ class ManhattanPanelSpec:
         line_kwargs = dict(linestyle=style.line_style, linewidth=style.line_width)
         lines = self.threshold_lines()
         for threshold, color in lines:
-            add_significance_line(backend, ax, threshold, color=color, **line_kwargs)
+            add_significance_line(
+                backend,
+                ax,
+                threshold,
+                color=color,
+                zorder=THRESHOLD_LINE_ZORDER,
+                **line_kwargs,
+            )
         if style.show_threshold_legend and lines:
             # The headroom is at the bottom of an inverted panel.
             backend.add_legend(

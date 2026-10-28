@@ -30,6 +30,7 @@ def add_significance_line(
     alpha: float = 1.0,
     linestyle: str = "--",
     linewidth: float = 1,
+    zorder: int = 1,
 ) -> None:
     """Draw the significance line at ``-log10(threshold)``.
 
@@ -43,12 +44,18 @@ def add_significance_line(
         alpha: Opacity of the line.
         linestyle: Matplotlib linestyle of the line.
         linewidth: Width of the line.
+        zorder: Drawing order. The default puts the line beneath points
+            drawn at the scatter default of 2.
     """
     if threshold is None:
         return
     value = -np.log10(threshold)
     style = dict(
-        color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=1
+        color=color,
+        linestyle=linestyle,
+        linewidth=linewidth,
+        alpha=alpha,
+        zorder=zorder,
     )
     if axis == "x":
         backend.axvline(ax, x=value, **style)

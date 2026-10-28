@@ -802,6 +802,9 @@ suggestive line has two entries side by side, the larger p-value first. A
 panel that draws no line (`significance_threshold=None`) has no key, and a QQ
 panel never has one.
 
+The threshold lines are drawn over the points, so a dense panel does not hide
+them.
+
 The key is a frameless row in the right corner of the panel's headroom, the
 space `y_headroom` leaves beyond the highest point: the top right of an
 upright panel and the bottom right of the lower Miami panel. All three backends
