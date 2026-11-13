@@ -39,6 +39,9 @@ class RecordingBackend:
     def finalize_layout(self, *args, **kwargs):
         self._record("finalize_layout", *args, **kwargs)
 
+    def set_footer(self, *args, **kwargs):
+        self._record("set_footer", *args, **kwargs)
+
     def scatter(self, *args, **kwargs):
         return self._record("scatter", *args, **kwargs)
 
