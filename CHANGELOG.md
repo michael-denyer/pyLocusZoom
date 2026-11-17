@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.4.1] - 2026-11-17
+
 ### Fixed
 
 - Colocalization plots match the chromosome and position when both inputs supply chromosome columns, and reject a one-sided chromosome column that spans several chromosomes. Reverse-strand recombination liftover keeps each rate with its interval.
