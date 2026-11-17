@@ -1,6 +1,8 @@
 """QQ plot data preparation and statistics."""
 
 from dataclasses import dataclass
+from itertools import chain
+from math import fsum
 from typing import Optional
 
 import numpy as np
@@ -38,7 +40,7 @@ def calculate_lambda_gc(
         return np.nan
 
     # Convert to chi-squared statistics (1 df)
-    chi2 = stats.chi2.ppf(1 - p_clean, df=1)
+    chi2 = stats.chi2.isf(p_clean, df=1)
 
     # Expected median for chi-squared with 1 df
     expected_median = stats.chi2.ppf(0.5, df=1)
@@ -54,11 +56,29 @@ def calculate_lambda_gc(
 
 def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
     """Return the weighted median, which is ``np.median`` for equal weights."""
+    if np.all(weights == weights[0]):
+        return np.median(values)
     order = np.argsort(values)
-    values, cumulative = values[order], np.cumsum(weights[order])
-    half = cumulative[-1] / 2
-    index = int(np.searchsorted(cumulative, half))
-    if np.isclose(cumulative[index], half) and index + 1 < len(values):
+    values, weights = values[order], weights[order].astype(np.float64, copy=False)
+    cumulative = np.cumsum(weights, dtype=np.longdouble)
+    index = int(np.searchsorted(cumulative, cumulative[-1] / 2))
+
+    # A rounded prefix sum can land on either side of the midpoint. Sum the
+    # signed difference directly so a tie is distinct from a strict majority.
+    def balance(i: int) -> float:
+        return fsum(chain(weights[: i + 1], -weights[i + 1 :]))
+
+    difference = balance(index)
+    while difference < 0:
+        index += 1
+        difference = balance(index)
+    while index and difference > 0:
+        previous = balance(index - 1)
+        if previous < 0:
+            break
+        index -= 1
+        difference = previous
+    if difference == 0 and index + 1 < len(values):
         return (values[index] + values[index + 1]) / 2
     return values[index]
 
@@ -163,6 +183,7 @@ def prepare_qq_data(
         df,
         p_col,
         "qq",
+        out_col=None,
         on_empty="No valid p-values found (must be > 0 and <= 1)",
     )
     p_valid = pd.to_numeric(prepared[p_col]).to_numpy()

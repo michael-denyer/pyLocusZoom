@@ -17,13 +17,28 @@ def prepare_ld_matrix(
     Raises ValidationError when the matrix has no SNPs or the shape and ids
     do not agree.
     """
-    data = matrix.to_numpy() if isinstance(matrix, pd.DataFrame) else np.asarray(matrix)
+    data = np.asarray(matrix)
     if data.ndim != 2 or data.shape[0] != data.shape[1]:
         raise ValidationError(f"ld_matrix must be square, got shape {data.shape}")
     if data.shape[0] == 0:
         raise ValidationError(
             f"ld_matrix must contain at least one SNP, got shape {data.shape}"
         )
+    if isinstance(matrix, pd.DataFrame):
+        # Compare as strings: read_csv(index_col=0) parses numeric ids in the
+        # index as int but keeps the header row's labels as str.
+        rows, cols = matrix.index.astype(str), matrix.columns.astype(str)
+        if not rows.is_unique or not cols.is_unique:
+            raise ValidationError("LD matrix SNP labels must be unique on each axis")
+        if not rows.equals(cols):
+            order = cols.get_indexer(rows)
+            if (order >= 0).all():
+                data = data[:, order]
+            elif not (
+                matrix.index.equals(pd.RangeIndex(len(rows)))
+                or matrix.columns.equals(pd.RangeIndex(len(cols)))
+            ):
+                raise ValidationError("LD matrix row and column SNP IDs must match")
     if snp_ids is None:
         snp_ids = (
             list(matrix.index.astype(str))

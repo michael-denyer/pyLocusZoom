@@ -274,3 +274,13 @@ rs3"""
             parse_pairwise_ld_output(
                 str(tmp_path / "p.ld"), str(tmp_path / "p.snplist")
             )
+
+
+def test_plink_preserves_digit_only_variant_ids(tmp_path):
+    ld_file = tmp_path / "leading_zero.ld"
+    ld_file.write_text(
+        "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2\n"
+        "1 100 001 1 100 001 1\n1 100 001 1 101 002 0.4\n"
+    )
+    result = parse_ld_output(str(ld_file), "001")
+    assert result.set_index("SNP")["R2"].to_dict() == {"001": 1, "002": 0.4}

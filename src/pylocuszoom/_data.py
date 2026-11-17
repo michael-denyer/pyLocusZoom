@@ -92,7 +92,7 @@ def prepare_pvalue_data(
     p_col: str,
     family: PValueFamily,
     *,
-    out_col: str = "neglog10p",
+    out_col: Optional[str] = "neglog10p",
     on_empty: Optional[str] = None,
     error_class: Type[ValidationError] = ValidationError,
 ) -> pd.DataFrame:
@@ -106,7 +106,7 @@ def prepare_pvalue_data(
         df: Frame holding the p-value column.
         p_col: Name of the p-value column.
         family: The plot family, which selects the policy.
-        out_col: Name of the transformed column to write.
+        out_col: Name of the transformed column to write, or None to skip it.
         on_empty: Message to raise when no row survives filtering. None
             returns the empty frame instead, which the regional path relies on.
         error_class: Exception raised when the policy rejects a p-value.
@@ -152,7 +152,10 @@ def prepare_pvalue_data(
     clipped = int((valid_values < P_VALUE_FLOOR).sum())
     if clipped:
         logger.debug("Clipping {} p-values below {}", clipped, P_VALUE_FLOOR)
-    result[out_col] = -np.log10(valid_values.clip(lower=P_VALUE_FLOOR))
+    if out_col is not None:
+        result[out_col] = -np.log10(
+            valid_values.astype("float64").clip(lower=P_VALUE_FLOOR)
+        )
     if dropped:
         logger.debug("P-value filtering removed {} of {} rows", dropped, initial_count)
     if result.empty and on_empty is not None:

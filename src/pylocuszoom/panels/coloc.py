@@ -23,6 +23,7 @@ from ..colors import (
 from ..config import ColocConfig
 from ..exceptions import ValidationError
 from ..schemas import Canonical, coloc_plot_spec
+from ..utils import normalize_chrom_series
 from ..validation import check, resolve_column
 from ._shared import add_significance_line
 
@@ -102,7 +103,27 @@ def _merge_and_transform(
         p_col=config.eqtl_p_col,
         effect_col=eqtl_effect,
     )
-    merged = pd.merge(gwas, eqtl, on="pos", how="inner")
+    keys = ["pos"]
+    chrom = config.chrom_col
+    carriers = [df for df in (gwas_df, eqtl_df) if chrom is not None and chrom in df]
+    if chrom == Canonical.CHROM and len(carriers) == 1:
+        # The default column on one side only: the other frame is scoped to
+        # one chromosome, so matching on position is safe only if this is too.
+        if carriers[0][chrom].nunique(dropna=False) > 1:
+            raise ValidationError(
+                f"Only one coloc input has a chromosome column {chrom!r} and it "
+                "spans several chromosomes; add the column to the other input "
+                "or filter both to one chromosome"
+            )
+    elif chrom is not None and (chrom != Canonical.CHROM or carriers):
+        for source, projected in ((gwas_df, gwas), (eqtl_df, eqtl)):
+            if chrom not in source or source[chrom].isna().any():
+                raise ValidationError(
+                    f"Both coloc inputs need a non-null chromosome column {chrom!r}"
+                )
+            projected["chr"] = normalize_chrom_series(source[chrom])
+        keys.append("chr")
+    merged = pd.merge(gwas, eqtl, on=keys, how="inner")
     if merged.empty:
         raise ValidationError(
             "No overlapping positions between GWAS and eQTL DataFrames"

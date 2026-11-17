@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Colocalization plots match the chromosome and position when both inputs supply chromosome columns, and reject a one-sided chromosome column that spans several chromosomes. Reverse-strand recombination liftover keeps each rate with its interval.
+- PLINK D′ calculations read the all-pairs table. Empty SNP selections raise before PLINK starts, and lead-SNP LD preserves identifiers with leading zeros. LD heatmaps align labelled matrix columns with their rows, including numeric identifiers read from CSV.
+- QQ plots preserve custom p-value and weight columns, distinguish a strict weighted majority from a median tie, and compute finite inflation factors for small positive p-values. Regional and genome-wide plots clip zero p-values in narrow numeric columns before taking logarithms.
+
 ## [5.4.0] - 2026-10-28
 
 ### Added

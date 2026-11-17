@@ -176,7 +176,9 @@ def recombination_steps(
 
     from ..recombination import map_rows_covering
 
-    rows = map_rows_covering(recomb_df[["pos", "rate"]].dropna(), start, end)
+    rows = map_rows_covering(
+        recomb_df[["pos", "rate"]].dropna(subset=["pos"]), start, end
+    )
     if len(rows) < 2:
         return pd.DataFrame({"pos": [], "rate": []})
     edges = np.clip(rows["pos"].to_numpy(), start, end)
@@ -204,7 +206,7 @@ def render_recombination_overlay(
     identical across backends.
     """
     region = recombination_steps(recomb_df, start, end)
-    if region.empty:
+    if region["rate"].isna().all():
         return
     secondary = backend.create_twin_axis(ax)
     backend.fill_between(
