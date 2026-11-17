@@ -412,6 +412,18 @@ def test_heatmap_aligns_permuted_dataframe_columns(small_ld_matrix, numeric_labe
     np.testing.assert_allclose(actual, expected, equal_nan=True)
 
 
+def test_heatmap_accepts_numeric_ids_read_from_csv(small_ld_matrix, tmp_path):
+    # read_csv parses a numeric index as int but keeps header labels as str.
+    small_ld_matrix.index = small_ld_matrix.columns = [101, 202, 303]
+    path = tmp_path / "ld.csv"
+    small_ld_matrix.iloc[:, ::-1].to_csv(path)
+    from_csv = pd.read_csv(path, index_col=0)
+    plotter = LDHeatmapPlotter()
+    expected = drawn_cells(plotter.plot_ld_heatmap(small_ld_matrix))
+    actual = drawn_cells(plotter.plot_ld_heatmap(from_csv))
+    np.testing.assert_allclose(actual, expected, equal_nan=True)
+
+
 def test_heatmap_rejects_mismatched_snp_labels(small_ld_matrix):
     matrix = small_ld_matrix.rename(columns={"rs1": "unknown"})
     with pytest.raises(ValidationError):

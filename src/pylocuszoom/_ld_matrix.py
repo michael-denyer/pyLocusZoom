@@ -25,15 +25,18 @@ def prepare_ld_matrix(
             f"ld_matrix must contain at least one SNP, got shape {data.shape}"
         )
     if isinstance(matrix, pd.DataFrame):
-        rows, cols = matrix.index, matrix.columns
+        # Compare as strings: read_csv(index_col=0) parses numeric ids in the
+        # index as int but keeps the header row's labels as str.
+        rows, cols = matrix.index.astype(str), matrix.columns.astype(str)
         if not rows.is_unique or not cols.is_unique:
             raise ValidationError("LD matrix SNP labels must be unique on each axis")
         if not rows.equals(cols):
-            if rows.isin(cols).all():
-                data = matrix.loc[:, rows].to_numpy()
+            order = cols.get_indexer(rows)
+            if (order >= 0).all():
+                data = data[:, order]
             elif not (
-                rows.equals(pd.RangeIndex(len(rows)))
-                or cols.equals(pd.RangeIndex(len(cols)))
+                matrix.index.equals(pd.RangeIndex(len(rows)))
+                or matrix.columns.equals(pd.RangeIndex(len(cols)))
             ):
                 raise ValidationError("LD matrix row and column SNP IDs must match")
     if snp_ids is None:

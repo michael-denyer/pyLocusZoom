@@ -105,9 +105,17 @@ def _merge_and_transform(
     )
     keys = ["pos"]
     chrom = config.chrom_col
-    if chrom is not None and (
-        chrom != Canonical.CHROM or chrom in gwas_df or chrom in eqtl_df
-    ):
+    carriers = [df for df in (gwas_df, eqtl_df) if chrom is not None and chrom in df]
+    if chrom == Canonical.CHROM and len(carriers) == 1:
+        # The default column on one side only: the other frame is scoped to
+        # one chromosome, so matching on position is safe only if this is too.
+        if carriers[0][chrom].nunique(dropna=False) > 1:
+            raise ValidationError(
+                f"Only one coloc input has a chromosome column {chrom!r} and it "
+                "spans several chromosomes; add the column to the other input "
+                "or filter both to one chromosome"
+            )
+    elif chrom is not None and (chrom != Canonical.CHROM or carriers):
         for source, projected in ((gwas_df, gwas), (eqtl_df, eqtl)):
             if chrom not in source or source[chrom].isna().any():
                 raise ValidationError(

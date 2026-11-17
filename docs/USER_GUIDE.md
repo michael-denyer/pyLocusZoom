@@ -1238,7 +1238,7 @@ fields.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `chrom_col` | str or None | `"chr"` | Shared chromosome column. When either input carries it, both must provide non-null chromosomes. Two frames without the default column are treated as scoped to the same chromosome. Pass None for position-only matching. |
+| `chrom_col` | str or None | `"chr"` | Shared chromosome column. When both inputs carry it, variants match on chromosome and position, and neither may hold null chromosomes. When only one input carries the default column, it must hold a single chromosome and variants match on position. A custom column must be present in both inputs. Pass None for position-only matching. |
 | `gwas_p_col` | str | `"p_gwas"` | GWAS p-value column. |
 | `eqtl_p_col` | str | `"p_eqtl"` | eQTL p-value column. |
 | `pos_col` | str | `"pos"` | Position column, shared by both frames. |
