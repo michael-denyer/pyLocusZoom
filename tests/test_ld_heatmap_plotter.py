@@ -397,3 +397,22 @@ class TestLDHeatmapHighlighting:
         # Should have multiple patches for all highlights
         patches = [p for p in main_ax.patches if hasattr(p, "get_edgecolor")]
         assert len(patches) > 0
+
+
+@pytest.mark.parametrize("numeric_labels", [False, True])
+def test_heatmap_aligns_permuted_dataframe_columns(small_ld_matrix, numeric_labels):
+    if numeric_labels:
+        small_ld_matrix.index = small_ld_matrix.columns = pd.RangeIndex(
+            len(small_ld_matrix)
+        )
+    plotter = LDHeatmapPlotter()
+    expected = drawn_cells(plotter.plot_ld_heatmap(small_ld_matrix))
+    reordered = small_ld_matrix.iloc[:, ::-1]
+    actual = drawn_cells(plotter.plot_ld_heatmap(reordered))
+    np.testing.assert_allclose(actual, expected, equal_nan=True)
+
+
+def test_heatmap_rejects_mismatched_snp_labels(small_ld_matrix):
+    matrix = small_ld_matrix.rename(columns={"rs1": "unknown"})
+    with pytest.raises(ValidationError):
+        LDHeatmapPlotter().plot_ld_heatmap(matrix)

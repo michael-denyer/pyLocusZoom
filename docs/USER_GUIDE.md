@@ -1238,6 +1238,7 @@ fields.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `chrom_col` | str or None | `"chr"` | Shared chromosome column. When either input carries it, both must provide non-null chromosomes. Two frames without the default column are treated as scoped to the same chromosome. Pass None for position-only matching. |
 | `gwas_p_col` | str | `"p_gwas"` | GWAS p-value column. |
 | `eqtl_p_col` | str | `"p_eqtl"` | eQTL p-value column. |
 | `pos_col` | str | `"pos"` | Position column, shared by both frames. |

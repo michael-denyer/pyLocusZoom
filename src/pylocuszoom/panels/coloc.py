@@ -23,6 +23,7 @@ from ..colors import (
 from ..config import ColocConfig
 from ..exceptions import ValidationError
 from ..schemas import Canonical, coloc_plot_spec
+from ..utils import normalize_chrom_series
 from ..validation import check, resolve_column
 from ._shared import add_significance_line
 
@@ -102,7 +103,19 @@ def _merge_and_transform(
         p_col=config.eqtl_p_col,
         effect_col=eqtl_effect,
     )
-    merged = pd.merge(gwas, eqtl, on="pos", how="inner")
+    keys = ["pos"]
+    chrom = config.chrom_col
+    if chrom is not None and (
+        chrom != Canonical.CHROM or chrom in gwas_df or chrom in eqtl_df
+    ):
+        for source, projected in ((gwas_df, gwas), (eqtl_df, eqtl)):
+            if chrom not in source or source[chrom].isna().any():
+                raise ValidationError(
+                    f"Both coloc inputs need a non-null chromosome column {chrom!r}"
+                )
+            projected["chr"] = normalize_chrom_series(source[chrom])
+        keys.append("chr")
+    merged = pd.merge(gwas, eqtl, on=keys, how="inner")
     if merged.empty:
         raise ValidationError(
             "No overlapping positions between GWAS and eQTL DataFrames"

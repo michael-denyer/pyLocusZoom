@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal, Optional, Union
 
+import numpy as np
 import pandas as pd
 
 from .exceptions import (
@@ -35,7 +36,7 @@ LDMetric = Literal["r2", "dprime"]
 
 _METRIC_FLAGS: dict[str, tuple[str, ...]] = {
     "r2": ("--r2", "square"),
-    "dprime": ("--r", "dprime", "square"),
+    "dprime": ("--r", "inter-chr", "dprime", "--ld-window-r2", "0"),
 }
 
 
@@ -85,7 +86,7 @@ def build_pairwise_ld_command(
     """Build PLINK command for pairwise LD matrix computation.
 
     Generates command for computing an N x N LD matrix using PLINK's
-    --r2 square (or --r dprime square) command.
+    --r2 square matrix or its all-pairs D-prime table.
 
     Args:
         plink_path: Path to PLINK executable.
@@ -311,17 +312,17 @@ def build_ld_command(
 
 
 def parse_pairwise_ld_output(
-    ld_file: str, snplist_file: str
+    ld_file: str, snplist_file: str, *, metric: LDMetric = "r2"
 ) -> tuple[pd.DataFrame, list[str]]:
     """Parse PLINK pairwise LD matrix output files.
 
-    PLINK --r2 square outputs:
-    - .ld file: N x N matrix of R2/D' values (whitespace-separated, no headers)
-    - .snplist file: SNP IDs in order (one per line)
+    Read the square R² matrix or assemble a symmetric D′ matrix from the
+    all-pairs report. The snplist defines the row and column order.
 
     Args:
-        ld_file: Path to .ld output file (square matrix).
+        ld_file: Path to the .ld matrix or all-pairs table.
         snplist_file: Path to .snplist output file (SNP IDs).
+        metric: Matrix statistic requested from PLINK.
 
     Returns:
         Tuple of (DataFrame with R2/D' values, list of SNP IDs).
@@ -331,7 +332,9 @@ def parse_pairwise_ld_output(
         PlinkError: If output files are missing after a successful PLINK run.
         LDUnavailableError: If the snplist names a variant id more than once.
     """
-    if not os.path.exists(ld_file) or not os.path.exists(snplist_file):
+    if not os.path.exists(snplist_file) or (
+        metric == "r2" and not os.path.exists(ld_file)
+    ):
         missing = [f for f in (ld_file, snplist_file) if not os.path.exists(f)]
         raise PlinkError(
             f"PLINK reported success but output files missing: {missing}. "
@@ -347,6 +350,28 @@ def parse_pairwise_ld_output(
             f"No SNPs were retained after filtering."
         )
     _reject_duplicate_ids(pd.Series(snp_ids), snplist_file)
+
+    if metric == "dprime":
+        if len(snp_ids) == 1:
+            return pd.DataFrame([[1.0]], index=snp_ids, columns=snp_ids), snp_ids
+        if not os.path.exists(ld_file):
+            raise PlinkError(f"PLINK D-prime output missing: {ld_file}")
+        pairs = pd.read_csv(
+            ld_file,
+            sep=r"\s+",
+            dtype={"SNP_A": str, "SNP_B": str},
+            keep_default_na=False,
+            na_values={"DP": ["nan", "NA"]},
+        )
+        ids = pd.Index(snp_ids)
+        i = ids.get_indexer(pairs["SNP_A"])
+        j = ids.get_indexer(pairs["SNP_B"])
+        if (i < 0).any() or (j < 0).any():
+            raise PlinkError("D-prime table names a SNP absent from the snplist")
+        values = np.full((len(ids), len(ids)), np.nan)
+        np.fill_diagonal(values, 1.0)
+        values[i, j] = values[j, i] = pairs["DP"].to_numpy(dtype=float)
+        return pd.DataFrame(values, index=ids, columns=ids), snp_ids
 
     # Read LD matrix (whitespace-separated, no headers)
     # Values can be numbers or 'nan'
@@ -386,7 +411,13 @@ def parse_ld_output(ld_file: str, lead_snp: str) -> pd.DataFrame:
         )
 
     # PLINK outputs whitespace-separated: CHR_A BP_A SNP_A CHR_B BP_B SNP_B R2
-    ld_df = pd.read_csv(ld_file, sep=r"\s+")
+    ld_df = pd.read_csv(
+        ld_file,
+        sep=r"\s+",
+        dtype={"SNP_B": str},
+        keep_default_na=False,
+        na_values={"R2": ["nan", "NA"]},
+    )
 
     if ld_df.empty:
         # PLINK exited 0 but produced no LD pairs. Most common causes: lead
@@ -520,8 +551,7 @@ def calculate_pairwise_ld(
 ) -> tuple[pd.DataFrame, list[str]]:
     """Calculate pairwise LD matrix for a set of variants.
 
-    Runs PLINK --r2 square to compute an N x N LD matrix, suitable for
-    LD heatmap visualization.
+    Read PLINK’s square R² output or assemble D′ from its all-pairs table.
 
     Args:
         bfile_path: Path to PLINK binary fileset (.bed/.bim/.fam prefix).
@@ -558,6 +588,8 @@ def calculate_pairwise_ld(
         >>> matrix.loc["rs1", "rs2"]  # LD between rs1 and rs2
     """
     _metric_flags(metric)
+    if snp_list == []:
+        raise ValidationError("snp_list must contain at least one SNP")
     plink_path = _resolve_plink(plink_path)
     bfile_path = str(validate_plink_files(bfile_path))
 
@@ -590,7 +622,7 @@ def calculate_pairwise_ld(
         )
 
         matrix, found_snps = parse_pairwise_ld_output(
-            f"{output_prefix}.ld", f"{output_prefix}.snplist"
+            f"{output_prefix}.ld", f"{output_prefix}.snplist", metric=metric
         )
 
         # Validate all requested SNPs were found

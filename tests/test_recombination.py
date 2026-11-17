@@ -362,3 +362,40 @@ def test_unreadable_map_raises_a_typed_error(tmp_path, content):
 
     with pytest.raises(DataDownloadError, match="chr1_recomb.tsv"):
         load_recombination_map(1, species=None, data_dir=tmp_path)
+
+
+def test_reverse_liftover_keeps_rate_with_its_interval(tmp_path):
+    from pylocuszoom.backends.composition import recombination_steps
+
+    class ReverseLifter:
+        def convert_coordinate(self, chrom, pos):
+            return [(chrom, 398 - pos, "-", 1)]
+
+    (tmp_path / "chr1_recomb.tsv").write_text("pos\trate\n100\t2\n200\t7\n300\t0\n")
+    frame = get_recombination_rate_for_region(
+        1, 125, 275, data_dir=str(tmp_path), lifter=ReverseLifter()
+    )
+    steps = recombination_steps(frame, 125, 275)
+    assert steps["pos"].tolist() == [125, 200, 200, 275]
+    assert steps["rate"].tolist() == [7, 7, 2, 2]
+
+
+def test_lifted_rate_does_not_bridge_an_inversion_boundary(tmp_path):
+    from pylocuszoom.backends.composition import recombination_steps
+
+    class InversionLifter:
+        def convert_coordinate(self, chrom, pos):
+            if pos < 299:
+                return [(chrom, pos, "+", 1)]
+            return [(chrom, 698 - pos, "-", 1)]
+
+    (tmp_path / "chr1_recomb.tsv").write_text(
+        "pos\trate\n100\t1\n200\t3\n300\t7\n400\t9\n"
+    )
+    frame = get_recombination_rate_for_region(
+        1, 100, 400, data_dir=str(tmp_path), lifter=InversionLifter()
+    )
+    steps = recombination_steps(frame, 100, 400)
+    assert steps["rate"].iloc[:2].tolist() == [1, 1]
+    assert steps["rate"].iloc[2:4].isna().all()
+    assert steps["rate"].iloc[4:].tolist() == [7, 7]

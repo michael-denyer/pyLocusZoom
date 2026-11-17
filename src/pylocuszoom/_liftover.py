@@ -186,16 +186,16 @@ class _Outcome(Enum):
 
 def _lift_one(
     lifter: CoordinateLifter, chrom: str, pos: int
-) -> Tuple[_Outcome, Optional[int]]:
+) -> Tuple[_Outcome, Optional[int], Optional[str]]:
     """Lift one 1-based position, keeping only a single same-chromosome hit."""
     hits = lifter.convert_coordinate(chrom, int(pos) - 1)
     if not hits:
-        return _Outcome.UNMAPPED, None
+        return _Outcome.UNMAPPED, None, None
     if len(hits) > 1:
-        return _Outcome.MULTI_MAPPED, None
+        return _Outcome.MULTI_MAPPED, None, None
     if hits[0][0] != chrom:
-        return _Outcome.CROSS_CHROM, None
-    return _Outcome.LIFTED, int(hits[0][1]) + 1
+        return _Outcome.CROSS_CHROM, None, None
+    return _Outcome.LIFTED, int(hits[0][1]) + 1, hits[0][2]
 
 
 @dataclass(frozen=True, eq=False)
@@ -217,6 +217,7 @@ class RegionLiftResult:
         is_collinear: False when the lifted SNPs change order between builds,
             meaning the region is locally rearranged and a left-to-right plot
             misrepresents it.
+        reverse_strand: Whether each retained row mapped to the reverse strand, in row order.
         chain_has_chrom: False when the chain does not know the region's
             chromosome at all, so nothing could lift; usually a naming
             mismatch between the frame and the chain.
@@ -232,6 +233,7 @@ class RegionLiftResult:
     n_cross_chrom: int
     is_collinear: bool
     chain_has_chrom: bool = True
+    reverse_strand: tuple[bool, ...] = ()
 
     @property
     def n_lifted(self) -> int:
@@ -288,15 +290,15 @@ def liftover_region(
     """
     name = ucsc_chrom(chrom, resolve_build(build))
     outcomes = [_lift_one(lifter, name, pos) for pos in region_df[pos_col]]
-    keep = [outcome is _Outcome.LIFTED for outcome, _ in outcomes]
+    keep = [outcome is _Outcome.LIFTED for outcome, _, _ in outcomes]
     lifted = region_df[keep].copy()
     lifted[pos_col] = pd.Series(
-        [new_pos for _, new_pos in outcomes if new_pos is not None],
+        [new_pos for _, new_pos, _ in outcomes if new_pos is not None],
         index=lifted.index,
         dtype="int64",
     )
 
-    counts = Counter(outcome for outcome, _ in outcomes)
+    counts = Counter(outcome for outcome, _, _ in outcomes)
 
     old_kept = region_df.loc[keep, pos_col].to_numpy()
     new_kept = lifted[pos_col].to_numpy()
@@ -315,6 +317,9 @@ def liftover_region(
         n_multimapped=counts[_Outcome.MULTI_MAPPED],
         n_cross_chrom=counts[_Outcome.CROSS_CHROM],
         is_collinear=is_collinear,
+        reverse_strand=tuple(
+            strand == "-" for _, pos, strand in outcomes if pos is not None
+        ),
         chain_has_chrom=lifter.convert_coordinate(name, 0) is not None,
     )
 

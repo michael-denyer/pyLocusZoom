@@ -518,6 +518,7 @@ def get_recombination_rate_for_region(
     df = load_recombination_map(chrom, species=record, data_dir=map_dir)
     if lifter is not None:
         logger.debug(f"Lifting over recombination map for chr{chrom}")
+        df = df.sort_values("pos", kind="stable").reset_index(drop=True)
         lift = liftover_region(
             df, chrom=chrom, lifter=lifter, pos_col="pos", build=lift_build
         )
@@ -527,6 +528,24 @@ def get_recombination_rate_for_region(
                 f"chr{chrom} recombination map: {describe_drops(lift, chrom)}"
             )
         df = lift.lifted_df
+        if any(lift.reverse_strand):
+            # In target order a reversed interval takes the source rate of
+            # its right endpoint. Break the line at strand changes and gaps.
+            df = df.assign(reverse=lift.reverse_strand).sort_values(
+                "pos", kind="stable"
+            )
+            source_row = df.index.to_series()
+            step = source_row.shift(-1) - source_row
+            forward = (
+                ~df["reverse"] & ~df["reverse"].shift(-1, fill_value=False) & step.eq(1)
+            )
+            reverse = (
+                df["reverse"] & df["reverse"].shift(-1, fill_value=False) & step.eq(-1)
+            )
+            rates = df["rate"]
+            df["rate"] = rates.where(forward | step.isna()).mask(
+                reverse, rates.shift(-1)
+            )
 
     return map_rows_covering(df, start, end)[["pos", "rate"]].reset_index(drop=True)
 

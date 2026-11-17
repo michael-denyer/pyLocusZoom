@@ -208,6 +208,47 @@ class TestCalculatePairwiseLd:
         (bfile.parent / f"{bfile.name}.fam").touch()
         return str(bfile)
 
+    def test_empty_selection_rejected_before_plink(self, mock_plink_files):
+        with patch("subprocess.run") as run, pytest.raises(ValidationError):
+            calculate_pairwise_ld(
+                mock_plink_files, snp_list=[], plink_path="/usr/bin/plink", species=None
+            )
+        run.assert_not_called()
+
+    def test_dprime_matrix_from_plink_table(self, tmp_path, mock_plink_files):
+        (tmp_path / "pairwise_ld.ld").write_text(
+            "CHR_A BP_A SNP_A CHR_B BP_B SNP_B R DP\n"
+            "1 10 001 1 20 002 -0.103507 0.112134\n"
+        )
+        (tmp_path / "pairwise_ld.snplist").write_text("002\n001\n")
+        with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)):
+            matrix, ids = calculate_pairwise_ld(
+                mock_plink_files,
+                working_dir=str(tmp_path),
+                metric="dprime",
+                plink_path="/usr/bin/plink",
+                species=None,
+            )
+        assert ids == ["002", "001"]
+        assert list(matrix.index) == list(matrix.columns) == ids
+        assert matrix.to_numpy().tolist() == [[1, 0.112134], [0.112134, 1]]
+
+    def test_singleton_dprime_from_snplist_without_pairs(
+        self, tmp_path, mock_plink_files
+    ):
+        # PLINK 1.9 writes only the snplist when there are no pairs to compute.
+        (tmp_path / "pairwise_ld.snplist").write_text("001\n")
+        with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)):
+            matrix, ids = calculate_pairwise_ld(
+                mock_plink_files,
+                working_dir=str(tmp_path),
+                metric="dprime",
+                plink_path="/usr/bin/plink",
+                species=None,
+            )
+        assert ids == ["001"]
+        assert matrix.at["001", "001"] == 1.0
+
     def test_writes_snp_list_file(self, tmp_path, mock_plink_files):
         """Should write SNP list to file when snp_list provided."""
         with patch("pylocuszoom.ld.find_plink", return_value="/usr/bin/plink1.9"):

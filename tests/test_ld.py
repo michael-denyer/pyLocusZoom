@@ -148,7 +148,9 @@ class TestBuildPairwiseLdCommand:
         # For D', PLINK uses --r (not --r2) with dprime modifier
         assert "--r" in cmd
         assert "dprime" in cmd
-        assert "square" in cmd
+        assert "square" not in cmd
+        assert "inter-chr" in cmd
+        assert float(cmd[cmd.index("--ld-window-r2") + 1]) == 0
 
     @pytest.mark.parametrize("metric", ["Dprime", "r", "R2", ""])
     def test_unknown_metric_is_rejected(self, metric):

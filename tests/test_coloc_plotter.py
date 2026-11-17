@@ -945,3 +945,21 @@ class TestColocColumnOwnership:
             ColocPlotter().plot_coloc(
                 gwas, eqtl, config=ColocConfig(rs_col=None, **options)
             )
+
+
+def test_coloc_matches_chromosome_and_position(coloc_gwas_df, eqtl_data):
+    gwas = coloc_gwas_df.assign(chr=1)
+    eqtl = eqtl_data.assign(chr=["chr2", "chr1", "chr2", "chr2", "chr2"])
+    ax = ColocPlotter().plot_coloc(gwas, eqtl).axes[0]
+    np.testing.assert_allclose(ax.collections[0].get_offsets(), [[6, 5]])
+
+    with pytest.raises(ValidationError, match="overlap"):
+        ColocPlotter().plot_coloc(gwas, eqtl.assign(chr="chr2"))
+
+
+@pytest.mark.parametrize("scoped", ["gwas", "eqtl"])
+def test_coloc_rejects_one_sided_chromosome(coloc_gwas_df, eqtl_data, scoped):
+    gwas = coloc_gwas_df.assign(chr=1) if scoped == "gwas" else coloc_gwas_df
+    eqtl = eqtl_data.assign(chr=1) if scoped == "eqtl" else eqtl_data
+    with pytest.raises(ValidationError):
+        ColocPlotter().plot_coloc(gwas, eqtl)

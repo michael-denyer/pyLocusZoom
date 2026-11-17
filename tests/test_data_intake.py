@@ -555,3 +555,10 @@ class TestPValuePolicyTable:
                 call()
         else:
             assert call() == (2 if valid else 1)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "Float32", "Int64"])
+def test_zero_p_values_clip_in_narrow_dtypes(dtype):
+    frame = pd.DataFrame({"p": pd.Series([0, 1], dtype=dtype)})
+    prepared = prepare_pvalue_data(frame, "p", "genome-wide")
+    np.testing.assert_allclose(prepared["neglog10p"], [300, 0])

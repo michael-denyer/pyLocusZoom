@@ -705,6 +705,7 @@ class ColocConfig(_Config):
     Attributes:
         gwas_p_col: Column name for GWAS p-values.
         eqtl_p_col: Column name for eQTL p-values.
+        chrom_col: Shared chromosome column, or None for a single-chromosome pair.
         pos_col: Column name for genomic position.
         rs_col: Optional column name for SNP identifiers.
         ld_col: Optional column name for pre-computed LD values.
@@ -721,6 +722,9 @@ class ColocConfig(_Config):
 
     gwas_p_col: str = Field(default="p_gwas", description="GWAS p-value column")
     eqtl_p_col: str = Field(default="p_eqtl", description="eQTL p-value column")
+    chrom_col: Optional[str] = Field(
+        default=Canonical.CHROM, description="Shared chromosome column"
+    )
     pos_col: str = Field(default=Canonical.POS, description="Position column")
     rs_col: Optional[str] = Field(default=Canonical.RS, description="SNP ID column")
     ld_col: Optional[str] = Field(default=None, description="Pre-computed LD column")

@@ -469,3 +469,46 @@ class TestWeightedQQ:
 
         with pytest.raises(ValidationError, match="'w'"):
             ManhattanPlotter().plot_qq(df, config=GenomeWideConfig(weight_col="w"))
+
+
+def test_weighted_lambda_strict_majority():
+    p_values = np.array([0.5, 0.01])
+    counts = np.array([50_001, 50_000])
+    expanded = calculate_lambda_gc(np.repeat(p_values, counts))
+    assert calculate_lambda_gc(p_values, counts) == pytest.approx(expanded)
+
+
+def test_lambda_from_extreme_finite_p_values():
+    from scipy.stats import chi2
+
+    p_values = np.array([1e-20, 1e-21, 1e-22])
+    expected = chi2.isf(1e-21, 1) / chi2.isf(0.5, 1)
+    assert calculate_lambda_gc(p_values) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("renamed", ["p", "weight"])
+def test_qq_preserves_column_named_neglog10p(renamed):
+    from pylocuszoom.qq import prepare_qq_data
+
+    df = pd.DataFrame({"p": [0.01, 0.1], "weight": [1, 9]})
+    expected = prepare_qq_data(df, p_col="p", weight_col="weight")
+    names = {renamed: "neglog10p"}
+    result = prepare_qq_data(
+        df.rename(columns=names),
+        p_col=names.get("p", "p"),
+        weight_col=names.get("weight", "weight"),
+    )
+    pd.testing.assert_frame_equal(result.frame, expected.frame)
+    assert result.lambda_gc == pytest.approx(expected.lambda_gc)
+
+
+def test_equal_fractional_weights_preserve_plain_median():
+    p = np.array([0.01] * 3 + [0.5] * 3)
+    assert calculate_lambda_gc(p, np.full(6, 1.1)) == calculate_lambda_gc(p)
+
+
+def test_unsigned_weights_preserve_strict_majority():
+    p = np.array([0.5, 0.01])
+    assert calculate_lambda_gc(p, np.array([4, 3], dtype=np.uint32)) == pytest.approx(
+        1.0
+    )
