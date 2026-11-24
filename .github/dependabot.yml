@@ -6,6 +6,8 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+    cooldown:
+      default-days: 7
 
   # Python dependencies in uv.lock. Version updates arrive weekly; minor and
   # patch bumps land in one grouped PR. Security updates for this ecosystem
@@ -21,3 +23,5 @@ updates:
       python-security:
         applies-to: security-updates
         patterns: ["*"]
+    cooldown:
+      default-days: 7
