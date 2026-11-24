@@ -6,11 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
@@ -28,6 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
@@ -35,7 +46,8 @@ jobs:
           node-version: "24.22.1"
 
       - name: Install markdownlint-cli2
-        run: npm install -g markdownlint-cli2@0.22.0
+        # Pinned to an exact version, which is what adhoc-packages asks for.
+        run: npm install -g markdownlint-cli2@0.22.0 # zizmor: ignore[adhoc-packages]
 
       - name: Run markdownlint
         run: markdownlint-cli2 "**/*.md"
@@ -70,12 +82,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
 
       - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: uv python install "$PYTHON_VERSION"
 
       - name: Install dependencies
         run: uv sync --extra dev --extra all
@@ -92,6 +108,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
@@ -115,6 +133,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
@@ -146,6 +166,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
@@ -166,6 +188,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check out the formal-verify helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -173,6 +197,7 @@ jobs:
           repository: michael-denyer/agent-formal-verify
           ref: 3893a0cf40192b8e08bb15625b796ca33e86e08d  # 0.1.11
           path: .formal-verify
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880  # v6.3.0
@@ -191,6 +216,8 @@ jobs:
       ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check out the formal-verify helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -198,6 +225,7 @@ jobs:
           repository: michael-denyer/agent-formal-verify
           ref: 3893a0cf40192b8e08bb15625b796ca33e86e08d  # 0.1.11
           path: .formal-verify
+          persist-credentials: false
 
       - name: Install elan
         run: |
