@@ -11,6 +11,7 @@ were made; one that is not worth retrying keeps its own message.
 recombination tarball gets the attempts the 5 KB JSON payload always had.
 """
 
+import hashlib
 import os
 import tempfile
 import time
@@ -163,6 +164,7 @@ def stream_file(
     partial_path: Path,
     desc: str = "Downloading",
     *,
+    sha256: str | None = None,
     timeout: float = 60,
     max_retries: int = 3,
     retry_delay: float = 1.0,
@@ -182,6 +184,7 @@ def stream_file(
         url: URL to download from.
         partial_path: Private file to write; a retry rewrites it from the start.
         desc: Description for the progress bar.
+        sha256: Expected digest for an immutable download.
         timeout: Per-request timeout in seconds.
         max_retries: Attempts before giving up on a retryable error.
         retry_delay: Initial backoff in seconds; doubles on each retry.
@@ -199,6 +202,11 @@ def stream_file(
     except requests.RequestException as e:
         after = f" after {e.attempts} attempts" if _retryable(e) else ""
         raise DataDownloadError(f"Failed to download {url}{after}: {e}") from e
+    if sha256 is not None:
+        with partial_path.open("rb") as downloaded:
+            digest = hashlib.file_digest(downloaded, "sha256").hexdigest()
+        if digest != sha256:
+            raise DataDownloadError(f"SHA-256 mismatch for {url}")
 
 
 def _stream_to(url: str, partial_path: Path, desc: str, timeout: float) -> None:

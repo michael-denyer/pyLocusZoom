@@ -77,7 +77,7 @@ class TestDownloadCanineRecombinationMaps:
             download_canine_recombination_maps(force=False)
 
     @staticmethod
-    def _fake_archive(url, dest, desc=None):
+    def _fake_archive(url, dest, desc=None, *, sha256):
         TestStageArchive._tar(
             dest,
             {
@@ -562,7 +562,7 @@ class TestEnsureRecombMapsCorruptArchive:
             "pylocuszoom.recombination.get_default_data_dir", lambda: tmp_path / "x"
         )
 
-        def write_garbage(url, dest_path, desc=None):
+        def write_garbage(url, dest_path, desc=None, *, sha256):
             dest_path.write_bytes(b"not a gzip archive")
 
         mock_download.side_effect = write_garbage
@@ -573,7 +573,7 @@ class TestEnsureRecombMapsCorruptArchive:
 
 class TestArchiveWithoutMaps:
     def test_non_map_members_are_ignored(self, tmp_path, monkeypatch):
-        def download(url, dest, desc):
+        def download(url, dest, desc, *, sha256):
             TestStageArchive._tar(dest, {"README.txt": "notes"})
 
         monkeypatch.setattr("pylocuszoom.recombination.stream_file", download)
@@ -623,7 +623,7 @@ class TestDownloadCanineRecombHeaderDetection:
     def _fake_download(self, filename: str, content: str):
         """Return a stream_file mock that writes our fake tarball."""
 
-        def side_effect(url, dest_path, desc=None):
+        def side_effect(url, dest_path, desc=None, *, sha256):
             with tarfile.open(dest_path, "w:gz") as tar:
                 for chrom in map(str, range(1, 39)):
                     map_filename = f"chr{chrom}_average_canFam3.1.txt"
@@ -737,7 +737,7 @@ def test_archive_rejects_links_and_special_files_before_publication(
     escaped = tmp_path / "escaped"
     escaped.mkdir()
 
-    def download(url, dest, desc):
+    def download(url, dest, desc, *, sha256):
         with tarfile.open(dest, "w:gz") as archive:
             link = tarfile.TarInfo("bridge")
             link.type = member_type
@@ -759,7 +759,7 @@ def test_archive_rejects_links_and_special_files_before_publication(
 
 
 def test_archive_rejects_duplicate_chromosome_maps(tmp_path, monkeypatch):
-    def download(url, dest, desc):
+    def download(url, dest, desc, *, sha256):
         with tarfile.open(dest, "w:gz") as archive:
             for chrom in list(range(1, 39)) + [1]:
                 member = tarfile.TarInfo(f"chr{chrom}_average_canFam3.1.txt")

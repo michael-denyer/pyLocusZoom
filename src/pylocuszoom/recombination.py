@@ -30,7 +30,8 @@ CANINE_MAP_FILENAMES = frozenset(f"chr{chrom}_recomb.tsv" for chrom in range(1, 
 
 # Data sources by species
 CANINE_RECOMB_URL = (
-    "https://github.com/cflerin/dog_recombination/raw/master/dog_genetic_maps.tar.gz"
+    "https://raw.githubusercontent.com/cflerin/dog_recombination/"
+    "c2bcbbca910c8c9b7f00175c98708fee99a6436b/dog_genetic_maps.tar.gz"
 )
 
 
@@ -45,6 +46,7 @@ class RecombSource:
     Attributes:
         species: Canonical Species.key this source serves.
         url: Archive holding the published map set.
+        sha256: Expected SHA-256 of the compressed archive.
         archive_glob: Glob selecting regular map members inside the
             archive. It picks one map per chromosome when the archive
             ships several (the canine archive has average, female and
@@ -63,6 +65,7 @@ class RecombSource:
 
     species: str
     url: str
+    sha256: str
     archive_glob: str
     chrom_pattern: str
     filenames: frozenset[str]
@@ -72,6 +75,7 @@ class RecombSource:
 CANINE_SOURCE = RecombSource(
     species="canine",
     url=CANINE_RECOMB_URL,
+    sha256="585afb424615e2fb0825d807db0b10fe1c797a6dbb804ecbb3fef5e8387d194f",
     archive_glob="chr*_average_*.txt",
     chrom_pattern=r"chr(\d+|X|Y|MT)(?:_|$)",
     filenames=CANINE_MAP_FILENAMES,
@@ -303,7 +307,9 @@ def download_recombination_maps(source: RecombSource, output_path: Path) -> Path
         with tempfile.TemporaryDirectory(dir=output_path.parent) as tmpdir:
             tmp = Path(tmpdir)
             archive = tmp / "maps.tar.gz"
-            stream_file(source.url, archive, desc="Recombination maps")
+            stream_file(
+                source.url, archive, desc="Recombination maps", sha256=source.sha256
+            )
             logger.debug(f"Downloaded {archive.stat().st_size / 1024:.1f} KB")
 
             staging = tmp / "_staging"

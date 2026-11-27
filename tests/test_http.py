@@ -1,6 +1,7 @@
 # tests/test_http.py
 """Tests for the shared retrying HTTP transport."""
 
+import hashlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,6 +38,23 @@ class TestStagedDownload:
 
         assert dest.read_bytes() == b"abcdefgh"
         assert [p.name for p in tmp_path.iterdir()] == ["file.gz"]
+
+    def test_checksum_required_before_publication(self, tmp_path):
+        dest = tmp_path / "maps.gz"
+        digest = hashlib.sha256(b"reviewed").hexdigest()
+        for payload in (b"reviewed", b"changed"):
+            response = self._streaming_response([payload])
+            with patch("pylocuszoom._http.requests.get", return_value=response):
+                if payload == b"reviewed":
+                    with staged_path(dest) as part:
+                        stream_file("https://example.invalid/maps", part, sha256=digest)
+                else:
+                    with pytest.raises(DataDownloadError, match="SHA-256 mismatch"):
+                        with staged_path(dest) as part:
+                            stream_file(
+                                "https://example.invalid/maps", part, sha256=digest
+                            )
+            assert dest.read_bytes() == b"reviewed"
 
     def test_interrupted_download_leaves_nothing_behind(self, tmp_path):
         dest = tmp_path / "file.gz"
